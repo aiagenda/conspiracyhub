@@ -1,0 +1,599 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
+
+const FONT = "'Share Tech Mono', monospace";
+const RAJ = "'Rajdhani', sans-serif";
+
+const TYPE_LABELS: Record<string, string> = {
+  article: "ARTICLE",
+  patent: "PATENT",
+  foia: "CIA FOIA",
+  company: "COMPANY",
+  event: "EVENT",
+  person: "PERSON",
+  theory: "CONSPIRACY HYPOTHESIS",
+};
+
+const NODE_COLORS: Record<string, { bg: string; border: string; text: string; glow: string }> = {
+  article: { bg: "#0a1a10", border: "#00ff88", text: "#00ff88", glow: "rgba(0,255,136,0.3)" },
+  patent: { bg: "#1a0a0a", border: "#ff3333", text: "#ff5555", glow: "rgba(255,51,51,0.25)" },
+  foia: { bg: "#1a0a0a", border: "#ff3333", text: "#ff3333", glow: "rgba(255,51,51,0.35)" },
+  company: { bg: "#1a1200", border: "#ffaa00", text: "#ffaa00", glow: "rgba(255,170,0,0.25)" },
+  event: { bg: "#1a1200", border: "#ffaa00", text: "#ffcc44", glow: "rgba(255,170,0,0.2)" },
+  person: { bg: "#071510", border: "#00bb66", text: "#00bb66", glow: "rgba(0,187,102,0.2)" },
+  theory: { bg: "#140818", border: "#c94dff", text: "#e9b3ff", glow: "rgba(201,77,255,0.3)" },
+};
+
+const FALLBACK_COLOR = { bg: "#0a1a10", border: "#00ff88", text: "#00ff88", glow: "rgba(0,255,136,0.3)" };
+
+type Props = {
+  nodes: Node[];
+  edges: Edge[];
+  onNodeClick: (node: Node | null) => void;
+  selectedNode: Node | null;
+  conclusion?: string;
+  verdict?: OracleAnalysis["verdict"];
+  analysisSources?: OracleSource[];
+};
+
+function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
+  if (!v) return "—";
+  const s = String(v).toUpperCase();
+  const map: Record<string, string> = {
+    TRUE: "TRUE",
+    PARTIALLY_TRUE: "PARTIALLY TRUE",
+    QUESTIONABLE: "QUESTIONABLE",
+    DISINFORMATION: "DISINFORMATION",
+    VALÓS: "TRUE",
+    "RÉSZBEN VALÓS": "PARTIALLY TRUE",
+    MEGKÉRDŐJELEZHETŐ: "QUESTIONABLE",
+    "TERJESZTETT DEZINFO": "DISINFORMATION",
+  };
+  return map[s] ?? s.replace(/_/g, " ");
+}
+
+function isLikelyUrl(text: string): boolean {
+  return /^https?:\/\//i.test(text.trim());
+}
+
+function EdgeLine({ edge, nodes, active }: { edge: Edge; nodes: Node[]; active: boolean }) {
+  const from = nodes.find((n) => n.id === edge.from);
+  const to = nodes.find((n) => n.id === edge.to);
+  if (!from || !to) return null;
+  const opacity = active ? 1 : 0.35;
+  const strokeW = active ? 2 : 1;
+  return (
+    <g>
+      <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={edge.color} strokeWidth={strokeW} strokeOpacity={opacity * 0.4} />
+      <line
+        x1={from.x}
+        y1={from.y}
+        x2={to.x}
+        y2={to.y}
+        stroke={edge.color}
+        strokeWidth={active ? 1.5 : 1}
+        strokeOpacity={opacity}
+        strokeDasharray="6 14"
+        style={{ animation: `dashMove ${2 / Math.max(edge.strength || 0.4, 0.2)}s linear infinite` }}
+      />
+    </g>
+  );
+}
+
+function GraphNode({ node, onClick, selected, pulse }: { node: Node; onClick: (node: Node) => void; selected: boolean; pulse: boolean }) {
+  const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
+  const isCenter = node.id === "center";
+  const w = isCenter ? 130 : 110;
+  const h = isCenter ? 64 : 54;
+  return (
+    <g transform={`translate(${node.x}, ${node.y})`} onClick={() => onClick(node)} style={{ cursor: "pointer" }}>
+      <ellipse cx={0} cy={0} rx={w * 0.65} ry={h * 0.75} fill={c.glow} style={{ animation: selected || (isCenter && pulse) ? "glowPulse 1.5s ease-in-out infinite" : "none" }} filter="blur(8px)" />
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} ry={4} fill={c.bg} stroke={c.border} strokeWidth={selected ? 2 : isCenter ? 1.5 : 1} strokeOpacity={selected ? 1 : 0.7} />
+      {[[-w / 2, -h / 2, 1], [-w / 2 + 10, -h / 2, 1], [w / 2, -h / 2, -1], [w / 2 - 10, -h / 2, -1]].map(([x, y, dx], i) => (
+        <line key={i} x1={Number(x)} y1={Number(y)} x2={Number(x) + Number(dx) * 8} y2={Number(y)} stroke={c.border} strokeWidth={1.5} strokeOpacity={0.5} />
+      ))}
+      <text x={0} y={-h / 2 + 10} textAnchor="middle" fill={c.text} opacity={0.6} style={{ fontFamily: FONT, fontSize: 8, letterSpacing: 2 }}>
+        {TYPE_LABELS[node.type] ?? "NODE"}
+      </text>
+      <text x={0} y={isCenter ? 4 : 2} textAnchor="middle" fill={c.text} style={{ fontFamily: RAJ, fontSize: isCenter ? 13 : 11, fontWeight: 700, letterSpacing: 1 }}>
+        {node.label}
+      </text>
+      {(node.sub || "").split("\n").map((line, i) => (
+        <text key={i} x={0} y={(isCenter ? 16 : 14) + i * 11} textAnchor="middle" fill={c.text} opacity={0.55} style={{ fontFamily: FONT, fontSize: 8 }}>
+          {line}
+        </text>
+      ))}
+      {selected && <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} ry={4} fill="none" stroke={c.border} strokeWidth={3} strokeOpacity={0.4} style={{ animation: "glowPulse 1s ease-in-out infinite" }} />}
+    </g>
+  );
+}
+
+function DetailPanel({
+  node,
+  edges,
+  onClose,
+  analysisSources,
+}: {
+  node: Node | null;
+  edges: Edge[];
+  onClose: () => void;
+  analysisSources?: OracleSource[];
+}) {
+  if (!node) return null;
+  const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
+  const d = node.detail;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 300,
+        background: "#06110a",
+        borderLeft: `1px solid ${c.border}`,
+        display: "flex",
+        flexDirection: "column",
+        animation: "slideIn 0.25s ease",
+        zIndex: 10,
+      }}
+    >
+      <div
+        style={{
+          padding: "12px 14px",
+          borderBottom: "1px solid #1a3320",
+          background: "#050c07",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
+          <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: c.text, letterSpacing: 1, marginTop: 2 }}>{node.label}</div>
+        </div>
+        <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 10, padding: "4px 8px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
+          ✕
+        </button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        {node.type === "theory" ? (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: "8px 10px",
+              background: "rgba(201,77,255,0.08)",
+              border: "1px solid rgba(201,77,255,0.35)",
+              borderRadius: 3,
+              fontFamily: FONT,
+              fontSize: 10,
+              color: "#e9b3ff",
+              lineHeight: 1.5,
+            }}
+          >
+            Speculative conspiracy narrative — cross-check every claim. Not journalism or a court finding.
+          </div>
+        ) : null}
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 5, textTransform: "uppercase" }}>
+            {node.type === "theory" ? "Plausibility (model)" : "Threat level"}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66" }}>{d.threat}%</div>
+            <div style={{ flex: 1, height: 3, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${d.threat}%`, background: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66", borderRadius: 2 }} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.4, marginBottom: 10 }}>{d.title}</div>
+        <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75, marginBottom: 12 }}>{d.body}</div>
+        <div style={{ padding: "8px 10px", background: "rgba(0,255,136,0.04)", border: "1px solid #1a3320", borderRadius: 3 }}>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>{node.type === "theory" ? "LABEL" : "SOURCE"}</div>
+          <div style={{ fontFamily: FONT, fontSize: 10, color: c.text }}>{d.source}</div>
+          {d.source_url ? (
+            <a href={d.source_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: "#00bb66", fontSize: 10, textDecoration: "none" }}>
+              Open source ↗
+            </a>
+          ) : null}
+          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+            {d.source_tier ? (
+              <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a" }}>
+                Tier {d.source_tier}
+              </span>
+            ) : null}
+            {d.source_type ? (
+              <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a", textTransform: "uppercase" }}>
+                {d.source_type}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {d.why_it_matters ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Why it matters</div>
+            <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.65 }}>{d.why_it_matters}</div>
+          </div>
+        ) : null}
+
+        {d.theory_sources && d.theory_sources.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Theory sources & citations</div>
+            {d.theory_sources.slice(0, 12).map((item, i) => (
+              <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, color: "#bdb0c8", fontSize: 10, marginBottom: 6, wordBreak: "break-word" }}>
+                <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
+                <span style={{ flex: 1 }}>
+                  {isLikelyUrl(item) ? (
+                    <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none" }}>
+                      {item}
+                    </a>
+                  ) : (
+                    item
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {d.key_claims && d.key_claims.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
+              {node.type === "theory" ? "Supporting lines of reasoning" : "Key claims"}
+            </div>
+            {d.key_claims.slice(0, 6).map((item, i) => (
+              <div key={`claim-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
+                <span style={{ color: "#00bb66" }}>▸</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {d.counter_evidence && d.counter_evidence.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Counter-evidence</div>
+            {d.counter_evidence.slice(0, 6).map((item, i) => (
+              <div key={`counter-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
+                <span style={{ color: "#ffaa00" }}>▸</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {d.uncertainties && d.uncertainties.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Uncertainties</div>
+            {d.uncertainties.slice(0, 6).map((item, i) => (
+              <div key={`uncertain-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
+                <span style={{ color: "#ff3333" }}>▸</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {d.timeline && d.timeline.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Timeline</div>
+            {d.timeline.slice(0, 6).map((item, i) => (
+              <div key={`timeline-${i}`} style={{ display: "grid", gridTemplateColumns: "74px 1fr", gap: 6, color: "#7aaa8a", fontSize: 10, marginBottom: 4 }}>
+                <span style={{ color: "#5a8068" }}>{item.date}</span>
+                <span>{item.event}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {d.actors && d.actors.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Actors</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {d.actors.slice(0, 10).map((actor, i) => (
+                <span key={`actor-${i}`} style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a" }}>
+                  {actor}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {typeof d.confidence === "number" ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 5, textTransform: "uppercase" }}>
+              Confidence {Math.round(d.confidence)}%
+            </div>
+            <div style={{ height: 3, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, d.confidence))}%`, background: "#00bb66", borderRadius: 2 }} />
+            </div>
+          </div>
+        ) : null}
+
+        {d.open_questions && d.open_questions.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Open questions</div>
+            {d.open_questions.slice(0, 8).map((item, i) => (
+              <div key={`q-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
+                <span style={{ color: "#00bb66" }}>?</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {node.type === "theory" && analysisSources && analysisSources.length > 0 ? (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #1a3320" }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Corpus sources (full analysis)</div>
+            {analysisSources.slice(0, 8).map((s) => (
+              <div key={s.id ?? s.url} style={{ marginBottom: 8 }}>
+                <a href={s.url} target="_blank" rel="noreferrer" style={{ color: "#00bb66", fontSize: 10, textDecoration: "none", display: "block" }}>
+                  {s.title} ↗
+                </a>
+                <div style={{ fontSize: 8, color: "#476352", marginTop: 2 }}>
+                  {s.domain} · tier {s.tier} · {s.source_type}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Connections</div>
+          {edges
+            .filter((e) => e.from === node.id || e.to === node.id)
+            .map((e, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+                <div style={{ width: 20, height: 1.5, background: e.color, flexShrink: 0 }} />
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{e.label}</div>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "12px 14px", borderTop: "1px solid #1a3320" }}>
+        <button
+          style={{
+            width: "100%",
+            padding: "9px",
+            background: "transparent",
+            border: `1px solid ${c.border}`,
+            color: c.text,
+            fontFamily: RAJ,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            borderRadius: 3,
+            cursor: "pointer",
+          }}
+        >
+          ◈ FULL ANALYSIS ▶
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function InvestigationBoard({
+  nodes,
+  edges,
+  onNodeClick,
+  selectedNode,
+  conclusion,
+  verdict,
+  analysisSources,
+}: Props) {
+  const [scanLine, setScanLine] = useState(0);
+  const [glitch, setGlitch] = useState(false);
+  const [pulse, setPulse] = useState(false);
+  const [internalSelected, setInternalSelected] = useState<Node | null>(selectedNode ?? null);
+
+  const selectedEdges = useMemo(() => {
+    if (!internalSelected) return new Set<string>();
+    return new Set(edges.filter((e) => e.from === internalSelected.id || e.to === internalSelected.id).map((e) => `${e.from}-${e.to}`));
+  }, [internalSelected, edges]);
+
+  useEffect(() => {
+    const iv = setInterval(() => setScanLine((l) => (l + 2) % 640), 16);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setGlitch(true);
+      setTimeout(() => setGlitch(false), 120);
+    }, 7000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const iv = setInterval(() => setPulse((p) => !p), 1500);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    setInternalSelected((prev) => {
+      if (!prev) return prev;
+      const next = nodes.find((n) => n.id === prev.id);
+      return next ?? prev;
+    });
+  }, [nodes]);
+
+  const connectedEdges = internalSelected ? edges.filter((e) => selectedEdges.has(`${e.from}-${e.to}`)) : [];
+  const handleNodeClick = (node: Node) => {
+    const next = internalSelected?.id === node.id ? null : node;
+    setInternalSelected(next);
+    onNodeClick(next);
+  };
+
+  const allText = `${nodes.map((n) => `${n.label} ${n.sub} ${n.detail?.title ?? ""} ${n.detail?.source ?? ""}`).join(" ")} ${edges.map((e) => e.label).join(" ")}`.toLowerCase();
+  const hasCiaFoia = allText.includes("cia") || allText.includes("foia");
+  const hasUspto = allText.includes("uspto") || allText.includes("patent");
+  const hasGuardian = allText.includes("guardian");
+  const hasDarpa = allText.includes("darpa");
+
+  return (
+    <div style={{ fontFamily: FONT, background: "#040b06", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+        @keyframes dashMove { to { stroke-dashoffset: -20; } }
+        @keyframes glowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+        @keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+        @keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+      `}</style>
+      <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 14 }}>
+        <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#00ff88", letterSpacing: 3 }}>
+          {glitch ? "C0NSP1RACY 0RACLE" : "CONSPIRACY ORACLE"}
+        </div>
+        <div style={{ width: 1, height: 20, background: "#1a3320" }} />
+        <div style={{ color: "#5a8068", fontSize: 10 }}>INVESTIGATION MODE</div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+          {[
+            { label: "CIA FOIA", active: hasCiaFoia },
+            { label: "USPTO", active: hasUspto },
+            { label: "GUARDIAN", active: hasGuardian },
+            { label: "DARPA", active: hasDarpa },
+            { label: "HYPOTHESES", active: nodes.some((n) => n.type === "theory") },
+          ].map((s) => (
+            <span key={s.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, color: s.active ? "#5a8068" : "#476352", letterSpacing: 1 }}>
+              <span
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  background: s.active ? "#00ff88" : "#ff3333",
+                  display: "inline-block",
+                  animation: s.active ? "glowPulse 2s infinite" : "none",
+                }}
+              />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {conclusion || verdict ? (
+        <div
+          style={{
+            minHeight: 34,
+            background: "#030804",
+            borderBottom: "1px solid #1a3320",
+            display: "flex",
+            alignItems: "center",
+            padding: "6px 16px",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2 }}>VERDICT</span>
+          <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#00ff88" }}>{formatVerdictShort(verdict)}</span>
+          {conclusion ? (
+            <span style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", flex: 1, minWidth: 220, lineHeight: 1.55 }}>{conclusion}</span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div style={{ height: 24, background: "#030803", borderBottom: "1px solid #1a3320", overflow: "hidden", display: "flex", alignItems: "center" }}>
+        <div style={{ fontSize: 9, color: "#1a4a2a", letterSpacing: 1, padding: "0 8px", borderRight: "1px solid #1a3320", whiteSpace: "nowrap", flexShrink: 0 }}>LIVE</div>
+        <div style={{ overflow: "hidden", flex: 1 }}>
+          <div style={{ display: "flex", animation: "ticker 30s linear infinite", whiteSpace: "nowrap" }}>
+            {["▸ Neuralink: FDA approval", "◈ USPTO: neural interface patents", "▸ CIA FOIA: historical records", "◈ DARPA contracts + industry links", "▸ WEF / Snowden statements"].map((t, i) => (
+              <span key={i} style={{ fontSize: 9, color: "#3a6040", letterSpacing: 1, padding: "0 24px" }}>
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.3 }}>
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0d2015" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+        </svg>
+        <div style={{ position: "absolute", left: 0, right: 0, height: 2, top: scanLine, background: "rgba(0,255,136,0.04)", zIndex: 5 }} />
+        <svg viewBox="0 0 1000 640" style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0 }} preserveAspectRatio="xMidYMid meet">
+          {edges.map((edge, i) => (
+            <EdgeLine key={`${edge.from}-${edge.to}-${i}`} edge={edge} nodes={nodes} active={!internalSelected || selectedEdges.has(`${edge.from}-${edge.to}`)} />
+          ))}
+
+          {nodes.map((node) => (
+            <GraphNode key={node.id} node={node} onClick={handleNodeClick} selected={internalSelected?.id === node.id} pulse={pulse} />
+          ))}
+
+          {internalSelected &&
+            connectedEdges.map((e, i) => {
+              const from = nodes.find((n) => n.id === e.from);
+              const to = nodes.find((n) => n.id === e.to);
+              if (!from || !to) return null;
+              const mx = (from.x + to.x) / 2;
+              const my = (from.y + to.y) / 2;
+              return (
+                <g key={i}>
+                  <rect x={mx - 50} y={my - 10} width={100} height={16} rx={2} fill="#040b06" stroke={e.color} strokeWidth={0.5} strokeOpacity={0.5} />
+                  <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.8} style={{ fontFamily: FONT, fontSize: 7, letterSpacing: 1 }}>
+                    {e.label}
+                  </text>
+                </g>
+              );
+            })}
+        </svg>
+
+        <div style={{ position: "absolute", bottom: 16, left: 16, display: "flex", flexDirection: "column", gap: 5, background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "10px 12px" }}>
+          <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginBottom: 4, textTransform: "uppercase" }}>Connection types</div>
+          {[
+            ["#ff3333", "Direct evidence"],
+            ["#ffaa00", "Indirect link"],
+            ["#00bb66", "Counter signal"],
+            ["#5a8068", "Cross-reference"],
+            ["#c94dff", "Conspiracy hypothesis"],
+          ].map(([col, label]) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 18, height: 1.5, background: col }} />
+              <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ position: "absolute", bottom: 16, right: internalSelected ? 316 : 16, display: "flex", gap: 12 }}>
+          {[
+            [String(nodes.length), "NODES"],
+            [String(edges.length), "EDGES"],
+            [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+          ].map(([val, label]) => (
+            <div key={label} style={{ background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "8px 12px", textAlign: "center" }}>
+              <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{val}</div>
+              <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginTop: 3 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {!internalSelected && (
+          <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", fontFamily: FONT, fontSize: 9, color: "#1a4a2a", letterSpacing: 2, textTransform: "uppercase", pointerEvents: "none" }}>
+            ◈ click a node for details ◈
+          </div>
+        )}
+
+        {internalSelected ? (
+          <DetailPanel
+            node={internalSelected}
+            edges={edges}
+            onClose={() => setInternalSelected(null)}
+            analysisSources={analysisSources}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
