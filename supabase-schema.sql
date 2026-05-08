@@ -83,3 +83,24 @@ create policy "Users see own profile" on user_profiles for all using (auth.uid()
 create policy "Users manage own bets" on bets for all using (auth.uid() = user_id);
 create policy "Sources are public" on source_documents for select using (true);
 create policy "Analysis source links are public" on analysis_sources for select using (true);
+
+-- URL-based analyses (see migration 20260508210000_url_analyses.sql)
+create table if not exists url_analyses (
+  id uuid default gen_random_uuid() primary key,
+  source_url text not null,
+  title text not null,
+  nodes jsonb not null default '[]'::jsonb,
+  edges jsonb not null default '[]'::jsonb,
+  theories jsonb not null default '[]'::jsonb,
+  sources jsonb not null default '[]'::jsonb,
+  conclusion text not null default '',
+  verdict text not null default 'QUESTIONABLE',
+  created_at timestamptz default now()
+);
+
+create index if not exists url_analyses_source_url_idx on url_analyses(source_url);
+
+alter table url_analyses enable row level security;
+
+create policy "URL analyses are public" on url_analyses for select using (true);
+create policy "Allow insert url analyses" on url_analyses for insert with check (true);

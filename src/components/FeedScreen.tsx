@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -54,6 +55,26 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <Link
+              href="/search"
+              style={{
+                background: "transparent",
+                border: "1px solid #1a3320",
+                color: "#5a8068",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                padding: "6px 14px",
+                borderRadius: 3,
+                cursor: "pointer",
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              ◈ SEARCH
+            </Link>
             <button
               onClick={() => setShowAuth(true)}
               style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}
