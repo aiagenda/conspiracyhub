@@ -162,20 +162,101 @@ function DetailPanel({
 
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         {node.type === "theory" ? (
-          <div
-            style={{
-              marginBottom: 12,
-              padding: "8px 10px",
-              background: "rgba(201,77,255,0.08)",
-              border: "1px solid rgba(201,77,255,0.35)",
-              borderRadius: 3,
-              fontFamily: FONT,
-              fontSize: 10,
-              color: "#e9b3ff",
-              lineHeight: 1.5,
-            }}
-          >
-            Speculative conspiracy narrative — cross-check every claim. Not journalism or a court finding.
+          <div style={{ marginBottom: 12 }}>
+            {/* Theory header badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ padding: "3px 10px", background: "rgba(201,77,255,0.12)", border: "1px solid rgba(201,77,255,0.4)", borderRadius: 2, fontSize: 9, color: "#c94dff", letterSpacing: 2, fontFamily: FONT, textTransform: "uppercase" }}>
+                ◈ KNOWN CONSPIRACY THEORY
+              </div>
+            </div>
+
+            {/* Full explanation */}
+            <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.8, marginBottom: 12 }}>
+              {d.body}
+            </div>
+
+            {/* Key people */}
+            {d.actors && d.actors.length > 0 ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Key figures</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {d.actors.map((a: string, i: number) => (
+                    <span key={i} style={{ fontSize: 10, padding: "2px 8px", border: "1px solid rgba(201,77,255,0.3)", borderRadius: 2, color: "#e9b3ff", background: "rgba(201,77,255,0.06)" }}>{a}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Evidence points */}
+            {d.key_claims && d.key_claims.length > 0 ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Evidence cited by theorists</div>
+                {d.key_claims.map((item: string, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 11, marginBottom: 6, lineHeight: 1.6, alignItems: "flex-start" }}>
+                    <span style={{ color: "#c94dff", flexShrink: 0 }}>▸</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Counter evidence */}
+            {d.counter_evidence && d.counter_evidence.length > 0 ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Mainstream counter-arguments</div>
+                {d.counter_evidence.map((item: string, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: 7, color: "#5a8068", fontSize: 11, marginBottom: 5, lineHeight: 1.6, alignItems: "flex-start" }}>
+                    <span style={{ color: "#ffaa00", flexShrink: 0 }}>◻</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Timeline */}
+            {d.timeline && d.timeline.length > 0 ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Theory timeline</div>
+                {d.timeline.map((item: { date: string; event: string }, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: 8, fontSize: 10, marginBottom: 5, alignItems: "flex-start" }}>
+                    <span style={{ color: "#c94dff", whiteSpace: "nowrap", flexShrink: 0, fontFamily: FONT }}>{item.date}</span>
+                    <span style={{ color: "#7aaa8a", lineHeight: 1.5 }}>{item.event}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Sources with clickable links */}
+            {d.theory_sources && d.theory_sources.length > 0 ? (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Sources & documentation</div>
+                {d.theory_sources.map((item: string, i: number) => (
+                  <div key={i} style={{ marginBottom: 6 }}>
+                    {isLikelyUrl(item) ? (
+                      <a
+                        href={item.trim()}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ display: "flex", gap: 7, color: "#00bb66", fontSize: 10, textDecoration: "none", lineHeight: 1.5, wordBreak: "break-all", padding: "5px 8px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)" }}
+                      >
+                        <span style={{ flexShrink: 0, color: "#00ff88" }}>↗</span>
+                        <span>{item}</span>
+                      </a>
+                    ) : (
+                      <div style={{ display: "flex", gap: 7, color: "#5a8068", fontSize: 10, marginBottom: 2 }}>
+                        <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
+                        <span>{item}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Disclaimer */}
+            <div style={{ padding: "7px 9px", background: "rgba(201,77,255,0.05)", border: "1px solid rgba(201,77,255,0.2)", borderRadius: 3, fontSize: 9, color: "#7a5a88", lineHeight: 1.5, fontFamily: FONT }}>
+              This is a documented conspiracy theory — cross-check all claims independently.
+            </div>
           </div>
         ) : null}
 
@@ -191,35 +272,39 @@ function DetailPanel({
           </div>
         </div>
 
-        <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.4, marginBottom: 10 }}>{d.title}</div>
-        <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75, marginBottom: 12 }}>{d.body}</div>
-        <div style={{ padding: "8px 10px", background: "rgba(0,255,136,0.04)", border: "1px solid #1a3320", borderRadius: 3 }}>
-          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>{node.type === "theory" ? "LABEL" : "SOURCE"}</div>
-          <div style={{ fontFamily: FONT, fontSize: 10, color: c.text }}>{d.source}</div>
-          {d.source_url ? (
-            <a href={d.source_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: "#00bb66", fontSize: 10, textDecoration: "none" }}>
-              Open source ↗
-            </a>
-          ) : null}
-          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-            {d.source_tier ? (
-              <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a" }}>
-                Tier {d.source_tier}
-              </span>
-            ) : null}
-            {d.source_type ? (
-              <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a", textTransform: "uppercase" }}>
-                {d.source_type}
-              </span>
-            ) : null}
-          </div>
-        </div>
+        {node.type !== "theory" ? (
+          <>
+            <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.4, marginBottom: 10 }}>{d.title}</div>
+            <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75, marginBottom: 12 }}>{d.body}</div>
+            <div style={{ padding: "8px 10px", background: "rgba(0,255,136,0.04)", border: "1px solid #1a3320", borderRadius: 3 }}>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>SOURCE</div>
+              <div style={{ fontFamily: FONT, fontSize: 10, color: c.text }}>{d.source}</div>
+              {d.source_url ? (
+                <a href={d.source_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: "#00bb66", fontSize: 10, textDecoration: "none" }}>
+                  Open source ↗
+                </a>
+              ) : null}
+              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                {d.source_tier ? (
+                  <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a" }}>
+                    Tier {d.source_tier}
+                  </span>
+                ) : null}
+                {d.source_type ? (
+                  <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a", textTransform: "uppercase" }}>
+                    {d.source_type}
+                  </span>
+                ) : null}
+              </div>
+            </div>
 
-        {d.why_it_matters ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Why it matters</div>
-            <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.65 }}>{d.why_it_matters}</div>
-          </div>
+            {d.why_it_matters ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Why it matters</div>
+                <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.65 }}>{d.why_it_matters}</div>
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         {d.theory_sources && d.theory_sources.length > 0 ? (
