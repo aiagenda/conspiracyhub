@@ -159,29 +159,42 @@ function mergeOracleTheoriesIntoNodes(nodes: Node[], theories: OracleTheory[] | 
       typeof t.name === "string" && t.name.trim().length > 0 ? t.name.trim() : `Conspiracy hypothesis ${i + 1}`;
     const label = name.length > 30 ? `${name.slice(0, 29)}…` : name;
 
+    const realSources = Array.isArray(t.sources) ? t.sources : [];
+    const realEvidence = Array.isArray(t.evidence) ? t.evidence : [];
+    const realCounterEvidence = Array.isArray(t.counter_evidence) ? t.counter_evidence : [];
+    const realKeyPeople = Array.isArray(t.key_people) ? t.key_people : [];
+    const realTimeline = Array.isArray(t.timeline) ? t.timeline : [];
+    const fullExplanation = typeof t.full_explanation === "string" && t.full_explanation.trim().length > 0
+      ? t.full_explanation.trim()
+      : typeof t.summary === "string" ? t.summary : "";
+
     return {
       id,
       type: "theory",
       x: 500,
       y: 500,
       label: label.toUpperCase(),
-      sub: `HYPOTHESIS · ${prob}% PLAUSIBILITY`,
+      sub: `${prob}% PLAUSIBILITY`,
       detail: {
         title: name,
-        body: typeof t.summary === "string" ? t.summary : "",
-        source: "Model-generated hypothesis (not verified fact)",
-        threat: prob,
-        source_tier: "C",
+        body: fullExplanation,
+        source: realSources.length > 0 ? realSources[0] : "See sources below",
+        source_url: realSources.find((s) => /^https?:\/\//i.test(s)),
+        source_tier: "B",
         source_type: "research",
-        key_claims: Array.isArray(t.evidence) ? t.evidence : [],
-        theory_sources: Array.isArray(t.sources) ? t.sources : [],
+        key_claims: realEvidence,
+        theory_sources: realSources,
         confidence: prob,
-        why_it_matters:
-          "How this speculative narrative could relate to the headline — for discussion and source-tracing, not as established fact.",
-        uncertainties: ["May lack independent corroboration.", "Alternative mainstream explanations often exist."],
-        counter_evidence: [],
-        timeline: [],
-        actors: [],
+        threat: prob,
+        why_it_matters: typeof t.summary === "string" && t.summary !== fullExplanation
+          ? t.summary
+          : `This theory has ${prob}% plausibility based on available evidence.`,
+        uncertainties: realCounterEvidence.length > 0
+          ? realCounterEvidence
+          : ["Independent verification required.", "Mainstream explanations may apply."],
+        counter_evidence: realCounterEvidence,
+        timeline: realTimeline,
+        actors: realKeyPeople,
         open_questions: [],
       },
     } satisfies Node;
