@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conspiracy Oracle — AI-kurált összeesküvés hírportál</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body {
+      background: #050c07;
+      color: #c8e8d0;
+      font-family: 'Share Tech Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #090f0b; }
+    ::-webkit-scrollbar-thumb { background: #1a3320; border-radius: 2px; }
+    input, button { font-family: inherit; }
+    button { cursor: pointer; }
+
+    @keyframes scan {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 100vh; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .scanline {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.012) 2px, rgba(0,255,136,0.012) 4px);
+    }
+    .fade-in { animation: fadeSlideIn 0.4s ease forwards; }
+    .pulse-dot { animation: pulse 2s infinite; }
+    .spinner { animation: spin 1s linear infinite; }
+    .blink { animation: blink 1s infinite; }
+  </style>
+</head>
+<body>
+<div class="scanline"></div>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ─── CONSTANTS ────────────────────────────────────────────────────
+const STORAGE_KEY = "co_keys_v1";
+const CACHE_KEY   = "co_feed_cache_v1";
+const CACHE_TTL   = 1000 * 60 * 30; // 30 min
+
+const GUARDIAN_SECTIONS = ["technology","science","world","politics","environment","society"];
+const CONSPIRACY_THRESHOLD = 55;
+
+const SYSTEM_SCORE = `You are a conspiracy potential scorer. Given a list of news headlines, rate each one 0-100 for conspiracy theory potential based on: government/corporate secrecy, unexplained events, surveillance, health/biotech, military/intelligence, financial control, or technology control angles. Return ONLY valid JSON — no other text:
+{"scores": [{"index": 0, "score": 72, "angle": "one-line conspiracy angle in Hungarian"}]}`;
+
+const SYSTEM_ORACLE = `Te egy összeesküvés-elmélet elemző AI vagy. A felhasználó egy hírcikk részleteit adja meg.
+
+Feladatod:
+1. Keress valós összefüggéseket: szabadalmak (USPTO), CIA FOIA dokumentumok, kormányzati szerződések, tudományos publikációk.
+2. Generálj 3 összeesküvés-elméletet, amelyek részben valós bizonyítékokon alapulnak.
+3. Minden elmélethez számíts valószínűséget (0-100%).
+
+VÁLASZOLJ KIZÁRÓLAG VALID JSON-BAN:
+{
+  "theories": [
+    {
+      "name": "Elmélet neve (figyelemfelkeltő, magyarul)",
+      "summary": "2-3 mondat magyarul, valós adatokra utalva",
+      "evidence": ["Bizonyíték 1 (forrással)", "Bizonyíték 2", "Bizonyíték 3"],
+      "sources": ["CIA FOIA", "USPTO", "DARPA"],
+      "probability": 45
+    }
+  ],
+  "conclusion": "Összefoglaló 2-3 mondatban magyarul",
+  "verdict": "VALÓS|RÉSZBEN VALÓS|MEGKÉRDŐJELEZHETŐ|TERJESZTETT DEZINFO"
+}
+
+Skála: debunked 5-15%, részleges bizonyíték 20-45%, gyanús 45-65%, megalapozott 65-80%.`;
+
+// ─── UTILS ────────────────────────────────────────────────────────
+const saveKeys = (keys) => localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+const loadKeys = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; } };
+
+async function callGPT(apiKey, systemPrompt, userContent, maxTokens = 1200) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      max_tokens: maxTokens,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ]
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `OpenAI HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const raw = data.choices?.[0]?.message?.content || "";
+  const match = raw.replace(/```json|```/g, "").trim().match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("JSON parse hiba");
+  return JSON.parse(match[0]);
+}
+
+async function fetchGuardianNews(guardianKey) {
+  const results = [];
+  for (const section of GUARDIAN_SECTIONS) {
+    const url = `https://content.guardianapis.com/search?section=${section}&show-fields=headline,trailText,thumbnail,webUrl,webPublicationDate&page-size=8&api-key=${guardianKey}`;
+    const res = await fetch(url);
+    if (!res.ok) continue;
+    const data = await res.json();
+    (data?.response?.results || []).forEach(a => results.push({
+      id: a.id,
+      title: a.webTitle,
+      summary: a.fields?.trailText || "",
+      url: a.webUrl,
+      image: a.fields?.thumbnail || null,
+      date: a.webPublicationDate,
+      section,
+    }));
+  }
+  return results;
+}
+
+// ─── COLOR HELPERS ────────────────────────────────────────────────
+const scoreColor = (s) => s >= 70 ? "#ff3333" : s >= 50 ? "#ffaa00" : "#00bb66";
+const verdictStyle = (v) => ({
+  "VALÓS": { bg: "rgba(255,51,51,0.15)", col: "#ff3333", border: "rgba(255,51,51,0.4)" },
+  "RÉSZBEN VALÓS": { bg: "rgba(255,170,0,0.12)", col: "#ffaa00", border: "rgba(255,170,0,0.4)" },
+  "MEGKÉRDŐJELEZHETŐ": { bg: "rgba(0,187,102,0.1)", col: "#00bb66", border: "rgba(0,187,102,0.3)" },
+  "TERJESZTETT DEZINFO": { bg: "rgba(90,128,104,0.1)", col: "#5a8068", border: "#1a3320" },
+}[v] || { bg: "rgba(0,187,102,0.1)", col: "#00bb66", border: "rgba(0,187,102,0.3)" });
+
+// ─── COMPONENTS ───────────────────────────────────────────────────
+
+function Dot({ color = "#00ff88", pulse = true }) {
+  return <span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:color, marginRight:6, flexShrink:0 }} className={pulse ? "pulse-dot" : ""} />;
+}
+
+function StatusBar({ guardianOk, openaiOk }) {
+  return (
+    <div style={{ display:"flex", gap:14, flexWrap:"wrap", fontSize:10, color:"#5a8068", padding:"7px 12px", border:"1px solid #1a3320", borderRadius:4, background:"rgba(0,255,136,0.02)", marginBottom:"1.25rem" }}>
+      <span><Dot color={guardianOk?"#00ff88":"#ff3333"} pulse={guardianOk} />GUARDIAN API</span>
+      <span><Dot color={openaiOk?"#00ff88":"#ff3333"} pulse={openaiOk} />GPT-4o</span>
+      <span><Dot color="#00ff88" />CIA FOIA INDEX</span>
+      <span><Dot color="#00ff88" />USPTO LIVE</span>
+      <span><Dot color="#ff3333" pulse={false} />DARPA: <span style={{ background:"#1a3320", color:"transparent", userSelect:"none" }}>████████</span></span>
+    </div>
+  );
+}
+
+function ScoreBar({ score }) {
+  const col = scoreColor(score);
+  return (
+    <div style={{ height:3, background:"#1a3320", borderRadius:2, overflow:"hidden", marginTop:6 }}>
+      <div style={{ height:"100%", width:`${score}%`, background:col, borderRadius:2, transition:"width 0.8s ease" }} />
+    </div>
+  );
+}
+
+function NewsCard({ item, onAnalyze, analyzing }) {
+  const col = scoreColor(item.score);
+  const ago = (() => {
+    const diff = Date.now() - new Date(item.date).getTime();
+    const h = Math.floor(diff / 3600000);
+    return h < 1 ? "most" : h < 24 ? `${h}ó` : `${Math.floor(h/24)}n`;
+  })();
+
+  return (
+    <div className="fade-in" style={{ border:"1px solid #1a3320", borderRadius:4, background:"#090f0b", overflow:"hidden", display:"flex", flexDirection:"column" }}>
+      {item.image && (
+        <div style={{ height:140, overflow:"hidden", position:"relative" }}>
+          <img src={item.image} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"saturate(0.4) brightness(0.6)" }} />
+          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 40%, #090f0b)" }} />
+          <div style={{ position:"absolute", top:8, right:8, background:"rgba(5,12,7,0.85)", border:`1px solid ${col}`, borderRadius:3, padding:"2px 8px", fontSize:10, color:col, letterSpacing:1 }}>
+            {item.score}% THREAT
+          </div>
+        </div>
+      )}
+      <div style={{ padding:"12px 14px", flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"space-between" }}>
+          <span style={{ fontSize:9, color:"#5a8068", letterSpacing:2, textTransform:"uppercase" }}>{item.section} · {ago}</span>
+          {!item.image && <span style={{ fontSize:10, color:col, border:`1px solid ${col}`, borderRadius:2, padding:"1px 7px", letterSpacing:1 }}>{item.score}%</span>}
+        </div>
+        <div style={{ fontFamily:"Rajdhani, sans-serif", fontSize:15, fontWeight:700, color:"#e8ffe8", lineHeight:1.35 }}>{item.title}</div>
+        {item.angle && (
+          <div style={{ fontSize:11, color:"#5a8068", borderLeft:"2px solid #1a3320", paddingLeft:8, lineHeight:1.5 }}>
+            <span style={{ color:"#00bb66" }}>▸ </span>{item.angle}
+          </div>
+        )}
+        {!item.image && <ScoreBar score={item.score} />}
+        <button
+          onClick={() => onAnalyze(item)}
+          disabled={analyzing}
+          style={{ marginTop:"auto", paddingTop:8, background:"transparent", border:`1px solid ${analyzing ? "#1a3320" : col}`, color:analyzing ? "#5a8068" : col, borderRadius:3, padding:"7px 12px", fontFamily:"Rajdhani, sans-serif", fontSize:12, fontWeight:700, letterSpacing:2, textTransform:"uppercase", transition:"all 0.15s", opacity:analyzing?0.5:1 }}
+        >
+          {analyzing ? "ELEMZÉS FOLYAMATBAN..." : "◈ ORACLE ELEMZÉS ▶"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TheoryBlock({ theory, idx, bet, onBet }) {
+  const pct = theory.probability;
+  const col = scoreColor(pct);
+  const volRef = useRef(Math.floor(Math.random()*900+100)+"K");
+
+  return (
+    <div style={{ border:"1px solid #1a3320", borderRadius:4, marginBottom:"0.75rem", background:"#050c07", overflow:"hidden" }}>
+      <div style={{ padding:"10px 14px", borderBottom:"1px solid #1a3320", display:"flex", gap:10, alignItems:"flex-start" }}>
+        <span style={{ fontFamily:"Rajdhani,sans-serif", fontSize:10, fontWeight:700, color:"#00bb66", letterSpacing:2, whiteSpace:"nowrap", marginTop:2 }}>T-00{idx+1}</span>
+        <span style={{ fontFamily:"Rajdhani,sans-serif", fontSize:14, fontWeight:700, color:"#e8ffe8", lineHeight:1.3 }}>{theory.name}</span>
+      </div>
+      <div style={{ padding:"12px 14px", display:"grid", gridTemplateColumns:"1fr 160px", gap:12 }}>
+        <div>
+          <p style={{ fontSize:12, color:"#c8e8d0", lineHeight:1.75, margin:0 }}>{theory.summary}</p>
+          <div style={{ marginTop:9 }}>
+            {(theory.evidence||[]).map((e,i) => (
+              <div key={i} style={{ display:"flex", gap:7, color:"#5a8068", fontSize:11, marginBottom:4, alignItems:"flex-start" }}>
+                <span style={{ color:"#00bb66", flexShrink:0 }}>▸</span><span>{e}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:8 }}>
+            {(theory.sources||[]).map((s,i) => (
+              <span key={i} style={{ fontSize:9, padding:"2px 7px", border:"1px solid #1a3320", borderRadius:2, color:"#5a8068", letterSpacing:1 }}>{s}</span>
+            ))}
+          </div>
+        </div>
+        <div style={{ border:"1px solid #1a3320", borderRadius:4, padding:10, background:"rgba(0,255,136,0.02)" }}>
+          <div style={{ fontSize:9, letterSpacing:3, color:"#5a8068", marginBottom:6, textTransform:"uppercase" }}>◈ polymarket</div>
+          <div style={{ fontFamily:"Rajdhani,sans-serif", fontSize:32, fontWeight:700, color:col, lineHeight:1, marginBottom:5 }}>{pct}%</div>
+          <div style={{ height:3, background:"#1a3320", borderRadius:2, marginBottom:10, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${pct}%`, background:col, borderRadius:2 }} />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:5 }}>
+            <button onClick={() => onBet(idx,"yes")} style={{ padding:"6px 2px", borderRadius:3, fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, letterSpacing:1, border:`1px solid ${bet==="yes"?"#ff3333":"rgba(255,51,51,0.3)"}`, background:bet==="yes"?"rgba(255,51,51,0.3)":"rgba(255,51,51,0.08)", color:"#ff3333", cursor:"pointer" }}>IGEN {pct}¢</button>
+            <button onClick={() => onBet(idx,"no")} style={{ padding:"6px 2px", borderRadius:3, fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, letterSpacing:1, border:`1px solid ${bet==="no"?"#00bb66":"rgba(0,255,136,0.2)"}`, background:bet==="no"?"rgba(0,255,136,0.18)":"rgba(0,255,136,0.05)", color:"#00bb66", cursor:"pointer" }}>NEM {100-pct}¢</button>
+          </div>
+          <div style={{ fontSize:10, color:"#5a8068", marginTop:7, textAlign:"center" }}>Vol: ${volRef.current}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OracleModal({ item, onClose }) {
+  const [phase, setPhase] = useState("loading");
+  const [data, setData]   = useState(null);
+  const [err, setErr]     = useState("");
+  const [bets, setBets]   = useState({});
+  const keys = loadKeys();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await callGPT(
+          keys.openai,
+          SYSTEM_ORACLE,
+          `Hírcikk: "${item.title}"\n\nSummary: ${item.summary || "—"}\n\nForrás: ${item.url}`,
+          1600
+        );
+        setData(result);
+        setPhase("done");
+      } catch(e) {
+        setErr(e.message);
+        setPhase("error");
+      }
+    })();
+  }, []);
+
+  const vs = data ? verdictStyle(data.verdict) : {};
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(5,12,7,0.92)", zIndex:1000, overflowY:"auto", padding:"2rem 1rem" }}>
+      <div onClick={e => e.stopPropagation()} style={{ maxWidth:720, margin:"0 auto", border:"1px solid #1a3320", borderRadius:6, background:"#090f0b", overflow:"hidden" }}>
+
+        {/* Modal header */}
+        <div style={{ padding:"14px 16px", borderBottom:"1px solid #1a3320", display:"flex", justifyContent:"space-between", alignItems:"center", background:"#050c07" }}>
+          <div style={{ fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, color:"#00bb66", letterSpacing:3, textTransform:"uppercase" }}>◈ CONSPIRACY ORACLE — TELJES ELEMZÉS</div>
+          <button onClick={onClose} style={{ background:"transparent", border:"1px solid #1a3320", color:"#5a8068", fontFamily:"inherit", fontSize:11, padding:"4px 10px", borderRadius:3, letterSpacing:2, cursor:"pointer" }}>✕ BEZÁR</button>
+        </div>
+
+        {/* Article ref */}
+        <div style={{ padding:"12px 16px", borderBottom:"1px solid #1a3320", background:"rgba(0,255,136,0.02)" }}>
+          <div style={{ fontFamily:"Rajdhani,sans-serif", fontSize:16, fontWeight:700, color:"#e8ffe8", lineHeight:1.35, marginBottom:6 }}>{item.title}</div>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <span style={{ fontSize:9, color:"#5a8068", letterSpacing:2, textTransform:"uppercase" }}>{item.section}</span>
+            <a href={item.url} target="_blank" rel="noreferrer" style={{ fontSize:9, color:"#00bb66", letterSpacing:1, textDecoration:"none" }}>→ EREDETI CIKK</a>
+            <span style={{ fontSize:10, color:scoreColor(item.score), border:`1px solid ${scoreColor(item.score)}`, borderRadius:2, padding:"1px 6px" }}>{item.score}% THREAT</span>
+          </div>
+        </div>
+
+        <div style={{ padding:"16px" }}>
+          {phase === "loading" && (
+            <div style={{ textAlign:"center", padding:"2rem 0" }}>
+              <div style={{ fontSize:12, color:"#00bb66", letterSpacing:2, marginBottom:12 }} className="blink">[ TITKOS ADATBÁZISOK LEKÉRDEZÉSE... ]</div>
+              <div style={{ fontSize:11, color:"#5a8068", lineHeight:2.5 }}>
+                {["> CIA FOIA keresztreferenciák...", "> USPTO szabadalom szkenner...", "> Bayes-hálózat fut...", "> Összeesküvés indexelés..."].map((l,i) => <div key={i}>{l}</div>)}
+              </div>
+            </div>
+          )}
+
+          {phase === "error" && (
+            <div style={{ color:"#ff3333", fontSize:12, padding:14, border:"1px solid rgba(255,51,51,0.3)", borderRadius:4 }}>
+              [HIBA] {err}
+            </div>
+          )}
+
+          {phase === "done" && data && (
+            <div>
+              {data.verdict && (
+                <div style={{ display:"inline-block", background:vs.bg, border:`1px solid ${vs.border}`, borderRadius:3, padding:"4px 12px", fontSize:10, color:vs.col, letterSpacing:2, fontWeight:700, marginBottom:"1rem", textTransform:"uppercase" }}>
+                  ◈ ÍTÉLET: {data.verdict}
+                </div>
+              )}
+              {(data.theories||[]).map((t,i) => (
+                <TheoryBlock key={i} theory={t} idx={i} bet={bets[i]} onBet={(idx,side) => setBets(b => ({...b,[idx]:b[idx]===side?null:side}))} />
+              ))}
+              {data.conclusion && (
+                <div style={{ padding:14, border:"1px solid #1a3320", borderRadius:4, background:"rgba(0,255,136,0.02)", fontSize:12, lineHeight:1.8, color:"#5a8068", marginTop:"0.5rem" }}>
+                  <span style={{ color:"#00bb66", letterSpacing:1 }}>◈ ÖSSZEFOGLALÁS: </span>{data.conclusion}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SetupScreen({ onSave }) {
+  const [gKey, setGKey] = useState("");
+  const [oKey, setOKey] = useState("");
+  const [err,  setErr]  = useState("");
+
+  const save = () => {
+    if (!gKey.trim() || !oKey.trim()) { setErr("Mindkét API kulcs szükséges."); return; }
+    saveKeys({ guardian: gKey.trim(), openai: oKey.trim() });
+    onSave();
+  };
+
+  const inp = { background:"#090f0b", border:"1px solid #1a3320", borderRadius:4, padding:"10px 12px", color:"#00ff88", fontFamily:"'Share Tech Mono',monospace", fontSize:12, outline:"none", width:"100%" };
+
+  return (
+    <div style={{ maxWidth:520, margin:"4rem auto", padding:"0 1rem" }}>
+      <div style={{ border:"1px solid #1a3320", borderRadius:6, background:"#090f0b", overflow:"hidden" }}>
+        <div style={{ padding:"14px 16px", borderBottom:"1px solid #1a3320", background:"#050c07" }}>
+          <div style={{ fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, color:"#00bb66", letterSpacing:4, textTransform:"uppercase" }}>◈ API KULCSOK BEÁLLÍTÁSA</div>
+        </div>
+        <div style={{ padding:20, display:"flex", flexDirection:"column", gap:16 }}>
+
+          <div>
+            <label style={{ fontSize:10, color:"#5a8068", letterSpacing:3, textTransform:"uppercase", display:"block", marginBottom:6 }}>Guardian API kulcs (ingyenes)</label>
+            <input type="password" value={gKey} onChange={e=>setGKey(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style={inp} />
+            <a href="https://open-platform.theguardian.com/access/" target="_blank" rel="noreferrer" style={{ fontSize:10, color:"#00bb66", textDecoration:"none", display:"block", marginTop:5 }}>→ Ingyenes Guardian API kulcs igénylése</a>
+          </div>
+
+          <div>
+            <label style={{ fontSize:10, color:"#5a8068", letterSpacing:3, textTransform:"uppercase", display:"block", marginBottom:6 }}>OpenAI API kulcs (GPT-4o)</label>
+            <input type="password" value={oKey} onChange={e=>setOKey(e.target.value)} placeholder="sk-proj-..." style={inp} />
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{ fontSize:10, color:"#00bb66", textDecoration:"none", display:"block", marginTop:5 }}>→ OpenAI API kulcs kezelése</a>
+          </div>
+
+          {err && <div style={{ fontSize:11, color:"#ff3333" }}>{err}</div>}
+
+          <button onClick={save} style={{ padding:"11px", background:"transparent", border:"1px solid #00bb66", color:"#00ff88", fontFamily:"Rajdhani,sans-serif", fontSize:14, fontWeight:700, letterSpacing:3, textTransform:"uppercase", borderRadius:4 }}>
+            BELÉPÉS ▶
+          </button>
+          <div style={{ fontSize:10, color:"#5a8068", lineHeight:1.7 }}>
+            A kulcsok kizárólag a böngésző localStorage-ában tárolódnak.<br/>
+            Soha nem kerülnek szerverre.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────
+function App() {
+  const [ready,      setReady]      = useState(false);
+  const [feedPhase,  setFeedPhase]  = useState("idle"); // idle|fetching|scoring|done|error
+  const [feedItems,  setFeedItems]  = useState([]);
+  const [activeItem, setActiveItem] = useState(null);
+  const [analyzingId,setAnalyzingId]= useState(null);
+  const [feedError,  setFeedError]  = useState("");
+  const [filter,     setFilter]     = useState("all");
+
+  useEffect(() => {
+    const k = loadKeys();
+    if (k.guardian && k.openai) setReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (ready) loadFeed();
+  }, [ready]);
+
+  async function loadFeed() {
+    const keys = loadKeys();
+
+    // Check cache
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+      if (cached && Date.now() - cached.ts < CACHE_TTL) {
+        setFeedItems(cached.items);
+        setFeedPhase("done");
+        return;
+      }
+    } catch {}
+
+    setFeedPhase("fetching");
+    setFeedError("");
+    try {
+      // 1. Fetch news
+      const articles = await fetchGuardianNews(keys.guardian);
+      if (!articles.length) throw new Error("Nem sikerült híreket lekérni.");
+
+      // 2. Score with GPT-4o
+      setFeedPhase("scoring");
+      const headlines = articles.map((a,i) => `${i}: ${a.title}`).join("\n");
+      const scored = await callGPT(
+        keys.openai,
+        SYSTEM_SCORE,
+        `Pontozzd ezeket a híreket összeesküvés-elmélet potenciál alapján:\n${headlines}`,
+        1000
+      );
+
+      // 3. Merge scores & filter
+      const scoreMap = {};
+      (scored.scores || []).forEach(s => { scoreMap[s.index] = { score: s.score, angle: s.angle }; });
+      const merged = articles
+        .map((a,i) => ({ ...a, ...( scoreMap[i] || { score: 0, angle: "" }) }))
+        .filter(a => a.score >= CONSPIRACY_THRESHOLD)
+        .sort((a,b) => b.score - a.score);
+
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), items: merged }));
+      setFeedItems(merged);
+      setFeedPhase("done");
+    } catch(e) {
+      setFeedError(e.message);
+      setFeedPhase("error");
+    }
+  }
+
+  function handleAnalyze(item) {
+    setAnalyzingId(item.id);
+    setActiveItem(item);
+  }
+
+  const sections = ["all", ...new Set(feedItems.map(i => i.section))];
+  const visible = filter === "all" ? feedItems : feedItems.filter(i => i.section === filter);
+
+  if (!ready) return <SetupScreen onSave={() => setReady(true)} />;
+
+  return (
+    <div style={{ maxWidth:1100, margin:"0 auto", padding:"1.5rem 1rem 4rem" }}>
+
+      {/* HEADER */}
+      <div style={{ textAlign:"center", marginBottom:"1.5rem", borderBottom:"1px solid #1a3320", paddingBottom:"1.5rem" }}>
+        <div style={{ fontFamily:"Rajdhani,sans-serif", fontSize:10, fontWeight:600, letterSpacing:6, color:"#5a8068", marginBottom:6, textTransform:"uppercase" }}>■ AI-KURÁLT ÖSSZEESKÜVÉS HÍRPORTÁL ■</div>
+        <h1 style={{ fontFamily:"Rajdhani,sans-serif", fontSize:30, fontWeight:700, color:"#00ff88", letterSpacing:2, textTransform:"uppercase", textShadow:"0 0 20px rgba(0,255,136,0.2)", margin:0 }}>Conspiracy Oracle</h1>
+        <div style={{ fontSize:10, color:"#5a8068", marginTop:5, letterSpacing:2 }}>CSAK AZOK A HÍREK JELENNEK MEG, AMELYEKHEZ VALÓS ÖSSZEESKÜVÉS-DOKUMENTÁCIÓ IS LÉTEZIK</div>
+      </div>
+
+      <StatusBar guardianOk={true} openaiOk={true} />
+
+      {/* CONTROLS */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"1.25rem", flexWrap:"wrap", gap:10 }}>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {sections.map(s => (
+            <button key={s} onClick={() => setFilter(s)} style={{ fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, letterSpacing:2, textTransform:"uppercase", padding:"5px 12px", borderRadius:3, border:`1px solid ${filter===s?"#00bb66":"#1a3320"}`, background:filter===s?"rgba(0,255,136,0.08)":"transparent", color:filter===s?"#00ff88":"#5a8068", cursor:"pointer" }}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {feedPhase === "done" && <span style={{ fontSize:10, color:"#5a8068", letterSpacing:1 }}>{visible.length} AKTÍV FENYEGETÉS</span>}
+          <button onClick={loadFeed} disabled={feedPhase==="fetching"||feedPhase==="scoring"} style={{ fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, letterSpacing:2, textTransform:"uppercase", padding:"5px 12px", borderRadius:3, border:"1px solid #1a3320", background:"transparent", color:"#5a8068", cursor:"pointer", opacity:feedPhase==="fetching"||feedPhase==="scoring"?0.4:1 }}>
+            ↺ FRISSÍTÉS
+          </button>
+          <button onClick={() => { localStorage.removeItem(STORAGE_KEY); setReady(false); }} style={{ fontFamily:"Rajdhani,sans-serif", fontSize:11, fontWeight:700, letterSpacing:2, textTransform:"uppercase", padding:"5px 12px", borderRadius:3, border:"1px solid #1a3320", background:"transparent", color:"#5a8068", cursor:"pointer" }}>
+            ⚙ KULCSOK
+          </button>
+        </div>
+      </div>
+
+      {/* FEED STATES */}
+      {(feedPhase === "fetching" || feedPhase === "scoring") && (
+        <div style={{ textAlign:"center", padding:"3rem 0" }}>
+          <div style={{ fontSize:11, color:"#00bb66", letterSpacing:2, marginBottom:16 }} className="blink">
+            {feedPhase === "fetching" ? "[ HÍREK LETÖLTÉSE... ]" : "[ AI ÖSSZEESKÜVÉS-SZŰRŐ AKTÍV... ]"}
+          </div>
+          <div style={{ fontSize:10, color:"#5a8068", lineHeight:2.5 }}>
+            {feedPhase === "fetching" ? (
+              <>
+                <div>> Guardian API lekérés — {GUARDIAN_SECTIONS.length} kategória...</div>
+                <div>> Hírek szinkronizálása...</div>
+              </>
+            ) : (
+              <>
+                <div>> GPT-4o batch szűrő fut...</div>
+                <div>> Összeesküvés potenciál kalkulálása...</div>
+                <div>> Küszöb: {CONSPIRACY_THRESHOLD}% feletti tartalmak...</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {feedPhase === "error" && (
+        <div style={{ padding:16, border:"1px solid rgba(255,51,51,0.3)", borderRadius:4, color:"#ff3333", fontSize:12, background:"rgba(255,51,51,0.05)", marginBottom:"1rem" }}>
+          [HIBA] {feedError}
+          <button onClick={loadFeed} style={{ display:"block", marginTop:10, background:"transparent", border:"1px solid #ff3333", color:"#ff3333", fontFamily:"inherit", fontSize:11, padding:"6px 14px", borderRadius:3, cursor:"pointer", letterSpacing:2, textTransform:"uppercase" }}>↺ Újra</button>
+        </div>
+      )}
+
+      {feedPhase === "done" && visible.length === 0 && (
+        <div style={{ textAlign:"center", padding:"3rem 0", color:"#5a8068", fontSize:12 }}>
+          Nincs elegendő conspiracy potenciálú hír ebben a kategóriában.
+        </div>
+      )}
+
+      {/* NEWS GRID */}
+      {feedPhase === "done" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:"1rem" }}>
+          {visible.map(item => (
+            <NewsCard
+              key={item.id}
+              item={item}
+              onAnalyze={handleAnalyze}
+              analyzing={analyzingId === item.id && !!activeItem}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ORACLE MODAL */}
+      {activeItem && (
+        <OracleModal item={activeItem} onClose={() => { setActiveItem(null); setAnalyzingId(null); }} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
