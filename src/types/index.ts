@@ -58,9 +58,13 @@ export interface NewsItem {
 export interface OracleTheory {
   name: string;
   summary: string;
+  full_explanation?: string;
   evidence: string[];
-  sources: string[];
+  counter_evidence?: string[];
+  sources: string[];  // real URLs
+  key_people?: string[];
   probability: number;
+  timeline?: Array<{ date: string; event: string }>;
 }
 
 export interface OracleSource {
