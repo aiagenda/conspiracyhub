@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from "react";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
@@ -496,6 +497,107 @@ export default function InvestigationBoard({
   const [pulse, setPulse] = useState(false);
   const [internalSelected, setInternalSelected] = useState<Node | null>(selectedNode ?? null);
 
+  // Pan / zoom state
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragState = useRef<{ type: "pan" | "node"; nodeId?: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [svgDragActive, setSvgDragActive] = useState(false);
+
+  // Keep localNodes in sync when props change (but preserve positions if dragged)
+  /* eslint-disable react-hooks/set-state-in-effect -- graph replaced when Oracle/BoardScreen sends new nodes */
+  useEffect(() => {
+    setLocalNodes(nodes);
+  }, [nodes]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Convert screen coords → SVG coords accounting for transform
+  function screenToSvg(screenX: number, screenY: number) {
+    const svg = svgRef.current;
+    if (!svg) return { x: screenX, y: screenY };
+    const rect = svg.getBoundingClientRect();
+    const svgW = 1000; const svgH = 640;
+    const scaleX = svgW / rect.width;
+    const scaleY = svgH / rect.height;
+    const sx = (screenX - rect.left) * scaleX;
+    const sy = (screenY - rect.top) * scaleY;
+    // Undo the transform
+    return {
+      x: (sx - transform.x) / transform.scale,
+      y: (sy - transform.y) / transform.scale,
+    };
+  }
+
+  function handleSvgMouseDown(e: ReactMouseEvent<SVGSVGElement>) {
+    // Only pan if clicking background (not a node)
+    const target = e.target as SVGElement;
+    if (target.closest("[data-node]")) return;
+    dragState.current = { type: "pan", startX: e.clientX, startY: e.clientY, origX: transform.x, origY: transform.y };
+    setSvgDragActive(true);
+    e.preventDefault();
+  }
+
+  function handleNodeMouseDown(e: ReactMouseEvent, nodeId: string) {
+    e.stopPropagation();
+    const node = localNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const svgCoords = screenToSvg(e.clientX, e.clientY);
+    dragState.current = { type: "node", nodeId, startX: svgCoords.x - node.x, startY: svgCoords.y - node.y, origX: node.x, origY: node.y };
+    setSvgDragActive(true);
+    e.preventDefault();
+  }
+
+  function handleMouseMove(e: ReactMouseEvent<SVGSVGElement>) {
+    const ds = dragState.current;
+    if (!ds) return;
+    if (ds.type === "pan") {
+      const dx = e.clientX - ds.startX;
+      const dy = e.clientY - ds.startY;
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const scaleX = 1000 / rect.width;
+      const scaleY = 640 / rect.height;
+      setTransform(t => ({ ...t, x: ds.origX + dx * scaleX, y: ds.origY + dy * scaleY }));
+    } else if (ds.type === "node" && ds.nodeId) {
+      const svgCoords = screenToSvg(e.clientX, e.clientY);
+      setLocalNodes(prev => prev.map(n =>
+        n.id === ds.nodeId
+          ? { ...n, x: svgCoords.x - ds.startX, y: svgCoords.y - ds.startY }
+          : n
+      ));
+    }
+  }
+
+  function handleMouseUp() {
+    dragState.current = null;
+    setSvgDragActive(false);
+  }
+
+  function handleWheel(e: ReactWheelEvent<SVGSVGElement>) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.88 : 1.14;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    // Zoom toward mouse position
+    const mx = (e.clientX - rect.left) / rect.width * 1000;
+    const my = (e.clientY - rect.top) / rect.height * 640;
+    setTransform(t => {
+      const newScale = Math.max(0.3, Math.min(4, t.scale * delta));
+      const factor = newScale / t.scale;
+      return {
+        x: mx + (t.x - mx) * factor,
+        y: my + (t.y - my) * factor,
+        scale: newScale,
+      };
+    });
+  }
+
+  function resetView() {
+    setTransform({ x: 0, y: 0, scale: 1 });
+  }
+
   const selectedEdges = useMemo(() => {
     if (!internalSelected) return new Set<string>();
     return new Set(edges.filter((e) => e.from === internalSelected.id || e.to === internalSelected.id).map((e) => `${e.from}-${e.to}`));
@@ -503,8 +605,8 @@ export default function InvestigationBoard({
 
   const resolvedSelected = useMemo(() => {
     if (!internalSelected) return null;
-    return nodes.find((n) => n.id === internalSelected.id) ?? internalSelected;
-  }, [nodes, internalSelected]);
+    return localNodes.find((n) => n.id === internalSelected.id) ?? internalSelected;
+  }, [localNodes, internalSelected]);
 
   useEffect(() => {
     const iv = setInterval(() => setScanLine((l) => (l + 2) % 640), 16);
@@ -558,7 +660,7 @@ export default function InvestigationBoard({
             { label: "USPTO", active: hasUspto },
             { label: "GUARDIAN", active: hasGuardian },
             { label: "DARPA", active: hasDarpa },
-            { label: "HYPOTHESES", active: nodes.some((n) => n.type === "theory") },
+            { label: "HYPOTHESES", active: localNodes.some((n) => n.type === "theory") },
           ].map((s) => (
             <span key={s.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, color: s.active ? "#5a8068" : "#476352", letterSpacing: 1 }}>
               <span
@@ -621,19 +723,59 @@ export default function InvestigationBoard({
           <rect width="100%" height="100%" fill="url(#grid)" />
         </svg>
         <div style={{ position: "absolute", left: 0, right: 0, height: 2, top: scanLine, background: "rgba(0,255,136,0.04)", zIndex: 5 }} />
-        <svg viewBox="0 0 1000 640" style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0 }} preserveAspectRatio="xMidYMid meet">
-          {edges.map((edge, i) => (
-            <EdgeLine key={`${edge.from}-${edge.to}-${i}`} edge={edge} nodes={nodes} active={!internalSelected || selectedEdges.has(`${edge.from}-${edge.to}`)} />
+        {/* Zoom controls */}
+        <div style={{ position: "absolute", bottom: 16, left: internalSelected ? "auto" : 16, right: internalSelected ? "316px" : "auto", zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+          {[
+            { label: "+", action: () => setTransform(t => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
+            { label: "−", action: () => setTransform(t => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
+            { label: "⊡", action: resetView },
+          ].map(({ label, action }) => (
+            <button key={label} onClick={action} style={{ width: 30, height: 30, background: "rgba(4,11,6,0.9)", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, borderRadius: 3, cursor: "pointer", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66"; (e.currentTarget as HTMLButtonElement).style.color = "#00ff88"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.color = "#5a8068"; }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Zoom level indicator */}
+        <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontSize: 9, color: "#2a4030", letterSpacing: 2, zIndex: 20, fontFamily: FONT }}>
+          {Math.round(transform.scale * 100)}% · SCROLL TO ZOOM · DRAG TO PAN
+        </div>
+
+        <svg
+          ref={svgRef}
+          viewBox="0 0 1000 640"
+          style={{
+            width: internalSelected ? "calc(100% - 300px)" : "100%",
+            height: "100%",
+            transition: "width 0.25s ease",
+            position: "absolute",
+            inset: 0,
+            cursor: svgDragActive ? "grabbing" : "grab",
+          }}
+          preserveAspectRatio="xMidYMid meet"
+          onMouseDown={handleSvgMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+        >
+          <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
+          {localNodes.length > 0 && edges.map((edge, i) => (
+            <EdgeLine key={`${edge.from}-${edge.to}-${i}`} edge={edge} nodes={localNodes} active={!internalSelected || selectedEdges.has(`${edge.from}-${edge.to}`)} />
           ))}
 
-          {nodes.map((node) => (
-            <GraphNode key={node.id} node={node} onClick={handleNodeClick} selected={internalSelected?.id === node.id} pulse={pulse} />
+          {localNodes.map((node) => (
+            <g key={node.id} data-node="true" onMouseDown={(e) => handleNodeMouseDown(e, node.id)} style={{ cursor: "grab" }}>
+              <GraphNode node={node} onClick={handleNodeClick} selected={internalSelected?.id === node.id} pulse={pulse} />
+            </g>
           ))}
 
           {internalSelected &&
             connectedEdges.map((e, i) => {
-              const from = nodes.find((n) => n.id === e.from);
-              const to = nodes.find((n) => n.id === e.to);
+              const from = localNodes.find((n) => n.id === e.from);
+              const to = localNodes.find((n) => n.id === e.to);
               if (!from || !to) return null;
               const mx = (from.x + to.x) / 2;
               const my = (from.y + to.y) / 2;
@@ -654,6 +796,7 @@ export default function InvestigationBoard({
                 </g>
               );
             })}
+          </g>
         </svg>
 
         <div style={{ position: "absolute", bottom: 16, left: 16, display: "flex", flexDirection: "column", gap: 5, background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "10px 12px" }}>
@@ -674,9 +817,9 @@ export default function InvestigationBoard({
 
         <div style={{ position: "absolute", bottom: 16, right: internalSelected ? 316 : 16, display: "flex", gap: 12 }}>
           {[
-            [String(nodes.length), "NODES"],
+            [String(localNodes.length), "NODES"],
             [String(edges.length), "EDGES"],
-            [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+            [`${Math.max(...localNodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
           ].map(([val, label]) => (
             <div key={label} style={{ background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "8px 12px", textAlign: "center" }}>
               <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{val}</div>
