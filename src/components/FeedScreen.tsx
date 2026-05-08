@@ -179,8 +179,8 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           {/* NEWS GRID */}
           {visible.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
-              {visible.map((item) => (
-                <NewsCard key={item.id} item={item} onAnalyze={analyze} />
+              {visible.map((item, index) => (
+                <NewsCard key={item.id} item={item} onAnalyze={analyze} priority={index < 4} />
               ))}
             </div>
           )}

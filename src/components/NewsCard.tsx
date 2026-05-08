@@ -20,9 +20,12 @@ function timeAgo(dateStr: string) {
 export default function NewsCard({
   item,
   onAnalyze,
+  priority = false,
 }: {
   item: NewsItem;
   onAnalyze: (item: NewsItem) => void;
+  /** First visible cards: improves LCP when image is above the fold */
+  priority?: boolean;
 }) {
   const color = scoreColor(item.score);
 
@@ -36,7 +39,16 @@ export default function NewsCard({
       {/* IMAGE */}
       {item.image && (
         <div style={{ position: "relative", height: 140, overflow: "hidden" }}>
-          <Image src={item.image} alt="" fill unoptimized style={{ objectFit: "cover", filter: "saturate(0.35) brightness(0.55)" }} />
+          <Image
+            src={item.image}
+            alt=""
+            fill
+            unoptimized
+            priority={priority}
+            loading={priority ? "eager" : undefined}
+            sizes="(max-width: 768px) 100vw, 360px"
+            style={{ objectFit: "cover", filter: "saturate(0.35) brightness(0.55)" }}
+          />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
           <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "2px 8px", fontSize: 10, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
             {item.score}% THREAT
