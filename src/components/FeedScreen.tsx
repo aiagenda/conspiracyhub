@@ -39,7 +39,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
   }
 
   function analyze(item: NewsItem) {
-    router.push(`/board/${item.id}`);
+    router.push(`/article/${item.id}`);
   }
 
   return (
