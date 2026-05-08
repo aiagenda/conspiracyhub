@@ -82,26 +82,42 @@ function EdgeLine({ edge, nodes, active }: { edge: Edge; nodes: Node[]; active: 
   );
 }
 
+function truncate(str: string, max: number) {
+  return str.length > max ? str.slice(0, max - 1) + "…" : str;
+}
+
 function GraphNode({ node, onClick, selected, pulse }: { node: Node; onClick: (node: Node) => void; selected: boolean; pulse: boolean }) {
   const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
   const isCenter = node.id === "center";
-  const w = isCenter ? 130 : 110;
-  const h = isCenter ? 64 : 54;
+  const isTheory = node.type === "theory";
+
+  // Dynamic width based on label length
+  const labelLen = (node.label || "").length;
+  const w = isCenter ? 140 : isTheory ? 148 : Math.max(110, Math.min(148, labelLen * 7.5));
+  const h = isCenter ? 64 : isTheory ? 62 : 54;
+
+  // Truncate labels to fit box
+  const maxLabelChars = Math.floor(w / 6.5);
+  const displayLabel = truncate(node.label || "", maxLabelChars);
+
+  // Sub text — max 2 lines, truncated
+  const subLines = (node.sub || "").split("\n").slice(0, 2).map(l => truncate(l, Math.floor(w / 5.5)));
+
   return (
     <g transform={`translate(${node.x}, ${node.y})`} onClick={() => onClick(node)} style={{ cursor: "pointer" }}>
-      <ellipse cx={0} cy={0} rx={w * 0.65} ry={h * 0.75} fill={c.glow} style={{ animation: selected || (isCenter && pulse) ? "glowPulse 1.5s ease-in-out infinite" : "none" }} filter="blur(8px)" />
+      <ellipse cx={0} cy={0} rx={w * 0.6} ry={h * 0.7} fill={c.glow} style={{ animation: selected || (isCenter && pulse) ? "glowPulse 1.5s ease-in-out infinite" : "none" }} filter="blur(8px)" />
       <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} ry={4} fill={c.bg} stroke={c.border} strokeWidth={selected ? 2 : isCenter ? 1.5 : 1} strokeOpacity={selected ? 1 : 0.7} />
       {[[-w / 2, -h / 2, 1], [-w / 2 + 10, -h / 2, 1], [w / 2, -h / 2, -1], [w / 2 - 10, -h / 2, -1]].map(([x, y, dx], i) => (
         <line key={i} x1={Number(x)} y1={Number(y)} x2={Number(x) + Number(dx) * 8} y2={Number(y)} stroke={c.border} strokeWidth={1.5} strokeOpacity={0.5} />
       ))}
-      <text x={0} y={-h / 2 + 10} textAnchor="middle" fill={c.text} opacity={0.6} style={{ fontFamily: FONT, fontSize: 8, letterSpacing: 2 }}>
+      <text x={0} y={-h / 2 + 11} textAnchor="middle" fill={c.text} opacity={0.55} style={{ fontFamily: FONT, fontSize: 8, letterSpacing: 1.5 }}>
         {TYPE_LABELS[node.type] ?? "NODE"}
       </text>
-      <text x={0} y={isCenter ? 4 : 2} textAnchor="middle" fill={c.text} style={{ fontFamily: RAJ, fontSize: isCenter ? 13 : 11, fontWeight: 700, letterSpacing: 1 }}>
-        {node.label}
+      <text x={0} y={isCenter ? 3 : 1} textAnchor="middle" fill={c.text} style={{ fontFamily: RAJ, fontSize: isCenter ? 13 : isTheory ? 11 : 11, fontWeight: 700, letterSpacing: 0.5 }}>
+        {displayLabel}
       </text>
-      {(node.sub || "").split("\n").map((line, i) => (
-        <text key={i} x={0} y={(isCenter ? 16 : 14) + i * 11} textAnchor="middle" fill={c.text} opacity={0.55} style={{ fontFamily: FONT, fontSize: 8 }}>
+      {subLines.map((line, i) => (
+        <text key={i} x={0} y={(isCenter ? 15 : 13) + i * 11} textAnchor="middle" fill={c.text} opacity={0.5} style={{ fontFamily: FONT, fontSize: 8 }}>
           {line}
         </text>
       ))}
@@ -626,10 +642,18 @@ export default function InvestigationBoard({
               const my = (from.y + to.y) / 2;
               return (
                 <g key={i}>
-                  <rect x={mx - 50} y={my - 10} width={100} height={16} rx={2} fill="#040b06" stroke={e.color} strokeWidth={0.5} strokeOpacity={0.5} />
-                  <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.8} style={{ fontFamily: FONT, fontSize: 7, letterSpacing: 1 }}>
-                    {e.label}
-                  </text>
+                  {(() => {
+                    const lbl = e.label && e.label.length > 26 ? e.label.slice(0, 25) + "…" : (e.label || "");
+                    const bw = Math.max(80, lbl.length * 5.5 + 16);
+                    return (
+                      <>
+                        <rect x={mx - bw/2} y={my - 10} width={bw} height={16} rx={2} fill="#040b06" stroke={e.color} strokeWidth={0.5} strokeOpacity={0.6} />
+                        <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.9} style={{ fontFamily: FONT, fontSize: 7, letterSpacing: 0.5 }}>
+                          {lbl}
+                        </text>
+                      </>
+                    );
+                  })()}
                 </g>
               );
             })}
