@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { NewsItem } from "@/types";
@@ -151,6 +152,8 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
             padding: "10px 12px",
             pointerEvents: "none",
             boxShadow: `0 4px 20px rgba(0,0,0,0.8), 0 0 12px ${c.bg}`,
+            display: "inline-block",
+            verticalAlign: "top",
           }}
         >
           <span
@@ -168,7 +171,7 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
             }}
           />
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontFamily: FONT, fontSize: 8, color: c.text, letterSpacing: 2, textTransform: "uppercase" }}>
               {CATEGORY_LABELS[h.category] ?? h.category.toUpperCase()}
             </span>
@@ -186,14 +189,14 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
             >
               {h.severity}
             </span>
-          </div>
+          </span>
 
-          <div style={{ fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.65 }}>{h.note}</div>
+          <span style={{ display: "block", fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.65 }}>{h.note}</span>
 
           {sameCategory > 1 && (
-            <div style={{ marginTop: 6, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
+            <span style={{ display: "block", marginTop: 6, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
               + {sameCategory - 1} more {h.category} flag{sameCategory > 2 ? "s" : ""} in this article
-            </div>
+            </span>
           )}
         </span>
       )}
@@ -205,9 +208,17 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
   const segments = buildSegments(text, highlights);
 
   const paragraphs = text.split(/\n\n+/);
+  const paragraphStyle: CSSProperties = {
+    fontFamily: FONT,
+    fontSize: 13,
+    color: "#c8e8d0",
+    lineHeight: 1.9,
+    margin: "0 0 1rem",
+  };
+
   if (paragraphs.length <= 1) {
     return (
-      <p style={{ fontFamily: FONT, fontSize: 13, color: "#c8e8d0", lineHeight: 1.9, margin: "0 0 1rem" }}>
+      <div role="paragraph" style={paragraphStyle}>
         {segments.map((seg, i) =>
           seg.highlight ? (
             <HighlightedWord key={i} segment={seg} allHighlights={highlights} />
@@ -215,7 +226,7 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
             <span key={i}>{seg.text}</span>
           ),
         )}
-      </p>
+      </div>
     );
   }
 
@@ -226,7 +237,7 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
         .map((para, pi) => {
           const paraSegs = buildSegments(para, highlights);
           return (
-            <p key={pi} style={{ fontFamily: FONT, fontSize: 13, color: "#c8e8d0", lineHeight: 1.9, margin: "0 0 1.25rem" }}>
+            <div key={pi} role="paragraph" style={{ ...paragraphStyle, margin: "0 0 1.25rem" }}>
               {paraSegs.map((seg, i) =>
                 seg.highlight ? (
                   <HighlightedWord key={i} segment={seg} allHighlights={highlights} />
@@ -234,7 +245,7 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
                   <span key={i}>{seg.text}</span>
                 ),
               )}
-            </p>
+            </div>
           );
         })}
     </>
