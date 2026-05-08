@@ -38,25 +38,30 @@ export default function NewsCard({
     >
       {/* IMAGE */}
       {item.image && (
-        <div style={{ position: "relative", height: 140, overflow: "hidden" }}>
-          <Image
-            src={item.image}
-            alt=""
-            fill
-            unoptimized
-            priority={priority}
-            loading={priority ? "eager" : undefined}
-            sizes="(max-width: 768px) 100vw, 360px"
-            style={{ objectFit: "cover", filter: "saturate(0.35) brightness(0.55)" }}
-          />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
-          <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "2px 8px", fontSize: 10, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
-            {item.score}% THREAT
+        <a href={item.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
+          <div style={{ position: "relative", height: 140, overflow: "hidden" }}>
+            <Image
+              src={item.image}
+              alt=""
+              fill
+              unoptimized
+              priority={priority}
+              loading={priority ? "eager" : undefined}
+              sizes="(max-width: 768px) 100vw, 360px"
+              style={{ objectFit: "cover", filter: "saturate(0.35) brightness(0.55)", transition: "filter 0.2s" }}
+            />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
+            <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "2px 8px", fontSize: 10, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
+              {item.score}% THREAT
+            </div>
+            <div style={{ position: "absolute", bottom: 8, left: 10, fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
+              {item.section} · {timeAgo(item.date)}
+            </div>
+            <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(5,12,7,0.75)", border: "1px solid #1a3320", borderRadius: 2, padding: "2px 7px", fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
+              ↗ READ ARTICLE
+            </div>
           </div>
-          <div style={{ position: "absolute", bottom: 8, left: 10, fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
-            {item.section} · {timeAgo(item.date)}
-          </div>
-        </div>
+        </a>
       )}
 
       <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -73,9 +78,13 @@ export default function NewsCard({
         )}
 
         {/* TITLE */}
-        <h3 style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 15, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.35, margin: 0 }}>
-          {item.title}
-        </h3>
+        <a href={item.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+          <h3 style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 15, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.35, margin: 0, transition: "color 0.15s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLHeadingElement).style.color = "#00ff88"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLHeadingElement).style.color = "#e8ffe8"; }}>
+            {item.title}
+          </h3>
+        </a>
 
         {/* ANGLE */}
         {item.angle && (
