@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
@@ -127,6 +127,170 @@ function GraphNode({ node, onClick, selected, pulse }: { node: Node; onClick: (n
   );
 }
 
+function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void }) {
+  const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
+  const d = node.detail;
+  const isTheory = node.type === "theory";
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(3,8,6,0.95)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 680, maxHeight: "88vh", overflowY: "auto", background: "#080f09", border: `1px solid ${c.border}`, borderRadius: 4 }}>
+
+        {/* Header */}
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid #1a3320", background: "#050c07", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 1 }}>
+          <div>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: c.text, opacity: 0.6, letterSpacing: 3, marginBottom: 3 }}>{TYPE_LABELS[node.type] ?? "NODE"} · FULL ANALYSIS</div>
+            <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: c.text, letterSpacing: 1 }}>{d.title || node.label}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 10, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>✕ CLOSE</button>
+        </div>
+
+        <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Score */}
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 4 }}>{isTheory ? "PLAUSIBILITY" : "THREAT LEVEL"}</div>
+              <div style={{ fontFamily: RAJ, fontSize: 44, fontWeight: 700, color: (d.threat ?? 0) >= 65 ? "#ff3333" : (d.threat ?? 0) >= 35 ? "#ffaa00" : "#00bb66", lineHeight: 1 }}>{d.threat ?? d.confidence ?? 0}%</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ height: 5, background: "#1a3320", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+                <div style={{ height: "100%", width: `${d.threat ?? d.confidence ?? 0}%`, background: (d.threat ?? 0) >= 65 ? "#ff3333" : (d.threat ?? 0) >= 35 ? "#ffaa00" : "#00bb66", borderRadius: 3 }} />
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {d.source_tier && <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 7px", borderRadius: 2, color: "#5a8068" }}>Tier {d.source_tier}</span>}
+                {d.source_type && <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 7px", borderRadius: 2, color: "#5a8068", textTransform: "uppercase" }}>{d.source_type}</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          {d.body && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>{isTheory ? "Full Theory Explanation" : "Detail"}</div>
+              <div style={{ fontFamily: FONT, fontSize: 12, color: "#c8e8d0", lineHeight: 1.85 }}>{d.body}</div>
+            </div>
+          )}
+
+          {/* Why it matters */}
+          {d.why_it_matters && (
+            <div style={{ padding: "10px 12px", background: "rgba(0,255,136,0.03)", border: "1px solid #1a3320", borderRadius: 3 }}>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2, marginBottom: 5 }}>WHY IT MATTERS</div>
+              <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.7 }}>{d.why_it_matters}</div>
+            </div>
+          )}
+
+          {/* Key claims */}
+          {d.key_claims && d.key_claims.length > 0 && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>{isTheory ? "Evidence cited by theorists" : "Key Claims"}</div>
+              {d.key_claims.map((item, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, color: "#7aaa8a", fontSize: 11, marginBottom: 7, lineHeight: 1.65, alignItems: "flex-start" }}>
+                  <span style={{ color: isTheory ? "#c94dff" : "#00bb66", flexShrink: 0 }}>▸</span><span>{item}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Counter evidence */}
+          {d.counter_evidence && d.counter_evidence.length > 0 && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Counter Evidence</div>
+              {d.counter_evidence.map((item, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, color: "#5a6a5a", fontSize: 11, marginBottom: 6, lineHeight: 1.65, alignItems: "flex-start" }}>
+                  <span style={{ color: "#ffaa00", flexShrink: 0 }}>◻</span><span>{item}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Uncertainties */}
+          {d.uncertainties && d.uncertainties.length > 0 && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Uncertainties</div>
+              {d.uncertainties.map((item, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, color: "#5a6060", fontSize: 11, marginBottom: 6, lineHeight: 1.65, alignItems: "flex-start" }}>
+                  <span style={{ color: "#ff3333", flexShrink: 0, opacity: 0.5 }}>?</span><span>{item}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Actors */}
+          {d.actors && d.actors.length > 0 && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Key Figures</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {d.actors.map((a, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: "3px 10px", border: `1px solid ${c.border}`, borderRadius: 2, color: c.text, background: c.bg }}>{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Timeline */}
+          {d.timeline && d.timeline.length > 0 && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Timeline</div>
+              <div style={{ borderLeft: "1px solid #1a3320", paddingLeft: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                {d.timeline.map((item, i) => (
+                  <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <span style={{ fontFamily: FONT, fontSize: 10, color: c.text, opacity: 0.7, whiteSpace: "nowrap", minWidth: 90 }}>{item.date}</span>
+                    <span style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.55 }}>{item.event}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Open questions */}
+          {d.open_questions && d.open_questions.length > 0 && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Open Questions</div>
+              {d.open_questions.map((q, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, color: "#5a6a7a", fontSize: 11, marginBottom: 6, lineHeight: 1.65 }}>
+                  <span style={{ color: "#5a8068", flexShrink: 0 }}>?</span><span>{q}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sources */}
+          {((d.theory_sources && d.theory_sources.length > 0) || d.source_url) && (
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: isTheory ? "#c94dff" : "#00bb66", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>
+                {isTheory ? "Sources & Documentation" : "Primary Source"}
+              </div>
+              {d.source_url && (
+                <a href={d.source_url} target="_blank" rel="noreferrer"
+                  style={{ display: "flex", gap: 8, color: "#00bb66", fontSize: 11, textDecoration: "none", marginBottom: 6, padding: "6px 10px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)", wordBreak: "break-all", lineHeight: 1.5 }}>
+                  <span style={{ flexShrink: 0 }}>↗</span><span>{d.source} — {d.source_url}</span>
+                </a>
+              )}
+              {d.theory_sources?.filter((s: string) => /^https?:\/\//i.test(s)).map((s: string, i: number) => (
+                <a key={i} href={s} target="_blank" rel="noreferrer"
+                  style={{ display: "flex", gap: 8, color: "#00bb66", fontSize: 11, textDecoration: "none", marginBottom: 6, padding: "6px 10px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)", wordBreak: "break-all", lineHeight: 1.5 }}>
+                  <span style={{ flexShrink: 0 }}>↗</span><span>{s}</span>
+                </a>
+              ))}
+              {d.theory_sources?.filter((s: string) => !/^https?:\/\//i.test(s)).map((s: string, i: number) => (
+                <div key={i} style={{ fontSize: 10, color: "#5a8068", marginBottom: 4, paddingLeft: 4 }}>⟨{i+1}⟩ {s}</div>
+              ))}
+            </div>
+          )}
+
+          {!isTheory && !d.source_url && d.source && (
+            <div style={{ padding: "8px 12px", background: "rgba(0,255,136,0.03)", border: "1px solid #1a3320", borderRadius: 3 }}>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>SOURCE</div>
+              <div style={{ fontFamily: FONT, fontSize: 11, color: c.text }}>{d.source}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DetailPanel({
   node,
   edges,
@@ -138,11 +302,13 @@ function DetailPanel({
   onClose: () => void;
   analysisSources?: OracleSource[];
 }) {
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   if (!node) return null;
   const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
   const d = node.detail;
 
   return (
+    <>
     <div
       style={{
         position: "absolute",
@@ -461,6 +627,7 @@ function DetailPanel({
 
       <div style={{ padding: "12px 14px", borderTop: "1px solid #1a3320" }}>
         <button
+          onClick={() => setShowFullAnalysis(true)}
           style={{
             width: "100%",
             padding: "9px",
@@ -474,12 +641,17 @@ function DetailPanel({
             textTransform: "uppercase",
             borderRadius: 3,
             cursor: "pointer",
+            transition: "all 0.15s",
           }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${c.bg}`; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
         >
           ◈ FULL ANALYSIS ▶
         </button>
       </div>
     </div>
+    {showFullAnalysis && <FullAnalysisModal node={node} onClose={() => setShowFullAnalysis(false)} />}
+    </>
   );
 }
 
@@ -504,11 +676,21 @@ export default function InvestigationBoard({
   const dragState = useRef<{ type: "pan" | "node"; nodeId?: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [svgDragActive, setSvgDragActive] = useState(false);
 
-  // Keep localNodes in sync when props change (but preserve positions if dragged)
-  /* eslint-disable react-hooks/set-state-in-effect -- graph replaced when Oracle/BoardScreen sends new nodes */
+  const graphStructureKey = useMemo(() => {
+    const ids = [...nodes].map((n) => n.id).sort().join("|");
+    const es = [...edges]
+      .map((e) => `${e.from}->${e.to}`)
+      .sort()
+      .join(";");
+    return `${ids}::${es}`;
+  }, [nodes, edges]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- sync from props when graph topology changes */
   useEffect(() => {
     setLocalNodes(nodes);
-  }, [nodes]);
+    // graphStructureKey drives resets; `nodes` omitted so prop reference churn does not wipe dragged positions
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [graphStructureKey]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Convert screen coords → SVG coords accounting for transform
@@ -543,7 +725,6 @@ export default function InvestigationBoard({
     if (!node) return;
     const svgCoords = screenToSvg(e.clientX, e.clientY);
     dragState.current = { type: "node", nodeId, startX: svgCoords.x - node.x, startY: svgCoords.y - node.y, origX: node.x, origY: node.y };
-    setSvgDragActive(true);
     e.preventDefault();
   }
 
@@ -574,26 +755,6 @@ export default function InvestigationBoard({
     setSvgDragActive(false);
   }
 
-  function handleWheel(e: ReactWheelEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.88 : 1.14;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    // Zoom toward mouse position
-    const mx = (e.clientX - rect.left) / rect.width * 1000;
-    const my = (e.clientY - rect.top) / rect.height * 640;
-    setTransform(t => {
-      const newScale = Math.max(0.3, Math.min(4, t.scale * delta));
-      const factor = newScale / t.scale;
-      return {
-        x: mx + (t.x - mx) * factor,
-        y: my + (t.y - my) * factor,
-        scale: newScale,
-      };
-    });
-  }
-
   function resetView() {
     setTransform({ x: 0, y: 0, scale: 1 });
   }
@@ -602,11 +763,6 @@ export default function InvestigationBoard({
     if (!internalSelected) return new Set<string>();
     return new Set(edges.filter((e) => e.from === internalSelected.id || e.to === internalSelected.id).map((e) => `${e.from}-${e.to}`));
   }, [internalSelected, edges]);
-
-  const resolvedSelected = useMemo(() => {
-    if (!internalSelected) return null;
-    return localNodes.find((n) => n.id === internalSelected.id) ?? internalSelected;
-  }, [localNodes, internalSelected]);
 
   useEffect(() => {
     const iv = setInterval(() => setScanLine((l) => (l + 2) % 640), 16);
@@ -625,6 +781,39 @@ export default function InvestigationBoard({
     const iv = setInterval(() => setPulse((p) => !p), 1500);
     return () => clearInterval(iv);
   }, []);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const wheelHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.88 : 1.14;
+      const rect = svg.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * 1000;
+      const my = ((e.clientY - rect.top) / rect.height) * 640;
+      setTransform((t) => {
+        const newScale = Math.max(0.3, Math.min(4, t.scale * delta));
+        const factor = newScale / t.scale;
+        return {
+          x: mx + (t.x - mx) * factor,
+          y: my + (t.y - my) * factor,
+          scale: newScale,
+        };
+      });
+    };
+    svg.addEventListener("wheel", wheelHandler, { passive: false });
+    return () => svg.removeEventListener("wheel", wheelHandler);
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- refresh selected node when props.nodes updates */
+  useEffect(() => {
+    setInternalSelected((prev) => {
+      if (!prev) return prev;
+      const next = nodes.find((n) => n.id === prev.id);
+      return next ?? prev;
+    });
+  }, [nodes]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const connectedEdges = internalSelected ? edges.filter((e) => selectedEdges.has(`${e.from}-${e.to}`)) : [];
   const handleNodeClick = (node: Node) => {
@@ -660,7 +849,7 @@ export default function InvestigationBoard({
             { label: "USPTO", active: hasUspto },
             { label: "GUARDIAN", active: hasGuardian },
             { label: "DARPA", active: hasDarpa },
-            { label: "HYPOTHESES", active: localNodes.some((n) => n.type === "theory") },
+            { label: "HYPOTHESES", active: nodes.some((n) => n.type === "theory") },
           ].map((s) => (
             <span key={s.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, color: s.active ? "#5a8068" : "#476352", letterSpacing: 1 }}>
               <span
@@ -746,20 +935,12 @@ export default function InvestigationBoard({
         <svg
           ref={svgRef}
           viewBox="0 0 1000 640"
-          style={{
-            width: internalSelected ? "calc(100% - 300px)" : "100%",
-            height: "100%",
-            transition: "width 0.25s ease",
-            position: "absolute",
-            inset: 0,
-            cursor: svgDragActive ? "grabbing" : "grab",
-          }}
+          style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
           preserveAspectRatio="xMidYMid meet"
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
         >
           <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
           {localNodes.length > 0 && edges.map((edge, i) => (
@@ -817,9 +998,9 @@ export default function InvestigationBoard({
 
         <div style={{ position: "absolute", bottom: 16, right: internalSelected ? 316 : 16, display: "flex", gap: 12 }}>
           {[
-            [String(localNodes.length), "NODES"],
+            [String(nodes.length), "NODES"],
             [String(edges.length), "EDGES"],
-            [`${Math.max(...localNodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+            [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
           ].map(([val, label]) => (
             <div key={label} style={{ background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "8px 12px", textAlign: "center" }}>
               <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{val}</div>
@@ -834,11 +1015,14 @@ export default function InvestigationBoard({
           </div>
         )}
 
-        {resolvedSelected ? (
+        {internalSelected ? (
           <DetailPanel
-            node={resolvedSelected}
+            node={internalSelected}
             edges={edges}
-            onClose={() => setInternalSelected(null)}
+            onClose={() => {
+              setInternalSelected(null);
+              onNodeClick(null);
+            }}
             analysisSources={analysisSources}
           />
         ) : null}
