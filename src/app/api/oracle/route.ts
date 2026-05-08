@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
       user: `Article: ${news.title}\nSummary: ${news.summary}\nURL: ${news.url}`,
-      maxTokens: 2200,
+      maxTokens: 8192,
+      maxAttempts: 4,
     });
 
     const genericLabels = new Set(["connection", "link", "contextual relationship", "kapcsolat"]);

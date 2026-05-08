@@ -501,6 +501,11 @@ export default function InvestigationBoard({
     return new Set(edges.filter((e) => e.from === internalSelected.id || e.to === internalSelected.id).map((e) => `${e.from}-${e.to}`));
   }, [internalSelected, edges]);
 
+  const resolvedSelected = useMemo(() => {
+    if (!internalSelected) return null;
+    return nodes.find((n) => n.id === internalSelected.id) ?? internalSelected;
+  }, [nodes, internalSelected]);
+
   useEffect(() => {
     const iv = setInterval(() => setScanLine((l) => (l + 2) % 640), 16);
     return () => clearInterval(iv);
@@ -518,14 +523,6 @@ export default function InvestigationBoard({
     const iv = setInterval(() => setPulse((p) => !p), 1500);
     return () => clearInterval(iv);
   }, []);
-
-  useEffect(() => {
-    setInternalSelected((prev) => {
-      if (!prev) return prev;
-      const next = nodes.find((n) => n.id === prev.id);
-      return next ?? prev;
-    });
-  }, [nodes]);
 
   const connectedEdges = internalSelected ? edges.filter((e) => selectedEdges.has(`${e.from}-${e.to}`)) : [];
   const handleNodeClick = (node: Node) => {
@@ -694,9 +691,9 @@ export default function InvestigationBoard({
           </div>
         )}
 
-        {internalSelected ? (
+        {resolvedSelected ? (
           <DetailPanel
-            node={internalSelected}
+            node={resolvedSelected}
             edges={edges}
             onClose={() => setInternalSelected(null)}
             analysisSources={analysisSources}

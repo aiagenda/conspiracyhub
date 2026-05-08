@@ -90,13 +90,29 @@ export default function OracleLoadingScreen() {
   const [dataStream, setDataStream]     = useState<string[]>([]);
   const [scanImages, setScanImages]     = useState<ScanImage[]>([]);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
-  const startRef   = useRef(Date.now());
+  const startRef = useRef<number | null>(null);
   const imgCounter = useRef(0);
+  const [animNow, setAnimNow] = useState(() => Date.now());
 
-  // Elapsed timer
+  // Elapsed timer — start stamp set on mount only (pure render rule)
   useEffect(() => {
-    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 500);
+    startRef.current = Date.now();
+    const iv = setInterval(() => {
+      const t = startRef.current ?? Date.now();
+      setElapsed(Math.floor((Date.now() - t) / 1000));
+    }, 500);
     return () => clearInterval(iv);
+  }, []);
+
+  // Drive scan-image interpolation (state clock; avoids Date.now / refs in render)
+  useEffect(() => {
+    let id = 0;
+    const loop = () => {
+      setAnimNow(Date.now());
+      id = requestAnimationFrame(loop);
+    };
+    id = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(id);
   }, []);
 
   // Log lines
@@ -237,7 +253,7 @@ export default function OracleLoadingScreen() {
 
       {/* ── SCANNING IMAGES ─────────────────────────────────────── */}
       {scanImages.map((img) => {
-        const progress = Math.min((Date.now() - img.born) / img.duration, 1);
+        const progress = Math.min((animNow - img.born) / img.duration, 1);
         const x = img.startX + (img.endX - img.startX) * progress;
         const y = img.startY + (img.endY - img.startY) * progress;
         // Scale: starts HUGE, shrinks dramatically as it zooms in

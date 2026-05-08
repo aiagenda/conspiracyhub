@@ -1,13 +1,51 @@
+/** First top-level `{ ... }` with string-aware brace matching (handles nested objects). */
+function extractBalancedJsonObject(raw: string): string | null {
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const c = cleaned[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (inString) {
+      if (c === "\\") {
+        escape = true;
+        continue;
+      }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
+    if (c === "{") depth += 1;
+    else if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return cleaned.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 export async function callOpenAIJSON<T>({
   apiKey,
   system,
   user,
   maxTokens = 1800,
+  maxAttempts = 3,
 }: {
   apiKey: string;
   system: string;
   user: string;
   maxTokens?: number;
+  /** Number of completion attempts on parse failure (default 3). */
+  maxAttempts?: number;
 }): Promise<T> {
   function salvageScores(input: string): T | null {
     const scores: Array<{ index: number; score: number; angle: string }> = [];
@@ -30,30 +68,32 @@ export async function callOpenAIJSON<T>({
   }
 
   function parseJSONSafely(input: string) {
-    const cleaned = input.replace(/```json|```/g, "").trim();
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("OpenAI response is not valid JSON.");
+    const balanced = extractBalancedJsonObject(input);
+    const blob = balanced ?? input.replace(/```json|```/g, "").trim();
+    const fallbackMatch = blob.match(/\{[\s\S]*\}/);
+    const candidate = balanced ?? (fallbackMatch ? fallbackMatch[0] : "");
+    if (!candidate) throw new Error("OpenAI response did not contain a JSON object.");
 
     try {
-      return JSON.parse(match[0]) as T;
+      return JSON.parse(candidate) as T;
     } catch {
       // Common model artifact: trailing comma before } or ]
-      const normalized = match[0]
+      const normalized = candidate
         .replace(/,\s*([}\]])/g, "$1")
         .replace(/[“”]/g, '"')
         .replace(/[‘’]/g, "'");
       try {
         return JSON.parse(normalized) as T;
       } catch {
-        const salvaged = salvageScores(cleaned);
+        const salvaged = salvageScores(blob);
         if (salvaged) return salvaged;
-        throw new Error("JSON parse hiba");
+        throw new Error("Could not parse model JSON.");
       }
     }
   }
 
   let lastError: string | null = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -80,13 +120,18 @@ export async function callOpenAIJSON<T>({
     const data = await res.json();
     const raw = data.choices?.[0]?.message?.content ?? "";
 
+    const finishReason = data.choices?.[0]?.finish_reason as string | undefined;
+
     try {
       return parseJSONSafely(raw);
     } catch (error) {
-      lastError = error instanceof Error ? error.message : "JSON parse hiba";
-      if (attempt === 2) break;
+      let msg = error instanceof Error ? error.message : "JSON parse failed";
+      if (finishReason === "length") msg = `${msg} (finish_reason=length — output truncated; raise max_tokens).`;
+      lastError = msg;
+      if (attempt === maxAttempts) break;
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
 
-  throw new Error(`OpenAI JSON parse hiba: ${lastError ?? "ismeretlen hiba"}`);
+  throw new Error(`OpenAI JSON parse failed: ${lastError ?? "unknown error"}`);
 }
