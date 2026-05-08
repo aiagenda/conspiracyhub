@@ -3,6 +3,13 @@
 :root {
   --background: #050c07;
   --foreground: #c8e8d0;
+  --green: #00ff88;
+  --green-dim: #00bb66;
+  --green-dark: #1a3320;
+  --red: #ff3333;
+  --amber: #ffaa00;
+  --muted: #5a8068;
+  --card: #090f0b;
 }
 
 @theme inline {
@@ -10,10 +17,41 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-share-tech-mono);
   --font-mono: var(--font-share-tech-mono);
+  --font-raj: var(--font-raj);
 }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-share-tech-mono), monospace;
+  -webkit-font-smoothing: antialiased;
 }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--card); }
+::-webkit-scrollbar-thumb { background: var(--green-dark); border-radius: 2px; }
+
+.scanline {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.012) 2px, rgba(0,255,136,0.012) 4px);
+}
+
+.font-raj { font-family: var(--font-raj), sans-serif; }
+
+@keyframes dashMove { to { stroke-dashoffset: -20; } }
+@keyframes glowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes fadeSlideIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideInRight { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+.animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+.animate-blink { animation: blink 1s step-end infinite; }
+.animate-fade-slide-in { animation: fadeSlideIn 0.4s ease forwards; }
+.animate-slide-in-right { animation: slideInRight 0.25s ease forwards; }
+.animate-ticker { animation: ticker 35s linear infinite; }
+.animate-glow-pulse { animation: glowPulse 1.5s ease-in-out infinite; }
