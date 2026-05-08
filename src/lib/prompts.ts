@@ -8,7 +8,7 @@ Return a JSON object with these fields:
 1. nodes — array of graph nodes around the article:
    - article node: id "center", type "article", x 500, y 320
    - supporting nodes: type one of: patent | foia | company | event | person
-   - Each node must have: id, type, x, y (spread around 1000x640 canvas), label (short, uppercase), sub (2-line detail)
+   - Each node must have: id, type, x, y (spread around 1000x640 canvas), label (short uppercase, MAX 18 CHARS), sub (max 2 lines, each max 20 chars)
    - Each node.detail must include:
      * title (full name)
      * body (2-3 sentences explaining relevance)
@@ -27,7 +27,10 @@ Return a JSON object with these fields:
 
 2. edges — connections between nodes:
    - from, to (node ids), color (hex), strength (0-1)
-   - label: specific relationship description (NOT generic "connection")
+   - label: specific relationship description, max 22 characters (NOT generic "connection")
+   - IMPORTANT: include edges between non-center nodes too when a real relationship exists
+     e.g. if a person donated to another person, or a patent was filed by a company — connect them directly
+   - Color guide: #ff3333 = direct evidence, #ffaa00 = indirect link, #00bb66 = counter-signal, #5a8068 = cross-reference
 
 3. theories — exactly 3 REAL conspiracy theories that actually exist or circulate around this topic:
    - name: the actual name of the conspiracy theory (e.g. "MKUltra Psychedelic Mind Control Revival")
