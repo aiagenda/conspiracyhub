@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { omitIfHungarianScript } from "@/lib/locale";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,7 +15,9 @@ function sanitizeIlike(q: string): string {
   return q.replace(/[%_,]/g, " ").trim();
 }
 
-const SYSTEM_SEARCH = `You are a conspiracy research assistant. Given a search query, return structured results about:
+const SYSTEM_SEARCH = `You are a conspiracy research assistant. LANGUAGE: All readable text in your JSON response MUST be English only.
+
+Given a search query, return structured results about:
 1. Known conspiracy theories related to the query
 2. Relevant patents (USPTO) with real patent numbers
 3. Key figures associated with this topic
@@ -96,9 +99,15 @@ export async function GET(req: NextRequest) {
     if (threat === "medium") theories = theories.filter((t) => t.probability >= 30 && t.probability < 60);
     if (threat === "low") theories = theories.filter((t) => t.probability < 30);
 
+    const newsSanitized = (newsResults ?? []).map((row: { angle?: string | null; summary?: string | null; [k: string]: unknown }) => ({
+      ...row,
+      angle: omitIfHungarianScript(row.angle ?? ""),
+      summary: omitIfHungarianScript(row.summary ?? ""),
+    }));
+
     return NextResponse.json({
       query: rawQ,
-      news: newsResults ?? [],
+      news: newsSanitized,
       theories: type === "patents" || type === "people" ? [] : theories,
       patents: type === "theories" || type === "people" ? [] : (aiResults.patents ?? []),
       people: type === "theories" || type === "patents" ? [] : (aiResults.people ?? []),

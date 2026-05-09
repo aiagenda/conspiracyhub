@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
+import { normalizeVerdict } from "@/lib/verdict";
 import type { OracleAnalysis } from "@/types";
 
 function getAdminClient() {
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
       theories: analysis.theories ?? [],
       sources: analysis.sources ?? [],
       conclusion: analysis.conclusion ?? "",
-      verdict: analysis.verdict ?? "QUESTIONABLE",
+      verdict: normalizeVerdict(analysis.verdict ?? "QUESTIONABLE"),
     };
 
     const { data: inserted, error: dbErr } = await admin.from("url_analyses").insert(payload).select("*").single();

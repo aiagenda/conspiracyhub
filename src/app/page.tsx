@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import FeedScreen from "@/components/FeedScreen";
+import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
 export const revalidate = 1800;
@@ -24,7 +25,7 @@ export default async function Home() {
       date: row.published_at,
       section: row.section,
       score: row.score ?? 0,
-      angle: row.angle ?? "",
+      angle: omitIfHungarianScript(row.angle ?? ""),
     })) ?? [];
 
   return <FeedScreen initialItems={items} />;
