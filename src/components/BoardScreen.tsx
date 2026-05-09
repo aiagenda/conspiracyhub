@@ -370,6 +370,7 @@ export default function BoardScreen({
       conclusion={analysis?.conclusion}
       verdict={analysis?.verdict}
       analysisSources={analysis?.sources}
+      articleTitle={news.title}
     />
   );
 }

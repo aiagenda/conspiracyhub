@@ -424,6 +424,7 @@ export default function UAPTracker() {
                           <div>
                             <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e8ffe8",lineHeight:1.3}}>{inc.name}</div>
                             <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginTop:2}}>{inc.date} · {inc.location}</div>
+                            <Link href={`/uap/${inc.id}`} onClick={(e)=>e.stopPropagation()} style={{display:"inline-block",marginTop:6,fontSize:9,color:"#00bb66",textDecoration:"none",letterSpacing:1,border:"1px solid rgba(0,187,102,0.35)",padding:"2px 8px",borderRadius:2}}>FULL BOARD ↗</Link>
                           </div>
                           <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}>
                             <span style={classStyle(inc.classification)}>{inc.classification}</span>
@@ -535,7 +536,10 @@ export default function UAPTracker() {
             <div>
               {selected&&tab==="incidents"&&(
                 <div>
-                  <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#00ff88",marginBottom:"1rem",paddingBottom:"0.5rem",borderBottom:"1px solid #1a3320"}}>{selected.name}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:"1rem",paddingBottom:"0.5rem",borderBottom:"1px solid #1a3320"}}>
+                    <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#00ff88",lineHeight:1.25}}>{selected.name}</div>
+                    <Link href={`/uap/${selected.id}`} style={{flexShrink:0,fontSize:9,color:"#00bb66",textDecoration:"none",border:"1px solid #00bb66",padding:"5px 10px",borderRadius:3,letterSpacing:1,fontFamily:RAJ,fontWeight:700}}>FULL BOARD ↗</Link>
+                  </div>
                   <IncidentDetail incident={selected} people={data.people} orgs={data.organizations} docs={data.documents}/>
                 </div>
               )}

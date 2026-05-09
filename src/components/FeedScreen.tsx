@@ -184,6 +184,40 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          zIndex: 40,
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          background: "rgba(9,15,11,0.9)",
+          border: "1px solid #1a3320",
+          color: "#5a8068",
+          fontSize: 16,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "all 0.2s",
+          backdropFilter: "blur(4px)",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
+          (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
+          (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+        }}
+        title="Back to top"
+      >
+        ↑
+      </button>
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={startCheckout} />}
     </div>

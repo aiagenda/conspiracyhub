@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import PolymarketWidget from "@/components/PolymarketWidget";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
@@ -37,6 +38,8 @@ type Props = {
   conclusion?: string;
   verdict?: OracleAnalysis["verdict"];
   analysisSources?: OracleSource[];
+  /** Article headline for Polymarket relevance search */
+  articleTitle?: string;
 };
 
 function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
@@ -659,6 +662,7 @@ export default function InvestigationBoard({
   conclusion,
   verdict,
   analysisSources,
+  articleTitle,
 }: Props) {
   const [scanLine, setScanLine] = useState(0);
   const [glitch, setGlitch] = useState(false);
@@ -1023,6 +1027,12 @@ export default function InvestigationBoard({
           />
         ) : null}
       </div>
+
+      {articleTitle ? (
+        <div style={{ padding: "1.5rem 1.5rem 1rem", borderTop: "1px solid #1a3320", flexShrink: 0 }}>
+          <PolymarketWidget query={articleTitle} />
+        </div>
+      ) : null}
     </div>
   );
 }
