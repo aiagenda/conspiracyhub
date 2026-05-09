@@ -40,6 +40,8 @@ type Props = {
   analysisSources?: OracleSource[];
   /** Article headline for Polymarket relevance search */
   articleTitle?: string;
+  /** Summary, body snippet, Oracle text — improves keyword match vs title-only */
+  polymarketContext?: string;
 };
 
 function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
@@ -663,6 +665,7 @@ export default function InvestigationBoard({
   verdict,
   analysisSources,
   articleTitle,
+  polymarketContext,
 }: Props) {
   const [scanLine, setScanLine] = useState(0);
   const [glitch, setGlitch] = useState(false);
@@ -1030,7 +1033,7 @@ export default function InvestigationBoard({
 
       {articleTitle ? (
         <div style={{ padding: "1.5rem 1.5rem 1rem", borderTop: "1px solid #1a3320", flexShrink: 0 }}>
-          <PolymarketWidget query={articleTitle} />
+          <PolymarketWidget query={articleTitle} context={polymarketContext} />
         </div>
       ) : null}
     </div>

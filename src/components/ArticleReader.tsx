@@ -59,6 +59,18 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+/** Extra text for Polymarket keyword matching (not only the headline). */
+function buildArticlePolymarketContext(item: NewsItem, body: string, highlights: Highlight[]): string {
+  const parts: string[] = [];
+  if (item.summary?.trim()) parts.push(item.summary.trim());
+  if (item.angle?.trim()) parts.push(item.angle.trim());
+  const flat = body.replace(/\s+/g, " ").trim();
+  if (flat) parts.push(flat.slice(0, 700));
+  const hl = [...new Set(highlights.map((h) => h.text.trim()).filter(Boolean))];
+  if (hl.length) parts.push(hl.slice(0, 20).join(" "));
+  return parts.join(" ").slice(0, 2200);
+}
+
 // Build annotated segments from text + highlights
 function buildSegments(text: string, highlights: Highlight[]): AnnotatedSegment[] {
   if (!highlights.length) return [{ text }];
@@ -462,7 +474,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
             )}
 
             {/* POLYMARKET */}
-            <PolymarketWidget query={item.title} />
+            <PolymarketWidget query={item.title} context={buildArticlePolymarketContext(item, body, highlights)} />
           </div>
         </div>
       </div>

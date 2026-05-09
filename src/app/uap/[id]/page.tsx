@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useMemo } from "react";
 import Link from "next/link";
 import InvestigationBoard from "@/components/InvestigationBoard";
 import type { Node, Edge, OracleAnalysis, OracleSource } from "@/types";
@@ -299,6 +299,22 @@ export default function UAPIncidentPage({ params }: { params: Promise<{ id: stri
   }, []);
 
   const incident = data?.incidents.find((i) => i.id === id);
+
+  const polymarketContext = useMemo(() => {
+    if (!incident) return "";
+    const people = (data?.people ?? []).filter((p) => p.linkedIncidents.includes(incident.id));
+    const chunks = [
+      incident.description,
+      incident.location,
+      incident.tags.join(" "),
+      analysis?.summary,
+      analysis?.conspiracy_angle,
+      ...(analysis?.key_connections ?? []).slice(0, 12),
+      ...people.slice(0, 8).map((p) => `${p.name} ${p.affiliation}`),
+    ].filter((s): s is string => Boolean(s && String(s).trim()));
+    return chunks.join(" ").slice(0, 2200);
+  }, [incident, data?.people, analysis]);
+
   const col = incident ? (CLASS_COL[incident.classification] ?? "#5a8068") : "#00ff88";
   const evdCol = incident ? (EVD_COL[incident.evidenceLevel] ?? "#5a8068") : "#5a8068";
 
@@ -461,6 +477,7 @@ export default function UAPIncidentPage({ params }: { params: Promise<{ id: stri
           verdict={oracleVerdict}
           analysisSources={sources}
           articleTitle={incident.name}
+          polymarketContext={polymarketContext}
         />
       </div>
     </div>

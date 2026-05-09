@@ -297,7 +297,22 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
       </div>
 
       {/* Polymarket */}
-      <PolymarketWidget query={`${incident.name} UFO UAP`} />
+      <PolymarketWidget
+        query={`${incident.name} UFO UAP`}
+        context={
+          [
+            incident.description,
+            incident.location,
+            incident.tags.join(" "),
+            analysis?.summary,
+            analysis?.conspiracy_angle,
+            ...(analysis?.key_connections ?? []),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .slice(0, 2000) || undefined
+        }
+      />
     </div>
   );
 }

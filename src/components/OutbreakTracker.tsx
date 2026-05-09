@@ -437,7 +437,10 @@ function OutbreakDetail({o}:{o:Outbreak}) {
         )}
 
         {/* Polymarket */}
-        <PolymarketWidget query={`${o.disease} ${o.origin_country || o.location}`} />
+        <PolymarketWidget
+          query={`${o.disease} ${o.origin_country || o.location}`}
+          context={[o.title, o.description, o.key_facts?.join(" ")].filter(Boolean).join(" ").slice(0, 2000)}
+        />
 
         {/* Source */}
         <div style={{paddingTop:8,borderTop:"1px solid #1a3320",display:"flex",gap:12}}>

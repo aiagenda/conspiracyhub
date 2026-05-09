@@ -9,6 +9,20 @@ import type { Edge, NewsItem, Node, OracleAnalysis, NodeType, OracleTheory } fro
 
 const VALID_NODE_TYPES: NodeType[] = ["article", "patent", "foia", "company", "event", "person", "theory"];
 
+function buildBoardPolymarketContext(news: NewsItem, analysis: OracleAnalysis | null): string {
+  const parts: string[] = [];
+  if (news.summary?.trim()) parts.push(news.summary.trim());
+  if (news.angle?.trim()) parts.push(news.angle.trim());
+  if (analysis?.conclusion?.trim()) parts.push(analysis.conclusion.trim());
+  if (analysis?.theories?.length) {
+    for (const t of analysis.theories.slice(0, 8)) {
+      if (t.name?.trim()) parts.push(t.name.trim());
+      if (t.summary?.trim()) parts.push(t.summary.trim().slice(0, 320));
+    }
+  }
+  return parts.join(" ").slice(0, 2200);
+}
+
 function sanitizeNodeType(value: unknown): NodeType {
   if (typeof value !== "string") return "event";
   const normalized = value.trim().toLowerCase();
@@ -371,6 +385,7 @@ export default function BoardScreen({
       verdict={analysis?.verdict}
       analysisSources={analysis?.sources}
       articleTitle={news.title}
+      polymarketContext={buildBoardPolymarketContext(news, analysis)}
     />
   );
 }

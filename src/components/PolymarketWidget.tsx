@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { combinePolymarketQuery } from "@/lib/polymarketQuery";
 
 const RAJ = "var(--font-raj), sans-serif";
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -9,13 +10,23 @@ interface PM { id:string; question:string; yesPrice:number; noPrice:number; volu
 function fmt(v:number) { return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${(v/1e3).toFixed(0)}K`:`$${v}`; }
 function days(d:string) { if(!d)return""; const n=Math.ceil((new Date(d).getTime()-Date.now())/86400000); return n<0?"expired":n===0?"today":`${n}d`; }
 
-export default function PolymarketWidget({ query }:{ query:string }) {
+export default function PolymarketWidget({ query, context }: { query: string; context?: string }) {
+  const q = useMemo(() => combinePolymarketQuery(query, context), [query, context]);
+  return <PolymarketFetch key={q} q={q} />;
+}
+
+/** Remount when `q` changes so loading state resets without setState-in-effect. */
+function PolymarketFetch({ q }: { q: string }) {
   const [markets, setMarkets] = useState<PM[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/polymarket?q=${encodeURIComponent(query)}`).then(r=>r.json()).then(d=>setMarkets(d.markets??[])).catch(()=>{}).finally(()=>setLoading(false));
-  }, [query]);
+    fetch(`/api/polymarket?q=${encodeURIComponent(q)}`)
+      .then((r) => r.json())
+      .then((d) => setMarkets(d.markets ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [q]);
 
   if (loading) return (
     <div style={{border:"1px solid rgba(201,77,255,0.2)",borderRadius:4,padding:"10px 12px",background:"rgba(20,8,28,0.5)"}}>
@@ -74,3 +85,4 @@ export default function PolymarketWidget({ query }:{ query:string }) {
     </div>
   );
 }
+
