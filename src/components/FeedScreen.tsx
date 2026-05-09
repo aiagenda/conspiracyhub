@@ -75,6 +75,26 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
             >
               ◈ SEARCH
             </Link>
+            <Link
+              href="/outbreaks"
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(255,51,51,0.3)",
+                color: "#ff6633",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                padding: "6px 14px",
+                borderRadius: 3,
+                cursor: "pointer",
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              ⚠ OUTBREAKS
+            </Link>
             <button
               onClick={() => setShowAuth(true)}
               style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}

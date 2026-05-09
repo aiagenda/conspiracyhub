@@ -39,6 +39,7 @@ export async function callOpenAIJSON<T>({
   user,
   maxTokens = 1800,
   maxAttempts = 3,
+  model = "gpt-4o",
 }: {
   apiKey: string;
   system: string;
@@ -46,6 +47,8 @@ export async function callOpenAIJSON<T>({
   maxTokens?: number;
   /** Number of completion attempts on parse failure (default 3). */
   maxAttempts?: number;
+  /** OpenAI chat model id (default gpt-4o). */
+  model?: string;
 }): Promise<T> {
   function salvageScores(input: string): T | null {
     const scores: Array<{ index: number; score: number; angle: string }> = [];
@@ -101,7 +104,7 @@ export async function callOpenAIJSON<T>({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model,
         max_tokens: maxTokens,
         temperature: 0.2,
         response_format: { type: "json_object" },
