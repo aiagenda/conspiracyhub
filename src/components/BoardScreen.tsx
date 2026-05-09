@@ -253,7 +253,6 @@ function normalizeEdgeLabel(raw: unknown, fromNode: Node, toNode: Node): string 
   const label = typeof raw === "string" ? raw.trim() : "";
   const isGeneric =
     !label ||
-    /^kapcsolat$/i.test(label) ||
     /^connection$/i.test(label) ||
     /^link$/i.test(label);
   if (!isGeneric) return label;
@@ -371,7 +370,6 @@ export default function BoardScreen({
       conclusion={analysis?.conclusion}
       verdict={analysis?.verdict}
       analysisSources={analysis?.sources}
-      articleTitle={news?.title}
     />
   );
 }

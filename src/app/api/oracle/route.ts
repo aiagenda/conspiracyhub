@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
+import { normalizeVerdict } from "@/lib/verdict";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 function getAdminClient() {
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       maxAttempts: 4,
     });
 
-    const genericLabels = new Set(["connection", "link", "contextual relationship", "kapcsolat"]);
+    const genericLabels = new Set(["connection", "link", "contextual relationship"]);
     const normalizedEdges: Edge[] = (analysis.edges ?? []).map((edge) => ({
       ...edge,
       label:
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
       sources: validSources,
       theories: analysis.theories,
       conclusion: analysis.conclusion,
-      verdict: analysis.verdict,
+      verdict: normalizeVerdict(analysis.verdict),
     };
 
     const { data: inserted, error } = await admin.from("oracle_analyses").insert(payload).select("*").single();

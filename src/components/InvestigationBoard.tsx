@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import PolymarketWidget from "@/components/PolymarketWidget";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
@@ -37,7 +37,6 @@ type Props = {
   conclusion?: string;
   verdict?: OracleAnalysis["verdict"];
   analysisSources?: OracleSource[];
-  articleTitle?: string;
 };
 
 function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
@@ -48,10 +47,6 @@ function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
     PARTIALLY_TRUE: "PARTIALLY TRUE",
     QUESTIONABLE: "QUESTIONABLE",
     DISINFORMATION: "DISINFORMATION",
-    VALÓS: "TRUE",
-    "RÉSZBEN VALÓS": "PARTIALLY TRUE",
-    MEGKÉRDŐJELEZHETŐ: "QUESTIONABLE",
-    "TERJESZTETT DEZINFO": "DISINFORMATION",
   };
   return map[s] ?? s.replace(/_/g, " ");
 }
@@ -664,7 +659,6 @@ export default function InvestigationBoard({
   conclusion,
   verdict,
   analysisSources,
-  articleTitle,
 }: Props) {
   const [scanLine, setScanLine] = useState(0);
   const [glitch, setGlitch] = useState(false);
@@ -676,12 +670,24 @@ export default function InvestigationBoard({
   const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragState = useRef<{ type: "pan" | "node"; nodeId?: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [svgDragActive, setSvgDragActive] = useState(false);
 
-  /* eslint-disable react-hooks/set-state-in-effect -- mirror incoming graph props */
-  // Keep localNodes in sync when props change (but preserve positions if dragged)
+  const graphStructureKey = useMemo(() => {
+    const ids = [...nodes].map((n) => n.id).sort().join("|");
+    const es = [...edges]
+      .map((e) => `${e.from}->${e.to}`)
+      .sort()
+      .join(";");
+    return `${ids}::${es}`;
+  }, [nodes, edges]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- sync from props when graph topology changes */
   useEffect(() => {
     setLocalNodes(nodes);
-  }, [nodes]);
+    // graphStructureKey drives resets; `nodes` omitted so prop reference churn does not wipe dragged positions
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [graphStructureKey]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Convert screen coords → SVG coords accounting for transform
   function screenToSvg(screenX: number, screenY: number) {
@@ -700,15 +706,16 @@ export default function InvestigationBoard({
     };
   }
 
-  function handleSvgMouseDown(e: React.MouseEvent<SVGSVGElement>) {
+  function handleSvgMouseDown(e: ReactMouseEvent<SVGSVGElement>) {
     // Only pan if clicking background (not a node)
     const target = e.target as SVGElement;
     if (target.closest("[data-node]")) return;
     dragState.current = { type: "pan", startX: e.clientX, startY: e.clientY, origX: transform.x, origY: transform.y };
+    setSvgDragActive(true);
     e.preventDefault();
   }
 
-  function handleNodeMouseDown(e: React.MouseEvent, nodeId: string) {
+  function handleNodeMouseDown(e: ReactMouseEvent, nodeId: string) {
     e.stopPropagation();
     const node = localNodes.find(n => n.id === nodeId);
     if (!node) return;
@@ -717,7 +724,7 @@ export default function InvestigationBoard({
     e.preventDefault();
   }
 
-  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+  function handleMouseMove(e: ReactMouseEvent<SVGSVGElement>) {
     const ds = dragState.current;
     if (!ds) return;
     if (ds.type === "pan") {
@@ -741,26 +748,7 @@ export default function InvestigationBoard({
 
   function handleMouseUp() {
     dragState.current = null;
-  }
-
-  function handleWheel(e: React.WheelEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.88 : 1.14;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    // Zoom toward mouse position
-    const mx = (e.clientX - rect.left) / rect.width * 1000;
-    const my = (e.clientY - rect.top) / rect.height * 640;
-    setTransform(t => {
-      const newScale = Math.max(0.3, Math.min(4, t.scale * delta));
-      const factor = newScale / t.scale;
-      return {
-        x: mx + (t.x - mx) * factor,
-        y: my + (t.y - my) * factor,
-        scale: newScale,
-      };
-    });
+    setSvgDragActive(false);
   }
 
   function resetView() {
@@ -790,6 +778,30 @@ export default function InvestigationBoard({
     return () => clearInterval(iv);
   }, []);
 
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const wheelHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.88 : 1.14;
+      const rect = svg.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * 1000;
+      const my = ((e.clientY - rect.top) / rect.height) * 640;
+      setTransform((t) => {
+        const newScale = Math.max(0.3, Math.min(4, t.scale * delta));
+        const factor = newScale / t.scale;
+        return {
+          x: mx + (t.x - mx) * factor,
+          y: my + (t.y - my) * factor,
+          scale: newScale,
+        };
+      });
+    };
+    svg.addEventListener("wheel", wheelHandler, { passive: false });
+    return () => svg.removeEventListener("wheel", wheelHandler);
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- refresh selected node when props.nodes updates */
   useEffect(() => {
     setInternalSelected((prev) => {
       if (!prev) return prev;
@@ -919,13 +931,12 @@ export default function InvestigationBoard({
         <svg
           ref={svgRef}
           viewBox="0 0 1000 640"
-          style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: "grab" }}
+          style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
           preserveAspectRatio="xMidYMid meet"
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
         >
           <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
           {localNodes.length > 0 && edges.map((edge, i) => (
@@ -1004,18 +1015,14 @@ export default function InvestigationBoard({
           <DetailPanel
             node={internalSelected}
             edges={edges}
-            onClose={() => setInternalSelected(null)}
+            onClose={() => {
+              setInternalSelected(null);
+              onNodeClick(null);
+            }}
             analysisSources={analysisSources}
           />
         ) : null}
       </div>
-
-      {/* POLYMARKET WIDGET */}
-      {articleTitle && (
-        <div style={{ padding: "1.5rem 1.5rem 1rem", borderTop: "1px solid #1a3320" }}>
-          <PolymarketWidget query={articleTitle} />
-        </div>
-      )}
     </div>
   );
 }
