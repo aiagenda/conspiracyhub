@@ -11,10 +11,13 @@ const RAJ  = "var(--font-raj), sans-serif";
 type Theory   = { name:string; summary:string; probability:number; sources:string[] };
 type Patent   = { number:string; title:string; assignee:string; url:string };
 type LocalNews= { title:string; url:string; source:string; pubDate:string };
+type AffectedCoord = { country:string; lat:number; lng:number };
 type Outbreak = {
   id:string; title:string; description:string; source_url:string; published_at:string;
   disease:string; location:string; origin_country?:string;
+  affected_countries?:string[];
   lat:number; lng:number;
+  affectedCoords?:AffectedCoord[];
   conspiracy_score:number; has_conspiracy:boolean;
   theories:Theory[]; patents:Patent[]; key_facts:string[];
   verdict:string; risk_level:string;
@@ -193,44 +196,87 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
 
     for (const o of outbreaks) {
       if (!o.lat && !o.lng) continue;
-      const pos = proj([o.lng, o.lat]);
-      if (!pos) continue;
-      const [x,y] = pos;
       const col = RISK_COL(o.risk_level, o.conspiracy_score);
       const isSel = selected?.id === o.id;
-      const r = 5 + Math.min(7, o.conspiracy_score/14);
+      const r = 5 + Math.min(7, o.conspiracy_score / 14);
 
-      // Static glow ring — NO animation
-      svg.append("circle").attr("cx",x).attr("cy",y).attr("r",r+5)
-        .attr("fill","none").attr("stroke",col).attr("stroke-width","1")
-        .attr("stroke-opacity","0.2");
+      const mainPos = proj([o.lng, o.lat]);
+      if (!mainPos) continue;
 
-      // Outer glow
-      svg.append("circle").attr("cx",x).attr("cy",y).attr("r",r+2)
-        .attr("fill",col).attr("fill-opacity","0.08");
+      const allPositions: Array<[number, number, string]> = [[mainPos[0], mainPos[1], "primary"]];
 
-      // Main dot
-      svg.append("circle").attr("cx",x).attr("cy",y).attr("r",isSel?r+3:r)
-        .attr("fill",col).attr("fill-opacity",isSel?0.95:0.8)
-        .attr("stroke",col).attr("stroke-width",isSel?2:1)
-        .style("cursor","pointer")
-        .style("filter",`drop-shadow(0 0 ${isSel?6:3}px ${col})`)
-        .on("mouseenter", function(event){
-          setTooltip({x:event.offsetX,y:event.offsetY,o});
-          d3.select(this).attr("r",r+2).attr("fill-opacity","1");
-        })
-        .on("mouseleave", function(){
-          setTooltip(null);
-          d3.select(this).attr("r",isSel?r+3:r).attr("fill-opacity",isSel?0.95:0.8);
-        })
-        .on("click",()=>onSelect(o));
+      if (o.affectedCoords && o.affectedCoords.length > 1) {
+        for (const ac of o.affectedCoords) {
+          if (Math.abs(ac.lat - o.lat) < 0.1 && Math.abs(ac.lng - o.lng) < 0.1) continue;
+          const ap = proj([ac.lng, ac.lat]);
+          if (ap) allPositions.push([ap[0], ap[1], ac.country]);
+        }
+      }
 
-      // Label for selected or high score
-      if (isSel || o.conspiracy_score>=55) {
-        svg.append("text").attr("x",x+r+5).attr("y",y+3)
-          .attr("fill",col).attr("font-size","8")
-          .attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1")
-          .text(o.disease.toUpperCase().slice(0,14));
+      if (allPositions.length > 1) {
+        for (let i = 1; i < allPositions.length; i++) {
+          const [x1, y1] = allPositions[0];
+          const [x2, y2] = allPositions[i];
+          svg
+            .append("line")
+            .attr("x1", x1)
+            .attr("y1", y1)
+            .attr("x2", x2)
+            .attr("y2", y2)
+            .attr("stroke", col)
+            .attr("stroke-width", "0.8")
+            .attr("stroke-opacity", isSel ? "0.5" : "0.2")
+            .attr("stroke-dasharray", "3 5");
+        }
+      }
+
+      for (let pi = 0; pi < allPositions.length; pi++) {
+        const [x, y] = allPositions[pi];
+        const isPrimary = pi === 0;
+        const dotR = isPrimary ? r : Math.max(3, r - 2);
+
+        svg
+          .append("circle")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", dotR + 5)
+          .attr("fill", "none")
+          .attr("stroke", col)
+          .attr("stroke-width", "0.8")
+          .attr("stroke-opacity", "0.15");
+        svg.append("circle").attr("cx", x).attr("cy", y).attr("r", dotR + 2).attr("fill", col).attr("fill-opacity", "0.06");
+        svg
+          .append("circle")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", isSel && isPrimary ? dotR + 3 : dotR)
+          .attr("fill", col)
+          .attr("fill-opacity", isPrimary ? 0.85 : 0.5)
+          .attr("stroke", col)
+          .attr("stroke-width", isSel && isPrimary ? 2 : 0.8)
+          .style("cursor", "pointer")
+          .style("filter", `drop-shadow(0 0 ${isSel && isPrimary ? 6 : 2}px ${col})`)
+          .on("mouseenter", function (event) {
+            setTooltip({ x: event.offsetX, y: event.offsetY, o });
+            d3.select(this).attr("fill-opacity", "1");
+          })
+          .on("mouseleave", function () {
+            setTooltip(null);
+            d3.select(this).attr("fill-opacity", isPrimary ? "0.85" : "0.5");
+          })
+          .on("click", () => onSelect(o));
+      }
+
+      if (isSel || o.conspiracy_score >= 55) {
+        svg
+          .append("text")
+          .attr("x", mainPos[0] + r + 5)
+          .attr("y", mainPos[1] + 3)
+          .attr("fill", col)
+          .attr("font-size", "8")
+          .attr("font-family", FONT)
+          .attr("letter-spacing", "1")
+          .text(o.disease.toUpperCase().slice(0, 14));
       }
     }
   },[world,outbreaks,selected,onSelect]);

@@ -131,6 +131,7 @@ Return ONLY valid JSON:
 {
   "disease":"short disease name (1-3 words)",
   "location":"primary affected country (lowercase, single country or 'multiple countries')",
+  "affected_countries":["country1","country2"],
   "lat":0.0,"lng":0.0,
   "conspiracy_score":0,
   "has_conspiracy":false,
@@ -141,6 +142,7 @@ Return ONLY valid JSON:
   "risk_level":"MEDIUM",
   "origin_country":"lowercase country name where outbreak originated"
 }
+affected_countries: array of ALL countries currently affected (lowercase). If global or regional spread, list up to 8 specific countries.
 verdict: NATURAL|SUSPICIOUS|HIGHLY_SUSPICIOUS|UNKNOWN
 risk_level: LOW|MEDIUM|HIGH|CRITICAL
 Only cite real patent numbers and real URLs. conspiracy_score based on documented theories only.`;
@@ -148,6 +150,7 @@ Only cite real patent numbers and real URLs. conspiracy_score based on documente
 type AnalysisRow = {
   disease: string;
   location: string;
+  affected_countries?: string[];
   lat: number;
   lng: number;
   conspiracy_score: number;
@@ -250,6 +253,16 @@ export async function GET() {
         const origin = rest.origin_country?.toLowerCase() ?? "";
         const ck = Object.keys(COORDS).find((k) => loc.includes(k) || origin.includes(k));
         const [lat, lng] = ck ? COORDS[ck]! : [rest.lat ?? 0, rest.lng ?? 0];
+
+        const affectedCoords = (rest.affected_countries ?? [])
+          .map((country: string) => {
+            const key = Object.keys(COORDS).find((k) => country.toLowerCase().includes(k));
+            if (!key) return null;
+            const coords = COORDS[key]!;
+            return { country, lat: coords[0], lng: coords[1] };
+          })
+          .filter((ac): ac is { country: string; lat: number; lng: number } => ac !== null);
+
         return {
           id: `ob-${i}-${Date.now()}`,
           title: rawItem.title,
@@ -259,6 +272,7 @@ export async function GET() {
           ...rest,
           lat,
           lng,
+          affectedCoords,
         };
       })
       .filter(Boolean);
