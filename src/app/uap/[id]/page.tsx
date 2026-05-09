@@ -2,7 +2,8 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import PolymarketWidget from "@/components/PolymarketWidget";
+import InvestigationBoard from "@/components/InvestigationBoard";
+import type { Node, Edge, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ = "var(--font-raj), sans-serif";
@@ -38,7 +39,6 @@ interface Person {
   affiliation: string;
   clearance: string;
   bio: string;
-  significance: string;
   linkedIncidents: string[];
 }
 interface Org {
@@ -48,6 +48,7 @@ interface Org {
   type: string;
   url: string;
   transparency: string;
+  description: string;
 }
 interface Doc {
   id: string;
@@ -59,18 +60,227 @@ interface Doc {
   description: string;
 }
 
-function IncidentBoard({
-  incident,
-  people,
-  orgs,
-  docs,
-}: {
-  incident: Incident;
-  people: Person[];
-  orgs: Org[];
-  docs: Doc[];
-}) {
-  const [selectedNode, setSelectedNode] = useState<{ label: string; detail: string; url?: string; type: string } | null>(null);
+function safeHostname(url: string): string {
+  const t = url.trim();
+  if (!t) return "source";
+  try {
+    const u = t.startsWith("http") ? t : `https://${t}`;
+    return new URL(u).hostname;
+  } catch {
+    return "source";
+  }
+}
+
+/** Deterministic ring radius so layouts stay stable across re-renders (no Math.random). */
+function ringRadius(base: number, si: number, incidentId: string): number {
+  const salt = incidentId.charCodeAt(si % incidentId.length) ?? 0;
+  return base + ((si * 47 + salt) % 45);
+}
+
+// Convert UAP incident data → InvestigationBoard Node/Edge format
+function buildBoardData(
+  incident: Incident,
+  people: Person[],
+  orgs: Org[],
+  docs: Doc[]
+): { nodes: Node[]; edges: Edge[] } {
+  const cx = 500,
+    cy = 320;
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+
+  // Center node — the incident itself
+  nodes.push({
+    id: "center",
+    type: "article",
+    x: cx,
+    y: cy,
+    label: incident.name.split("/")[0].trim().toUpperCase().slice(0, 16),
+    sub: `${incident.classification}\n${incident.date}`,
+    detail: {
+      title: incident.name,
+      body: incident.description,
+      source: `${incident.location} · ${incident.date}`,
+      source_url: undefined,
+      source_tier: incident.evidenceLevel === "HIGH" ? "A" : incident.evidenceLevel === "MEDIUM" ? "B" : "C",
+      source_type: "official",
+      threat: incident.evidenceLevel === "HIGH" ? 75 : incident.evidenceLevel === "MEDIUM" ? 45 : 20,
+      why_it_matters: `This incident has ${incident.evidenceLevel} evidence level and is ${incident.classification}.`,
+      key_claims: incident.witnesses.slice(0, 4).map((w) => `${w} — direct witness`),
+      uncertainties: ["Classification level limits full disclosure", "Some witness accounts differ on details"],
+      counter_evidence: ["Official explanations include weather balloons, classified aircraft", "No physical evidence recovered publicly"],
+      timeline: [{ date: incident.date, event: `Incident occurred at ${incident.location}` }],
+      actors: incident.witnesses.slice(0, 5),
+      confidence: incident.evidenceLevel === "HIGH" ? 80 : 50,
+      open_questions: ["What was the propulsion system?", "Why was information withheld?"],
+    },
+  } as Node);
+
+  const relPeople = people.filter((p) => p.linkedIncidents.includes(incident.id)).slice(0, 3);
+  const relOrgs = orgs.filter((o) => incident.relatedOrgs.includes(o.name)).slice(0, 3);
+  const relDocs = docs
+    .filter((d) => incident.documents.some((n) => n.toLowerCase().includes(d.name.toLowerCase().split(" ")[0])))
+    .slice(0, 4);
+  const extraWitnesses = incident.witnesses.filter((w) => !relPeople.find((p) => p.name === w)).slice(0, 3);
+
+  const total = Math.max(
+    extraWitnesses.length + relPeople.length + relOrgs.length + relDocs.length,
+    1
+  );
+  let si = 0;
+
+  extraWitnesses.forEach((w) => {
+    const angle = (si / total) * Math.PI * 2 - Math.PI / 2;
+    const dist = ringRadius(200, si, incident.id);
+    const x = cx + dist * Math.cos(angle);
+    const y = cy + dist * Math.sin(angle);
+    nodes.push({
+      id: `w-${si}`,
+      type: "person",
+      x,
+      y,
+      label: w.split(" ").slice(-1)[0].toUpperCase(),
+      sub: "WITNESS",
+      detail: {
+        title: w,
+        body: `${w} was a direct witness to the ${incident.name} incident.`,
+        source: "Witness testimony",
+        threat: 40,
+        source_tier: "B",
+        source_type: "research",
+        key_claims: [`${w} reported the incident directly`],
+        uncertainties: [],
+        counter_evidence: [],
+        timeline: [{ date: incident.date, event: "Witnessed incident" }],
+        actors: [w],
+        confidence: 60,
+        open_questions: [],
+        why_it_matters: `Direct eyewitness testimony.`,
+      },
+    } as Node);
+    edges.push({ from: "center", to: `w-${si}`, color: "#00bb66", label: "WITNESS", strength: 0.8 });
+    si++;
+  });
+
+  relPeople.forEach((p) => {
+    const angle = (si / total) * Math.PI * 2 - Math.PI / 2;
+    const dist = ringRadius(210, si, incident.id);
+    const x = cx + dist * Math.cos(angle);
+    const y = cy + dist * Math.sin(angle);
+    nodes.push({
+      id: p.id,
+      type: "person",
+      x,
+      y,
+      label: p.name.split(" ").slice(-1)[0].toUpperCase(),
+      sub: p.role.split("/")[0].trim().slice(0, 14).toUpperCase(),
+      detail: {
+        title: p.name,
+        body: p.bio,
+        source: p.affiliation,
+        source_url: undefined,
+        source_tier: "A",
+        source_type: "official",
+        threat: p.clearance.includes("TS") ? 70 : 45,
+        why_it_matters: `${p.role} — Clearance: ${p.clearance}`,
+        key_claims: [`${p.name} is ${p.role}`, `Affiliated with ${p.affiliation}`],
+        uncertainties: ["Some statements made under NDA"],
+        counter_evidence: [],
+        timeline: [],
+        actors: [p.name],
+        confidence: 75,
+        open_questions: [],
+      },
+    } as Node);
+    edges.push({ from: "center", to: p.id, color: "#00ff88", label: "KEY WITNESS", strength: 0.9 });
+    si++;
+  });
+
+  relOrgs.forEach((o) => {
+    const angle = (si / total) * Math.PI * 2 - Math.PI / 2;
+    const dist = ringRadius(220, si, incident.id);
+    const x = cx + dist * Math.cos(angle);
+    const y = cy + dist * Math.sin(angle);
+    nodes.push({
+      id: o.id,
+      type: "company",
+      x,
+      y,
+      label: o.name,
+      sub: o.type.toUpperCase(),
+      detail: {
+        title: o.fullName,
+        body: o.description,
+        source: o.type,
+        source_url: o.url,
+        source_tier: o.transparency === "HIGH" ? "A" : "B",
+        source_type: "official",
+        threat: o.transparency === "VERY LOW" ? 65 : 35,
+        why_it_matters: `Transparency: ${o.transparency}`,
+        key_claims: [`${o.name} is a ${o.type} organization`, `Transparency level: ${o.transparency}`],
+        uncertainties: ["Internal operations classified"],
+        counter_evidence: [],
+        timeline: [],
+        actors: [],
+        confidence: 60,
+        open_questions: [`What does ${o.name} know?`],
+      },
+    } as Node);
+    edges.push({ from: "center", to: o.id, color: "#ffaa00", label: "RELATED ORG", strength: 0.7 });
+    si++;
+  });
+
+  relDocs.forEach((d) => {
+    const angle = (si / total) * Math.PI * 2 - Math.PI / 2;
+    const dist = ringRadius(205, si, incident.id);
+    const x = cx + dist * Math.cos(angle);
+    const y = cy + dist * Math.sin(angle);
+    nodes.push({
+      id: d.id,
+      type: "foia",
+      x,
+      y,
+      label: d.name
+        .split(" ")
+        .slice(0, 2)
+        .join(" ")
+        .toUpperCase()
+        .slice(0, 12),
+      sub: `${d.type} · ${d.year}`,
+      detail: {
+        title: d.name,
+        body: d.description,
+        source: `${d.type} (${d.year})`,
+        source_url: d.url,
+        source_tier: d.classification === "DECLASSIFIED" ? "A" : "B",
+        source_type: "official",
+        threat: d.classification === "DECLASSIFIED" ? 60 : 40,
+        why_it_matters: `${d.classification} ${d.type} from ${d.year}`,
+        key_claims: [d.description.slice(0, 80)],
+        uncertainties: d.classification !== "DECLASSIFIED" ? ["Parts still classified"] : [],
+        counter_evidence: [],
+        timeline: [{ date: String(d.year), event: `${d.name} released/created` }],
+        actors: [],
+        confidence: 80,
+        open_questions: ["What remains classified?"],
+      },
+    } as Node);
+    edges.push({ from: "center", to: d.id, color: "#ff3333", label: "EVIDENCE", strength: 0.85 });
+    si++;
+  });
+
+  return { nodes, edges };
+}
+
+export default function UAPIncidentPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [data, setData] = useState<{
+    incidents: Incident[];
+    people: Person[];
+    organizations: Org[];
+    documents: Doc[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<{
     summary: string;
     conspiracy_angle: string;
@@ -79,409 +289,6 @@ function IncidentBoard({
     verdict: string;
   } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [hint, setHint] = useState(true);
-
-  const col = CLASS_COL[incident.classification] ?? "#5a8068";
-  const cx = 600,
-    cy = 300;
-
-  interface GNode {
-    id: string;
-    x: number;
-    y: number;
-    label: string;
-    sub: string;
-    color: string;
-    type: string;
-    detail: string;
-    url?: string;
-    r: number;
-  }
-  const nodes: GNode[] = [
-    {
-      id: "center",
-      x: cx,
-      y: cy,
-      r: 32,
-      label: incident.name.split("/")[0].trim().toUpperCase().slice(0, 14),
-      sub: incident.date,
-      color: col,
-      type: "incident",
-      detail: incident.description,
-    },
-  ];
-
-  const relPeople = people.filter((p) => p.linkedIncidents.includes(incident.id)).slice(0, 4);
-  const relOrgs = orgs.filter((o) => incident.relatedOrgs.includes(o.name)).slice(0, 3);
-  const relDocs = docs
-    .filter((d) => incident.documents.some((n) => n.toLowerCase().includes(d.name.toLowerCase().split(" ")[0])))
-    .slice(0, 3);
-
-  const totalSatellites = relPeople.length + relOrgs.length + relDocs.length + Math.min(incident.witnesses.length, 3);
-  let satIdx = 0;
-  const angleStep = (2 * Math.PI) / Math.max(totalSatellites, 1);
-
-  incident.witnesses
-    .slice(0, 3)
-    .filter((w) => !relPeople.find((p) => p.name === w))
-    .forEach((w) => {
-      const angle = satIdx * angleStep - Math.PI / 2;
-      nodes.push({
-        id: `w${satIdx}`,
-        x: cx + 220 * Math.cos(angle),
-        y: cy + 180 * Math.sin(angle),
-        r: 18,
-        label: w.split(" ").slice(-1)[0].toUpperCase(),
-        sub: "WITNESS",
-        color: "#00bb66",
-        type: "witness",
-        detail: `${w} — witness to the ${incident.name} incident.`,
-      });
-      satIdx++;
-    });
-  relPeople.forEach((p) => {
-    const angle = satIdx * angleStep - Math.PI / 2;
-    nodes.push({
-      id: p.id,
-      x: cx + 220 * Math.cos(angle),
-      y: cy + 180 * Math.sin(angle),
-      r: 20,
-      label: p.name.split(" ").slice(-1)[0].toUpperCase(),
-      sub: p.role.split("/")[0].trim().slice(0, 12).toUpperCase(),
-      color: "#00ff88",
-      type: "person",
-      detail: `${p.name} — ${p.role}. Clearance: ${p.clearance}. ${p.bio.slice(0, 120)}...`,
-    });
-    satIdx++;
-  });
-  relOrgs.forEach((o) => {
-    const angle = satIdx * angleStep - Math.PI / 2;
-    nodes.push({
-      id: o.id,
-      x: cx + 260 * Math.cos(angle),
-      y: cy + 200 * Math.sin(angle),
-      r: 18,
-      label: o.name,
-      sub: o.type.toUpperCase(),
-      color: "#ffaa00",
-      type: "org",
-      detail: `${o.fullName} — Transparency: ${o.transparency}`,
-      url: o.url,
-    });
-    satIdx++;
-  });
-  relDocs.forEach((d) => {
-    const angle = satIdx * angleStep - Math.PI / 2;
-    nodes.push({
-      id: d.id,
-      x: cx + 240 * Math.cos(angle),
-      y: cy + 185 * Math.sin(angle),
-      r: 16,
-      label: d.name
-        .split(" ")
-        .slice(0, 2)
-        .join(" ")
-        .toUpperCase()
-        .slice(0, 12),
-      sub: d.type.toUpperCase(),
-      color: "#c94dff",
-      type: "document",
-      detail: `${d.name} (${d.year}) — ${d.description}`,
-      url: d.url,
-    });
-    satIdx++;
-  });
-
-  async function runAnalysis() {
-    setAnalyzing(true);
-    try {
-      const res = await fetch(`/api/uap?type=analyze&id=${incident.id}`);
-      const data = await res.json();
-      if (data.analysis) setAnalysis(data.analysis);
-    } catch {
-      /* optional */
-    }
-    setAnalyzing(false);
-  }
-
-  const EDGE_COLORS: Record<string, string> = { witness: "#00bb66", person: "#00ff88", org: "#ffaa00", document: "#c94dff" };
-
-  return (
-    <div style={{ position: "relative", width: "100%", height: "100%", background: "#030806", display: "flex", minHeight: 0 }}>
-      <style>{`
-        @keyframes board-dash{to{stroke-dashoffset:-20}}
-        @keyframes board-fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-      `}</style>
-
-      <div style={{ flex: 1, position: "relative", minHeight: "60vh" }}>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            opacity: 0.06,
-            backgroundImage: "linear-gradient(#0d2818 1px,transparent 1px),linear-gradient(90deg,#0d2818 1px,transparent 1px)",
-            backgroundSize: "32px 32px",
-            pointerEvents: "none",
-          }}
-        />
-
-        {hint && (
-          <div
-            onClick={() => setHint(false)}
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%,-50%)",
-              zIndex: 10,
-              background: "rgba(5,12,7,0.9)",
-              border: "1px solid #1a3320",
-              borderRadius: 4,
-              padding: "12px 20px",
-              textAlign: "center",
-              cursor: "pointer",
-              pointerEvents: "all",
-            }}
-          >
-            <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#00ff88", marginBottom: 4 }}>◈ INVESTIGATION BOARD</div>
-            <div style={{ fontFamily: FONT, fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>CLICK ANY NODE FOR DETAILS</div>
-          </div>
-        )}
-
-        <svg viewBox="0 0 1200 600" style={{ width: "100%", height: "100%", display: "block" }} onClick={() => setHint(false)}>
-          <defs>
-            <radialGradient id="uapGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor={col} stopOpacity="0.1" />
-              <stop offset="100%" stopColor={col} stopOpacity="0" />
-            </radialGradient>
-          </defs>
-
-          <circle cx={cx} cy={cy} r={80} fill="url(#uapGrad)" />
-
-          {nodes.slice(1).map((n) => (
-            <line
-              key={n.id}
-              x1={cx}
-              y1={cy}
-              x2={n.x}
-              y2={n.y}
-              stroke={EDGE_COLORS[n.type] ?? col}
-              strokeWidth="1.5"
-              strokeOpacity="0.4"
-              strokeDasharray="5 8"
-              style={{ animation: "board-dash 2s linear infinite" }}
-            />
-          ))}
-
-          {nodes.map((n, i) => (
-            <g
-              key={n.id}
-              style={{ cursor: "pointer" }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedNode({ label: n.label, detail: n.detail, url: n.url, type: n.type });
-              }}
-            >
-              <circle cx={n.x} cy={n.y} r={n.r + 8} fill={n.color} opacity="0.06" />
-              <circle cx={n.x} cy={n.y} r={n.r + 2} fill="none" stroke={n.color} strokeWidth="0.8" strokeOpacity="0.25" />
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={n.r}
-                fill="#080f09"
-                stroke={n.color}
-                strokeWidth={i === 0 ? 2.5 : 1.5}
-                style={{ filter: `drop-shadow(0 0 ${i === 0 ? 8 : 4}px ${n.color})` }}
-              />
-              <text x={n.x} y={n.y + (i === 0 ? 2 : 1)} textAnchor="middle" fill={n.color} style={{ fontFamily: FONT, fontSize: i === 0 ? 9 : 7, letterSpacing: 0.5 }}>
-                {n.label.slice(0, i === 0 ? 12 : 10)}
-              </text>
-              <text x={n.x} y={n.y + n.r + 14} textAnchor="middle" fill={n.color} opacity="0.5" style={{ fontFamily: FONT, fontSize: 7, letterSpacing: 1 }}>
-                {n.sub}
-              </text>
-            </g>
-          ))}
-        </svg>
-
-        <div
-          style={{
-            position: "absolute",
-            bottom: 16,
-            left: 16,
-            display: "flex",
-            gap: 12,
-            background: "rgba(4,11,6,0.85)",
-            border: "1px solid #1a3320",
-            borderRadius: 4,
-            padding: "8px 12px",
-          }}
-        >
-          {[
-            ["#00ff88", "PERSON/WITNESS"],
-            ["#ffaa00", "ORGANIZATION"],
-            ["#c94dff", "DOCUMENT"],
-            ["#5a8068", "ALLEGED"],
-          ].map(([c, l]) => (
-            <span key={l} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 8, color: "#5a8068", letterSpacing: 1 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block" }} />
-              {l}
-            </span>
-          ))}
-        </div>
-
-        <div style={{ position: "absolute", bottom: 16, right: 16 }}>
-          {!analysis && !analyzing && (
-            <button
-              type="button"
-              onClick={runAnalysis}
-              style={{
-                background: "rgba(0,255,136,0.06)",
-                border: "1px solid #00bb66",
-                color: "#00ff88",
-                fontFamily: RAJ,
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: 2,
-                padding: "8px 16px",
-                borderRadius: 3,
-                cursor: "pointer",
-                textTransform: "uppercase",
-              }}
-            >
-              ◈ RUN ORACLE ANALYSIS ▶
-            </button>
-          )}
-          {analyzing && <div style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>[ ANALYZING... ]</div>}
-        </div>
-      </div>
-
-      <div
-        style={{
-          width: 320,
-          flexShrink: 0,
-          background: "#090f0b",
-          borderLeft: "1px solid #1a3320",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a3320", background: "#050c07" }}>
-          <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#e8ffe8", marginBottom: 5, lineHeight: 1.3 }}>{incident.name}</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-            <span style={{ fontSize: 9, color: col, border: `1px solid ${col}`, padding: "1px 6px", borderRadius: 2 }}>{incident.classification}</span>
-            <span
-              style={{
-                fontSize: 9,
-                color: EVD_COL[incident.evidenceLevel] ?? "#5a8068",
-                border: `1px solid ${EVD_COL[incident.evidenceLevel] ?? "#5a8068"}`,
-                padding: "1px 6px",
-                borderRadius: 2,
-              }}
-            >
-              EVD: {incident.evidenceLevel}
-            </span>
-          </div>
-          <div style={{ fontFamily: FONT, fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>
-            {incident.date} · {incident.location}
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {selectedNode ? (
-            <div style={{ animation: "board-fadein 0.25s ease" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <div style={{ fontFamily: FONT, fontSize: 8, color: EDGE_COLORS[selectedNode.type] ?? "#5a8068", letterSpacing: 3 }}>
-                  {selectedNode.type.toUpperCase()}
-                </div>
-                <button type="button" onClick={() => setSelectedNode(null)} style={{ background: "transparent", border: "none", color: "#5a8068", cursor: "pointer", fontSize: 10, fontFamily: FONT }}>
-                  ✕
-                </button>
-              </div>
-              <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", marginBottom: 8 }}>{selectedNode.label}</div>
-              <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75, marginBottom: 10 }}>{selectedNode.detail}</div>
-              {selectedNode.url && (
-                <a
-                  href={selectedNode.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    display: "flex",
-                    gap: 7,
-                    color: "#00bb66",
-                    fontSize: 10,
-                    textDecoration: "none",
-                    padding: "6px 10px",
-                    border: "1px solid rgba(0,187,102,0.25)",
-                    borderRadius: 3,
-                    background: "rgba(0,187,102,0.04)",
-                  }}
-                >
-                  <span style={{ flexShrink: 0 }}>↗</span>
-                  <span style={{ wordBreak: "break-all" }}>{selectedNode.url}</span>
-                </a>
-              )}
-            </div>
-          ) : (
-            <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.8 }}>{incident.description}</div>
-          )}
-
-          {analysis && (
-            <div style={{ border: "1px solid #1a3320", borderRadius: 4, padding: "12px", background: "rgba(0,255,136,0.02)" }}>
-              <div style={{ fontFamily: FONT, fontSize: 9, color: "#00ff88", letterSpacing: 2, marginBottom: 8 }}>◈ ORACLE ANALYSIS</div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontFamily: RAJ, fontSize: 32, fontWeight: 700, color: analysis.probability >= 50 ? "#ff3333" : analysis.probability >= 30 ? "#ffaa00" : "#00bb66", lineHeight: 1 }}>
-                  {analysis.probability}%
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ height: 3, background: "#1a3320", borderRadius: 2, overflow: "hidden", marginBottom: 5 }}>
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${analysis.probability}%`,
-                        background: analysis.probability >= 50 ? "#ff3333" : analysis.probability >= 30 ? "#ffaa00" : "#00bb66",
-                        borderRadius: 2,
-                      }}
-                    />
-                  </div>
-                  <div style={{ fontSize: 8, color: "#3a5040", border: "1px solid #1a3320", borderRadius: 2, padding: "1px 5px", display: "inline-block", letterSpacing: 1 }}>
-                    {analysis.verdict?.replace(/_/g, " ")}
-                  </div>
-                </div>
-              </div>
-              <div style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", lineHeight: 1.7, marginBottom: 8 }}>{analysis.summary}</div>
-              <div style={{ padding: "7px 9px", background: "rgba(201,77,255,0.06)", border: "1px solid rgba(201,77,255,0.2)", borderRadius: 3, marginBottom: 8 }}>
-                <div style={{ fontSize: 8, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>CONSPIRACY ANGLE</div>
-                <div style={{ fontFamily: FONT, fontSize: 10, color: "#e9b3ff", lineHeight: 1.6 }}>{analysis.conspiracy_angle}</div>
-              </div>
-              {analysis.key_connections?.map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 6, color: "#7aaa8a", fontSize: 10, marginBottom: 4, lineHeight: 1.6 }}>
-                  <span style={{ color: "#00bb66", flexShrink: 0 }}>▸</span>
-                  <span>{c}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {incident.tags.map((t) => (
-              <span key={t} style={{ fontSize: 8, color: "#3a5040", border: "1px solid #0d1a10", padding: "2px 6px", borderRadius: 2, letterSpacing: 0.5 }}>
-                {t}
-              </span>
-            ))}
-          </div>
-
-          <PolymarketWidget query={`${incident.name} UFO UAP`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function UAPIncidentPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const [data, setData] = useState<{ incidents: Incident[]; people: Person[]; organizations: Org[]; documents: Doc[] } | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/uap")
@@ -492,12 +299,27 @@ export default function UAPIncidentPage({ params }: { params: Promise<{ id: stri
   }, []);
 
   const incident = data?.incidents.find((i) => i.id === id);
+  const col = incident ? (CLASS_COL[incident.classification] ?? "#5a8068") : "#00ff88";
+  const evdCol = incident ? (EVD_COL[incident.evidenceLevel] ?? "#5a8068") : "#5a8068";
+
+  async function runAnalysis() {
+    if (!incident) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch(`/api/uap?type=analyze&id=${incident.id}`);
+      const d = await res.json();
+      if (d.analysis) setAnalysis(d.analysis);
+    } catch {
+      /* optional */
+    }
+    setAnalyzing(false);
+  }
 
   if (loading)
     return (
-      <div style={{ minHeight: "100vh", background: "#030806", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, color: "#00ff88" }}>
+      <div style={{ minHeight: "100vh", background: "#030806", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>LOADING INCIDENT DATA</div>
+          <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", letterSpacing: 2, marginBottom: 8 }}>LOADING INCIDENT DATA</div>
           <div style={{ fontSize: 10, color: "#3a6040", letterSpacing: 2 }}>ACCESSING CLASSIFIED FILES...</div>
         </div>
       </div>
@@ -515,9 +337,30 @@ export default function UAPIncidentPage({ params }: { params: Promise<{ id: stri
       </div>
     );
 
+  const { nodes, edges } = buildBoardData(incident, data?.people ?? [], data?.organizations ?? [], data?.documents ?? []);
+
+  const sources: OracleSource[] = (data?.documents ?? [])
+    .filter((d) => incident.documents.some((n) => n.toLowerCase().includes(d.name.toLowerCase().split(" ")[0])))
+    .map((d) => ({
+      id: d.id,
+      title: d.name,
+      url: d.url,
+      domain: safeHostname(d.url),
+      tier: "A" as const,
+      source_type: "official" as const,
+      excerpt: d.description,
+    }));
+
+  const oracleVerdict = analysis?.verdict as OracleAnalysis["verdict"] | undefined;
+
+  const conclusion = analysis
+    ? analysis.summary
+    : `${incident.name} — ${incident.classification} incident with ${incident.evidenceLevel} evidence level. ${incident.description.slice(0, 120)}...`;
+
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", display: "flex", flexDirection: "column", fontFamily: FONT }}>
       <div className="scanline" />
+
       <div
         style={{
           height: 44,
@@ -529,7 +372,7 @@ export default function UAPIncidentPage({ params }: { params: Promise<{ id: stri
           gap: 12,
           position: "sticky",
           top: 0,
-          zIndex: 20,
+          zIndex: 30,
           flexShrink: 0,
         }}
       >
@@ -539,25 +382,86 @@ export default function UAPIncidentPage({ params }: { params: Promise<{ id: stri
         <div style={{ width: 1, height: 20, background: "#1a3320" }} />
         <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
         <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-        <div style={{ fontFamily: RAJ, fontSize: 11, color: "#00ff88", letterSpacing: 1 }}>{incident.name}</div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-          <span style={{ fontSize: 9, color: CLASS_COL[incident.classification], border: `1px solid ${CLASS_COL[incident.classification]}`, padding: "3px 8px", borderRadius: 2 }}>{incident.classification}</span>
+        <div style={{ fontFamily: RAJ, fontSize: 11, color: "#e8ffe8", letterSpacing: 1 }}>{incident.name}</div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
           <span
             style={{
               fontSize: 9,
-              color: EVD_COL[incident.evidenceLevel] ?? "#5a8068",
-              border: `1px solid ${EVD_COL[incident.evidenceLevel] ?? "#5a8068"}`,
-              padding: "3px 8px",
+              color: col,
+              border: `1px solid ${col}`,
+              padding: "3px 10px",
               borderRadius: 2,
+              letterSpacing: 1,
+              fontFamily: RAJ,
+              fontWeight: 700,
+            }}
+          >
+            {incident.classification}
+          </span>
+          <span
+            style={{
+              fontSize: 9,
+              color: evdCol,
+              border: `1px solid ${evdCol}`,
+              padding: "3px 10px",
+              borderRadius: 2,
+              letterSpacing: 1,
+              fontFamily: RAJ,
+              fontWeight: 700,
             }}
           >
             EVIDENCE: {incident.evidenceLevel}
           </span>
+          {!analysis && !analyzing && (
+            <button
+              type="button"
+              onClick={runAnalysis}
+              style={{
+                background: "rgba(0,255,136,0.06)",
+                border: "1px solid #00bb66",
+                color: "#00ff88",
+                fontFamily: RAJ,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 2,
+                padding: "5px 14px",
+                borderRadius: 3,
+                cursor: "pointer",
+                textTransform: "uppercase",
+              }}
+            >
+              ◈ ORACLE ANALYSIS ▶
+            </button>
+          )}
+          {analyzing && <span style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>[ ANALYZING... ]</span>}
+          {analysis && (
+            <span
+              style={{
+                fontSize: 9,
+                color: analysis.probability >= 50 ? "#ff3333" : "#ffaa00",
+                border: `1px solid currentColor`,
+                padding: "3px 10px",
+                borderRadius: 2,
+                letterSpacing: 1,
+              }}
+            >
+              {analysis.probability}% NON-HUMAN
+            </span>
+          )}
         </div>
       </div>
 
       <div style={{ flex: 1, position: "relative", overflow: "hidden", minHeight: 0 }}>
-        <IncidentBoard incident={incident} people={data?.people ?? []} orgs={data?.organizations ?? []} docs={data?.documents ?? []} />
+        <InvestigationBoard
+          nodes={nodes}
+          edges={edges}
+          selectedNode={null}
+          onNodeClick={() => {}}
+          conclusion={conclusion}
+          verdict={oracleVerdict}
+          analysisSources={sources}
+          articleTitle={incident.name}
+        />
       </div>
     </div>
   );

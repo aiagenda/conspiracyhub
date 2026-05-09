@@ -417,23 +417,24 @@ export default function UAPTracker() {
                     const isSel=selected?.id===inc.id;
                     return (
                       <div key={inc.id} onClick={()=>setSelected(inc)}
-                        style={{border:`1px solid ${isSel?col:"#1a3320"}`,borderRadius:4,padding:"11px 13px",background:isSel?"rgba(0,0,0,0.4)":"#090f0b",cursor:"pointer",transition:"border-color 0.15s"}}
+                        style={{border:`1px solid ${isSel?col:"#1a3320"}`,borderRadius:4,background:isSel?`${col}0a`:"#090f0b",cursor:"pointer",transition:"all 0.15s",overflow:"hidden"}}
                         onMouseEnter={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
                         onMouseLeave={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor="#1a3320";}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
-                          <div>
-                            <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e8ffe8",lineHeight:1.3}}>{inc.name}</div>
-                            <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginTop:2}}>{inc.date} · {inc.location}</div>
-                            <Link href={`/uap/${inc.id}`} onClick={(e)=>e.stopPropagation()} style={{display:"inline-block",marginTop:6,fontSize:9,color:"#00bb66",textDecoration:"none",letterSpacing:1,border:"1px solid rgba(0,187,102,0.35)",padding:"2px 8px",borderRadius:2}}>FULL BOARD ↗</Link>
-                          </div>
-                          <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}>
-                            <span style={classStyle(inc.classification)}>{inc.classification}</span>
-                            <span style={{...classStyle("REPORTED" as Classification),color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,fontSize:8}}>EVD: {inc.evidenceLevel}</span>
-                          </div>
+                        <div style={{padding:"8px 12px",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",gap:8,background:"rgba(0,0,0,0.3)"}}>
+                          <span style={{fontSize:9,color:col,border:`1px solid ${col}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>{inc.classification}</span>
+                          <span style={{fontSize:9,color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>EVD: {inc.evidenceLevel}</span>
+                          <span style={{fontSize:9,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{inc.date}</span>
                         </div>
-                        <div style={{fontSize:10,color:"#5a8068",lineHeight:1.6}}>{inc.description.slice(0,120)}...</div>
-                        <div style={{display:"flex",gap:5,marginTop:7,flexWrap:"wrap"}}>
-                          {inc.tags.map(t=><span key={t} style={{fontSize:8,color:"#3a5040",border:"1px solid #0d1a10",padding:"1px 5px",borderRadius:1,letterSpacing:0.5}}>{t}</span>)}
+                        <div style={{padding:"10px 12px"}}>
+                          <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e8ffe8",lineHeight:1.3,marginBottom:3}}>{inc.name}</div>
+                          <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginBottom:7}}>{inc.location}</div>
+                          <div style={{fontSize:10,color:"#5a8068",lineHeight:1.6,marginBottom:8}}>{inc.description.slice(0,110)}...</div>
+                          <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+                            {inc.tags.slice(0,4).map(t=><span key={t} style={{fontSize:8,color:"#2a4030",border:"1px solid #0d1a10",padding:"1px 5px",borderRadius:1,letterSpacing:0.5}}>{t}</span>)}
+                            <Link href={`/uap/${inc.id}`} onClick={e=>e.stopPropagation()} style={{marginLeft:"auto",fontSize:9,color:col,border:`1px solid ${col}`,padding:"3px 10px",borderRadius:2,textDecoration:"none",letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0,background:`${col}10`}}>
+                              ◈ BOARD ▶
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     );
@@ -536,9 +537,16 @@ export default function UAPTracker() {
             <div>
               {selected&&tab==="incidents"&&(
                 <div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:"1rem",paddingBottom:"0.5rem",borderBottom:"1px solid #1a3320"}}>
-                    <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#00ff88",lineHeight:1.25}}>{selected.name}</div>
-                    <Link href={`/uap/${selected.id}`} style={{flexShrink:0,fontSize:9,color:"#00bb66",textDecoration:"none",border:"1px solid #00bb66",padding:"5px 10px",borderRadius:3,letterSpacing:1,fontFamily:RAJ,fontWeight:700}}>FULL BOARD ↗</Link>
+                  <div style={{padding:"10px 14px",marginBottom:"0.75rem",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b"}}>
+                    <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#e8ffe8",marginBottom:6}}>{selected.name}</div>
+                    <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+                      <span style={{fontSize:9,color:CLASS_COL[selected.classification as Classification]??"#5a8068",border:`1px solid ${CLASS_COL[selected.classification as Classification]??"#5a8068"}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>{selected.classification}</span>
+                      <span style={{fontSize:9,color:EVD_COL[selected.evidenceLevel],border:`1px solid ${EVD_COL[selected.evidenceLevel]}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>EVIDENCE: {selected.evidenceLevel}</span>
+                    </div>
+                    <div style={{fontSize:10,color:"#5a8068",letterSpacing:1,marginBottom:8}}>{selected.date} · {selected.location}</div>
+                    <Link href={`/uap/${selected.id}`} style={{display:"block",padding:"9px",background:"rgba(0,255,136,0.06)",border:"1px solid #00bb66",borderRadius:3,textAlign:"center",textDecoration:"none",fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#00ff88",letterSpacing:2}}>
+                      ◈ OPEN INVESTIGATION BOARD ▶
+                    </Link>
                   </div>
                   <IncidentDetail incident={selected} people={data.people} orgs={data.organizations} docs={data.documents}/>
                 </div>
