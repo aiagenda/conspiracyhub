@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
+import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
 async function fetchGuardianBody(guardianId: string): Promise<string> {
@@ -33,14 +34,15 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
     id: news.id,
     guardian_id: news.guardian_id,
     title: news.title,
-    summary: news.summary ?? "",
+    summary: omitIfHungarianScript(news.summary ?? ""),
     url: news.url,
     image: news.image ?? null,
     date: news.published_at,
     section: news.section,
     score: news.score ?? 0,
-    angle: news.angle ?? "",
+    angle: omitIfHungarianScript(news.angle ?? ""),
   };
 
-  return <ArticleReader item={item} body={body || news.summary || ""} />;
+  const fallbackBody = omitIfHungarianScript(news.summary ?? "");
+  return <ArticleReader item={item} body={body || fallbackBody} />;
 }
