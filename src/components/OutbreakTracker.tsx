@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import PolymarketWidget from "@/components/PolymarketWidget";
 import Link from "next/link";
-import SiteNav from "@/components/SiteNav";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 
@@ -15,10 +15,8 @@ type LocalNews= { title:string; url:string; source:string; pubDate:string };
 type AffectedCoord = { country:string; lat:number; lng:number };
 type Outbreak = {
   id:string; title:string; description:string; source_url:string; published_at:string;
-  disease:string; location:string; origin_country?:string;
-  affected_countries?:string[];
-  lat:number; lng:number;
-  affectedCoords?:AffectedCoord[];
+  disease:string; location:string; origin_country:string; affected_countries?:string[];
+  lat:number; lng:number; affectedCoords?:AffectedCoord[];
   conspiracy_score:number; has_conspiracy:boolean;
   theories:Theory[]; patents:Patent[]; key_facts:string[];
   verdict:string; risk_level:string;
@@ -38,6 +36,7 @@ const VERDICT_STYLE = (v:string) => {
   return {bg:"rgba(90,128,104,0.1)",col:"#5a8068",border:"#1a3320"};
 };
 
+// ── LOADING SCREEN ─────────────────────────────────────────────
 const OUTBREAK_LOADING_LOGS = [
   {text:"CONNECTING TO WHO DISEASE OUTBREAK DATABASE...", col:"#00ff88"},
   {text:"> Fetching live outbreak reports...",            col:"#7aaa8a"},
@@ -50,7 +49,6 @@ const OUTBREAK_LOADING_LOGS = [
   {text:"> Building global outbreak map...",              col:"#00ff88"},
 ];
 
-// ── LOADING SCREEN ─────────────────────────────────────────────
 function OutbreakLoadingScreen() {
   const [logIdx, setLogIdx] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -199,13 +197,15 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
       if (!o.lat && !o.lng) continue;
       const col = RISK_COL(o.risk_level, o.conspiracy_score);
       const isSel = selected?.id === o.id;
-      const r = 5 + Math.min(7, o.conspiracy_score / 14);
+      const r = 5 + Math.min(7, o.conspiracy_score/14);
 
+      // Collect all positions for this outbreak
       const mainPos = proj([o.lng, o.lat]);
       if (!mainPos) continue;
 
-      const allPositions: Array<[number, number, string]> = [[mainPos[0], mainPos[1], "primary"]];
+      const allPositions: Array<[number,number,string]> = [[mainPos[0],mainPos[1],"primary"]];
 
+      // Add affected country positions
       if (o.affectedCoords && o.affectedCoords.length > 1) {
         for (const ac of o.affectedCoords) {
           if (Math.abs(ac.lat - o.lat) < 0.1 && Math.abs(ac.lng - o.lng) < 0.1) continue;
@@ -214,73 +214,55 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
         }
       }
 
+      // Draw connecting lines between affected countries
       if (allPositions.length > 1) {
         for (let i = 1; i < allPositions.length; i++) {
-          const [x1, y1] = allPositions[0];
-          const [x2, y2] = allPositions[i];
-          svg
-            .append("line")
-            .attr("x1", x1)
-            .attr("y1", y1)
-            .attr("x2", x2)
-            .attr("y2", y2)
-            .attr("stroke", col)
-            .attr("stroke-width", "0.8")
+          const [x1,y1] = allPositions[0];
+          const [x2,y2] = allPositions[i];
+          svg.append("line")
+            .attr("x1",x1).attr("y1",y1).attr("x2",x2).attr("y2",y2)
+            .attr("stroke",col).attr("stroke-width","0.8")
             .attr("stroke-opacity", isSel ? "0.5" : "0.2")
-            .attr("stroke-dasharray", "3 5");
+            .attr("stroke-dasharray","3 5");
         }
       }
 
+      // Draw all country dots
       for (let pi = 0; pi < allPositions.length; pi++) {
-        const [x, y] = allPositions[pi];
+        const [x,y] = allPositions[pi];
         const isPrimary = pi === 0;
         const dotR = isPrimary ? r : Math.max(3, r - 2);
 
-        svg
-          .append("circle")
-          .attr("cx", x)
-          .attr("cy", y)
-          .attr("r", dotR + 5)
-          .attr("fill", "none")
-          .attr("stroke", col)
-          .attr("stroke-width", "0.8")
-          .attr("stroke-opacity", "0.15");
-        svg.append("circle").attr("cx", x).attr("cy", y).attr("r", dotR + 2).attr("fill", col).attr("fill-opacity", "0.06");
-        svg
-          .append("circle")
-          .attr("cx", x)
-          .attr("cy", y)
-          .attr("r", isSel && isPrimary ? dotR + 3 : dotR)
-          .attr("fill", col)
-          .attr("fill-opacity", isPrimary ? 0.85 : 0.5)
-          .attr("stroke", col)
-          .attr("stroke-width", isSel && isPrimary ? 2 : 0.8)
-          .style("cursor", "pointer")
-          .style("filter", `drop-shadow(0 0 ${isSel && isPrimary ? 6 : 2}px ${col})`)
-          .on("mouseenter", function (event) {
-            setTooltip({ x: event.offsetX, y: event.offsetY, o });
-            d3.select(this).attr("fill-opacity", "1");
+        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",dotR+5)
+          .attr("fill","none").attr("stroke",col).attr("stroke-width","0.8")
+          .attr("stroke-opacity","0.15");
+        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",dotR+2)
+          .attr("fill",col).attr("fill-opacity","0.06");
+        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",isSel&&isPrimary?dotR+3:dotR)
+          .attr("fill",col).attr("fill-opacity",isPrimary?0.85:0.5)
+          .attr("stroke",col).attr("stroke-width",isSel&&isPrimary?2:0.8)
+          .style("cursor","pointer")
+          .style("filter",`drop-shadow(0 0 ${isSel&&isPrimary?6:2}px ${col})`)
+          .on("mouseenter", function(event){
+            setTooltip({x:event.offsetX,y:event.offsetY,o});
+            d3.select(this).attr("fill-opacity","1");
           })
-          .on("mouseleave", function () {
+          .on("mouseleave", function(){
             setTooltip(null);
-            d3.select(this).attr("fill-opacity", isPrimary ? "0.85" : "0.5");
+            d3.select(this).attr("fill-opacity",isPrimary?0.85:0.5);
           })
-          .on("click", () => onSelect(o));
+          .on("click",()=>onSelect(o));
       }
 
-      if (isSel || o.conspiracy_score >= 55) {
-        svg
-          .append("text")
-          .attr("x", mainPos[0] + r + 5)
-          .attr("y", mainPos[1] + 3)
-          .attr("fill", col)
-          .attr("font-size", "8")
-          .attr("font-family", FONT)
-          .attr("letter-spacing", "1")
-          .text(o.disease.toUpperCase().slice(0, 14));
+      // Label for selected or high score (main dot only)
+      if (isSel || o.conspiracy_score>=55) {
+        svg.append("text").attr("x",mainPos[0]+r+5).attr("y",mainPos[1]+3)
+          .attr("fill",col).attr("font-size","8")
+          .attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1")
+          .text(o.disease.toUpperCase().slice(0,14));
       }
     }
-  },[world,outbreaks,selected,onSelect]);
+  },[world,outbreaks,selected]);
 
   return (
     <div style={{position:"relative"}}>
@@ -443,6 +425,9 @@ function OutbreakDetail({o}:{o:Outbreak}) {
           </div>
         )}
 
+        {/* Polymarket */}
+        <PolymarketWidget query={`${o.disease} ${o.origin_country || o.location}`} />
+
         {/* Source */}
         <div style={{paddingTop:8,borderTop:"1px solid #1a3320",display:"flex",gap:12}}>
           <a href={o.source_url} target="_blank" rel="noreferrer"
@@ -458,40 +443,20 @@ function OutbreakDetail({o}:{o:Outbreak}) {
 // ── MAIN ───────────────────────────────────────────────────────
 export default function OutbreakTracker() {
   const [data, setData]         = useState<{outbreaks:Outbreak[];generated_at:string}|null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [retrying, setRetrying] = useState(false);
+  const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
   const [selected, setSelected] = useState<Outbreak|null>(null);
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
 
-  const fetchOutbreaks = useCallback((isRetry: boolean) => {
-    setError("");
-    if (isRetry) setRetrying(true);
+  useEffect(()=>{
     fetch("/api/outbreaks")
-      .then(async (r) => {
-        const d = (await r.json()) as { outbreaks?: Outbreak[]; generated_at?: string; error?: string };
-        if (!r.ok) throw new Error(typeof d.error === "string" ? d.error : "Outbreak request failed");
-        if (d.error) throw new Error(d.error);
-        setData({
-          outbreaks: d.outbreaks ?? [],
-          generated_at: d.generated_at ?? new Date().toISOString(),
-        });
-        if (d.outbreaks?.length) setSelected(d.outbreaks[0]);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load outbreak data."))
-      .finally(() => {
-        setInitialLoading(false);
-        setRetrying(false);
-      });
-  }, []);
+      .then(r=>r.json())
+      .then(d=>{setData(d);if(d.outbreaks?.length)setSelected(d.outbreaks[0]);})
+      .catch(()=>setError("Failed to load outbreak data."))
+      .finally(()=>setLoading(false));
+  },[]);
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      fetchOutbreaks(false);
-    });
-  }, [fetchOutbreaks]);
-
-  if (initialLoading) return <OutbreakLoadingScreen/>;
+  if (loading) return <OutbreakLoadingScreen/>;
 
   const outbreaks = data?.outbreaks??[];
   const visible = outbreaks.filter(o=>{
@@ -506,16 +471,18 @@ export default function OutbreakTracker() {
       <div style={{position:"relative",zIndex:1}}>
 
         {/* NAV */}
-        <div style={{minHeight:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"8px 16px",gap:12,flexWrap:"wrap",rowGap:8}}>
+        <div style={{height:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"0 16px",gap:12}}>
+          <Link href="/" style={{fontSize:10,color:"#5a8068",textDecoration:"none",letterSpacing:2,border:"1px solid #1a3320",padding:"4px 10px",borderRadius:3}}>← FEED</Link>
+          <div style={{width:1,height:20,background:"#1a3320"}}/>
           <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2}}>THE THEORIST</div>
-          <SiteNav spacious />
+          <div style={{width:1,height:20,background:"#1a3320"}}/>
           <div style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:2}}>OUTBREAK TRACKER</div>
           <div style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
             WHO · GNEWS · {data?`Updated ${new Date(data.generated_at).toLocaleTimeString()}`:""}
           </div>
         </div>
 
-        <div style={{maxWidth:1200,margin:"0 auto",padding:"1.5rem max(1.25rem, env(safe-area-inset-right)) calc(4rem + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left))"}}>
+        <div style={{maxWidth:1200,margin:"0 auto",padding:"1.5rem 1.25rem 4rem"}}>
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
@@ -542,7 +509,7 @@ export default function OutbreakTracker() {
           )}
 
           {/* FILTERS */}
-          <div style={{display:"flex",gap:6,marginBottom:"1rem",flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:6,marginBottom:"1rem"}}>
             {[
               {key:"all",label:"ALL OUTBREAKS"},
               {key:"conspiracy",label:"⚠ CONSPIRACY FLAGS"},
@@ -559,57 +526,14 @@ export default function OutbreakTracker() {
             ))}
           </div>
 
-          {error && (
-            <div style={{ padding: 12, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 11, marginBottom: "1rem", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-              <span>[ERROR] {error}</span>
-              <button
-                type="button"
-                disabled={retrying}
-                onClick={() => fetchOutbreaks(true)}
-                style={{
-                  fontFamily: RAJ,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                  padding: "6px 14px",
-                  borderRadius: 3,
-                  cursor: retrying ? "wait" : "pointer",
-                  border: "1px solid rgba(255,51,51,0.5)",
-                  background: "rgba(255,51,51,0.08)",
-                  color: "#ff8888",
-                }}
-              >
-                {retrying ? "RETRYING…" : "RETRY"}
-              </button>
-            </div>
-          )}
+          {error&&<div style={{padding:12,border:"1px solid rgba(255,51,51,0.3)",borderRadius:3,color:"#ff3333",fontSize:11}}>[ERROR] {error}</div>}
 
           {/* MAIN GRID */}
           {data&&(
-            <>
-            <style>{`
-              .outbreak-main-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.25rem; }
-              .outbreak-map-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 10px; color: #5a8068; letter-spacing: 1; margin-bottom: 8px; }
-              .outbreak-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-              @media (max-width: 960px) {
-                .outbreak-main-grid { grid-template-columns: 1fr !important; }
-              }
-              @media (max-width: 640px) {
-                .outbreak-card-grid { grid-template-columns: 1fr !important; }
-              }
-            `}</style>
-            <div className="outbreak-main-grid">
+            <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"1.25rem"}}>
               <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
-                <div className="outbreak-map-legend" aria-hidden={false}>
-                  <span style={{ color: "#00bb66" }}>●</span> Primary (model location)
-                  <span style={{ color: "#5a8068", marginLeft: 8 }}>|</span>
-                  <span style={{ color: "#7aaa8a" }}>●</span> Other affected regions (when listed)
-                  <span style={{ color: "#5a8068", marginLeft: 8 }}>|</span>
-                  <span>Dashed links connect clusters</span>
-                </div>
                 <WorldMap outbreaks={visible} selected={selected} onSelect={setSelected}/>
-                <div className="outbreak-card-grid">
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {visible.map(o=>(
                     <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
                   ))}
@@ -622,7 +546,6 @@ export default function OutbreakTracker() {
                 }
               </div>
             </div>
-            </>
           )}
         </div>
       </div>

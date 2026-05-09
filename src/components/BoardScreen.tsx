@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import InvestigationBoard from "@/components/InvestigationBoard";
 import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
@@ -341,17 +341,6 @@ export default function BoardScreen({
     })();
   }, [analysis, news.id]);
 
-  const graphNodes = useMemo(() => {
-    const normalized = ensureCenterNode(sanitizeNodes(analysis?.nodes), news);
-    const withTheories = mergeOracleTheoriesIntoNodes(normalized, analysis?.theories);
-    return needsRelayout(withTheories) ? relayoutNodes(withTheories) : withTheories;
-  }, [analysis, news]);
-
-  const graphEdges = useMemo(
-    () => appendTheoryEdges(sanitizeEdges(analysis?.edges, graphNodes), graphNodes),
-    [analysis, graphNodes],
-  );
-
   if (loading) {
     return <OracleLoadingScreen />;
   }
@@ -360,7 +349,11 @@ export default function BoardScreen({
     return <div className="min-h-screen bg-[#050c07] text-[#ff3333] p-6">[ERROR] {error}</div>;
   }
 
-  const safeSelected = graphNodes.find((n) => n.id === selected?.id) ?? graphNodes[0];
+  const normalized = ensureCenterNode(sanitizeNodes(analysis?.nodes), news);
+  const withTheories = mergeOracleTheoriesIntoNodes(normalized, analysis?.theories);
+  const nodes = needsRelayout(withTheories) ? relayoutNodes(withTheories) : withTheories;
+  const edges = appendTheoryEdges(sanitizeEdges(analysis?.edges, nodes), nodes);
+  const safeSelected = nodes.find((n) => n.id === selected?.id) ?? nodes[0];
   const handleNodeClick = (node: Node | null) => {
     if (!node) {
       setSelected(null);
@@ -371,13 +364,14 @@ export default function BoardScreen({
 
   return (
     <InvestigationBoard
-      nodes={graphNodes}
-      edges={graphEdges}
+      nodes={nodes}
+      edges={edges}
       selectedNode={selected ? safeSelected : null}
       onNodeClick={handleNodeClick}
       conclusion={analysis?.conclusion}
       verdict={analysis?.verdict}
       analysisSources={analysis?.sources}
+      articleTitle={news?.title}
     />
   );
 }
