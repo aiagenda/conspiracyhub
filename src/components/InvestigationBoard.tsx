@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import { combinePolymarketQuery } from "@/lib/polymarketQuery";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
@@ -52,6 +53,10 @@ function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
     PARTIALLY_TRUE: "PARTIALLY TRUE",
     QUESTIONABLE: "QUESTIONABLE",
     DISINFORMATION: "DISINFORMATION",
+    VALÓS: "TRUE",
+    "RÉSZBEN VALÓS": "PARTIALLY TRUE",
+    MEGKÉRDŐJELEZHETŐ: "QUESTIONABLE",
+    "TERJESZTETT DEZINFO": "DISINFORMATION",
   };
   return map[s] ?? s.replace(/_/g, " ");
 }
@@ -86,6 +91,118 @@ function EdgeLine({ edge, nodes, active }: { edge: Edge; nodes: Node[]; active: 
 
 function truncate(str: string, max: number) {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
+}
+
+/** Compact Polymarket block for the node detail drawer (selected node + article context). */
+function PolymarketInline({
+  articleTitle,
+  articleContext,
+  nodeLabel,
+  nodeDetailTitle,
+}: {
+  articleTitle?: string;
+  articleContext?: string;
+  nodeLabel: string;
+  nodeDetailTitle: string;
+}) {
+  const q = useMemo(() => {
+    if (!articleTitle?.trim()) return "";
+    const ctx = [articleContext, nodeLabel, nodeDetailTitle].filter(Boolean).join(" · ");
+    return combinePolymarketQuery(articleTitle, ctx);
+  }, [articleTitle, articleContext, nodeLabel, nodeDetailTitle]);
+
+  if (!q) return null;
+  return <PolymarketInlineFetch key={q} q={q} />;
+}
+
+function PolymarketInlineFetch({ q }: { q: string }) {
+  const [markets, setMarkets] = useState<
+    Array<{ id: string; question: string; yesPrice: number; noPrice: number; volume: number; url: string }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/polymarket?q=${encodeURIComponent(q)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.markets ?? [];
+        setMarkets(list);
+        if (list.length) setOpen(true);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [q]);
+
+  if (loading || !markets.length) return null;
+
+  return (
+    <div style={{ border: "1px solid rgba(201,77,255,0.25)", borderRadius: 3, overflow: "hidden", marginTop: 14 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "7px 10px",
+          background: "rgba(20,8,28,0.6)",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0 }} />
+        <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, flex: 1 }}>
+          POLYMARKET — {markets.length} BET{markets.length > 1 ? "S" : ""}
+        </span>
+        <span style={{ fontSize: 9, color: "#5a8068" }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div style={{ borderTop: "1px solid rgba(201,77,255,0.15)" }}>
+          {markets.slice(0, 3).map((m) => (
+            <div key={m.id} style={{ padding: "8px 10px", borderBottom: "1px solid rgba(201,77,255,0.1)" }}>
+              <div style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: "#e9b3ff", lineHeight: 1.3, marginBottom: 6 }}>
+                {m.question.slice(0, 60)}
+                {m.question.length > 60 ? "…" : ""}
+              </div>
+              <div style={{ display: "flex", height: 3, borderRadius: 2, overflow: "hidden", marginBottom: 6 }}>
+                <div style={{ width: `${m.yesPrice}%`, background: "#00bb66" }} />
+                <div style={{ width: `${m.noPrice}%`, background: "#ff3333" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#00ff88" }}>{m.yesPrice}¢ YES</span>
+                  <span style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#ff3333" }}>{m.noPrice}¢ NO</span>
+                </div>
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    fontSize: 9,
+                    color: "#c94dff",
+                    border: "1px solid rgba(201,77,255,0.3)",
+                    padding: "2px 8px",
+                    borderRadius: 2,
+                    textDecoration: "none",
+                    letterSpacing: 1,
+                  }}
+                >
+                  BET ↗
+                </a>
+              </div>
+            </div>
+          ))}
+          <div style={{ padding: "5px 10px", fontSize: 8, color: "#3a3040", letterSpacing: 1, textAlign: "center" }}>
+            Prediction market · Not financial advice
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function GraphNode({ node, onClick, selected, pulse }: { node: Node; onClick: (node: Node) => void; selected: boolean; pulse: boolean }) {
@@ -297,11 +414,15 @@ function DetailPanel({
   edges,
   onClose,
   analysisSources,
+  polymarketArticleTitle,
+  polymarketArticleContext,
 }: {
   node: Node | null;
   edges: Edge[];
   onClose: () => void;
   analysisSources?: OracleSource[];
+  polymarketArticleTitle?: string;
+  polymarketArticleContext?: string;
 }) {
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   if (!node) return null;
@@ -612,6 +733,13 @@ function DetailPanel({
             ))}
           </div>
         ) : null}
+
+        <PolymarketInline
+          articleTitle={polymarketArticleTitle}
+          articleContext={polymarketArticleContext}
+          nodeLabel={node.label}
+          nodeDetailTitle={d.title}
+        />
 
         <div style={{ marginTop: 14 }}>
           <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Connections</div>
@@ -1027,6 +1155,8 @@ export default function InvestigationBoard({
               onNodeClick(null);
             }}
             analysisSources={analysisSources}
+            polymarketArticleTitle={articleTitle}
+            polymarketArticleContext={polymarketContext}
           />
         ) : null}
       </div>

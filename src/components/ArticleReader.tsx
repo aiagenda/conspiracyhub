@@ -438,6 +438,9 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
               )}
             </div>
 
+            {/* POLYMARKET — after legend (matches desktop layout bundle) */}
+            <PolymarketWidget query={item.title} context={buildArticlePolymarketContext(item, body, highlights)} />
+
             {/* Flags list */}
             {highlights.length > 0 && (
               <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
@@ -472,9 +475,6 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
                 <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>SCANNING SIGNALS...</div>
               </div>
             )}
-
-            {/* POLYMARKET */}
-            <PolymarketWidget query={item.title} context={buildArticlePolymarketContext(item, body, highlights)} />
           </div>
         </div>
       </div>

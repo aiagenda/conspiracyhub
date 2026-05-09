@@ -19,69 +19,103 @@ export default function PolymarketWidget({ query, context }: { query: string; co
 function PolymarketFetch({ q }: { q: string }) {
   const [markets, setMarkets] = useState<PM[]>([]);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     fetch(`/api/polymarket?q=${encodeURIComponent(q)}`)
       .then((r) => r.json())
-      .then((d) => setMarkets(d.markets ?? []))
+      .then((d) => {
+        const list = d.markets ?? [];
+        setMarkets(list);
+        if (list.length) setOpen(true);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [q]);
 
   if (loading) return (
-    <div style={{border:"1px solid rgba(201,77,255,0.2)",borderRadius:4,padding:"10px 12px",background:"rgba(20,8,28,0.5)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <span style={{width:6,height:6,borderRadius:"50%",background:"#c94dff",display:"inline-block",animation:"bannerDot 0.9s step-end infinite"}}/>
-        <span style={{fontFamily:FONT,fontSize:9,color:"#c94dff",letterSpacing:2}}>SCANNING POLYMARKET...</span>
-      </div>
+    <div style={{ border: "1px solid rgba(201,77,255,0.15)", borderRadius: 4, padding: "8px 12px", background: "rgba(20,8,28,0.4)", display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#c94dff", display: "inline-block", animation: "bannerDot 0.9s step-end infinite" }} />
+      <span style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>CHECKING POLYMARKET...</span>
     </div>
   );
   if (!markets.length) return null;
 
   return (
-    <div>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{width:6,height:6,borderRadius:"50%",background:"#c94dff",display:"inline-block"}}/>
-        <span style={{fontFamily:FONT,fontSize:9,color:"#c94dff",letterSpacing:3}}>◈ POLYMARKET — {markets.length} ACTIVE BET{markets.length>1?"S":""}</span>
-        <a href="https://polymarket.com" target="_blank" rel="noreferrer" style={{marginLeft:"auto",fontSize:8,color:"#5a8068",textDecoration:"none"}}>polymarket.com ↗</a>
-      </div>
-      {markets.map(m => (
-        <div key={m.id} style={{border:"1px solid rgba(201,77,255,0.25)",borderRadius:4,background:"rgba(20,8,28,0.8)",marginBottom:8,overflow:"hidden"}}>
-          <div style={{padding:"9px 12px",borderBottom:"1px solid rgba(201,77,255,0.15)",display:"flex",justifyContent:"space-between",gap:8}}>
-            <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#e9b3ff",lineHeight:1.3,flex:1}}>{m.question}</div>
-            <a href={m.url} target="_blank" rel="noreferrer" style={{fontSize:9,color:"#c94dff",border:"1px solid rgba(201,77,255,0.3)",padding:"2px 7px",borderRadius:2,textDecoration:"none",whiteSpace:"nowrap",letterSpacing:1,flexShrink:0}}>↗ BET</a>
-          </div>
-          <div style={{padding:"10px 12px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}>
-              <div style={{textAlign:"center"}}>
-                <div style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",lineHeight:1}}>{m.yesPrice}¢</div>
-                <div style={{fontSize:8,color:"#5a8068",letterSpacing:1}}>YES</div>
-              </div>
-              <div style={{flex:1,padding:"0 10px"}}>
-                <div style={{display:"flex",height:4,borderRadius:2,overflow:"hidden"}}>
-                  <div style={{width:`${m.yesPrice}%`,background:"#00bb66"}}/>
-                  <div style={{width:`${m.noPrice}%`,background:"#ff3333"}}/>
+    <div style={{ border: "1px solid rgba(201,77,255,0.25)", borderRadius: 4, overflow: "hidden", background: "rgba(20,8,28,0.5)" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0 }} />
+        <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, flex: 1 }}>
+          ◈ POLYMARKET — {markets.length} ACTIVE BET{markets.length > 1 ? "S" : ""}
+        </span>
+        <span style={{ fontSize: 9, color: "#5a8068" }}>{open ? "▲" : "▼"}</span>
+        <a
+          href="https://polymarket.com"
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ fontSize: 8, color: "#5a8068", textDecoration: "none", letterSpacing: 1 }}
+        >
+          polymarket.com ↗
+        </a>
+      </button>
+
+      {open && (
+        <div style={{ borderTop: "1px solid rgba(201,77,255,0.15)" }}>
+          {markets.map((m) => (
+            <div key={m.id} style={{ padding: "10px 12px", borderBottom: "1px solid rgba(201,77,255,0.1)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                <div style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#e9b3ff", lineHeight: 1.3, flex: 1 }}>
+                  {m.question.length > 78 ? `${m.question.slice(0, 77)}…` : m.question}
                 </div>
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    fontSize: 9,
+                    color: "#c94dff",
+                    border: "1px solid rgba(201,77,255,0.3)",
+                    padding: "2px 8px",
+                    borderRadius: 2,
+                    textDecoration: "none",
+                    letterSpacing: 1,
+                    flexShrink: 0,
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  BET ↗
+                </a>
               </div>
-              <div style={{textAlign:"center"}}>
-                <div style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#ff3333",lineHeight:1}}>{m.noPrice}¢</div>
-                <div style={{fontSize:8,color:"#5a8068",letterSpacing:1}}>NO</div>
+              <div style={{ display: "flex", height: 4, borderRadius: 2, overflow: "hidden", marginBottom: 6 }}>
+                <div style={{ width: `${m.yesPrice}%`, background: "#00bb66", transition: "width 0.5s ease" }} />
+                <div style={{ width: `${m.noPrice}%`, background: "#ff3333", transition: "width 0.5s ease" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <span style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>
+                    {m.yesPrice}¢ <span style={{ fontSize: 9, color: "#5a8068" }}>YES</span>
+                  </span>
+                  <span style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#ff3333", lineHeight: 1 }}>
+                    {m.noPrice}¢ <span style={{ fontSize: 9, color: "#5a8068" }}>NO</span>
+                  </span>
+                </div>
+                <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
+                  VOL {fmt(m.volume)}
+                  {m.endDate ? ` · ${days(m.endDate)}` : ""}
+                </span>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:8}}>
-              <a href={m.url} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",padding:"6px",borderRadius:3,border:"1px solid rgba(0,187,102,0.35)",background:"rgba(0,187,102,0.08)",color:"#00ff88",fontFamily:RAJ,fontSize:11,fontWeight:700,letterSpacing:1,textDecoration:"none"}}>BUY YES {m.yesPrice}¢</a>
-              <a href={m.url} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",padding:"6px",borderRadius:3,border:"1px solid rgba(255,51,51,0.35)",background:"rgba(255,51,51,0.08)",color:"#ff3333",fontFamily:RAJ,fontSize:11,fontWeight:700,letterSpacing:1,textDecoration:"none"}}>BUY NO {m.noPrice}¢</a>
-            </div>
-            <div style={{display:"flex",gap:10,fontSize:9,color:"#5a8068",letterSpacing:1}}>
-              <span>VOL {fmt(m.volume)}</span>
-              <span>24H {fmt(m.volume24h)}</span>
-              <span>LIQ {fmt(m.liquidity)}</span>
-              {m.endDate&&<span style={{marginLeft:"auto",color:"#3a5040"}}>{days(m.endDate)}</span>}
-            </div>
+          ))}
+          <div style={{ padding: "6px 12px", fontSize: 8, color: "#3a3040", letterSpacing: 1, textAlign: "center" }}>
+            Prediction market · Not financial advice
           </div>
         </div>
-      ))}
-      <div style={{fontSize:9,color:"#3a3040",letterSpacing:1,textAlign:"center",marginTop:4}}>Prediction market · Not financial advice</div>
+      )}
     </div>
   );
 }
