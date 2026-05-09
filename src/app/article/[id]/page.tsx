@@ -12,7 +12,17 @@ async function fetchGuardianBody(guardianId: string): Promise<string> {
     if (!res.ok) return "";
     const data = await res.json();
     const body: string = data?.response?.content?.fields?.body ?? "";
-    return body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    // Preserve paragraph boundaries before stripping HTML tags.
+    return body
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>\s*<p[^>]*>/gi, "\n\n")
+      .replace(/<p[^>]*>/gi, "")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
   } catch {
     return "";
   }
