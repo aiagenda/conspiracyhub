@@ -169,7 +169,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           {visible.length === 0 && (
             <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
               <div style={{ marginBottom: 8 }}>◈ NO HIGH-THREAT ARTICLES IN THIS CATEGORY</div>
-              <div style={{ fontSize: 9, color: "#2a4030" }}>SCRAPER RUNS 3× DAILY — CHECK BACK SOON</div>
+              <div style={{ fontSize: 9, color: "#2a4030" }}>MULTI-SOURCE SCRAPER — NEW ITEMS AS FEEDS UPDATE — CHECK BACK SOON</div>
             </div>
           )}
 
