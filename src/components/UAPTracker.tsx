@@ -39,38 +39,50 @@ function UAPMap({ incidents, selected, onSelect }:{ incidents:Incident[]; select
 
   useEffect(()=>{
     if (!world||!svgRef.current) return;
-    const svg = d3.select(svgRef.current);
-    const W = svgRef.current.clientWidth||700; const H=300;
-    svg.selectAll("*").remove();
-    const proj = d3.geoNaturalEarth1().scale(W/6.2).translate([W/2,H/2]);
-    const path = d3.geoPath().projection(proj);
-    svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
-    const grat = d3.geoGraticule()();
-    svg.append("path").datum(grat).attr("d",path as d3.ValueFn<SVGPathElement,unknown,string>).attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
-    // @ts-expect-error TopoJSON topology typed loosely vs GeoJSON
-    const countries = topojson.feature(world, world.objects.countries);
-    svg.append("g").selectAll("path")
-      // @ts-expect-error features from topojson.feature
-      .data(countries.features).enter().append("path")
-      .attr("d",path as d3.ValueFn<SVGPathElement,unknown,string>)
-      .attr("fill","#0a160c").attr("stroke","#1a3320").attr("stroke-width","0.4");
+    const svgEl = svgRef.current;
 
-    for (const inc of incidents) {
-      const pos = proj([inc.lng,inc.lat]);
-      if (!pos) continue;
-      const [x,y]=pos;
-      const col = CLASS_COL[inc.classification]??"#5a8068";
-      const isSel = selected?.id===inc.id;
-      const r = isSel?10:6;
-      svg.append("circle").attr("cx",x).attr("cy",y).attr("r",r+6).attr("fill","none").attr("stroke",col).attr("stroke-width","0.8").attr("stroke-opacity","0.2");
-      svg.append("circle").attr("cx",x).attr("cy",y).attr("r",r).attr("fill",col).attr("fill-opacity",isSel?0.95:0.75).attr("stroke",col).attr("stroke-width",isSel?2:1).style("cursor","pointer").style("filter",`drop-shadow(0 0 ${isSel?8:3}px ${col})`)
-        .on("mouseenter",function(event){ setTooltip({x:event.offsetX,y:event.offsetY,i:inc}); d3.select(this).attr("fill-opacity","1"); })
-        .on("mouseleave",function(){ setTooltip(null); d3.select(this).attr("fill-opacity",isSel?0.95:0.75); })
-        .on("click",()=>onSelect(inc));
-      if (isSel||inc.evidenceLevel==="HIGH") {
-        svg.append("text").attr("x",x+r+4).attr("y",y+3).attr("fill",col).attr("font-size","7").attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1").text(inc.name.toUpperCase().slice(0,16));
+    function paint() {
+      if (!svgEl || !world) return;
+      const W = Math.max(svgEl.getBoundingClientRect().width || svgEl.clientWidth, 280);
+      const H = 300;
+      const svg = d3.select(svgEl);
+      svg.selectAll("*").remove();
+      const proj = d3.geoNaturalEarth1();
+      proj.fitSize([W, H], { type: "Sphere" });
+      const path = d3.geoPath().projection(proj);
+      svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
+      const grat = d3.geoGraticule()();
+      svg.append("path").datum(grat).attr("d",path as d3.ValueFn<SVGPathElement,unknown,string>).attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
+      // @ts-expect-error TopoJSON topology typed loosely vs GeoJSON
+      const countries = topojson.feature(world, world.objects.countries);
+      svg.append("g").selectAll("path")
+        // @ts-expect-error features from topojson.feature
+        .data(countries.features).enter().append("path")
+        .attr("d",path as d3.ValueFn<SVGPathElement,unknown,string>)
+        .attr("fill","#0a160c").attr("stroke","#1a3320").attr("stroke-width","0.4");
+
+      for (const inc of incidents) {
+        const pos = proj([inc.lng,inc.lat]);
+        if (!pos) continue;
+        const [x,y]=pos;
+        const col = CLASS_COL[inc.classification]??"#5a8068";
+        const isSel = selected?.id===inc.id;
+        const r = isSel?10:6;
+        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",r+6).attr("fill","none").attr("stroke",col).attr("stroke-width","0.8").attr("stroke-opacity","0.2");
+        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",r).attr("fill",col).attr("fill-opacity",isSel?0.95:0.75).attr("stroke",col).attr("stroke-width",isSel?2:1).style("cursor","pointer").style("filter",`drop-shadow(0 0 ${isSel?8:3}px ${col})`)
+          .on("mouseenter",function(event){ setTooltip({x:event.offsetX,y:event.offsetY,i:inc}); d3.select(this).attr("fill-opacity","1"); })
+          .on("mouseleave",function(){ setTooltip(null); d3.select(this).attr("fill-opacity",isSel?0.95:0.75); })
+          .on("click",()=>onSelect(inc));
+        if (isSel||inc.evidenceLevel==="HIGH") {
+          svg.append("text").attr("x",x+r+4).attr("y",y+3).attr("fill",col).attr("font-size","7").attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1").text(inc.name.toUpperCase().slice(0,16));
+        }
       }
     }
+
+    paint();
+    const ro = new ResizeObserver(() => paint());
+    ro.observe(svgEl);
+    return () => ro.disconnect();
   }, [world, incidents, selected, onSelect]);
 
   return (

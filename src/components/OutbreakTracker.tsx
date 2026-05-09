@@ -163,37 +163,42 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
 
   useEffect(()=>{
     if (!world||!svgRef.current) return;
-    const svg = d3.select(svgRef.current);
-    const W = svgRef.current.clientWidth||700;
-    const H = 360;
-    svg.selectAll("*").remove();
+    const svgEl = svgRef.current;
 
-    const proj = d3.geoNaturalEarth1().scale(W/6.2).translate([W/2,H/2]);
-    const path = d3.geoPath().projection(proj);
+    function paint() {
+      if (!svgEl || !world) return;
+      const W = Math.max(svgEl.getBoundingClientRect().width || svgEl.clientWidth, 280);
+      const H = 360;
+      const svg = d3.select(svgEl);
+      svg.selectAll("*").remove();
 
-    svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
+      const proj = d3.geoNaturalEarth1();
+      proj.fitSize([W, H], { type: "Sphere" });
+      const path = d3.geoPath().projection(proj);
 
-    const graticule = d3.geoGraticule()();
-    svg.append("path").datum(graticule)
-      .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
-      .attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
+      svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
 
-    // @ts-expect-error TopoJSON topology typed loosely vs geojson
-    const countries = topojson.feature(world, world.objects.countries);
-    svg.append("g").selectAll("path")
-      // @ts-expect-error features from topojson.feature
-      .data(countries.features).enter().append("path")
-      .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
-      .attr("fill","#0a160c").attr("stroke","#1a3320").attr("stroke-width","0.4");
+      const graticule = d3.geoGraticule()();
+      svg.append("path").datum(graticule)
+        .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
+        .attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
 
-    // Country borders
-    // @ts-expect-error TopoJSON mesh callback types
-    const borders = topojson.mesh(world, world.objects.countries, (a:unknown,b:unknown)=>a!==b);
-    svg.append("path").datum(borders)
-      .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
-      .attr("fill","none").attr("stroke","#1a3320").attr("stroke-width","0.3");
+      // @ts-expect-error TopoJSON topology typed loosely vs geojson
+      const countries = topojson.feature(world, world.objects.countries);
+      svg.append("g").selectAll("path")
+        // @ts-expect-error features from topojson.feature
+        .data(countries.features).enter().append("path")
+        .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
+        .attr("fill","#0a160c").attr("stroke","#1a3320").attr("stroke-width","0.4");
 
-    for (const o of outbreaks) {
+      // Country borders
+      // @ts-expect-error TopoJSON mesh callback types
+      const borders = topojson.mesh(world, world.objects.countries, (a:unknown,b:unknown)=>a!==b);
+      svg.append("path").datum(borders)
+        .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
+        .attr("fill","none").attr("stroke","#1a3320").attr("stroke-width","0.3");
+
+      for (const o of outbreaks) {
       if (!o.lat && !o.lng) continue;
       const col = RISK_COL(o.risk_level, o.conspiracy_score);
       const isSel = selected?.id === o.id;
@@ -262,6 +267,12 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           .text(o.disease.toUpperCase().slice(0,14));
       }
     }
+    }
+
+    paint();
+    const ro = new ResizeObserver(() => paint());
+    ro.observe(svgEl);
+    return () => ro.disconnect();
   },[world,outbreaks,selected,onSelect]);
 
   return (
