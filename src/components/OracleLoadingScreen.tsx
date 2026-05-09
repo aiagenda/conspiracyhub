@@ -312,7 +312,13 @@ export default function OracleLoadingScreen() {
             ))}
             {/* Image */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={img.src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.15) brightness(0.6) contrast(1.2)", display: "block" }} />
+            <img
+              src={img.src}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.15) brightness(0.6) contrast(1.2)", display: "block" }}
+            />
             {/* Label */}
             <div style={{
               position: "absolute", bottom: 4, left: 6, zIndex: 5,

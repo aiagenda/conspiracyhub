@@ -29,7 +29,14 @@ export default function RootLayout({
       lang="en"
       className={`${raj.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+        <main id="main-content" className="flex flex-1 flex-col outline-none">
+          {children}
+        </main>
+      </body>
     </html>
   );
 }

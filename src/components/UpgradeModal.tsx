@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 const FEATURES = [
   { icon: "◈", text: "Full Oracle investigation board — visual node graph with CIA/USPTO links" },
   { icon: "▸", text: "3 AI-generated conspiracy theories with probability scores per article" },
@@ -16,6 +18,14 @@ export default function UpgradeModal({
   onClose: () => void;
   onUpgrade: () => void;
 }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div
       onClick={onClose}

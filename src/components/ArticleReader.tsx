@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import SiteNav from "@/components/SiteNav";
 import type { NewsItem } from "@/types";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -293,7 +294,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
       <div
         style={{
           position: "fixed",
-          bottom: 20,
+          bottom: "calc(20px + env(safe-area-inset-bottom, 0px))",
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 50,
@@ -374,16 +375,22 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
       </div>
 
       <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
-          <Link
-            href="/"
-            style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}
-          >
-            ← FEED
-          </Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+        <div
+          style={{
+            minHeight: 44,
+            background: "#050c07",
+            borderBottom: "1px solid #1a3320",
+            display: "flex",
+            alignItems: "center",
+            padding: "8px 16px",
+            gap: 12,
+            flexWrap: "wrap",
+            rowGap: 8,
+          }}
+        >
+          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2, flexShrink: 0 }}>THE THEORIST</div>
+          <SiteNav />
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Link
               href={`/board/${item.id}`}
               style={{
@@ -427,7 +434,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
           style={{
             maxWidth: 860,
             margin: "0 auto",
-            padding: "2rem 1.25rem 6rem",
+            padding: "2rem 1.25rem calc(6rem + env(safe-area-inset-bottom, 0px))",
             display: "grid",
             gridTemplateColumns: "1fr",
             gap: "2rem",

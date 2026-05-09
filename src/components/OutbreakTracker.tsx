@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 
@@ -457,12 +458,15 @@ function OutbreakDetail({o}:{o:Outbreak}) {
 // ── MAIN ───────────────────────────────────────────────────────
 export default function OutbreakTracker() {
   const [data, setData]         = useState<{outbreaks:Outbreak[];generated_at:string}|null>(null);
-  const [loading, setLoading]   = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
   const [error, setError]       = useState("");
   const [selected, setSelected] = useState<Outbreak|null>(null);
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
 
-  useEffect(()=>{
+  const fetchOutbreaks = useCallback((isRetry: boolean) => {
+    setError("");
+    if (isRetry) setRetrying(true);
     fetch("/api/outbreaks")
       .then(async (r) => {
         const d = (await r.json()) as { outbreaks?: Outbreak[]; generated_at?: string; error?: string };
@@ -475,10 +479,19 @@ export default function OutbreakTracker() {
         if (d.outbreaks?.length) setSelected(d.outbreaks[0]);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load outbreak data."))
-      .finally(()=>setLoading(false));
-  },[]);
+      .finally(() => {
+        setInitialLoading(false);
+        setRetrying(false);
+      });
+  }, []);
 
-  if (loading) return <OutbreakLoadingScreen/>;
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchOutbreaks(false);
+    });
+  }, [fetchOutbreaks]);
+
+  if (initialLoading) return <OutbreakLoadingScreen/>;
 
   const outbreaks = data?.outbreaks??[];
   const visible = outbreaks.filter(o=>{
@@ -493,18 +506,16 @@ export default function OutbreakTracker() {
       <div style={{position:"relative",zIndex:1}}>
 
         {/* NAV */}
-        <div style={{height:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"0 16px",gap:12}}>
-          <Link href="/" style={{fontSize:10,color:"#5a8068",textDecoration:"none",letterSpacing:2,border:"1px solid #1a3320",padding:"4px 10px",borderRadius:3}}>← FEED</Link>
-          <div style={{width:1,height:20,background:"#1a3320"}}/>
+        <div style={{minHeight:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"8px 16px",gap:12,flexWrap:"wrap",rowGap:8}}>
           <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2}}>THE THEORIST</div>
-          <div style={{width:1,height:20,background:"#1a3320"}}/>
+          <SiteNav spacious />
           <div style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:2}}>OUTBREAK TRACKER</div>
           <div style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
             WHO · GNEWS · {data?`Updated ${new Date(data.generated_at).toLocaleTimeString()}`:""}
           </div>
         </div>
 
-        <div style={{maxWidth:1200,margin:"0 auto",padding:"1.5rem 1.25rem 4rem"}}>
+        <div style={{maxWidth:1200,margin:"0 auto",padding:"1.5rem max(1.25rem, env(safe-area-inset-right)) calc(4rem + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left))"}}>
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
@@ -531,7 +542,7 @@ export default function OutbreakTracker() {
           )}
 
           {/* FILTERS */}
-          <div style={{display:"flex",gap:6,marginBottom:"1rem"}}>
+          <div style={{display:"flex",gap:6,marginBottom:"1rem",flexWrap:"wrap"}}>
             {[
               {key:"all",label:"ALL OUTBREAKS"},
               {key:"conspiracy",label:"⚠ CONSPIRACY FLAGS"},
@@ -548,14 +559,57 @@ export default function OutbreakTracker() {
             ))}
           </div>
 
-          {error&&<div style={{padding:12,border:"1px solid rgba(255,51,51,0.3)",borderRadius:3,color:"#ff3333",fontSize:11}}>[ERROR] {error}</div>}
+          {error && (
+            <div style={{ padding: 12, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 11, marginBottom: "1rem", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+              <span>[ERROR] {error}</span>
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={() => fetchOutbreaks(true)}
+                style={{
+                  fontFamily: RAJ,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                  padding: "6px 14px",
+                  borderRadius: 3,
+                  cursor: retrying ? "wait" : "pointer",
+                  border: "1px solid rgba(255,51,51,0.5)",
+                  background: "rgba(255,51,51,0.08)",
+                  color: "#ff8888",
+                }}
+              >
+                {retrying ? "RETRYING…" : "RETRY"}
+              </button>
+            </div>
+          )}
 
           {/* MAIN GRID */}
           {data&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"1.25rem"}}>
+            <>
+            <style>{`
+              .outbreak-main-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.25rem; }
+              .outbreak-map-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 10px; color: #5a8068; letter-spacing: 1; margin-bottom: 8px; }
+              .outbreak-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+              @media (max-width: 960px) {
+                .outbreak-main-grid { grid-template-columns: 1fr !important; }
+              }
+              @media (max-width: 640px) {
+                .outbreak-card-grid { grid-template-columns: 1fr !important; }
+              }
+            `}</style>
+            <div className="outbreak-main-grid">
               <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
+                <div className="outbreak-map-legend" aria-hidden={false}>
+                  <span style={{ color: "#00bb66" }}>●</span> Primary (model location)
+                  <span style={{ color: "#5a8068", marginLeft: 8 }}>|</span>
+                  <span style={{ color: "#7aaa8a" }}>●</span> Other affected regions (when listed)
+                  <span style={{ color: "#5a8068", marginLeft: 8 }}>|</span>
+                  <span>Dashed links connect clusters</span>
+                </div>
                 <WorldMap outbreaks={visible} selected={selected} onSelect={setSelected}/>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                <div className="outbreak-card-grid">
                   {visible.map(o=>(
                     <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
                   ))}
@@ -568,6 +622,7 @@ export default function OutbreakTracker() {
                 }
               </div>
             </div>
+            </>
           )}
         </div>
       </div>

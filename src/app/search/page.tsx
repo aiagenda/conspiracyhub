@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
+import { normalizeVerdict } from "@/lib/verdict";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -61,9 +63,10 @@ function scoreColor(s: number) {
 }
 
 function verdictColor(v: string) {
-  if (v === "TRUE" || v === "VALÓS") return "#ff3333";
-  if (v === "PARTIALLY_TRUE" || v === "RÉSZBEN VALÓS") return "#ffaa00";
-  if (v === "DISINFORMATION" || v === "TERJESZTETT DEZINFO") return "#5a8068";
+  const n = normalizeVerdict(v);
+  if (n === "TRUE") return "#ff3333";
+  if (n === "PARTIALLY_TRUE") return "#ffaa00";
+  if (n === "DISINFORMATION") return "#5a8068";
   return "#00bb66";
 }
 
@@ -144,21 +147,35 @@ export default function SearchPage() {
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
-          <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "5px 10px", borderRadius: 3 }}>
-            ← FEED
-          </Link>
-          <div>
-            <div style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
-              THE THEORIST — INTELLIGENCE SEARCH
-            </div>
-            <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginTop: 2 }}>
-              CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            marginBottom: "1.5rem",
+            paddingBottom: "1rem",
+            borderBottom: "1px solid #1a3320",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", minWidth: 0 }}>
+            <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "5px 10px", borderRadius: 3 }}>
+              ← FEED
+            </Link>
+            <div>
+              <div style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
+                THE THEORIST — INTELLIGENCE SEARCH
+              </div>
+              <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, marginTop: 2 }}>
+                CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS
+              </div>
             </div>
           </div>
+          <SiteNav spacious />
         </div>
 
-        <div style={{ display: "flex", gap: 6, marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: "1.5rem", flexWrap: "wrap" }}>
           {[
             { key: "search", label: "◈ SEARCH DATABASE" },
             { key: "url", label: "◈ ANALYZE URL" },
