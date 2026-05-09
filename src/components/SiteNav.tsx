@@ -13,6 +13,7 @@ export default function SiteNav({ spacious }: Props) {
   const feedActive = pathname === "/";
   const searchActive = pathname === "/search";
   const outbreaksActive = pathname === "/outbreaks";
+  const uapActive = pathname === "/uap";
 
   const pad = spacious ? "6px 14px" : "5px 12px";
   const fontSize = spacious ? 11 : 10;
@@ -58,6 +59,18 @@ export default function SiteNav({ spacious }: Props) {
         aria-current={searchActive ? "page" : undefined}
       >
         SEARCH
+      </Link>
+      <Link
+        href="/uap"
+        style={{
+          ...base(),
+          background: uapActive ? "rgba(145,170,255,0.12)" : "transparent",
+          border: `1px solid ${uapActive ? "#8aa6ff" : "#1a3320"}`,
+          color: uapActive ? "#aac2ff" : "#5a8068",
+        }}
+        aria-current={uapActive ? "page" : undefined}
+      >
+        UAP
       </Link>
       <Link
         href="/outbreaks"

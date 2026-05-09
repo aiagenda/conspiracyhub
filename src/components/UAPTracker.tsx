@@ -67,7 +67,7 @@ function UAPMap({ incidents, selected, onSelect }:{ incidents:Incident[]; select
         svg.append("text").attr("x",x+r+4).attr("y",y+3).attr("fill",col).attr("font-size","7").attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1").text(inc.name.toUpperCase().slice(0,16));
       }
     }
-  },[world,incidents,selected]);
+  },[world,incidents,selected,onSelect]);
 
   return (
     <div style={{position:"relative"}}>
@@ -87,7 +87,7 @@ function UAPMap({ incidents, selected, onSelect }:{ incidents:Incident[]; select
 }
 
 // ── INCIDENT NODE GRAPH ────────────────────────────────────────
-function IncidentGraph({ incident, people, orgs }:{ incident:Incident; people:Person[]; orgs:Org[] }) {
+function IncidentGraph({ incident, orgs }:{ incident:Incident; orgs:Org[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const col = CLASS_COL[incident.classification]??"#5a8068";
 
@@ -189,7 +189,7 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
       </div>
 
       {/* Investigation graph */}
-      <IncidentGraph incident={incident} people={people} orgs={orgs}/>
+      <IncidentGraph incident={incident} orgs={orgs}/>
 
       {/* Witnesses */}
       <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>

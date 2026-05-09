@@ -262,7 +262,7 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           .text(o.disease.toUpperCase().slice(0,14));
       }
     }
-  },[world,outbreaks,selected]);
+  },[world,outbreaks,selected,onSelect]);
 
   return (
     <div style={{position:"relative"}}>
