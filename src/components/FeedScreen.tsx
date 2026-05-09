@@ -61,7 +61,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
             </Link>
             <Link href="/guide"
               style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
-              ? ÚTMUTATÓ
+              ? GUIDE
             </Link>
             <Link href="/uap"
               style={{ background: "rgba(0,255,136,0.05)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>

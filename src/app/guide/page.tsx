@@ -155,7 +155,7 @@ function GuideSection({ section, open, onToggle }: { section: Section; open: boo
         <span style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: open ? section.color : "#c8e8d0", letterSpacing: 2, textTransform: "uppercase", flex: 1, textAlign: "left" }}>
           {section.title}
         </span>
-        <span style={{ fontFamily: FONT, fontSize: 10, color: open ? section.color : "#3a5040", letterSpacing: 1 }}>{open ? "[ − BEZÁR ]" : "[ + MEGNYIT ]"}</span>
+        <span style={{ fontFamily: FONT, fontSize: 10, color: open ? section.color : "#3a5040", letterSpacing: 1 }}>{open ? "[ − CLOSE ]" : "[ + OPEN ]"}</span>
       </button>
 
       {open && (
@@ -198,77 +198,77 @@ const SECTIONS: Section[] = [
   {
     id: "feed",
     icon: "◈",
-    title: "Fő feed — Hírek & threat score",
+    title: "Main Feed — News & Threat Score",
     color: "#00ff88",
     content: (
       <div>
-        <P>A főoldal automatikusan gyűjtött híreket jelenít meg a Guardian API, Google News, Reddit és FOIA-adatbázisokból. Minden cikk átmegy egy AI-szűrőn (GPT-4o), ami 0–100 közötti <InlineCode>threat score</InlineCode>-t számol. Csak a <b style={{color:"#e8ffe8"}}>55+</b> pontot kapott cikkek jelennek meg.</P>
-        <H>Hírkártya anatómiája</H>
+        <P>The homepage automatically collects articles from the Guardian API, Google News, Reddit and FOIA databases. Every article is passed through an AI filter (GPT-4o) that computes a <InlineCode>threat score</InlineCode> from 0 to 100. Only articles scoring <b style={{color:"#e8ffe8"}}>55 or above</b> are shown.</P>
+        <H>News card anatomy</H>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 16 }}>
           <MockCard />
           <div style={{ flex: 1, minWidth: 200 }}>
-            <Row label="THREAT: 82" color="#ff3333">Az AI által adott kockázati pontszám. 80+ = vörös (magas), 60–79 = sárga (közepes), 55–59 = zöld (alacsony). A szám azt jelzi, milyen valószínű, hogy a cikk rejtett összefüggéseket takar.</Row>
-            <Row label="TIER A" color="#ffaa00">Forrástier: A = elsődleges hivatalos forrás (Guardian, Pentagon, FOIA), B = megalapozott média, C = közösségi / nem ellenőrzött.</Row>
-            <Row label="SZEKCIÓ" color="#5a8068">A Guardian-szekció (pl. world, us-news, science). A szűrő gombokkal szekció szerint szűrhetsz a feed tetején.</Row>
-            <Row label="◈ ANALYZE" color="#00ff88">Megnyitja a cikkhez tartozó Investigation Board-ot és Oracle-elemzést. GPT-4o feltérképezi az összefüggéseket, szereplőket, dokumentumokat.</Row>
+            <Row label="THREAT: 82" color="#ff3333">AI-assigned risk score. 80+ = red (high), 60–79 = yellow (medium), 55–59 = green (low). Reflects the likelihood that the article conceals hidden connections or suppressed information.</Row>
+            <Row label="TIER A" color="#ffaa00">Source tier: A = primary official source (Guardian, Pentagon, FOIA), B = established media, C = community / unverified.</Row>
+            <Row label="SECTION" color="#5a8068">The Guardian section (e.g. world, us-news, science). Use the filter buttons at the top of the feed to filter by section.</Row>
+            <Row label="◈ ANALYZE" color="#00ff88">Opens the Investigation Board and Oracle analysis for this article. GPT-4o maps out connections, key actors, documents and conspiracy theories.</Row>
           </div>
         </div>
-        <H>Fejléc státuszsáv</H>
-        <P>A zöld körök jelzik, hogy az adott adatforrás él. A <InlineCode>DARPA: ████</InlineCode> szándékosan takart — jelképezi a részlegesen titkosított forrásokat.</P>
-        <H>LIVE ticker</H>
-        <P>A fejléc alatt futó szövegcsík az aktív adatforrásokat és AI-rendszereket sorolja fel valós időben.</P>
+        <H>Header status bar</H>
+        <P>Green pulsing dots indicate an active data source. <InlineCode>DARPA: ████</InlineCode> is intentionally redacted — it symbolises partially classified defence programme data.</P>
+        <H>Live ticker</H>
+        <P>The scrolling strip below the header lists all active data sources and AI systems in real time.</P>
       </div>
     ),
   },
   {
     id: "board",
     icon: "⬡",
-    title: "Investigation Board — Összefüggéstérkép",
+    title: "Investigation Board — Connection Map",
     color: "#00bb66",
     content: (
       <div>
-        <P>Minden elemzett cikkhez létrejön egy interaktív gráf. A <b style={{color:"#e8ffe8"}}>középső csomópont</b> maga a cikk; a körülötte lévők a kapcsolódó szereplők, dokumentumok, vállalatok és szabadalmak.</P>
+        <P>Every analysed article gets an interactive graph. The <b style={{color:"#e8ffe8"}}>centre node</b> is the article itself; surrounding nodes are connected actors, documents, companies and patents discovered by the AI.</P>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 16 }}>
           <MockBoardMini />
           <div style={{ flex: 1, minWidth: 200 }}>
-            <H>Csomópontok (node-ok)</H>
-            <Row label="ARTICLE" color="#00ff88">A kiindulópontot, az elemzett cikket jelöli. Zöld.</Row>
-            <Row label="FOIA / CIA" color="#ff3333">FOIA-lekéréssel szerzett dokumentum, titkosított irat. Piros.</Row>
-            <Row label="PERSON" color="#00bb66">Kulcsfigura, szemtanú, tisztviselő. Sötétzöld.</Row>
-            <Row label="COMPANY" color="#ffaa00">Érintett vállalat vagy kormányzati ügynökség. Sárga.</Row>
-            <Row label="PATENT" color="#ff3333">USPTO-ból hozzárendelt releváns szabadalom. Piros.</Row>
-            <Row label="THEORY" color="#c94dff">GPT-4o által azonosított összeesküvés-hipotézis. Lila.</Row>
-            <H>Navigáció</H>
-            <Row label="PAN" color="#5a8068">A háttérre kattintva húzhatod a gráfot.</Row>
-            <Row label="ZOOM" color="#5a8068">Egér-görgő / touchpad pinch zoom.</Row>
-            <Row label="CLICK NODE" color="#5a8068">Csomópontra kattintva a jobb oldali panelben megjelenik a részletes leírás, forrás URL és a kapcsolódó bizonyítékok.</Row>
+            <H>Node types</H>
+            <Row label="ARTICLE" color="#00ff88">The starting point — the analysed article. Green.</Row>
+            <Row label="FOIA / CIA" color="#ff3333">Declassified document obtained via FOIA request. Red.</Row>
+            <Row label="PERSON" color="#00bb66">Key figure, witness or official linked to the story. Dark green.</Row>
+            <Row label="COMPANY" color="#ffaa00">Involved corporation or government agency. Yellow.</Row>
+            <Row label="PATENT" color="#ff3333">Relevant USPTO patent linked to the topic. Red.</Row>
+            <Row label="THEORY" color="#c94dff">Conspiracy hypothesis identified by GPT-4o. Purple.</Row>
+            <H>Navigation</H>
+            <Row label="PAN" color="#5a8068">Click and drag the background to pan the graph.</Row>
+            <Row label="ZOOM" color="#5a8068">Mouse wheel or touchpad pinch to zoom in/out.</Row>
+            <Row label="CLICK NODE" color="#5a8068">Click any node to open its detail panel on the right — source tier, URL, threat score, key claims, counter-evidence, timeline and actors.</Row>
           </div>
         </div>
-        <H>Jobb oldali panel</H>
-        <P>A kiválasztott csomópont részleteit tartalmazza: leírás, forrástier (A/B/C), forráslink, threat score, kulcsállítások, bizonytalanságok, ellenérvek, timeline és szereplők.</P>
+        <H>Right detail panel</H>
+        <P>Shows full details of the selected node: description, source tier (A/B/C), source link, threat score, key claims, uncertainties, counter-evidence, timeline and related actors.</P>
       </div>
     ),
   },
   {
     id: "oracle",
     icon: "◎",
-    title: "Oracle Analysis — AI-nyomozó",
+    title: "Oracle Analysis — AI Investigator",
     color: "#00ff88",
     content: (
       <div>
-        <P>Az Oracle a <b style={{color:"#e8ffe8"}}>GPT-4o</b>-ra épülő elemzőmodul. Ha rákattintasz a <InlineCode>◈ ORACLE ANALYSIS ▶</InlineCode> gombra, az AI valós időben elemzi a cikket, keresztreferenciázza a FOIA-indexszel és USPTO-adatbázissal, majd visszaad egy strukturált vizsgálatot.</P>
+        <P>Oracle is the analysis module powered by <b style={{color:"#e8ffe8"}}>GPT-4o</b>. Clicking <InlineCode>◈ ORACLE ANALYSIS ▶</InlineCode> triggers a real-time investigation: the AI cross-references the article with the CIA FOIA index, USPTO database and known actors, then returns a structured report.</P>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 16 }}>
           <MockOracle />
           <div style={{ flex: 1, minWidth: 200 }}>
-            <H>Verdict (ítélet)</H>
-            <Row label="TRUE" color="#00ff88">Az állítás bizonyítottan megalapozott, elsődleges forrásokkal alátámasztva.</Row>
-            <Row label="PARTIALLY TRUE" color="#00bb66">Részben igaz, de egyes részletei vitatottak vagy hiányosak.</Row>
-            <Row label="QUESTIONABLE" color="#ffaa00">Az állítás kétséges, közvetett bizonyítékok léteznek, de nincs döntő bizonyíték.</Row>
-            <Row label="DISINFORMATION" color="#ff3333">Az Oracle szerint az információ szándékosan megtévesztő vagy manipulált.</Row>
-            <H>Egyéb mezők</H>
-            <Row label="CONSPIRACY ANGLE" color="#c94dff">Az AI által azonosított lehetséges összeesküvési szál vagy titkolt program, amire az adatok mutatnak.</Row>
-            <Row label="KEY CONNECTIONS" color="#5a8068">A legfontosabb összefüggések rövid listája (személy ↔ szervezet ↔ esemény).</Row>
-            <Row label="THEORIES" color="#c94dff">Külön, valószínűséggel súlyozott hipotézisek. Minden elméletnek van forráslistája és idővonala.</Row>
+            <H>Verdict</H>
+            <Row label="TRUE" color="#00ff88">The claim is well-supported by primary sources and cross-referenced evidence.</Row>
+            <Row label="PARTIALLY TRUE" color="#00bb66">Partially accurate — some details are disputed or incomplete.</Row>
+            <Row label="QUESTIONABLE" color="#ffaa00">The claim is doubtful; indirect evidence exists but no definitive proof.</Row>
+            <Row label="DISINFORMATION" color="#ff3333">Oracle assesses the information as deliberately misleading or fabricated.</Row>
+            <H>Other fields</H>
+            <Row label="CONSPIRACY ANGLE" color="#c94dff">The specific cover-up, hidden programme or suppression narrative suggested by the data.</Row>
+            <Row label="KEY CONNECTIONS" color="#5a8068">Short list of the most important links found (person ↔ organisation ↔ event).</Row>
+            <Row label="THEORIES" color="#c94dff">Separate probability-weighted hypotheses, each with a source list and timeline.</Row>
           </div>
         </div>
       </div>
@@ -277,96 +277,96 @@ const SECTIONS: Section[] = [
   {
     id: "sources",
     icon: "▸",
-    title: "Forrástierek & adatbázisok",
+    title: "Source Tiers & Data Sources",
     color: "#ffaa00",
     content: (
       <div>
-        <H>Forrástierek</H>
-        <Row label="TIER A" color="#ffaa00">Elsődleges forrás: Government.gov, Pentagon, CIA FOIA, Guardian, Reuters. Legmegbízhatóbb.</Row>
-        <Row label="TIER B" color="#5a8068">Másodlagos forrás: ismert média, kutatóintézetek, ellenőrzött NGO-k.</Row>
-        <Row label="TIER C" color="#3a5040">Harmadlagos forrás: közösségi média, blogok, ellenőrizetlen bejelentők. Fenntartással kezelendő.</Row>
-        <H>Aktív adatbázisok</H>
-        <Row label="GUARDIAN API" color="#00ff88">A The Guardian élő hírfolyama — 6 szekció folyamatos monitorozása (world, us-news, science, politics, technology, environment).</Row>
-        <Row label="GPT-4o" color="#00ff88">Az OpenAI legújabb modellje végzi az összes AI-elemzést, threat scoring-ot és verdict-generálást.</Row>
-        <Row label="CIA FOIA INDEX" color="#00ff88">A FOIA-val declassifikált dokumentumok indexe — az Oracle keresztreferenciázza az aktuális hírekhez.</Row>
-        <Row label="USPTO LIVE" color="#00ff88">Az Egyesült Államok szabadalmi hivatalának live adatbázisa. Releváns szabadalmakat rendel az elemzett témákhoz.</Row>
-        <Row label="DARPA ████" color="#5a8068">Részlegesen titkosított forrás — szimbolikus jelzés, hogy egyes védelmi programok adatai nem publikusak.</Row>
+        <H>Source tiers</H>
+        <Row label="TIER A" color="#ffaa00">Primary source: Government.gov, Pentagon, CIA FOIA, Guardian, Reuters. Highest reliability.</Row>
+        <Row label="TIER B" color="#5a8068">Secondary source: established media outlets, research institutions, verified NGOs.</Row>
+        <Row label="TIER C" color="#3a5040">Tertiary source: social media, blogs, unverified whistleblowers. Treat with caution.</Row>
+        <H>Active data sources</H>
+        <Row label="GUARDIAN API" color="#00ff88">Live news stream from The Guardian — 6 sections monitored continuously (world, us-news, science, politics, technology, environment).</Row>
+        <Row label="GPT-4o" color="#00ff88">OpenAI model handling all AI analysis, threat scoring and verdict generation.</Row>
+        <Row label="CIA FOIA INDEX" color="#00ff88">Index of declassified documents obtained via FOIA — Oracle cross-references these against current articles.</Row>
+        <Row label="USPTO LIVE" color="#00ff88">United States Patent and Trademark Office live database. Relevant patents are linked to analysed topics.</Row>
+        <Row label="DARPA ████" color="#5a8068">Partially classified source — a symbolic indicator that some defence programme data is not publicly available.</Row>
       </div>
     ),
   },
   {
     id: "uap",
     icon: "◉",
-    title: "UAP Intelligence — Titkosított incidens-adatbázis",
+    title: "UAP Intelligence — Incident Database",
     color: "#00bb66",
     content: (
       <div>
-        <P>A <InlineCode>/uap</InlineCode> oldal egy dedikált UAP (Unidentified Aerial Phenomena) adatbázis, ami FOIA-dokumentumok, Pentagon-közlemények, kongresszusi meghallgatások és szemtanú-vallomások alapján épül fel.</P>
+        <P>The <InlineCode>/uap</InlineCode> page is a dedicated UAP (Unidentified Aerial Phenomena) database built from FOIA documents, Pentagon statements, congressional testimony and eyewitness reports.</P>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 16 }}>
           <MockUAPMap />
           <div style={{ flex: 1, minWidth: 200 }}>
-            <H>Klasszifikáció</H>
-            <Row label="DECLASSIFIED" color="#00ff88">Hivatalosan titkosítás alól feloldott eset, nyilvánosan elérhető dokumentumokkal.</Row>
-            <Row label="CONFIRMED" color="#00bb66">Megerősített eset (Pentagon / AARO-nyilatkozat vagy kongresszusi tanúvallomás alapján).</Row>
-            <Row label="REPORTED" color="#ffaa00">Bejelentett eset, de még nem teljesen megerősített. Korlátozott dokumentáció.</Row>
-            <Row label="ALLEGED" color="#5a8068">Állítólagos eset, elsősorban nem ellenőrzött forrásból.</Row>
-            <H>Evidence Level (bizonyítéki szint)</H>
-            <Row label="HIGH" color="#ff3333">Radar-adatok, több független tanú, kormányzati visszaigazolás.</Row>
-            <Row label="MEDIUM" color="#ffaa00">Részleges dokumentáció, néhány ellenőrzött tanú.</Row>
-            <Row label="LOW" color="#00bb66">Elsősorban szemtanú-vallomások, korlátozott fizikai bizonyíték.</Row>
+            <H>Classification</H>
+            <Row label="DECLASSIFIED" color="#00ff88">Officially declassified case with publicly available documents.</Row>
+            <Row label="CONFIRMED" color="#00bb66">Confirmed case based on Pentagon / AARO statement or congressional testimony.</Row>
+            <Row label="REPORTED" color="#ffaa00">Reported case not yet fully confirmed. Limited documentation.</Row>
+            <Row label="ALLEGED" color="#5a8068">Alleged case from primarily unverified sources.</Row>
+            <H>Evidence Level</H>
+            <Row label="HIGH" color="#ff3333">Radar data, multiple independent witnesses, government corroboration.</Row>
+            <Row label="MEDIUM" color="#ffaa00">Partial documentation, some verified witnesses.</Row>
+            <Row label="LOW" color="#00bb66">Primarily eyewitness accounts, limited physical evidence.</Row>
           </div>
         </div>
-        <H>Incidens Investigation Board</H>
-        <P>Minden incidenshez megnyitható egy teljes <InlineCode>◈ OPEN INVESTIGATION BOARD ▶</InlineCode> — ez az ismertetett Investigation Board UAP-specifikus változata. A hálón a szemtanúk, érintett szervezetek (AARO, CIA, DoD stb.) és a kapcsolódó dokumentumok jelennek meg.</P>
+        <H>Incident Investigation Board</H>
+        <P>Each incident can be opened as a full <InlineCode>◈ OPEN INVESTIGATION BOARD ▶</InlineCode> — a UAP-specific version of the Investigation Board. The graph shows witnesses, involved organisations (AARO, CIA, DoD etc.) and linked documents.</P>
         <H>Polymarket widget</H>
-        <P>Az egyes incidensoknál megjelenik a kapcsolódó Polymarket-piac, ahol valódi fogadásokkal megjósolják az esemény hivatalos elismerésének valószínűségét. Ez külső piaci konszenzust mutat, nem az app saját véleménye.</P>
+        <P>Each incident shows a linked Polymarket prediction market where real-money bets reflect the crowd probability of official government acknowledgement. This is external market consensus — not the platform&apos;s own assessment.</P>
       </div>
     ),
   },
   {
     id: "outbreaks",
     icon: "⬤",
-    title: "Outbreaks — Járványkövető",
+    title: "Outbreaks — Disease Tracker",
     color: "#ff3333",
     content: (
       <div>
-        <P>Az <InlineCode>/outbreaks</InlineCode> oldal valós idejű járvány- és kitörésriasztókat jelenít meg WHO, CDC és ProMED forrásokból. Az oldal a fő navban pirosan villog — figyelemfelhívó design.</P>
-        <H>Riasztásszintek</H>
-        <Row label="CRITICAL" color="#ff3333">Aktív, gyorsan terjedő kitörés, WHO-figyelmeztetéssel vagy halálesetek megerősítve.</Row>
-        <Row label="HIGH" color="#ff6600">Magas kockázatú eset, több ország érintett vagy szokatlan ágens.</Row>
-        <Row label="MODERATE" color="#ffaa00">Megfigyelés alatt álló, kontroll alatt tartott eset.</Row>
-        <Row label="LOW" color="#00bb66">Alacsony kockázatú, lokalizált eset, nem terjed.</Row>
-        <H>Adatforrások</H>
-        <P>WHO Disease Outbreak News, CDC Alerts, ProMED mailings, ECDC Rapid Risk Assessments — mindezeket automatikusan scraper gyűjti és kategorálja az AI.</P>
+        <P>The <InlineCode>/outbreaks</InlineCode> page shows real-time outbreak and epidemic alerts from WHO, CDC and ProMED sources. The nav button blinks red in the main header as an attention signal.</P>
+        <H>Alert levels</H>
+        <Row label="CRITICAL" color="#ff3333">Active, fast-spreading outbreak with WHO emergency warning or confirmed fatalities.</Row>
+        <Row label="HIGH" color="#ff6600">High-risk case; multiple countries affected or unusual pathogen involved.</Row>
+        <Row label="MODERATE" color="#ffaa00">Monitored case, currently under control.</Row>
+        <Row label="LOW" color="#00bb66">Low-risk, localised case with no spread detected.</Row>
+        <H>Data sources</H>
+        <P>WHO Disease Outbreak News, CDC Health Alerts, ProMED mailings, ECDC Rapid Risk Assessments — all automatically scraped and categorised by the AI.</P>
       </div>
     ),
   },
   {
     id: "search",
     icon: "⌕",
-    title: "Keresés",
+    title: "Search",
     color: "#5a8068",
     content: (
       <div>
-        <P>A <InlineCode>/search</InlineCode> oldal Supabase full-text kereséssel keres az összes eltárolt hírben, Oracle-elemzésben és FOIA-dokumentumban. Kereshetsz névre, kulcsszóra, szervezetre, személyre.</P>
-        <H>Tippek</H>
-        <Row label="KULCSSZÓ" color="#5a8068">Bármilyen szó beírható — az AI-elemzett cikkek leírásaiban és az Oracle-összefoglalókban is keres.</Row>
-        <Row label="SZERVEZET" color="#5a8068">Pl. CIA, DARPA, Lockheed — a kapcsolódó cikkeket és investigation board-okat hozza fel.</Row>
-        <Row label="ESEMÉNY" color="#5a8068">Pl. Roswell, Nimitz — az UAP-incidenseket és a rájuk hivatkozó cikkeket egyaránt visszaadja.</Row>
+        <P>The <InlineCode>/search</InlineCode> page uses Supabase full-text search across all stored articles, Oracle analyses and FOIA documents. Search by name, keyword, organisation or person.</P>
+        <H>Tips</H>
+        <Row label="KEYWORD" color="#5a8068">Any word — searches article summaries and Oracle analysis text.</Row>
+        <Row label="ORGANISATION" color="#5a8068">e.g. CIA, DARPA, Lockheed — returns related articles and investigation boards.</Row>
+        <Row label="EVENT" color="#5a8068">e.g. Roswell, Nimitz — returns UAP incidents and articles referencing them.</Row>
       </div>
     ),
   },
   {
     id: "pro",
     icon: "◐",
-    title: "PRO fiók",
+    title: "PRO Account",
     color: "#c94dff",
     content: (
       <div>
-        <H>Ingyenes vs. PRO</H>
-        <Row label="INGYENES" color="#5a8068">A feed megtekinthető, a hírkártyák láthatók. Oracle-elemzés és Investigation Board korlátozott.</Row>
-        <Row label="PRO ▶" color="#c94dff">Korlátlan Oracle-elemzés, teljes Investigation Board hozzáférés, Polymarket-integráció, archiválás és exportálás. Stripe-on keresztüli fizetés.</Row>
-        <P>A <InlineCode>SIGN IN</InlineCode> gombbal Supabase Auth-on keresztül lehet belépni (email/jelszó vagy OAuth). A <InlineCode>PRO ▶</InlineCode> gomb megnyitja a Stripe Checkout-ot.</P>
+        <H>Free vs. PRO</H>
+        <Row label="FREE" color="#5a8068">Browse the feed and view news cards. Oracle analysis and Investigation Board access is limited.</Row>
+        <Row label="PRO ▶" color="#c94dff">Unlimited Oracle analysis, full Investigation Board access, Polymarket integration, archiving and export. Payment via Stripe.</Row>
+        <P>Use the <InlineCode>SIGN IN</InlineCode> button to log in via Supabase Auth (email/password or OAuth). The <InlineCode>PRO ▶</InlineCode> button opens Stripe Checkout.</P>
       </div>
     ),
   },
@@ -395,7 +395,7 @@ export default function GuidePage() {
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>ÚTMUTATÓ</div>
+          <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>PLATFORM GUIDE</div>
         </div>
 
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem 1.25rem 5rem" }}>
@@ -404,10 +404,10 @@ export default function GuidePage() {
           <div style={{ marginBottom: "2rem", paddingBottom: "1.25rem", borderBottom: "1px solid #1a3320" }}>
             <div style={{ fontFamily: RAJ, fontSize: 9, letterSpacing: 5, color: "#3a5040", marginBottom: 6, textTransform: "uppercase" }}>■ INTELLIGENCE PLATFORM DOCUMENTATION ■</div>
             <h1 style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: "#00ff88", letterSpacing: 2, margin: "0 0 8px", textShadow: "0 0 20px rgba(0,255,136,0.2)" }}>
-              Útmutató
+              Platform Guide
             </h1>
             <div style={{ fontSize: 11, color: "#5a8068", lineHeight: 1.8, maxWidth: 620 }}>
-              Ez az oldal elmagyarázza a platform minden funkcióját. Kattints egy szekció fejlécére a részletes leírásért és vizuális illusztrációért.
+              Click a section header to expand the full explanation and visual illustration.
             </div>
 
             {/* Quick links */}
@@ -454,13 +454,13 @@ export default function GuidePage() {
             <span style={{ color: "#5a8068" }}>◈ PLATFORM VERSION</span>{" "}
             <span style={{ color: "#00ff88" }}>1.0</span>
             {"  ·  "}
-            <span style={{ color: "#5a8068" }}>ADATFORRÁSOK</span>{" "}
+            <span style={{ color: "#5a8068" }}>DATA SOURCES</span>{" "}
             <span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · AARO · WHO</span>
             {"  ·  "}
             <span style={{ color: "#5a8068" }}>AI</span>{" "}
             <span style={{ color: "#c8e8d0" }}>GPT-4o</span>
             {"  ·  "}
-            Az adatok tájékoztatás céljából szolgálnak, nem minősülnek szakmai tanácsnak.
+            Data is provided for informational purposes only and does not constitute professional advice.
           </div>
         </div>
       </div>
