@@ -3,7 +3,14 @@ import FeedScreen from "@/components/FeedScreen";
 import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
-export const revalidate = 1800;
+export const revalidate = 900;
+
+/** Returns an ISO cutoff string 7 days in the past. Extracted from the component to satisfy purity rules. */
+function sevenDaysAgo(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString();
+}
 
 export default async function Home() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,7 +19,18 @@ export default async function Home() {
     return <FeedScreen initialItems={[]} />;
   }
   const supabase = createClient(url, key);
-  const { data } = await supabase.from("news_items").select("*").order("score", { ascending: false }).limit(50);
+  // Show articles from the last 7 days sorted by score; fall back to all-time top-100 if none yet
+  const cutoff = sevenDaysAgo();
+  let { data } = await supabase
+    .from("news_items")
+    .select("*")
+    .gte("published_at", cutoff)
+    .order("score", { ascending: false })
+    .order("published_at", { ascending: false })
+    .limit(200);
+  if (!data || data.length === 0) {
+    ({ data } = await supabase.from("news_items").select("*").order("score", { ascending: false }).limit(100));
+  }
 
   const items: NewsItem[] =
     (data ?? []).map((row) => ({
