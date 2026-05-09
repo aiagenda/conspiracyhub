@@ -33,10 +33,33 @@ const COORDS: Record<string, [number, number]> = {
   peru: [-9.19, -75.01],
   colombia: [4.57, -74.29],
   mexico: [23.63, -102.55],
+  kazakhstan: [48.01, 66.92],
+  argentina: [-38.41, -63.61],
+  chile: [-35.67, -71.54],
+  bolivia: [-16.29, -63.58],
+  venezuela: [6.42, -66.58],
+  panama: [8.53, -80.78],
+  "costa rica": [9.74, -83.75],
+  nicaragua: [12.86, -85.2],
+  tanzania: [-6.36, 34.89],
+  rwanda: [-1.94, 29.87],
+  uganda: [1.37, 32.29],
+  ghana: [7.95, -1.02],
+  "sierra leone": [8.46, -11.78],
+  liberia: [6.43, -9.43],
   global: [20, 0],
 };
 
-const FALLBACKS = [
+type CuratedItem = { title: string; description: string; link: string; pubDate: string };
+
+const CURATED_DISEASES: CuratedItem[] = [
+  {
+    title: "Hantavirus — South America & Central Asia",
+    description:
+      "Hantavirus cases reported. Spread via rodent contact. No human-to-human transmission confirmed. Early warning clusters detected.",
+    link: "https://www.who.int/emergencies/disease-outbreak-news",
+    pubDate: new Date().toISOString(),
+  },
   {
     title: "H5N1 Avian Influenza — Human Cases",
     description:
@@ -45,20 +68,9 @@ const FALLBACKS = [
     pubDate: new Date().toISOString(),
   },
   {
-    title: "Mpox — Ongoing Outbreak Multiple Countries",
-    description: "Mpox clade Ib spreading across Central Africa. New variants show higher transmissibility.",
-    link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
-  },
-  {
-    title: "Dengue Fever — Record Cases South America",
-    description: "Brazil reports over 3 million dengue cases. Aedes aegypti mosquito range expanding due to climate change.",
-    link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
-  },
-  {
-    title: "Cholera — Sub-Saharan Africa",
-    description: "Cholera spreading across multiple African countries. WHO reports over 500,000 cases.",
+    title: "Mpox — Clade Ib Ongoing Outbreak",
+    description:
+      "Mpox clade Ib spreading across Central Africa. New variants show higher transmissibility. WHO declared public health emergency.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
     pubDate: new Date().toISOString(),
   },
@@ -70,51 +82,98 @@ const FALLBACKS = [
     pubDate: new Date().toISOString(),
   },
   {
-    title: "H5N2 Avian Influenza — United States",
-    description: "H5N2 strain detected in poultry and dairy cattle workers. CDC investigating potential adaptation.",
+    title: "Dengue Fever — Record Cases South America",
+    description:
+      "Brazil reports over 3 million dengue cases. Aedes aegypti mosquito range expanding due to climate change.",
+    link: "https://www.who.int/emergencies/disease-outbreak-news",
+    pubDate: new Date().toISOString(),
+  },
+  {
+    title: "Cholera — Sub-Saharan Africa",
+    description: "Cholera spreading across multiple African countries. WHO reports over 500,000 cases this year.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
     pubDate: new Date().toISOString(),
   },
 ];
 
-const SYS = `You are a disease outbreak intelligence analyst. Analyze the given outbreak for conspiracy relevance.
+async function fetchLocalNews(
+  disease: string,
+  country: string,
+): Promise<Array<{ title: string; url: string; source: string; pubDate: string }>> {
+  try {
+    const query = encodeURIComponent(`${disease} ${country}`);
+    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en&num=5`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "TheTheorist/1.0" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const items: Array<{ title: string; url: string; source: string; pubDate: string }> = [];
+    for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+      const x = m[1];
+      const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
+      const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
+      const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
+      const source = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
+      if (title && link) items.push({ title, url: link, source, pubDate: pub });
+    }
+    return items.slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+const SYS = `You are a disease outbreak intelligence analyst. Analyze the outbreak for conspiracy relevance, patents, and geopolitical context.
 LANGUAGE: All JSON string values MUST be English only.
 
 Return ONLY valid JSON:
 {
-  "disease":"short disease name",
-  "location":"primary country lowercase",
+  "disease":"short disease name (1-3 words)",
+  "location":"primary affected country (lowercase, single country or 'multiple countries')",
   "lat":0.0,"lng":0.0,
   "conspiracy_score":0,
   "has_conspiracy":false,
-  "theories":[{"name":"","summary":"2 sentences","probability":20,"sources":["https://"]}],
+  "theories":[{"name":"","summary":"2-3 sentences","probability":20,"sources":["https://"]}],
   "patents":[{"number":"US...","title":"","assignee":"","url":"https://patents.google.com/patent/..."}],
   "key_facts":["fact1","fact2","fact3"],
   "verdict":"NATURAL",
-  "risk_level":"MEDIUM"
+  "risk_level":"MEDIUM",
+  "origin_country":"lowercase country name where outbreak originated"
 }
 verdict: NATURAL|SUSPICIOUS|HIGHLY_SUSPICIOUS|UNKNOWN
 risk_level: LOW|MEDIUM|HIGH|CRITICAL
-conspiracy_score 0-100 based only on real documented theories.
-Only cite real patent numbers and real URLs.`;
+Only cite real patent numbers and real URLs. conspiracy_score based on documented theories only.`;
 
-async function fetchWHO() {
+type AnalysisRow = {
+  disease: string;
+  location: string;
+  lat: number;
+  lng: number;
+  conspiracy_score: number;
+  has_conspiracy: boolean;
+  theories: Array<{ name: string; summary: string; probability: number; sources: string[] }>;
+  patents: Array<{ number: string; title: string; assignee: string; url: string }>;
+  key_facts: string[];
+  verdict: string;
+  risk_level: string;
+  origin_country: string;
+};
+
+async function fetchWHO(): Promise<CuratedItem[]> {
   try {
     const res = await fetch(WHO_RSS, {
       headers: { "User-Agent": "TheTheorist/1.0" },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return FALLBACKS;
+    if (!res.ok) return CURATED_DISEASES;
     const xml = await res.text();
-    const items: typeof FALLBACKS = [];
+    const items: CuratedItem[] = [];
     for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
       const x = m[1];
       const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
       const desc =
-        x
-          .match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]
-          ?.replace(/<[^>]+>/g, "")
-          .trim() ?? "";
+        x.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]?.replace(/<[^>]+>/g, "").trim() ?? "";
       const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
       const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
       if (
@@ -126,9 +185,16 @@ async function fetchWHO() {
         items.push({ title, description: desc.slice(0, 300), link, pubDate: pub });
       }
     }
-    return items.length ? items.slice(0, 10) : FALLBACKS;
+    const combined = [...CURATED_DISEASES];
+    for (const item of items) {
+      const alreadyHave = combined.some(
+        (c) => c.title.toLowerCase().split(" ")[0] === item.title.toLowerCase().split(" ")[0],
+      );
+      if (!alreadyHave) combined.push(item);
+    }
+    return combined.slice(0, 10);
   } catch {
-    return FALLBACKS;
+    return CURATED_DISEASES;
   }
 }
 
@@ -144,6 +210,7 @@ export async function GET() {
     }
 
     const admin = createClient(url, key);
+
     try {
       const { data: c } = await admin
         .from("outbreak_cache")
@@ -159,44 +226,37 @@ export async function GET() {
     }
 
     const items = await fetchWHO();
+
     const settled = await Promise.allSettled(
-      items.slice(0, 8).map((item) =>
-        callOpenAIJSON<{
-          disease: string;
-          location: string;
-          lat: number;
-          lng: number;
-          conspiracy_score: number;
-          has_conspiracy: boolean;
-          theories: Array<{ name: string; summary: string; probability: number; sources: string[] }>;
-          patents: Array<{ number: string; title: string; assignee: string; url: string }>;
-          key_facts: string[];
-          verdict: string;
-          risk_level: string;
-        }>({
+      items.slice(0, 8).map(async (item) => {
+        const analysis = await callOpenAIJSON<AnalysisRow>({
           apiKey: process.env.OPENAI_API_KEY!,
           system: SYS,
           user: `"${item.title}"\n\n${item.description}\n\nSource: ${item.link}`,
           maxTokens: 900,
           model: "gpt-4o-mini",
           maxAttempts: 2,
-        }),
-      ),
+        });
+        const localNews = await fetchLocalNews(analysis.disease, analysis.origin_country || analysis.location);
+        return { ...analysis, localNews, rawItem: item };
+      }),
     );
 
     const outbreaks = settled
       .map((r, i) => {
         if (r.status === "rejected") return null;
-        const a = r.value;
-        const ck = Object.keys(COORDS).find((k) => a.location?.toLowerCase().includes(k));
-        const [lat, lng] = ck ? COORDS[ck]! : [a.lat ?? 0, a.lng ?? 0];
+        const { rawItem, ...rest } = r.value;
+        const loc = rest.location?.toLowerCase() ?? "";
+        const origin = rest.origin_country?.toLowerCase() ?? "";
+        const ck = Object.keys(COORDS).find((k) => loc.includes(k) || origin.includes(k));
+        const [lat, lng] = ck ? COORDS[ck]! : [rest.lat ?? 0, rest.lng ?? 0];
         return {
           id: `ob-${i}-${Date.now()}`,
-          title: items[i]!.title,
-          description: items[i]!.description,
-          source_url: items[i]!.link,
-          published_at: items[i]!.pubDate,
-          ...a,
+          title: rawItem.title,
+          description: rawItem.description,
+          source_url: rawItem.link,
+          published_at: rawItem.pubDate,
+          ...rest,
           lat,
           lng,
         };

@@ -78,9 +78,9 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
             <Link
               href="/outbreaks"
               style={{
-                background: "transparent",
-                border: "1px solid rgba(255,51,51,0.3)",
-                color: "#ff6633",
+                background: "rgba(255,51,51,0.08)",
+                border: "1px solid #ff3333",
+                color: "#ff3333",
                 fontFamily: "var(--font-raj), sans-serif",
                 fontSize: 11,
                 fontWeight: 700,
@@ -90,11 +90,34 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
                 borderRadius: 3,
                 cursor: "pointer",
                 textDecoration: "none",
-                display: "inline-block",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                animation: "outbreakBlink 1.8s ease-in-out infinite",
               }}
             >
-              ⚠ OUTBREAKS
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#ff3333",
+                  display: "inline-block",
+                  animation: "outbreakDot 1s ease-in-out infinite",
+                }}
+              />
+              OUTBREAKS
             </Link>
+            <style>{`
+              @keyframes outbreakBlink {
+                0%, 100% { border-color: #ff3333; box-shadow: 0 0 6px rgba(255, 51, 51, 0.4); }
+                50% { border-color: rgba(255, 51, 51, 0.4); box-shadow: none; }
+              }
+              @keyframes outbreakDot {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.3; transform: scale(0.7); }
+              }
+            `}</style>
             <button
               onClick={() => setShowAuth(true)}
               style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}

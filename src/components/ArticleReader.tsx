@@ -284,7 +284,95 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
 
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
+      <style>{`
+        @keyframes article-banner-glow { 0%,100%{box-shadow:0 0 16px rgba(0,255,136,0.12)} 50%{box-shadow:0 0 28px rgba(0,255,136,0.28)} }
+        @keyframes article-banner-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+        @keyframes article-al-fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
       <div className="scanline" />
+      <div
+        style={{
+          position: "fixed",
+          bottom: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 50,
+          display: "flex",
+          alignItems: "center",
+          gap: 0,
+          background: "#090f0b",
+          border: "1px solid #00bb66",
+          borderRadius: 4,
+          overflow: "hidden",
+          boxShadow: "0 0 24px rgba(0,255,136,0.15)",
+          animation: "article-banner-glow 2.5s ease-in-out infinite",
+        }}
+      >
+        <div style={{ background: "rgba(0,255,136,0.08)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "#00ff88",
+              display: "inline-block",
+              animation: "article-banner-dot 1.2s ease-in-out infinite",
+            }}
+          />
+          <span style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>ORACLE ANALYSIS READY</span>
+        </div>
+        <Link
+          href={`/board/${item.id}`}
+          style={{
+            display: "block",
+            padding: "10px 16px",
+            background: "rgba(0,255,136,0.12)",
+            borderLeft: "1px solid #00bb66",
+            fontFamily: RAJ,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 2,
+            color: "#00ff88",
+            textDecoration: "none",
+            textTransform: "uppercase",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.22)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.12)";
+          }}
+        >
+          ◈ OPEN INVESTIGATION BOARD ▶
+        </Link>
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
+          style={{
+            padding: "10px 12px",
+            background: "transparent",
+            border: "none",
+            borderLeft: "1px solid #1a3320",
+            color: "#5a8068",
+            fontFamily: FONT,
+            fontSize: 10,
+            cursor: "pointer",
+            letterSpacing: 1,
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+          }}
+          title="Scroll to analysis"
+        >
+          ↓
+        </button>
+      </div>
+
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
           <Link
@@ -339,7 +427,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
           style={{
             maxWidth: 860,
             margin: "0 auto",
-            padding: "2rem 1.25rem 4rem",
+            padding: "2rem 1.25rem 6rem",
             display: "grid",
             gridTemplateColumns: "1fr",
             gap: "2rem",
@@ -397,16 +485,55 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
               <div
                 style={{
                   marginBottom: "1rem",
-                  padding: "8px 12px",
                   border: "1px solid #1a3320",
                   borderRadius: 3,
-                  background: "rgba(0,255,136,0.02)",
-                  fontSize: 10,
-                  color: "#00bb66",
-                  letterSpacing: 2,
+                  background: "#090f0b",
+                  overflow: "hidden",
                 }}
               >
-                <span style={{ animation: "blink 0.9s step-end infinite", display: "inline-block" }}>◉</span> SCANNING ARTICLE FOR CONSPIRACY SIGNALS...
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #1a3320",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "#00ff88",
+                      display: "inline-block",
+                      animation: "article-banner-dot 0.9s step-end infinite",
+                    }}
+                  />
+                  <span style={{ fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>
+                    SCANNING ARTICLE FOR CONSPIRACY SIGNALS...
+                  </span>
+                </div>
+                <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+                  {[
+                    "> Tokenizing article entities...",
+                    "> Cross-referencing CIA FOIA database...",
+                    "> Matching against conspiracy pattern index...",
+                    "> Categorizing signals by severity...",
+                  ].map((l, i) => (
+                    <div
+                      key={l}
+                      style={{
+                        fontSize: 10,
+                        color: "#3a5040",
+                        letterSpacing: 0.5,
+                        animation: `article-al-fadein 0.3s ease ${i * 0.4}s both`,
+                      }}
+                    >
+                      {l}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             {hlError && (
