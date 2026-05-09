@@ -51,6 +51,8 @@ export interface NewsItem {
   section: string;
   score: number;
   angle: string;
+  /** Ingest origin: guardian, gnews:…, reddit:…, etc. */
+  source?: string;
   nodes?: Node[];
   edges?: Edge[];
 }
@@ -85,14 +87,6 @@ export interface OracleAnalysis {
   sources?: OracleSource[];
   theories: OracleTheory[];
   conclusion: string;
-  verdict:
-    | "TRUE"
-    | "PARTIALLY_TRUE"
-    | "QUESTIONABLE"
-    | "DISINFORMATION"
-    | "VALÓS"
-    | "RÉSZBEN VALÓS"
-    | "MEGKÉRDŐJELEZHETŐ"
-    | "TERJESZTETT DEZINFO";
+  verdict: "TRUE" | "PARTIALLY_TRUE" | "QUESTIONABLE" | "DISINFORMATION";
   created_at?: string;
 }

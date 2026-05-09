@@ -8,6 +8,10 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
 
+interface UAPData {
+  incidents: Incident[]; people: Person[]; organizations: Org[];
+  documents: Document[]; news: News[]; stats?: Record<string,number>; generated_at: string;
+}
 type Classification = "DECLASSIFIED"|"CONFIRMED"|"REPORTED"|"ALLEGED";
 type EvidenceLevel  = "HIGH"|"MEDIUM"|"LOW";
 
@@ -15,7 +19,7 @@ interface Incident { id:string; name:string; date:string; location:string; lat:n
 interface Person   { id:string; name:string; role:string; affiliation:string; clearance:string; bio:string; significance:string; linkedIncidents:string[]; linkedOrgs:string[]; }
 interface Org      { id:string; name:string; fullName:string; type:string; founded:string; status:string; description:string; transparency:string; url:string; }
 interface Document { id:string; name:string; year:number; type:string; classification:string; url:string; description:string; }
-interface News     { title:string; url:string; source:string; pubDate:string; }
+interface News     { title:string; url:string; source:string; pubDate:string; type?: string }
 
 const CLASS_COL: Record<Classification,string> = { DECLASSIFIED:"#00ff88", CONFIRMED:"#00bb66", REPORTED:"#ffaa00", ALLEGED:"#5a8068" };
 const EVD_COL:   Record<EvidenceLevel,string>  = { HIGH:"#ff3333", MEDIUM:"#ffaa00", LOW:"#00bb66" };
@@ -43,8 +47,8 @@ function UAPMap({ incidents, selected, onSelect }:{ incidents:Incident[]; select
     svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
     const grat = d3.geoGraticule()();
     svg.append("path").datum(grat).attr("d",path as d3.ValueFn<SVGPathElement,unknown,string>).attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
-    // @ts-expect-error TopoJSON topology typed loosely vs geojson
-    const countries = topojson.feature(world,world.objects.countries);
+    // @ts-expect-error TopoJSON topology typed loosely vs GeoJSON
+    const countries = topojson.feature(world, world.objects.countries);
     svg.append("g").selectAll("path")
       // @ts-expect-error features from topojson.feature
       .data(countries.features).enter().append("path")
@@ -67,7 +71,7 @@ function UAPMap({ incidents, selected, onSelect }:{ incidents:Incident[]; select
         svg.append("text").attr("x",x+r+4).attr("y",y+3).attr("fill",col).attr("font-size","7").attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1").text(inc.name.toUpperCase().slice(0,16));
       }
     }
-  },[world,incidents,selected,onSelect]);
+  }, [world, incidents, selected, onSelect]);
 
   return (
     <div style={{position:"relative"}}>
@@ -87,7 +91,7 @@ function UAPMap({ incidents, selected, onSelect }:{ incidents:Incident[]; select
 }
 
 // ── INCIDENT NODE GRAPH ────────────────────────────────────────
-function IncidentGraph({ incident, orgs }:{ incident:Incident; orgs:Org[] }) {
+function IncidentGraph({ incident, orgs }: { incident: Incident; orgs: Org[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const col = CLASS_COL[incident.classification]??"#5a8068";
 
@@ -189,7 +193,7 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
       </div>
 
       {/* Investigation graph */}
-      <IncidentGraph incident={incident} orgs={orgs}/>
+      <IncidentGraph incident={incident} orgs={orgs} />
 
       {/* Witnesses */}
       <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>
@@ -354,7 +358,9 @@ export default function UAPTracker() {
               {label:"HIGH EVIDENCE",value:data.incidents.filter(i=>i.evidenceLevel==="HIGH").length,col:"#ff3333"},
               {label:"KEY WITNESSES",value:data.people.length,col:"#ffaa00"},
               {label:"DOCUMENTS",value:data.documents.length,col:"#c94dff"},
-              {label:"LIVE NEWS",value:data.news.length,col:"#00bb66"},
+              {label:"LIVE ITEMS",value:data.news.length,col:"#00bb66"},
+              {label:"AARO/PENTAGON",value:(data as UAPData).stats?.aaro_items??0,col:"#ffaa00"},
+              {label:"FOIA/BLACKVAULT",value:((data as UAPData).stats?.blackvault_items??0)+((data as UAPData).stats?.muckrock_items??0),col:"#c94dff"},
             ].map(({label,value,col})=>(
               <div key={label} style={{border:"1px solid #1a3320",borderRadius:3,padding:"8px 14px",background:"#090f0b"}}>
                 <div style={{fontSize:8,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
@@ -493,18 +499,22 @@ export default function UAPTracker() {
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:4}}>LIVE UAP NEWS FEED · GOOGLE NEWS · UPDATED {new Date(data.generated_at).toLocaleTimeString()}</div>
                   {data.news.length===0&&<div style={{color:"#3a5040",fontSize:11,padding:16,textAlign:"center"}}>No live news available.</div>}
-                  {data.news.map((n,i)=>(
+                  {data.news.map((n,i)=>{
+                    const typeCol = n.type==="foia"?"#c94dff":n.type==="report"?"#ff3333":n.type==="social"?"#ffaa00":"#00bb66";
+                    return (
                     <a key={i} href={n.url} target="_blank" rel="noreferrer"
-                      style={{display:"block",border:"1px solid #1a3320",borderRadius:3,padding:"9px 11px",textDecoration:"none",transition:"border-color 0.15s",background:"#090f0b"}}
-                      onMouseEnter={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="#00bb66";}}
-                      onMouseLeave={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="#1a3320";}}>
-                      <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#c8e8d0",lineHeight:1.35,marginBottom:4}}>{n.title}</div>
-                      <div style={{display:"flex",justifyContent:"space-between"}}>
+                      style={{display:"block",border:`1px solid ${n.type==="foia"?"rgba(201,77,255,0.2)":n.type==="report"?"rgba(255,51,51,0.2)":"#1a3320"}`,borderRadius:3,padding:"9px 11px",textDecoration:"none",transition:"border-color 0.15s",background:n.type==="foia"?"rgba(20,8,28,0.5)":n.type==="report"?"rgba(26,10,10,0.4)":"#090f0b",marginBottom:6}}
+                      onMouseEnter={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor=typeCol;}}
+                      onMouseLeave={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor=n.type==="foia"?"rgba(201,77,255,0.2)":n.type==="report"?"rgba(255,51,51,0.2)":"#1a3320";}}>
+                      <div style={{display:"flex",gap:6,marginBottom:5,alignItems:"center"}}>
+                        <span style={{fontSize:8,color:typeCol,border:`1px solid ${typeCol}`,padding:"1px 5px",borderRadius:2,letterSpacing:1,textTransform:"uppercase",flexShrink:0}}>{n.type==="foia"?"FOIA":n.type==="report"?"OFFICIAL":n.type==="social"?"COMMUNITY":"NEWS"}</span>
                         <span style={{fontSize:9,color:"#5a8068",letterSpacing:1}}>{n.source}</span>
-                        <span style={{fontSize:9,color:"#3a5040"}}>{n.pubDate?new Date(n.pubDate).toLocaleDateString():""}</span>
+                        <span style={{fontSize:9,color:"#3a5040",marginLeft:"auto"}}>{n.pubDate?new Date(n.pubDate).toLocaleDateString():""}</span>
                       </div>
+                      <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#c8e8d0",lineHeight:1.35}}>{n.title}</div>
                     </a>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

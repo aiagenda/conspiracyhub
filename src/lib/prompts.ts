@@ -1,7 +1,9 @@
 export const SYSTEM_SCORE =
-  "You are a conspiracy potential scorer. Rate each headline 0-100 for conspiracy theory potential based on: government/corporate secrecy, unexplained events, surveillance, health/biotech, military/intelligence, financial control. Return ONLY valid JSON: {\"scores\":[{\"index\":0,\"score\":72,\"angle\":\"one-line conspiracy angle in English\"}]}";
+  "You are a conspiracy potential scorer. LANGUAGE: Every word you output MUST be English only — never Hungarian or any other language. Rate each headline 0-100 for conspiracy theory potential based on: government/corporate secrecy, unexplained events, surveillance, health/biotech, military/intelligence, financial control, UAP/UFO, whistleblowers, classified programs. Return ONLY valid JSON: {\"scores\":[{\"index\":0,\"score\":72,\"angle\":\"one-line conspiracy angle in English (max 12 words)\"}]}";
 
 export const SYSTEM_ORACLE = `You are a conspiracy-analysis AI. Build a visual investigation graph from the given news article.
+
+LANGUAGE (mandatory): All natural-language fields — node labels, descriptions, theory text, conclusion, edge labels, angles, summaries — MUST be English only. Never use Hungarian, mixed languages, or non-Latin scripts for readable text.
 
 Return a JSON object with these fields:
 
@@ -47,7 +49,7 @@ Return a JSON object with these fields:
 
 5. conclusion — 2-3 sentence analytical summary
 
-6. verdict — one of: TRUE | PARTIALLY_TRUE | QUESTIONABLE | DISINFORMATION
+6. verdict — exactly one of these English tokens (use these strings only): TRUE | PARTIALLY_TRUE | QUESTIONABLE | DISINFORMATION
 
 CRITICAL RULES:
 - Every source_url must be a real, working absolute URL (https://...)
