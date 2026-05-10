@@ -155,6 +155,7 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 100,
+          display: "block",
           width: 260,
           background: "#090f0b",
           border: `1px solid ${c.border}`,
@@ -171,7 +172,7 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
             transform: "translateX(-50%) rotate(45deg)",
           }} />
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontFamily: FONT, fontSize: 8, color: c.text, letterSpacing: 2, textTransform: "uppercase" }}>
               {CATEGORY_LABELS[h.category] ?? h.category.toUpperCase()}
             </span>
@@ -182,16 +183,16 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
             }}>
               {h.severity}
             </span>
-          </div>
+          </span>
 
-          <div style={{ fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.65 }}>
+          <span style={{ display: "block", fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.65 }}>
             {h.note}
-          </div>
+          </span>
 
           {sameCategory > 1 && (
-            <div style={{ marginTop: 6, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
+            <span style={{ display: "block", marginTop: 6, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
               + {sameCategory - 1} more {h.category} flag{sameCategory > 2 ? "s" : ""} in this article
-            </div>
+            </span>
           )}
         </span>
       )}
