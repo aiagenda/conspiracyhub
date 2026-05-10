@@ -129,14 +129,14 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
         </div>
 
         {/* MAIN CONTENT */}
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
+        <div style={{ maxWidth: 1520, margin: "0 auto", padding: "1.75rem clamp(1rem, 3vw, 2rem) 4rem" }}>
 
           {/* PAGE HEADER */}
           <div style={{ textAlign: "center", marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid #1a3320" }}>
-            <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: 6, color: "#5a8068", marginBottom: 6, textTransform: "uppercase" }}>
+            <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 6, color: "#5a8068", marginBottom: 6, textTransform: "uppercase" }}>
               ■ AI-CURATED CONSPIRACY INVESTIGATION FEED ■
             </div>
-            <div style={{ fontSize: 10, color: "#3a6040", letterSpacing: 2 }}>
+            <div style={{ fontSize: 11, color: "#3a6040", letterSpacing: 2 }}>
               ONLY ARTICLES WITH VERIFIED CONSPIRACY DOCUMENTATION ARE SHOWN
             </div>
           </div>
@@ -149,7 +149,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
                   key={s}
                   onClick={() => setFilter(s)}
                   style={{
-                    fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700,
+                    fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700,
                     letterSpacing: 2, textTransform: "uppercase", padding: "5px 12px", borderRadius: 3,
                     border: `1px solid ${filter === s ? "#00bb66" : "#1a3320"}`,
                     background: filter === s ? "rgba(0,255,136,0.08)" : "transparent",
@@ -162,7 +162,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {visible.length > 0 && (
-                <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>
+                <span style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1 }}>
                   {visible.length} ACTIVE THREATS
                 </span>
               )}
@@ -179,7 +179,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
 
           {/* NEWS GRID */}
           {visible.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1.25rem" }}>
               {visible.map((item) => (
                 <NewsCard key={item.id} item={item} onAnalyze={analyze} />
               ))}

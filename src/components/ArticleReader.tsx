@@ -173,11 +173,11 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
           }} />
 
           <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontFamily: FONT, fontSize: 8, color: c.text, letterSpacing: 2, textTransform: "uppercase" }}>
+            <span style={{ fontFamily: FONT, fontSize: 9, color: c.text, letterSpacing: 2, textTransform: "uppercase" }}>
               {CATEGORY_LABELS[h.category] ?? h.category.toUpperCase()}
             </span>
             <span style={{
-              fontSize: 8, padding: "1px 5px", borderRadius: 2,
+              fontSize: 9, padding: "1px 5px", borderRadius: 2,
               border: `1px solid ${c.border}`, color: c.text, letterSpacing: 1,
               background: c.bg, textTransform: "uppercase",
             }}>
@@ -185,12 +185,12 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
             </span>
           </span>
 
-          <span style={{ display: "block", fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.65 }}>
+          <span style={{ display: "block", fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.65 }}>
             {h.note}
           </span>
 
           {sameCategory > 1 && (
-            <span style={{ display: "block", marginTop: 6, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>
+            <span style={{ display: "block", marginTop: 6, fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>
               + {sameCategory - 1} more {h.category} flag{sameCategory > 2 ? "s" : ""} in this article
             </span>
           )}
@@ -208,7 +208,7 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
   if (paragraphs.length <= 1) {
     // Render as one block
     return (
-      <p style={{ fontFamily: FONT, fontSize: 13, color: "#c8e8d0", lineHeight: 1.9, margin: "0 0 1rem" }}>
+      <p style={{ fontFamily: FONT, fontSize: 15, color: "#c8e8d0", lineHeight: 1.85, margin: "0 0 1.1rem" }}>
         {segments.map((seg, i) =>
           seg.highlight
             ? <HighlightedWord key={i} segment={seg} allHighlights={highlights} />
@@ -224,7 +224,7 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
       {paragraphs.filter(p => p.trim()).map((para, pi) => {
         const paraSegs = buildSegments(para, highlights);
         return (
-          <p key={pi} style={{ fontFamily: FONT, fontSize: 13, color: "#c8e8d0", lineHeight: 1.9, margin: "0 0 1.25rem" }}>
+          <p key={pi} style={{ fontFamily: FONT, fontSize: 15, color: "#c8e8d0", lineHeight: 1.85, margin: "0 0 1.35rem" }}>
             {paraSegs.map((seg, i) =>
               seg.highlight
                 ? <HighlightedWord key={i} segment={seg} allHighlights={highlights} />
@@ -319,27 +319,27 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
           </div>
         </div>
 
-        <div style={{ maxWidth: 860, margin: "0 auto", padding: "2rem 1.25rem 6rem", display: "grid", gridTemplateColumns: "1fr 260px", gap: "2rem" }}>
+        <div style={{ maxWidth: 1520, margin: "0 auto", padding: "2rem clamp(1rem, 3vw, 2rem) 6rem", display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 320px)", gap: "clamp(1.25rem, 3vw, 2.5rem)" }}>
 
           {/* MAIN ARTICLE */}
           <div>
             {/* Article header */}
             <div style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>{item.section}</span>
-                <span style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>{timeAgo(item.date)}</span>
-                <span style={{ fontSize: 10, color: scoreColor(item.score), border: `1px solid ${scoreColor(item.score)}`, padding: "1px 7px", borderRadius: 2, fontFamily: RAJ, fontWeight: 700, letterSpacing: 1 }}>
+                <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>{item.section}</span>
+                <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1 }}>{timeAgo(item.date)}</span>
+                <span style={{ fontSize: 11, color: scoreColor(item.score), border: `1px solid ${scoreColor(item.score)}`, padding: "1px 7px", borderRadius: 2, fontFamily: RAJ, fontWeight: 700, letterSpacing: 1 }}>
                   {item.score}% THREAT
                 </span>
                 {highCount > 0 && (
-                  <span style={{ fontSize: 10, color: "#ff3333", border: "1px solid rgba(255,51,51,0.3)", padding: "1px 7px", borderRadius: 2, letterSpacing: 1 }}>
+                  <span style={{ fontSize: 11, color: "#ff3333", border: "1px solid rgba(255,51,51,0.3)", padding: "1px 7px", borderRadius: 2, letterSpacing: 1 }}>
                     ⚠ {highCount} HIGH SEVERITY FLAG{highCount > 1 ? "S" : ""}
                   </span>
                 )}
               </div>
-              <h1 style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.25, margin: "0 0 10px" }}>{item.title}</h1>
+              <h1 style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}>{item.title}</h1>
               {item.angle && (
-                <div style={{ padding: "8px 12px", borderLeft: "2px solid #1a3320", fontSize: 12, color: "#5a8068", lineHeight: 1.6 }}>
+                <div style={{ padding: "8px 12px", borderLeft: "2px solid #1a3320", fontSize: 14, color: "#5a8068", lineHeight: 1.65 }}>
                   <span style={{ color: "#00bb66" }}>▸ </span>{item.angle}
                 </div>
               )}
@@ -379,8 +379,8 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
 
             {/* Summary if no body */}
             {!body && item.summary && (
-              <div style={{ marginBottom: "1rem", padding: "12px 14px", border: "1px solid #1a3320", borderRadius: 3, background: "rgba(0,255,136,0.02)", fontSize: 11, color: "#7aaa8a", lineHeight: 1.7 }}>
-                <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6 }}>ARTICLE SUMMARY</div>
+              <div style={{ marginBottom: "1rem", padding: "12px 14px", border: "1px solid #1a3320", borderRadius: 3, background: "rgba(0,255,136,0.02)", fontSize: 13, color: "#7aaa8a", lineHeight: 1.75 }}>
+                <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, marginBottom: 6 }}>ARTICLE SUMMARY</div>
                 {item.summary}
               </div>
             )}
@@ -410,8 +410,8 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
               <div
                 onClick={() => setLegendOpen(o => !o)}
                 style={{ padding: "10px 12px", borderBottom: legendOpen ? "1px solid #1a3320" : "none", display: "flex", justifyContent: "space-between", cursor: "pointer" }}>
-                <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2 }}>◈ SIGNAL LEGEND</div>
-                <span style={{ color: "#5a8068", fontSize: 10 }}>{legendOpen ? "▲" : "▼"}</span>
+                <div style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>◈ SIGNAL LEGEND</div>
+                <span style={{ color: "#5a8068", fontSize: 11 }}>{legendOpen ? "▲" : "▼"}</span>
               </div>
               {legendOpen && (
                 <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -425,8 +425,8 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
                         onClick={() => setFilterCat(f => f === cat ? null : cat)}
                         style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", opacity: filterCat && filterCat !== cat ? 0.35 : 1, transition: "opacity 0.15s" }}>
                         <span style={{ width: 8, height: 8, borderRadius: 1, background: c.dot, flexShrink: 0 }} />
-                        <span style={{ fontSize: 10, color: "#5a8068", flex: 1, letterSpacing: 0.5 }}>{label}</span>
-                        <span style={{ fontSize: 10, color: c.text, fontFamily: RAJ, fontWeight: 700 }}>{count}</span>
+                        <span style={{ fontSize: 11, color: "#5a8068", flex: 1, letterSpacing: 0.5 }}>{label}</span>
+                        <span style={{ fontSize: 11, color: c.text, fontFamily: RAJ, fontWeight: 700 }}>{count}</span>
                       </div>
                     );
                   })}
@@ -446,7 +446,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
             {highlights.length > 0 && (
               <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
                 <div style={{ padding: "10px 12px", borderBottom: "1px solid #1a3320" }}>
-                  <div style={{ fontFamily: FONT, fontSize: 9, color: "#ff3333", letterSpacing: 2 }}>⚠ FLAGGED SIGNALS ({displayHighlights.length})</div>
+                  <div style={{ fontFamily: FONT, fontSize: 10, color: "#ff3333", letterSpacing: 2 }}>⚠ FLAGGED SIGNALS ({displayHighlights.length})</div>
                 </div>
                 <div style={{ maxHeight: 420, overflowY: "auto" }}>
                   {displayHighlights.map((h, i) => {
@@ -454,15 +454,15 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
                     return (
                       <div key={i} style={{ padding: "9px 12px", borderBottom: "1px solid #0d1a10" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: c.text }}>{h.text}</span>
+                          <span style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: c.text }}>{h.text}</span>
                           <span style={{ fontSize: 8, color: c.dot, border: `1px solid ${c.border}`, padding: "1px 5px", borderRadius: 2, letterSpacing: 1, flexShrink: 0, marginLeft: 4 }}>
                             {h.severity.toUpperCase()}
                           </span>
                         </div>
-                        <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, marginBottom: 4 }}>
+                        <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1, marginBottom: 4 }}>
                           {CATEGORY_LABELS[h.category] ?? h.category}
                         </div>
-                        <div style={{ fontFamily: FONT, fontSize: 10, color: "#7a9a8a", lineHeight: 1.55 }}>{h.note}</div>
+                        <div style={{ fontFamily: FONT, fontSize: 12, color: "#7a9a8a", lineHeight: 1.55 }}>{h.note}</div>
                       </div>
                     );
                   })}

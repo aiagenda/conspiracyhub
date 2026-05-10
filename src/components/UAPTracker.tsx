@@ -200,8 +200,8 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
             <span key={t} style={{fontSize:9,color:"#5a8068",border:"1px solid #1a3320",padding:"1px 6px",borderRadius:2}}>{t}</span>
           ))}
         </div>
-        <div style={{fontFamily:FONT,fontSize:11,color:"#5a8068",marginBottom:8,letterSpacing:1}}>{incident.date} · {incident.location}</div>
-        <div style={{fontFamily:FONT,fontSize:11,color:"#c8e8d0",lineHeight:1.8}}>{incident.description}</div>
+        <div style={{fontFamily:FONT,fontSize:12,color:"#5a8068",marginBottom:8,letterSpacing:1}}>{incident.date} · {incident.location}</div>
+        <div style={{fontFamily:FONT,fontSize:14,color:"#c8e8d0",lineHeight:1.75}}>{incident.description}</div>
       </div>
 
       {/* Investigation graph */}
@@ -368,7 +368,7 @@ export default function UAPTracker() {
           <div style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>FOIA · PENTAGON · CONGRESS · {new Date(data.generated_at).toLocaleTimeString()}</div>
         </div>
 
-        <div style={{maxWidth:1200,margin:"0 auto",padding:"1.5rem 1.25rem 4rem"}}>
+        <div style={{maxWidth:1520,margin:"0 auto",padding:"1.75rem clamp(1rem,3vw,2rem) 4rem"}}>
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
@@ -390,7 +390,7 @@ export default function UAPTracker() {
               {label:"FOIA/BLACKVAULT",value:((data as UAPData).stats?.blackvault_items??0)+((data as UAPData).stats?.muckrock_items??0),col:"#c94dff"},
             ].map(({label,value,col})=>(
               <div key={label} style={{border:"1px solid #1a3320",borderRadius:3,padding:"8px 14px",background:"#090f0b"}}>
-                <div style={{fontSize:8,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
+                <div style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
                 <div style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
               </div>
             ))}
@@ -398,7 +398,7 @@ export default function UAPTracker() {
 
           {/* WORLD MAP */}
           <div style={{marginBottom:"1.25rem"}}>
-            <div style={{fontFamily:FONT,fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:8}}>
+            <div style={{fontFamily:FONT,fontSize:10,color:"#5a8068",letterSpacing:2,marginBottom:8}}>
               ◈ GLOBAL INCIDENT MAP · {[["#00ff88","DECLASSIFIED"],["#00bb66","CONFIRMED"],["#ffaa00","REPORTED"],["#5a8068","ALLEGED"]].map(([col,label])=>(
                 <span key={label} style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:12}}>
                   <span style={{width:7,height:7,borderRadius:"50%",background:col,display:"inline-block"}}/>
@@ -410,7 +410,7 @@ export default function UAPTracker() {
           </div>
 
           {/* TABS + CONTENT */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:"1.25rem"}}>
+          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(360px,420px)",gap:"clamp(1rem,2.5vw,1.75rem)"}}>
 
             {/* LEFT */}
             <div>
@@ -418,7 +418,7 @@ export default function UAPTracker() {
               <div style={{display:"flex",gap:4,marginBottom:"1rem",flexWrap:"wrap"}}>
                 {TABS.map(t=>(
                   <button key={t.key} onClick={()=>setTab(t.key as typeof tab)}
-                    style={{fontFamily:RAJ,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",padding:"5px 12px",borderRadius:2,cursor:"pointer",border:`1px solid ${tab===t.key?"#00bb66":"#1a3320"}`,background:tab===t.key?"rgba(0,255,136,0.06)":"transparent",color:tab===t.key?"#00ff88":"#5a8068"}}>
+                    style={{fontFamily:RAJ,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",padding:"6px 14px",borderRadius:2,cursor:"pointer",border:`1px solid ${tab===t.key?"#00bb66":"#1a3320"}`,background:tab===t.key?"rgba(0,255,136,0.06)":"transparent",color:tab===t.key?"#00ff88":"#5a8068"}}>
                     {t.label}
                   </button>
                 ))}
@@ -436,14 +436,14 @@ export default function UAPTracker() {
                         onMouseEnter={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
                         onMouseLeave={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor="#1a3320";}}>
                         <div style={{padding:"8px 12px",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",gap:8,background:"rgba(0,0,0,0.3)"}}>
-                          <span style={{fontSize:9,color:col,border:`1px solid ${col}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>{inc.classification}</span>
-                          <span style={{fontSize:9,color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>EVD: {inc.evidenceLevel}</span>
-                          <span style={{fontSize:9,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{inc.date}</span>
+                          <span style={{fontSize:10,color:col,border:`1px solid ${col}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>{inc.classification}</span>
+                          <span style={{fontSize:10,color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>EVD: {inc.evidenceLevel}</span>
+                          <span style={{fontSize:10,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{inc.date}</span>
                         </div>
                         <div style={{padding:"10px 12px"}}>
-                          <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e8ffe8",lineHeight:1.3,marginBottom:3}}>{inc.name}</div>
-                          <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginBottom:7}}>{inc.location}</div>
-                          <div style={{fontSize:10,color:"#5a8068",lineHeight:1.6,marginBottom:8}}>{inc.description.slice(0,110)}...</div>
+                          <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#e8ffe8",lineHeight:1.3,marginBottom:3}}>{inc.name}</div>
+                          <div style={{fontSize:11,color:"#5a8068",letterSpacing:1,marginBottom:7}}>{inc.location}</div>
+                          <div style={{fontSize:12,color:"#7aaa8a",lineHeight:1.65,marginBottom:8}}>{inc.description.slice(0,110)}...</div>
                           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
                             {inc.tags.slice(0,4).map(t=><span key={t} style={{fontSize:8,color:"#2a4030",border:"1px solid #0d1a10",padding:"1px 5px",borderRadius:1,letterSpacing:0.5}}>{t}</span>)}
                             <Link href={`/uap/${inc.id}`} onClick={e=>e.stopPropagation()} style={{marginLeft:"auto",fontSize:9,color:col,border:`1px solid ${col}`,padding:"3px 10px",borderRadius:2,textDecoration:"none",letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0,background:`${col}10`}}>
@@ -553,13 +553,13 @@ export default function UAPTracker() {
               {selected&&tab==="incidents"&&(
                 <div>
                   <div style={{padding:"10px 14px",marginBottom:"0.75rem",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b"}}>
-                    <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#e8ffe8",marginBottom:6}}>{selected.name}</div>
+                    <div style={{fontFamily:RAJ,fontSize:17,fontWeight:700,color:"#e8ffe8",marginBottom:6}}>{selected.name}</div>
                     <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
-                      <span style={{fontSize:9,color:CLASS_COL[selected.classification as Classification]??"#5a8068",border:`1px solid ${CLASS_COL[selected.classification as Classification]??"#5a8068"}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>{selected.classification}</span>
-                      <span style={{fontSize:9,color:EVD_COL[selected.evidenceLevel],border:`1px solid ${EVD_COL[selected.evidenceLevel]}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>EVIDENCE: {selected.evidenceLevel}</span>
+                      <span style={{fontSize:10,color:CLASS_COL[selected.classification as Classification]??"#5a8068",border:`1px solid ${CLASS_COL[selected.classification as Classification]??"#5a8068"}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>{selected.classification}</span>
+                      <span style={{fontSize:10,color:EVD_COL[selected.evidenceLevel],border:`1px solid ${EVD_COL[selected.evidenceLevel]}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>EVIDENCE: {selected.evidenceLevel}</span>
                     </div>
-                    <div style={{fontSize:10,color:"#5a8068",letterSpacing:1,marginBottom:8}}>{selected.date} · {selected.location}</div>
-                    <Link href={`/uap/${selected.id}`} style={{display:"block",padding:"9px",background:"rgba(0,255,136,0.06)",border:"1px solid #00bb66",borderRadius:3,textAlign:"center",textDecoration:"none",fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#00ff88",letterSpacing:2}}>
+                    <div style={{fontSize:12,color:"#5a8068",letterSpacing:1,marginBottom:8}}>{selected.date} · {selected.location}</div>
+                    <Link href={`/uap/${selected.id}`} style={{display:"block",padding:"10px",background:"rgba(0,255,136,0.06)",border:"1px solid #00bb66",borderRadius:3,textAlign:"center",textDecoration:"none",fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#00ff88",letterSpacing:2}}>
                       ◈ OPEN INVESTIGATION BOARD ▶
                     </Link>
                   </div>

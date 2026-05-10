@@ -63,7 +63,7 @@ export default function NewsCard({
                 border: `1px solid ${color}`,
                 borderRadius: 3,
                 padding: "2px 8px",
-                fontSize: 10,
+                fontSize: 11,
                 color,
                 letterSpacing: 1,
                 fontFamily: "var(--font-raj), sans-serif",
@@ -77,7 +77,7 @@ export default function NewsCard({
                 position: "absolute",
                 bottom: 8,
                 left: 10,
-                fontSize: 9,
+                fontSize: 10,
                 color: "#5a8068",
                 letterSpacing: 2,
                 textTransform: "uppercase",
@@ -94,7 +94,7 @@ export default function NewsCard({
                 border: "1px solid #1a3320",
                 borderRadius: 2,
                 padding: "2px 7px",
-                fontSize: 9,
+                fontSize: 10,
                 color: "#5a8068",
                 letterSpacing: 1,
               }}
@@ -108,12 +108,12 @@ export default function NewsCard({
       <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
         {!item.image && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
+            <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
               {item.section} · {timeAgo(item.date)}
             </span>
             <span
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 color,
                 border: `1px solid ${color}`,
                 borderRadius: 2,
@@ -132,7 +132,7 @@ export default function NewsCard({
           <h3
             style={{
               fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 15,
+              fontSize: 17,
               fontWeight: 700,
               color: "#e8ffe8",
               lineHeight: 1.35,
@@ -151,7 +151,7 @@ export default function NewsCard({
         </a>
 
         {item.angle && (
-          <div style={{ fontSize: 11, color: "#5a8068", borderLeft: "2px solid #1a3320", paddingLeft: 8, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: "#5a8068", borderLeft: "2px solid #1a3320", paddingLeft: 8, lineHeight: 1.65 }}>
             <span style={{ color: "#00bb66" }}>▸ </span>
             {item.angle}
           </div>
