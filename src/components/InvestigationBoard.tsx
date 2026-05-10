@@ -128,7 +128,6 @@ function PolymarketInlineFetch({ q }: { q: string }) {
       .then((d) => {
         const list = d.markets ?? [];
         setMarkets(list);
-        if (list.length) setOpen(true);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -144,7 +143,7 @@ function PolymarketInlineFetch({ q }: { q: string }) {
         style={{
           width: "100%",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 8,
           padding: "7px 10px",
           background: "rgba(20,8,28,0.6)",
@@ -153,11 +152,18 @@ function PolymarketInlineFetch({ q }: { q: string }) {
           textAlign: "left",
         }}
       >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0 }} />
-        <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, flex: 1 }}>
-          POLYMARKET — {markets.length} BET{markets.length > 1 ? "S" : ""}
+        <span style={{ width: 6, height: 6, marginTop: 2, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+          <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2 }}>
+            POLYMARKET — {markets.length} BET{markets.length > 1 ? "S" : ""}
+          </span>
+          {!open && (
+            <span style={{ fontFamily: FONT, fontSize: 8, color: "#5a8068", letterSpacing: 1, opacity: 0.92 }}>
+              Click to expand
+            </span>
+          )}
         </span>
-        <span style={{ fontSize: 9, color: "#5a8068" }}>{open ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 9, color: "#5a8068", flexShrink: 0 }}>{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (

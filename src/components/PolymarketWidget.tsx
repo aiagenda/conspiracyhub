@@ -27,7 +27,6 @@ function PolymarketFetch({ q }: { q: string }) {
       .then((d) => {
         const list = d.markets ?? [];
         setMarkets(list);
-        if (list.length) setOpen(true);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -46,13 +45,30 @@ function PolymarketFetch({ q }: { q: string }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          padding: "9px 12px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
       >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0 }} />
-        <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, flex: 1 }}>
-          ◈ POLYMARKET — {markets.length} ACTIVE BET{markets.length > 1 ? "S" : ""}
+        <span style={{ width: 6, height: 6, marginTop: 3, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2 }}>
+            ◈ POLYMARKET — {markets.length} ACTIVE BET{markets.length > 1 ? "S" : ""}
+          </span>
+          {!open && (
+            <span style={{ fontFamily: FONT, fontSize: 8, color: "#5a8068", letterSpacing: 1, opacity: 0.92 }}>
+              Click to expand prediction markets
+            </span>
+          )}
         </span>
-        <span style={{ fontSize: 9, color: "#5a8068" }}>{open ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 9, color: "#5a8068", flexShrink: 0 }}>{open ? "▲" : "▼"}</span>
         <a
           href="https://polymarket.com"
           target="_blank"
