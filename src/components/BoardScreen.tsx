@@ -182,10 +182,14 @@ function mergeOracleTheoriesIntoNodes(nodes: Node[], theories: OracleTheory[] | 
       ? t.full_explanation.trim()
       : typeof t.summary === "string" ? t.summary : "";
 
+    const total = list.length;
+    const spacing = 180;
+    const startX = 500 - ((total - 1) * spacing) / 2;
+
     return {
       id,
       type: "theory",
-      x: 500,
+      x: startX + i * spacing,
       y: 500,
       label: label.toUpperCase(),
       sub: `${prob}% PLAUSIBILITY`,
