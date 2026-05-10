@@ -135,16 +135,21 @@ function relayoutNodes(nodes: Node[]): Node[] {
   const others = nodes.filter((n) => n.id !== "center");
   if (!others.length) return nodes;
 
-  // Claude-like constellation: distribute around center in a wide ellipse.
+  // Scale ellipse radius with node count so cards never overlap (each card ~148x62px).
+  const n = others.length;
+  const minArcGap = 160; // px between node centers along arc
+  const arcSpan = Math.PI * 1.7;
+  const minRadius = (minArcGap * Math.max(n - 1, 1)) / arcSpan;
+  const rx = Math.max(355, minRadius);
+  const ry = Math.max(220, minRadius * 0.58);
+
   const arranged = others
     .slice()
     .sort((a, b) => a.type.localeCompare(b.type) || a.label.localeCompare(b.label))
-    .map((n, i) => {
-      const angle = (-Math.PI * 0.85) + (i * (Math.PI * 1.7)) / Math.max(others.length - 1, 1);
-      const rx = 355;
-      const ry = 205;
+    .map((node, i) => {
+      const angle = (-Math.PI * 0.85) + (i * arcSpan) / Math.max(n - 1, 1);
       return {
-        ...n,
+        ...node,
         x: Math.round(500 + Math.cos(angle) * rx),
         y: Math.round(320 + Math.sin(angle) * ry),
       };
@@ -368,7 +373,9 @@ export default function BoardScreen({
 
   const normalized = ensureCenterNode(sanitizeNodes(analysis?.nodes), news);
   const withTheories = mergeOracleTheoriesIntoNodes(normalized, analysis?.theories);
-  const nodes = needsRelayout(withTheories) ? relayoutNodes(withTheories) : withTheories;
+  // Always relayout when theories are present so they never overlap other nodes.
+  const hasTheories = withTheories.some((n) => n.type === "theory");
+  const nodes = (hasTheories || needsRelayout(withTheories)) ? relayoutNodes(withTheories) : withTheories;
   const edges = appendTheoryEdges(sanitizeEdges(analysis?.edges, nodes), nodes);
   const safeSelected = nodes.find((n) => n.id === selected?.id) ?? nodes[0];
   const handleNodeClick = (node: Node | null) => {
