@@ -1,6 +1,8 @@
 -- Re-ingest a feed item: delete from DB so the next scraper run can upsert it again
 -- (scraper uses ON CONFLICT (guardian_id) on news_items).
 --
+-- CLI (linked project):  npx supabase db query --linked -f scripts/delete-news-for-reingest-exec.sql
+--
 -- Run in Supabase → SQL Editor (service role not required for DELETE if your RLS
 -- allows it; often you need the dashboard SQL editor which bypasses RLS, or
 -- use the service key from a script).
