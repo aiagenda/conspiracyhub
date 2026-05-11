@@ -945,59 +945,101 @@ export default function InvestigationBoard({
   const boardRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
   const [shareToast, setShareToast] = useState("");
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
 
-  const captureAndShare = useCallback(async () => {
-    if (!boardRef.current || sharing) return;
-    setSharing(true);
-    setShareToast("Capturing board...");
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(boardRef.current, {
-        backgroundColor: "#050c07",
-        scale: 1.5,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        ignoreElements: (el) => el.hasAttribute("data-share-ignore"),
-      });
+  const shareText = conclusion
+    ? `Investigation: "${conclusion.slice(0, 120)}${conclusion.length > 120 ? "…" : ""}" — The Theorist`
+    : "AI-powered investigation — The Theorist";
+  const shareUrl = typeof window !== "undefined" ? window.location.href : "https://conspiracyhub.vercel.app";
+
+  const toast = useCallback((msg: string, ms = 2500) => {
+    setShareToast(msg);
+    setTimeout(() => setShareToast(""), ms);
+  }, []);
+
+  // Close share dropdown when clicking outside
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as globalThis.Node)) {
+        setShareMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [shareMenuOpen]);
+
+  const downloadPng = useCallback(async (): Promise<string | null> => {
+    if (!boardRef.current) return null;
+    const html2canvas = (await import("html2canvas")).default;
+    const canvas = await html2canvas(boardRef.current, {
+      backgroundColor: "#050c07",
+      scale: 1.5,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      ignoreElements: (el) => el.hasAttribute("data-share-ignore"),
+    });
+    return new Promise((resolve) => {
       canvas.toBlob(
         (blob) => {
-          if (!blob) {
-            setShareToast("Failed");
-            setTimeout(() => setShareToast(""), 2000);
-            setSharing(false);
-            return;
-          }
+          if (!blob) { resolve(null); return; }
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
           a.download = `theorist-investigation-${Date.now()}.png`;
           a.click();
-          URL.revokeObjectURL(url);
-          const tweetText = conclusion
-            ? `Investigation: "${conclusion.slice(0, 120)}${conclusion.length > 120 ? "…" : ""}" — The Theorist`
-            : "AI-powered investigation — The Theorist";
-          const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${tweetText} conspiracyhub.vercel.app`)}&hashtags=TheTheorist,UAP,Investigation`;
-          window.open(tweetUrl, "_blank", "width=600,height=400");
-          setShareToast("Screenshot saved + share opened");
-          setTimeout(() => setShareToast(""), 3000);
-          setSharing(false);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          resolve(url);
         },
         "image/png",
         0.95
       );
-    } catch (e) {
-      console.error("Screenshot failed:", e);
-      const tweetText = conclusion ? `Investigation — The Theorist` : "The Theorist investigation";
-      window.open(
-        `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${tweetText} conspiracyhub.vercel.app`)}&hashtags=TheTheorist,Investigation`,
-        "_blank"
-      );
-      setShareToast("Share opened");
-      setTimeout(() => setShareToast(""), 2000);
+    });
+  }, []);
+
+  const shareVia = useCallback(async (platform: string) => {
+    if (sharing) return;
+    setShareMenuOpen(false);
+
+    if (platform === "download") {
+      setSharing(true);
+      toast("Capturing board…", 4000);
+      try {
+        await downloadPng();
+        toast("PNG saved ✓");
+      } catch { toast("Capture failed"); }
       setSharing(false);
+      return;
     }
-  }, [sharing, conclusion]);
+
+    if (platform === "copy") {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast("Link copied ✓");
+      } catch { toast("Could not copy link"); }
+      return;
+    }
+
+    const encoded = encodeURIComponent(shareUrl);
+    const encodedText = encodeURIComponent(shareText);
+    const hashtags = "TheTheorist,UAP,Investigation";
+
+    const urls: Record<string, string> = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encoded}&hashtags=${hashtags}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
+      reddit: `https://www.reddit.com/submit?url=${encoded}&title=${encodedText}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`,
+      email: `mailto:?subject=${encodeURIComponent("Check this investigation")}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`,
+    };
+
+    const target = urls[platform];
+    if (target) {
+      window.open(target, "_blank", "width=640,height=480,noopener,noreferrer");
+      toast("Share opened ✓");
+    }
+  }, [sharing, shareText, shareUrl, toast, downloadPng]);
 
   // Pan / zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -1306,42 +1348,103 @@ export default function InvestigationBoard({
               {shareToast}
             </div>
           ) : null}
-          <button
-            type="button"
-            data-share-ignore
-            onClick={captureAndShare}
-            disabled={sharing}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 14px",
-              background: "rgba(5,12,7,0.92)",
-              border: "1px solid #1a3320",
-              borderRadius: 3,
-              color: "#5a8068",
-              fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: 2,
-              cursor: sharing ? "not-allowed" : "pointer",
-              transition: "all 0.15s",
-              backdropFilter: "blur(4px)",
-              opacity: sharing ? 0.6 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!sharing) {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
-                (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
-              }
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
-              (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
-            }}
-          >
-            {sharing ? "CAPTURING..." : "◈ SHARE ↗"}
-          </button>
+          {/* Share dropdown */}
+          <div ref={shareMenuRef} data-share-ignore style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setShareMenuOpen((o) => !o)}
+              disabled={sharing}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 14px",
+                background: shareMenuOpen ? "rgba(0,255,136,0.06)" : "rgba(5,12,7,0.92)",
+                border: `1px solid ${shareMenuOpen ? "#00bb66" : "#1a3320"}`,
+                borderRadius: 3,
+                color: shareMenuOpen ? "#00ff88" : "#5a8068",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 2,
+                cursor: sharing ? "not-allowed" : "pointer",
+                transition: "all 0.15s",
+                backdropFilter: "blur(4px)",
+                opacity: sharing ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!sharing && !shareMenuOpen) {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!shareMenuOpen) {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+                }
+              }}
+            >
+              {sharing ? "CAPTURING…" : `◈ SHARE ${shareMenuOpen ? "▲" : "▼"}`}
+            </button>
+
+            {shareMenuOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  background: "#060e08",
+                  border: "1px solid #1a3320",
+                  borderRadius: 4,
+                  minWidth: 200,
+                  zIndex: 200,
+                  overflow: "hidden",
+                  animation: "ol-fadein 0.15s ease",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+                }}
+              >
+                {[
+                  { id: "twitter",   icon: "𝕏",  label: "Share on X / Twitter" },
+                  { id: "facebook",  icon: "f",  label: "Share on Facebook" },
+                  { id: "reddit",    icon: "r/", label: "Share on Reddit" },
+                  { id: "whatsapp",  icon: "📱", label: "Share on WhatsApp" },
+                  { id: "email",     icon: "✉",  label: "Send via Email" },
+                  { id: "copy",      icon: "🔗", label: "Copy link" },
+                  { id: "download",  icon: "💾", label: "Download PNG" },
+                ].map(({ id, icon, label }, i) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => void shareVia(id)}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "9px 14px",
+                      background: "transparent",
+                      border: "none",
+                      borderTop: i === 0 ? "none" : "1px solid #0f1e13",
+                      color: "#c8e8d0",
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: 1,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.06)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ width: 20, textAlign: "center", fontSize: 13, flexShrink: 0 }}>{icon}</span>
+                    <span style={{ color: "#a0c8b0" }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         {/* Zoom controls — bottom-left when no panel; with panel, grouped with stats (see cluster below) */}
         {!internalSelected ? (
