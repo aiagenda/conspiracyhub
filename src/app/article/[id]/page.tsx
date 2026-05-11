@@ -33,9 +33,38 @@ async function fetchGuardianBody(guardianId: string): Promise<string> {
   }
 }
 
+/** Fetch Reddit post selftext via the public JSON API. */
+async function fetchRedditBody(articleUrl: string): Promise<string> {
+  try {
+    // Convert web URL to JSON API: .../comments/abc123/... → .../abc123.json
+    const match = articleUrl.match(/\/comments\/([a-z0-9]+)/i);
+    if (!match) return "";
+    const jsonUrl = `https://www.reddit.com/comments/${match[1]}.json?limit=1`;
+    const res = await fetch(jsonUrl, {
+      headers: { "User-Agent": "TheTheorist/1.0 (+https://conspiracyhub.vercel.app)" },
+      signal: AbortSignal.timeout(7000),
+      cache: "no-store",
+    });
+    if (!res.ok) return "";
+    const data = await res.json() as Array<{ data: { children: Array<{ data: { selftext?: string; title?: string } }> } }>;
+    const post = data?.[0]?.data?.children?.[0]?.data;
+    const text = (post?.selftext ?? "").trim();
+    if (text === "[deleted]" || text === "[removed]" || text.length < 30) return "";
+    return text.slice(0, 8000);
+  } catch {
+    return "";
+  }
+}
+
 /** Fetch + extract readable text from any article URL (for non-Guardian sources). */
 async function fetchGenericBody(articleUrl: string): Promise<string> {
   if (!articleUrl?.startsWith("http")) return "";
+
+  // Reddit: use JSON API (site is JS-only, HTML scraping returns nothing)
+  if (/reddit\.com\/r\//.test(articleUrl)) {
+    return fetchRedditBody(articleUrl);
+  }
+
   try {
     const res = await fetch(articleUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; TheTheorist/1.0; +https://conspiracyhub.vercel.app)" },
