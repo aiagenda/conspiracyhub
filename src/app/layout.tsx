@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Rajdhani, Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
+import SiteFooter from "@/components/SiteFooter";
+import PageTracker from "@/components/PageTracker";
 
 const raj = Rajdhani({
   variable: "--font-raj",
@@ -33,9 +35,11 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
+        <PageTracker />
         <main id="main-content" className="flex flex-1 flex-col outline-none">
           {children}
         </main>
+        <SiteFooter />
       </body>
     </html>
   );
