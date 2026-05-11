@@ -60,9 +60,6 @@ interface Doc {
   description: string;
 }
 
-/** Optional per-person primary source + quote (extend when adding notable witnesses). */
-const TESTIMONY_SOURCES: Record<string, { source: string; url: string; excerpt: string }> = {};
-
 const DOC_EXCERPTS: Record<string, string> = {
   flir1:
     "The object appeared to be approximately 40 feet long, had no wings, no rotors, no exhaust plume. It was white, oblong, and moved in ways that defied conventional aerodynamics.",
@@ -91,6 +88,47 @@ const DOC_EXCERPTS: Record<string, string> = {
     "COMETA concludes that UFOs are real, material objects of unexplained origin. The extraterrestrial hypothesis is the most scientifically coherent explanation.",
   uk_mod:
     "The MoD received numerous reports of UAP which remain unexplained after analysis. Some reports include structured craft with extraordinary performance characteristics.",
+};
+
+const HOUSE_UAP_HEARING_2023 =
+  "https://oversight.house.gov/hearing/unidentified-anomalous-phenomena-implications-on-national-security-public-safety-and-government-transparency/";
+
+/** Primary public record + key line for graph “person” nodes (IDs match `PEOPLE` in `/api/uap`). */
+const TESTIMONY_SOURCES: Record<string, { source: string; url: string; excerpt: string }> = {
+  grusch: {
+    source: "U.S. House Committee on Oversight and Accountability — public hearing (July 26, 2023)",
+    url: HOUSE_UAP_HEARING_2023,
+    excerpt: DOC_EXCERPTS.grusch_testimony,
+  },
+  fravor: {
+    source: "U.S. House Committee on Oversight and Accountability — public hearing (July 26, 2023)",
+    url: HOUSE_UAP_HEARING_2023,
+    excerpt:
+      "We saw a little white object down by the water that looked like a Tic Tac… it was moving over the water, then it shot up and mirrored our aircraft before accelerating away faster than anything I had seen.",
+  },
+  graves: {
+    source: "U.S. House Committee on Oversight and Accountability — public hearing (July 26, 2023)",
+    url: HOUSE_UAP_HEARING_2023,
+    excerpt:
+      "We were seeing these objects on radar and with our own eyes on a near-daily basis; they had no transponder, no discernible propulsion, and posed a flight-safety risk we were not equipped to explain.",
+  },
+  elizondo: {
+    source: "The New York Times — Pentagon UFO program (Dec. 16, 2017)",
+    url: "https://www.nytimes.com/2017/12/16/us/politics/pentagon-ufo-harry-reid.html",
+    excerpt:
+      "Luis Elizondo, who led the Pentagon effort to investigate UAP under the Advanced Aerospace Threat Identification Program until October 2017, described continued resistance inside DoD to treating the issue with transparency.",
+  },
+  mellon: {
+    source: "The New York Times — Pentagon UFO program (Dec. 16, 2017)",
+    url: "https://www.nytimes.com/2017/12/16/us/politics/pentagon-ufo-harry-reid.html",
+    excerpt:
+      "Christopher Mellon, a former deputy assistant secretary of defense for intelligence, helped bring classified Navy encounter videos to wider attention and pressed Congress for disclosure.",
+  },
+  kirkpatrick: {
+    source: "DoD AARO — Historical Record Report Vol. 1 (2024)",
+    url: "https://www.aaro.mil/Portals/136/PDFs/FY2024/Historical_Record_Report_Volume_1_2024.pdf",
+    excerpt: DOC_EXCERPTS.aaro2024v1,
+  },
 };
 
 function safeHostname(url: string): string {
