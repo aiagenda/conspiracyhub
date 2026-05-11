@@ -549,7 +549,9 @@ export default function SearchPage() {
                 lineHeight: 1.7,
               }}
             >
-              Paste any article URL — The Theorist will scrape the content, build a full investigation graph, identify conspiracy theories, patents, and key figures.{" "}
+              Paste a news article, blog post, or a public social link (X/Twitter, Reddit, Bluesky, Threads). Short links{" "}
+              <span style={{ fontFamily: FONT, fontSize: 10, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 5px", borderRadius: 2 }}>t.co</span> /{" "}
+              <span style={{ fontFamily: FONT, fontSize: 10, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 5px", borderRadius: 2 }}>redd.it</span> are expanded automatically. Reddit uses the JSON API; X and Threads use oEmbed; Bluesky uses the public ATProto API. YouTube gets title/channel via oEmbed only (no transcript). Facebook and private or login-gated posts may still fail. The Theorist then runs Oracle on the extracted text.{" "}
               <strong style={{ color: "#ffaa00" }}>Pro feature.</strong>
             </div>
 
@@ -558,7 +560,7 @@ export default function SearchPage() {
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && analyzeUrl()}
-                placeholder="https://www.theguardian.com/..."
+                placeholder="https://… (Guardian, X, Reddit, Bluesky, Threads, YouTube…)"
                 style={{ ...inp, color: "#ffaa00" }}
                 onFocus={(e) => {
                   (e.target as HTMLInputElement).style.borderColor = "#ffaa00";
@@ -708,6 +710,11 @@ export default function SearchPage() {
                     ↗ {u}
                   </div>
                 ))}
+                <div style={{ fontSize: 9, color: "#3a5040", marginTop: 14, lineHeight: 1.7, letterSpacing: 1 }}>
+                  Social: paste a direct post URL — e.g. <span style={{ color: "#5a8068" }}>x.com/…/status/…</span>,{" "}
+                  <span style={{ color: "#5a8068" }}>reddit.com/…/comments/&lt;id&gt;/…</span>,{" "}
+                  <span style={{ color: "#5a8068" }}>bsky.app/profile/…/post/…</span>, or a Threads permalink.
+                </div>
               </div>
             ) : null}
           </div>

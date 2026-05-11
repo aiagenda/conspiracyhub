@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { normalizeVerdict } from "@/lib/verdict";
+import { fetchUrlContent } from "@/lib/urlContent";
 import type { OracleAnalysis } from "@/types";
 
 function getAdminClient() {
@@ -10,32 +11,6 @@ function getAdminClient() {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error("Supabase env missing");
   return createClient(url, key);
-}
-
-async function scrapeArticle(url: string) {
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; TheTheorist/1.0)", Accept: "text/html" },
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!res.ok) throw new Error(`Cannot fetch URL: HTTP ${res.status}`);
-  const html = await res.text();
-
-  const title =
-    html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)?.[1] ||
-    html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ||
-    "Unknown Article";
-
-  const desc = html.match(/<meta[^>]+(?:name="description"|property="og:description")[^>]+content="([^"]+)"/i)?.[1] ?? "";
-
-  const bodyText = html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 5000);
-
-  return { title: title.trim(), text: (desc ? `${desc} ` : "") + bodyText };
 }
 
 export async function POST(req: NextRequest) {
@@ -66,12 +41,12 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (cached) return NextResponse.json(cached);
 
-    const article = await scrapeArticle(urlStr);
+    const article = await fetchUrlContent(urlStr);
 
     const analysis = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
-      user: `Article URL: ${urlStr}\nTitle: ${article.title}\n\nContent:\n${article.text}`,
+      user: `Source URL: ${urlStr}\nContent extraction: ${article.source}\nTitle: ${article.title}\n\nContent:\n${article.text}`,
       maxTokens: 8192,
       maxAttempts: 4,
     });

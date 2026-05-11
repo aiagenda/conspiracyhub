@@ -353,6 +353,8 @@ const SECTIONS: Section[] = [
         <Row label="KEYWORD" color="#5a8068">Any word — searches article summaries and Oracle analysis text.</Row>
         <Row label="ORGANISATION" color="#5a8068">e.g. CIA, DARPA, Lockheed — returns related articles and investigation boards.</Row>
         <Row label="EVENT" color="#5a8068">e.g. Roswell, Nimitz — returns UAP incidents and articles referencing them.</Row>
+        <H>URL analysis (Pro)</H>
+        <P>On the same page, the <InlineCode>ANALYZE URL</InlineCode> tab accepts any <InlineCode>https://</InlineCode> link. The server picks the best extractor: X/Twitter and Meta Threads via oEmbed, Reddit via the public <InlineCode>.json</InlineCode> API (title, body, a few top comments), Bluesky via the public ATProto <InlineCode>getPosts</InlineCode> endpoint, YouTube via oEmbed (title and channel only), and standard HTML scraping for news sites. <InlineCode>t.co</InlineCode> and <InlineCode>redd.it</InlineCode> short links are followed first. Login-only or bot-blocked pages (many Facebook/Instagram posts) may still return little or no text.</P>
       </div>
     ),
   },
