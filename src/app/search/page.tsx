@@ -7,6 +7,7 @@ import ReferenceDocumentIndex from "@/components/ReferenceDocumentIndex";
 import { normalizeVerdict } from "@/lib/verdict";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { searchTypo as T, searchColor as C } from "@/lib/searchTheme";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ = "var(--font-raj), sans-serif";
@@ -135,13 +136,33 @@ export default function SearchPage() {
     background: "#090f0b",
     border: "1px solid #1a3320",
     borderRadius: 3,
-    padding: "12px 16px",
+    padding: "0 16px",
+    minHeight: T.controlMinH,
+    lineHeight: 1.45,
     color: "#00ff88",
     fontFamily: FONT,
-    fontSize: 15,
+    fontSize: T.input,
     outline: "none",
     flex: 1,
     transition: "border-color 0.2s",
+    boxSizing: "border-box",
+  };
+
+  const primaryBtn: React.CSSProperties = {
+    fontFamily: RAJ,
+    fontSize: T.btn,
+    fontWeight: 700,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    padding: "0 22px",
+    minHeight: T.controlMinH,
+    borderRadius: 3,
+    cursor: "pointer",
+    boxSizing: "border-box",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   };
 
   return (
@@ -162,14 +183,14 @@ export default function SearchPage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", minWidth: 0 }}>
-            <Link href="/" style={{ fontSize: 11, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "6px 12px", borderRadius: 3 }}>
+            <Link href="/" style={{ fontSize: T.navBack, color: C.muted, textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "8px 14px", borderRadius: 3 }}>
               ← FEED
             </Link>
             <div>
-              <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
+              <div style={{ fontFamily: RAJ, fontSize: T.heroTitle, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
                 THE THEORIST — INTELLIGENCE SEARCH
               </div>
-              <div style={{ fontSize: 12, color: "#5a8068", letterSpacing: 2, marginTop: 2 }}>
+              <div style={{ fontSize: T.heroSub, color: C.mutedStrong, letterSpacing: 1.5, marginTop: 6, lineHeight: 1.5 }}>
                 CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS · REFERENCE INDEX
               </div>
             </div>
@@ -189,16 +210,16 @@ export default function SearchPage() {
               onClick={() => setTab(t.key as "search" | "url" | "index")}
               style={{
                 fontFamily: RAJ,
-                fontSize: 13,
+                fontSize: T.tab,
                 fontWeight: 700,
                 letterSpacing: 2,
                 textTransform: "uppercase",
-                padding: "9px 20px",
+                padding: "10px 20px",
                 borderRadius: 3,
                 cursor: "pointer",
                 border: `1px solid ${tab === t.key ? "#00bb66" : "#1a3320"}`,
                 background: tab === t.key ? "rgba(0,255,136,0.08)" : "transparent",
-                color: tab === t.key ? "#00ff88" : "#5a8068",
+                color: tab === t.key ? "#00ff88" : C.muted,
               }}
             >
               {t.label}
@@ -227,17 +248,10 @@ export default function SearchPage() {
                 onClick={() => doSearch()}
                 disabled={searching}
                 style={{
-                  fontFamily: RAJ,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  padding: "11px 22px",
-                  borderRadius: 3,
+                  ...primaryBtn,
                   border: "1px solid #00bb66",
                   background: "transparent",
                   color: "#00ff88",
-                  cursor: "pointer",
                   opacity: searching ? 0.5 : 1,
                 }}
               >
@@ -254,16 +268,16 @@ export default function SearchPage() {
                     onClick={() => setTypeFilter(f.value)}
                     style={{
                       fontFamily: RAJ,
-                      fontSize: 11,
+                      fontSize: T.filterPill,
                       fontWeight: 700,
                       letterSpacing: 1,
                       textTransform: "uppercase",
-                      padding: "5px 12px",
+                      padding: "8px 14px",
                       borderRadius: 2,
                       cursor: "pointer",
                       border: `1px solid ${typeFilter === f.value ? "#00bb66" : "#1a3320"}`,
                       background: typeFilter === f.value ? "rgba(0,255,136,0.06)" : "transparent",
-                      color: typeFilter === f.value ? "#00ff88" : "#5a8068",
+                      color: typeFilter === f.value ? "#00ff88" : C.muted,
                     }}
                   >
                     {f.label}
@@ -279,16 +293,16 @@ export default function SearchPage() {
                     onClick={() => setThreatFilter(f.value)}
                     style={{
                       fontFamily: RAJ,
-                      fontSize: 11,
+                      fontSize: T.filterPill,
                       fontWeight: 700,
                       letterSpacing: 1,
                       textTransform: "uppercase",
-                      padding: "5px 12px",
+                      padding: "8px 14px",
                       borderRadius: 2,
                       cursor: "pointer",
                       border: `1px solid ${threatFilter === f.value ? "#ffaa00" : "#1a3320"}`,
                       background: threatFilter === f.value ? "rgba(255,170,0,0.06)" : "transparent",
-                      color: threatFilter === f.value ? "#ffaa00" : "#5a8068",
+                      color: threatFilter === f.value ? "#ffaa00" : C.muted,
                     }}
                   >
                     {f.label}
@@ -299,7 +313,7 @@ export default function SearchPage() {
 
             {!results && !searching && (
               <div style={{ marginBottom: "2rem" }}>
-                <div style={{ fontSize: 10, color: "#3a5040", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                <div style={{ fontSize: T.sectionLabel, color: C.dim, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                   ◈ BROWSE — POPULAR TOPICS
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -312,14 +326,14 @@ export default function SearchPage() {
                         doSearch(t);
                       }}
                       style={{
-                        fontSize: 12,
-                        padding: "6px 14px",
+                        fontSize: T.bodyTight,
+                        padding: "8px 16px",
                         border: "1px solid #1a3320",
                         borderRadius: 20,
-                        color: "#5a8068",
+                        color: C.muted,
                         background: "transparent",
                         cursor: "pointer",
-                        letterSpacing: 1,
+                        letterSpacing: 0.5,
                         transition: "all 0.15s",
                         fontFamily: FONT,
                       }}
@@ -329,7 +343,7 @@ export default function SearchPage() {
                       }}
                       onMouseLeave={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
-                        (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+                        (e.currentTarget as HTMLButtonElement).style.color = C.muted;
                       }}
                     >
                       {t}
@@ -340,7 +354,7 @@ export default function SearchPage() {
             )}
 
             {searching && (
-              <div style={{ textAlign: "center", padding: "3rem 0", color: "#00bb66", fontSize: 12, letterSpacing: 2 }}>
+              <div style={{ textAlign: "center", padding: "3rem 0", color: "#00bb66", fontSize: T.bodyTight, letterSpacing: 1.5 }}>
                 <div style={{ marginBottom: 16 }}>[ SCANNING INTELLIGENCE DATABASES... ]</div>
                 {[
                   "> Cross-referencing CIA FOIA archives...",
@@ -348,7 +362,7 @@ export default function SearchPage() {
                   "> Profiling associated individuals...",
                   "> Building conspiracy connection map...",
                 ].map((l, i) => (
-                  <div key={i} style={{ color: "#3a6040", marginBottom: 4 }}>
+                  <div key={i} style={{ color: C.scanLine, marginBottom: 6, fontSize: T.caption, lineHeight: 1.6 }}>
                     {l}
                   </div>
                 ))}
@@ -356,7 +370,7 @@ export default function SearchPage() {
             )}
 
             {searchError && (
-              <div style={{ padding: 14, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 12, marginBottom: "1rem" }}>
+              <div style={{ padding: 14, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: T.bodyTight, marginBottom: "1rem", lineHeight: 1.6 }}>
                 [ERROR] {searchError}
               </div>
             )}
@@ -365,7 +379,7 @@ export default function SearchPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                 {results.news.length > 0 && (
                   <section>
-                    <div style={{ fontSize: 10, color: "#00bb66", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                    <div style={{ fontSize: T.sectionLabel, color: "#00bb66", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                       ◈ MATCHING ARTICLES IN FEED ({results.news.length})
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
@@ -388,21 +402,21 @@ export default function SearchPage() {
                             }}
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                              <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, textTransform: "uppercase" }}>{n.section}</span>
+                              <span style={{ fontSize: T.caption, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>{n.section}</span>
                               <span
                                 style={{
-                                  fontSize: 10,
+                                  fontSize: T.caption,
                                   color: scoreColor(n.score),
                                   border: `1px solid ${scoreColor(n.score)}`,
-                                  padding: "1px 6px",
+                                  padding: "2px 8px",
                                   borderRadius: 2,
                                 }}
                               >
                                 {n.score}%
                               </span>
                             </div>
-                            <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.3, marginBottom: 5 }}>{n.title}</div>
-                            {n.angle ? <div style={{ fontSize: 10, color: "#5a8068" }}>▸ {n.angle}</div> : null}
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: C.textBright, lineHeight: 1.35, marginBottom: 6 }}>{n.title}</div>
+                            {n.angle ? <div style={{ fontSize: T.meta, color: C.muted }}>▸ {n.angle}</div> : null}
                           </div>
                         </Link>
                       ))}
@@ -412,20 +426,20 @@ export default function SearchPage() {
 
                 {results.theories.length > 0 && (
                   <section>
-                    <div style={{ fontSize: 9, color: "#ff3333", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                    <div style={{ fontSize: T.sectionLabel, color: "#ff5555", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                       ◈ CONSPIRACY THEORIES ({results.theories.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {results.theories.map((t, i) => (
                         <div key={i} style={{ border: "1px solid #1a3320", borderRadius: 3, padding: "12px 14px", background: "#090f0b" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 10 }}>
-                            <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.3 }}>{t.name}</div>
-                            <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: scoreColor(t.probability), flexShrink: 0 }}>{t.probability}%</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: C.textBright, lineHeight: 1.35 }}>{t.name}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.scoreMd, fontWeight: 700, color: scoreColor(t.probability), flexShrink: 0 }}>{t.probability}%</div>
                           </div>
-                          <div style={{ fontSize: 11, color: "#7aaa8a", lineHeight: 1.7, marginBottom: 10 }}>{t.summary}</div>
+                          <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.65, marginBottom: 12 }}>{t.summary}</div>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                             {t.tags?.map((tag, j) => (
-                              <span key={j} style={{ fontSize: 9, padding: "2px 8px", border: "1px solid #1a3320", borderRadius: 10, color: "#5a8068", letterSpacing: 1 }}>
+                              <span key={j} style={{ fontSize: T.caption, padding: "4px 10px", border: "1px solid #1a3320", borderRadius: 10, color: C.muted, letterSpacing: 0.5 }}>
                                 {tag}
                               </span>
                             ))}
@@ -441,10 +455,10 @@ export default function SearchPage() {
                                 rel="noreferrer"
                                 style={{
                                   display: "block",
-                                  fontSize: 10,
+                                  fontSize: T.meta,
                                   color: "#00bb66",
                                   textDecoration: "none",
-                                  marginBottom: 3,
+                                  marginBottom: 4,
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
                                   whiteSpace: "nowrap",
@@ -461,7 +475,7 @@ export default function SearchPage() {
 
                 {results.patents.length > 0 && (
                   <section>
-                    <div style={{ fontSize: 9, color: "#ff5555", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                    <div style={{ fontSize: T.sectionLabel, color: "#ff7777", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                       ◈ RELATED PATENTS ({results.patents.length})
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
@@ -484,12 +498,12 @@ export default function SearchPage() {
                               (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,85,85,0.2)";
                             }}
                           >
-                            <div style={{ fontSize: 9, color: "#ff5555", letterSpacing: 2, marginBottom: 5 }}>
+                            <div style={{ fontSize: T.caption, color: "#ff8888", letterSpacing: 0.5, marginBottom: 6 }}>
                               {p.number} · {p.year}
                             </div>
-                            <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#ffe8e8", lineHeight: 1.3, marginBottom: 5 }}>{p.title}</div>
-                            <div style={{ fontSize: 10, color: "#8a6060", marginBottom: 6 }}>{p.assignee}</div>
-                            <div style={{ fontSize: 10, color: "#7a4a4a", lineHeight: 1.5 }}>{p.relevance}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#ffe8e8", lineHeight: 1.35, marginBottom: 6 }}>{p.title}</div>
+                            <div style={{ fontSize: T.meta, color: C.patentMeta, marginBottom: 8 }}>{p.assignee}</div>
+                            <div style={{ fontSize: T.body, color: C.patentBody, lineHeight: 1.6 }}>{p.relevance}</div>
                           </div>
                         </a>
                       ))}
@@ -499,16 +513,16 @@ export default function SearchPage() {
 
                 {results.people.length > 0 && (
                   <section>
-                    <div style={{ fontSize: 9, color: "#00bb66", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                    <div style={{ fontSize: T.sectionLabel, color: "#00bb66", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                       ◈ KEY FIGURES ({results.people.length})
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
                       {results.people.map((p, i) => (
                         <div key={i} style={{ border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, padding: "11px 13px", background: "rgba(7,21,16,0.8)" }}>
-                          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", marginBottom: 3 }}>{p.name}</div>
-                          <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, marginBottom: 6 }}>{p.affiliation}</div>
-                          <div style={{ fontSize: 10, color: "#3a7050", fontStyle: "italic", marginBottom: 6 }}>{p.role}</div>
-                          <div style={{ fontSize: 10, color: "#5a8068", lineHeight: 1.5 }}>{p.significance}</div>
+                          <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: "#00ff88", marginBottom: 4 }}>{p.name}</div>
+                          <div style={{ fontSize: T.meta, color: C.muted, letterSpacing: 0.3, marginBottom: 8 }}>{p.affiliation}</div>
+                          <div style={{ fontSize: T.bodyTight, color: C.peopleRole, fontStyle: "italic", marginBottom: 8 }}>{p.role}</div>
+                          <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.6 }}>{p.significance}</div>
                         </div>
                       ))}
                     </div>
@@ -517,16 +531,16 @@ export default function SearchPage() {
 
                 {results.events.length > 0 && (
                   <section>
-                    <div style={{ fontSize: 9, color: "#ffaa00", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                    <div style={{ fontSize: T.sectionLabel, color: "#ffcc44", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                       ◈ RELATED EVENTS ({results.events.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 1, borderLeft: "1px solid #1a3320", paddingLeft: 16 }}>
                       {results.events.map((e, i) => (
                         <div key={i} style={{ display: "flex", gap: 16, padding: "8px 0", borderBottom: "1px solid #0d1a10" }}>
-                          <div style={{ fontSize: 10, color: "#ffaa00", whiteSpace: "nowrap", letterSpacing: 1, minWidth: 90 }}>{e.date}</div>
+                          <div style={{ fontSize: T.meta, color: "#ffcc66", whiteSpace: "nowrap", letterSpacing: 0.5, minWidth: 100 }}>{e.date}</div>
                           <div>
-                            <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#e8e8c8", marginBottom: 3 }}>{e.title}</div>
-                            <div style={{ fontSize: 10, color: "#5a8068", lineHeight: 1.5 }}>{e.description}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#f0f0d8", marginBottom: 4 }}>{e.title}</div>
+                            <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.6 }}>{e.description}</div>
                           </div>
                         </div>
                       ))}
@@ -549,18 +563,18 @@ export default function SearchPage() {
             <div
               style={{
                 marginBottom: "1rem",
-                padding: "12px 14px",
+                padding: "14px 16px",
                 border: "1px solid rgba(255,170,0,0.2)",
                 borderRadius: 3,
                 background: "rgba(255,170,0,0.03)",
-                fontSize: 13,
-                color: "#7a6a40",
-                lineHeight: 1.7,
+                fontSize: T.body,
+                color: C.urlInfo,
+                lineHeight: 1.65,
               }}
             >
               Paste a news article, blog post, or a public social link (X/Twitter, Reddit, Bluesky, Threads). Short links{" "}
-              <span style={{ fontFamily: FONT, fontSize: 11, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 6px", borderRadius: 2 }}>t.co</span> /{" "}
-              <span style={{ fontFamily: FONT, fontSize: 11, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 6px", borderRadius: 2 }}>redd.it</span> are expanded automatically. Reddit uses the JSON API; X and Threads use oEmbed; Bluesky uses the public ATProto API. YouTube gets title/channel via oEmbed only (no transcript). Facebook and private or login-gated posts may still fail. The Theorist then runs Oracle on the extracted text.{" "}
+              <span style={{ fontFamily: FONT, fontSize: T.caption, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "2px 8px", borderRadius: 2 }}>t.co</span> /{" "}
+              <span style={{ fontFamily: FONT, fontSize: T.caption, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "2px 8px", borderRadius: 2 }}>redd.it</span> are expanded automatically. Reddit uses the JSON API; X and Threads use oEmbed; Bluesky uses the public ATProto API. YouTube gets title/channel via oEmbed only (no transcript). Facebook and private or login-gated posts may still fail. The Theorist then runs Oracle on the extracted text.{" "}
               <strong style={{ color: "#ffaa00" }}>Pro feature.</strong>
             </div>
 
@@ -583,17 +597,10 @@ export default function SearchPage() {
                 onClick={() => analyzeUrl()}
                 disabled={urlLoading}
                 style={{
-                  fontFamily: RAJ,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  padding: "11px 22px",
-                  borderRadius: 3,
+                  ...primaryBtn,
                   border: "1px solid #ffaa00",
                   background: "transparent",
                   color: "#ffaa00",
-                  cursor: "pointer",
                   opacity: urlLoading ? 0.5 : 1,
                 }}
               >
@@ -602,7 +609,7 @@ export default function SearchPage() {
             </div>
 
             {urlLoading && (
-              <div style={{ textAlign: "center", padding: "2rem 0", color: "#ffaa00", fontSize: 12, letterSpacing: 2 }}>
+              <div style={{ textAlign: "center", padding: "2rem 0", color: "#ffaa00", fontSize: T.bodyTight, letterSpacing: 1.5 }}>
                 <div style={{ marginBottom: 12 }}>[ SCRAPING + ANALYZING URL... ]</div>
                 {[
                   "> Fetching article content...",
@@ -610,7 +617,7 @@ export default function SearchPage() {
                   "> Running Oracle analysis...",
                   "> Building investigation graph...",
                 ].map((l, i) => (
-                  <div key={i} style={{ color: "#7a6a20", marginBottom: 4 }}>
+                  <div key={i} style={{ color: "#b8a060", marginBottom: 6, fontSize: T.caption, lineHeight: 1.6 }}>
                     {l}
                   </div>
                 ))}
@@ -618,10 +625,10 @@ export default function SearchPage() {
             )}
 
             {urlError && (
-              <div style={{ padding: 14, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 12, marginBottom: "1rem" }}>
+              <div style={{ padding: 14, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: T.bodyTight, marginBottom: "1rem", lineHeight: 1.6 }}>
                 [ERROR] {urlError}
                 {urlError.includes("Sign in") ? (
-                  <div style={{ marginTop: 8, fontSize: 11, color: "#5a2020" }}>
+                  <div style={{ marginTop: 10, fontSize: T.meta, color: "#cc8888" }}>
                     URL analysis requires a Pro account. Sign in and upgrade from the feed page.
                   </div>
                 ) : null}
@@ -631,26 +638,26 @@ export default function SearchPage() {
             {urlResult && (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <div style={{ border: "1px solid #1a3320", borderRadius: 3, padding: "14px 16px", background: "#090f0b" }}>
-                  <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6 }}>ANALYZED ARTICLE</div>
-                  <div style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#e8ffe8", marginBottom: 8, lineHeight: 1.3 }}>{urlResult.title}</div>
+                  <div style={{ fontSize: T.sectionLabel, color: C.muted, letterSpacing: 1, marginBottom: 8 }}>ANALYZED ARTICLE</div>
+                  <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: C.textBright, marginBottom: 10, lineHeight: 1.35 }}>{urlResult.title}</div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <span
                       style={{
-                        fontSize: 10,
-                        padding: "2px 10px",
+                        fontSize: T.caption,
+                        padding: "4px 12px",
                         border: `1px solid ${verdictColor(urlResult.verdict)}`,
                         color: verdictColor(urlResult.verdict),
                         borderRadius: 2,
-                        letterSpacing: 1,
+                        letterSpacing: 0.5,
                       }}
                     >
                       {urlResult.verdict?.replace(/_/g, " ")}
                     </span>
-                    <a href={urlResult.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "#00bb66", textDecoration: "none" }}>
+                    <a href={urlResult.source_url} target="_blank" rel="noreferrer" style={{ fontSize: T.meta, color: "#00bb66", textDecoration: "none" }}>
                       ↗ Original article
                     </a>
                     {urlResult.id ? (
-                      <Link href={`/board/url/${urlResult.id}`} style={{ fontSize: 10, color: "#00ff88", textDecoration: "none", border: "1px solid #00bb66", padding: "2px 8px", borderRadius: 2 }}>
+                      <Link href={`/board/url/${urlResult.id}`} style={{ fontSize: T.meta, color: "#00ff88", textDecoration: "none", border: "1px solid #00bb66", padding: "4px 10px", borderRadius: 2 }}>
                         ◈ OPEN INVESTIGATION BOARD ▶
                       </Link>
                     ) : null}
@@ -658,7 +665,7 @@ export default function SearchPage() {
                 </div>
 
                 {urlResult.conclusion ? (
-                  <div style={{ padding: "12px 14px", border: "1px solid #1a3320", borderRadius: 3, background: "rgba(0,255,136,0.02)", fontSize: 11, color: "#5a8068", lineHeight: 1.8 }}>
+                  <div style={{ padding: "14px 16px", border: "1px solid #1a3320", borderRadius: 3, background: "rgba(0,255,136,0.02)", fontSize: T.body, color: C.mutedStrong, lineHeight: 1.65 }}>
                     <span style={{ color: "#00bb66" }}>◈ ANALYSIS: </span>
                     {urlResult.conclusion}
                   </div>
@@ -666,7 +673,7 @@ export default function SearchPage() {
 
                 {urlResult.theories?.length ? (
                   <div>
-                    <div style={{ fontSize: 9, color: "#c94dff", letterSpacing: 3, marginBottom: 10 }}>
+                    <div style={{ fontSize: T.sectionLabel, color: "#d8a8ff", letterSpacing: 1.5, marginBottom: 12 }}>
                       ◈ CONSPIRACY THEORIES IDENTIFIED ({urlResult.theories.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -683,10 +690,10 @@ export default function SearchPage() {
                             alignItems: "flex-start",
                           }}
                         >
-                          <div style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: scoreColor(t.probability), flexShrink: 0, lineHeight: 1 }}>{t.probability}%</div>
+                          <div style={{ fontFamily: RAJ, fontSize: T.scoreHero, fontWeight: 700, color: scoreColor(t.probability), flexShrink: 0, lineHeight: 1 }}>{t.probability}%</div>
                           <div>
-                            <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#e9b3ff", marginBottom: 5 }}>{t.name}</div>
-                            <div style={{ fontSize: 11, color: "#7a5a88", lineHeight: 1.6 }}>{t.summary}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#e9b3ff", marginBottom: 6 }}>{t.name}</div>
+                            <div style={{ fontSize: T.body, color: C.urlTheorySummary, lineHeight: 1.65 }}>{t.summary}</div>
                           </div>
                         </div>
                       ))}
@@ -698,7 +705,7 @@ export default function SearchPage() {
 
             {!urlResult && !urlLoading ? (
               <div style={{ marginTop: "2rem" }}>
-                <div style={{ fontSize: 9, color: "#2a4030", letterSpacing: 3, marginBottom: 10 }}>
+                <div style={{ fontSize: T.sectionLabel, color: C.muted, letterSpacing: 1.5, marginBottom: 12 }}>
                   EXAMPLE SOURCES TO ANALYZE
                 </div>
                 {["https://www.theguardian.com/technology/", "https://www.theguardian.com/science/", "https://www.theguardian.com/world/"].map((u, i) => (
@@ -708,21 +715,21 @@ export default function SearchPage() {
                     tabIndex={0}
                     onClick={() => setUrlInput(u)}
                     onKeyDown={(e) => e.key === "Enter" && setUrlInput(u)}
-                    style={{ fontSize: 10, color: "#2a4030", padding: "6px 0", cursor: "pointer", letterSpacing: 1, borderBottom: "1px solid #0d1a10" }}
+                    style={{ fontSize: T.meta, color: C.urlExample, padding: "8px 0", cursor: "pointer", letterSpacing: 0.3, borderBottom: "1px solid #0d1a10" }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.color = "#00bb66";
+                      (e.currentTarget as HTMLDivElement).style.color = C.urlExampleHover;
                     }}
                     onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.color = "#2a4030";
+                      (e.currentTarget as HTMLDivElement).style.color = C.urlExample;
                     }}
                   >
                     ↗ {u}
                   </div>
                 ))}
-                <div style={{ fontSize: 9, color: "#3a5040", marginTop: 14, lineHeight: 1.7, letterSpacing: 1 }}>
-                  Social: paste a direct post URL — e.g. <span style={{ color: "#5a8068" }}>x.com/…/status/…</span>,{" "}
-                  <span style={{ color: "#5a8068" }}>reddit.com/…/comments/&lt;id&gt;/…</span>,{" "}
-                  <span style={{ color: "#5a8068" }}>bsky.app/profile/…/post/…</span>, or a Threads permalink.
+                <div style={{ fontSize: T.bodyTight, color: C.muted, marginTop: 16, lineHeight: 1.65, letterSpacing: 0.2 }}>
+                  Social: paste a direct post URL — e.g. <span style={{ color: C.mutedStrong }}>x.com/…/status/…</span>,{" "}
+                  <span style={{ color: C.mutedStrong }}>reddit.com/…/comments/&lt;id&gt;/…</span>,{" "}
+                  <span style={{ color: C.mutedStrong }}>bsky.app/profile/…/post/…</span>, or a Threads permalink.
                 </div>
               </div>
             ) : null}

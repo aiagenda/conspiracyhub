@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { searchTypo as T, searchColor as C } from "@/lib/searchTheme";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ = "var(--font-raj), sans-serif";
@@ -58,29 +59,29 @@ export default function ReferenceDocumentIndex() {
 
   return (
     <div style={{ marginTop: "0.5rem" }}>
-      <div style={{ fontSize: 11, color: "#3a5040", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+      <div style={{ fontSize: T.sectionLabel, color: C.dim, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
         ◈ Official & declassified reference index
       </div>
-      <p style={{ fontFamily: FONT, fontSize: 13, color: "#5a8068", lineHeight: 1.75, margin: "0 0 16px", maxWidth: "none" }}>
+      <p style={{ fontFamily: FONT, fontSize: T.body, color: C.muted, lineHeight: 1.7, margin: "0 0 16px", maxWidth: "none" }}>
         Curated links to primary portals and landmark collections (CIA, FBI Vault, NARA, NSA, DOD, etc.). Opens the official site in a new tab — we do not mirror PDFs here.
       </p>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10, alignItems: "center" }}>
-        <span style={{ fontSize: 10, color: "#2a4030", letterSpacing: 2, marginRight: 4 }}>AGENCY</span>
+        <span style={{ fontSize: T.caption, color: C.muted, letterSpacing: 1, marginRight: 4 }}>AGENCY</span>
         <button
           type="button"
           onClick={() => setAgency("all")}
           style={{
             fontFamily: RAJ,
-            fontSize: 11,
+            fontSize: T.filterPill,
             fontWeight: 700,
             letterSpacing: 1,
-            padding: "5px 12px",
+            padding: "8px 14px",
             borderRadius: 2,
             cursor: "pointer",
             border: `1px solid ${agency === "all" ? "#00bb66" : "#1a3320"}`,
             background: agency === "all" ? "rgba(0,255,136,0.06)" : "transparent",
-            color: agency === "all" ? "#00ff88" : "#5a8068",
+            color: agency === "all" ? "#00ff88" : C.muted,
           }}
         >
           ALL
@@ -92,15 +93,15 @@ export default function ReferenceDocumentIndex() {
             onClick={() => setAgency(a)}
             style={{
               fontFamily: RAJ,
-              fontSize: 11,
+              fontSize: T.filterPill,
               fontWeight: 700,
               letterSpacing: 1,
-              padding: "5px 12px",
+              padding: "8px 14px",
               borderRadius: 2,
               cursor: "pointer",
               border: `1px solid ${agency === a ? "#ffaa00" : "#1a3320"}`,
               background: agency === a ? "rgba(255,170,0,0.08)" : "transparent",
-              color: agency === a ? "#ffaa00" : "#5a8068",
+              color: agency === a ? "#ffaa00" : C.muted,
             }}
           >
             {a}
@@ -109,19 +110,19 @@ export default function ReferenceDocumentIndex() {
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 10, color: "#2a4030", letterSpacing: 2, marginRight: 4 }}>A–Z</span>
+        <span style={{ fontSize: T.caption, color: C.muted, letterSpacing: 1, marginRight: 4 }}>A–Z</span>
         <button
           type="button"
           onClick={() => setLetter(null)}
           style={{
             fontFamily: FONT,
-            fontSize: 11,
-            padding: "4px 10px",
+            fontSize: T.filterPill,
+            padding: "6px 12px",
             borderRadius: 2,
             cursor: "pointer",
             border: `1px solid ${letter === null ? "#00bb66" : "#1a3320"}`,
             background: letter === null ? "rgba(0,255,136,0.06)" : "transparent",
-            color: letter === null ? "#00ff88" : "#5a8068",
+            color: letter === null ? "#00ff88" : C.muted,
           }}
         >
           ALL
@@ -133,14 +134,14 @@ export default function ReferenceDocumentIndex() {
             onClick={() => setLetter(letter === L ? null : L)}
             style={{
               fontFamily: FONT,
-              fontSize: 11,
-              minWidth: 26,
-              padding: "4px 0",
+              fontSize: T.filterPill,
+              minWidth: 28,
+              padding: "6px 0",
               borderRadius: 2,
               cursor: "pointer",
               border: `1px solid ${letter === L ? "#00bb66" : "#1a3320"}`,
               background: letter === L ? "rgba(0,255,136,0.06)" : "transparent",
-              color: letter === L ? "#00ff88" : "#3a5040",
+              color: letter === L ? "#00ff88" : C.dim,
             }}
           >
             {L}
@@ -159,21 +160,21 @@ export default function ReferenceDocumentIndex() {
           background: "#090f0b",
           border: "1px solid #1a3320",
           borderRadius: 3,
-          padding: "10px 14px",
+          padding: "12px 16px",
           color: "#c8e8d0",
           fontFamily: FONT,
-          fontSize: 14,
+          fontSize: T.input,
           outline: "none",
         }}
       />
 
       {loading && (
-        <div style={{ color: "#3a5040", fontSize: 12, letterSpacing: 2, padding: "1rem 0" }}>
+        <div style={{ color: C.muted, fontSize: T.bodyTight, letterSpacing: 1.5, padding: "1rem 0" }}>
           [ LOADING INDEX… ]
         </div>
       )}
       {error && (
-        <div style={{ padding: 12, border: "1px solid rgba(255,51,51,0.25)", borderRadius: 3, color: "#ff5555", fontSize: 12, marginBottom: 12 }}>
+        <div style={{ padding: 12, border: "1px solid rgba(255,51,51,0.25)", borderRadius: 3, color: "#ff5555", fontSize: T.bodyTight, marginBottom: 12, lineHeight: 1.5 }}>
           {error}
         </div>
       )}
@@ -189,7 +190,7 @@ export default function ReferenceDocumentIndex() {
           }}
         >
           {documents.length === 0 ? (
-            <div style={{ padding: "2rem", textAlign: "center", color: "#3a5040", fontSize: 12, letterSpacing: 2 }}>
+            <div style={{ padding: "2rem", textAlign: "center", color: C.muted, fontSize: T.bodyTight, letterSpacing: 1.2, lineHeight: 1.6 }}>
               NO ENTRIES — TRY ANOTHER LETTER OR AGENCY
             </div>
           ) : (
@@ -206,11 +207,11 @@ export default function ReferenceDocumentIndex() {
                   }}
                 >
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}>
-                    <span style={{ fontSize: 10, color: "#ffaa00", border: "1px solid rgba(255,170,0,0.35)", padding: "2px 8px", borderRadius: 2, letterSpacing: 1 }}>
+                    <span style={{ fontSize: T.caption, color: "#ffcc66", border: "1px solid rgba(255,170,0,0.35)", padding: "3px 10px", borderRadius: 2, letterSpacing: 0.5 }}>
                       {d.agency}
                     </span>
                     {d.year != null && (
-                      <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>
+                      <span style={{ fontSize: T.caption, color: C.muted, letterSpacing: 0.5 }}>
                         {d.year}
                       </span>
                     )}
@@ -220,7 +221,7 @@ export default function ReferenceDocumentIndex() {
                       rel="noopener noreferrer"
                       style={{
                         fontFamily: RAJ,
-                        fontSize: 15,
+                        fontSize: T.cardTitleAccent,
                         fontWeight: 700,
                         color: "#00ff88",
                         textDecoration: "none",
@@ -233,11 +234,11 @@ export default function ReferenceDocumentIndex() {
                     </a>
                   </div>
                   {d.excerpt && (
-                    <div style={{ fontFamily: FONT, fontSize: 12, color: "#5a8068", lineHeight: 1.6, paddingLeft: 2 }}>
+                    <div style={{ fontFamily: FONT, fontSize: T.bodyTight, color: C.mutedStrong, lineHeight: 1.65, paddingLeft: 2 }}>
                       {d.excerpt}
                     </div>
                   )}
-                  <div style={{ fontFamily: FONT, fontSize: 11, color: "#2a4030", wordBreak: "break-all" }}>
+                  <div style={{ fontFamily: FONT, fontSize: T.meta, color: C.urlExample, wordBreak: "break-all" }}>
                     {d.canonical_url}
                   </div>
                 </li>

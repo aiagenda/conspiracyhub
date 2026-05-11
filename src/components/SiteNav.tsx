@@ -15,8 +15,8 @@ export default function SiteNav({ spacious }: Props) {
   const outbreaksActive = pathname === "/outbreaks";
   const uapActive = pathname === "/uap";
 
-  const pad = spacious ? "7px 16px" : "6px 14px";
-  const fontSize = spacious ? 12 : 11;
+  const pad = spacious ? "8px 18px" : "6px 14px";
+  const fontSize = spacious ? 13 : 11;
 
   function base() {
     return {
