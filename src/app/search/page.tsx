@@ -59,6 +59,18 @@ const THREAT_FILTERS = [
   { value: "low", label: "LOW" },
 ];
 
+function SectionLabel({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <div style={{
+      fontSize: T.sectionLabel, color, letterSpacing: 1.5, marginBottom: 14,
+      textTransform: "uppercase", display: "flex", alignItems: "center", gap: 8,
+      paddingBottom: 10, borderBottom: `1px solid ${color}22`,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 function scoreColor(s: number) {
   if (s >= 60) return "#ff3333";
   if (s >= 30) return "#ffaa00";
@@ -376,47 +388,29 @@ export default function SearchPage() {
             )}
 
             {results && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+
+                {/* ── MATCHING ARTICLES ─────────────────────────────── */}
                 {results.news.length > 0 && (
                   <section>
-                    <div style={{ fontSize: T.sectionLabel, color: "#00bb66", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
-                      ◈ MATCHING ARTICLES IN FEED ({results.news.length})
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
+                    <SectionLabel color="#00bb66">◈ MATCHING ARTICLES IN FEED ({results.news.length})</SectionLabel>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 10 }}>
                       {results.news.map((n) => (
                         <Link key={n.id} href={`/board/${n.id}`} style={{ textDecoration: "none" }}>
                           <div
-                            style={{
-                              border: "1px solid #1a3320",
-                              borderRadius: 3,
-                              padding: "10px 12px",
-                              background: "#090f0b",
-                              cursor: "pointer",
-                              transition: "border-color 0.15s",
-                            }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLDivElement).style.borderColor = "#00bb66";
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLDivElement).style.borderColor = "#1a3320";
-                            }}
+                            className="result-card"
+                            style={{ border: "1px solid #1a3320", borderRadius: 5, padding: "14px 16px", background: "#090f0b", height: "100%", cursor: "pointer", transition: "border-color 0.15s" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#00bb66"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1a3320"; }}
                           >
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 12 }}>
                               <span style={{ fontSize: T.caption, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>{n.section}</span>
-                              <span
-                                style={{
-                                  fontSize: T.caption,
-                                  color: scoreColor(n.score),
-                                  border: `1px solid ${scoreColor(n.score)}`,
-                                  padding: "2px 8px",
-                                  borderRadius: 2,
-                                }}
-                              >
+                              <span style={{ fontSize: T.caption, color: scoreColor(n.score), border: `1px solid ${scoreColor(n.score)}`, padding: "2px 8px", borderRadius: 2, flexShrink: 0 }}>
                                 {n.score}%
                               </span>
                             </div>
-                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: C.textBright, lineHeight: 1.35, marginBottom: 6 }}>{n.title}</div>
-                            {n.angle ? <div style={{ fontSize: T.meta, color: C.muted }}>▸ {n.angle}</div> : null}
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: C.textBright, lineHeight: 1.4, marginBottom: 8 }}>{n.title}</div>
+                            {n.angle ? <div style={{ fontSize: T.meta, color: C.muted, lineHeight: 1.5 }}>▸ {n.angle}</div> : null}
                           </div>
                         </Link>
                       ))}
@@ -424,46 +418,33 @@ export default function SearchPage() {
                   </section>
                 )}
 
+                {/* ── CONSPIRACY THEORIES ───────────────────────────── */}
                 {results.theories.length > 0 && (
                   <section>
-                    <div style={{ fontSize: T.sectionLabel, color: "#ff5555", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
-                      ◈ CONSPIRACY THEORIES ({results.theories.length})
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <SectionLabel color="#ff6666">◈ CONSPIRACY THEORIES ({results.theories.length})</SectionLabel>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {results.theories.map((t, i) => (
-                        <div key={i} style={{ border: "1px solid #1a3320", borderRadius: 3, padding: "12px 14px", background: "#090f0b" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 10 }}>
-                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: C.textBright, lineHeight: 1.35 }}>{t.name}</div>
-                            <div style={{ fontFamily: RAJ, fontSize: T.scoreMd, fontWeight: 700, color: scoreColor(t.probability), flexShrink: 0 }}>{t.probability}%</div>
+                        <div key={i} style={{ border: "1px solid #1f2a20", borderRadius: 5, padding: "18px 20px", background: "#090f0b" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 16 }}>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: C.textBright, lineHeight: 1.35, minWidth: 0 }}>{t.name}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.scoreMd, fontWeight: 700, color: scoreColor(t.probability), flexShrink: 0, letterSpacing: -0.5 }}>{t.probability}%</div>
                           </div>
-                          <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.65, marginBottom: 12 }}>{t.summary}</div>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                            {t.tags?.map((tag, j) => (
-                              <span key={j} style={{ fontSize: T.caption, padding: "4px 10px", border: "1px solid #1a3320", borderRadius: 10, color: C.muted, letterSpacing: 0.5 }}>
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
+                          <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.7, marginBottom: 14 }}>{t.summary}</div>
+                          {t.tags?.length > 0 && (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                              {t.tags.map((tag, j) => (
+                                <span key={j} style={{ fontSize: T.caption, padding: "4px 10px", border: "1px solid #1a3320", borderRadius: 10, color: C.muted }}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           {t.sources
                             ?.filter((s) => /^https?:\/\//.test(s))
                             .slice(0, 3)
                             .map((s, j) => (
-                              <a
-                                key={j}
-                                href={s}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                  display: "block",
-                                  fontSize: T.meta,
-                                  color: "#00bb66",
-                                  textDecoration: "none",
-                                  marginBottom: 4,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
+                              <a key={j} href={s} target="_blank" rel="noreferrer"
+                                style={{ display: "block", fontSize: T.meta, color: "#00bb66", textDecoration: "none", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 ↗ {s}
                               </a>
                             ))}
@@ -473,37 +454,24 @@ export default function SearchPage() {
                   </section>
                 )}
 
+                {/* ── PATENTS ───────────────────────────────────────── */}
                 {results.patents.length > 0 && (
                   <section>
-                    <div style={{ fontSize: T.sectionLabel, color: "#ff7777", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
-                      ◈ RELATED PATENTS ({results.patents.length})
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
+                    <SectionLabel color="#ff8888">◈ RELATED PATENTS ({results.patents.length})</SectionLabel>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 10 }}>
                       {results.patents.map((p, i) => (
                         <a key={i} href={p.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
                           <div
-                            style={{
-                              border: "1px solid rgba(255,85,85,0.2)",
-                              borderRadius: 3,
-                              padding: "11px 13px",
-                              background: "rgba(26,10,10,0.8)",
-                              cursor: "pointer",
-                              transition: "border-color 0.15s",
-                              height: "100%",
-                            }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLDivElement).style.borderColor = "#ff5555";
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,85,85,0.2)";
-                            }}
+                            style={{ border: "1px solid rgba(255,100,100,0.2)", borderRadius: 5, padding: "16px 18px", background: "rgba(20,8,8,0.9)", cursor: "pointer", transition: "border-color 0.15s", height: "100%" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#ff6666"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,100,100,0.2)"; }}
                           >
-                            <div style={{ fontSize: T.caption, color: "#ff8888", letterSpacing: 0.5, marginBottom: 6 }}>
+                            <div style={{ fontSize: T.caption, color: "#ff9999", letterSpacing: 0.5, marginBottom: 8 }}>
                               {p.number} · {p.year}
                             </div>
-                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#ffe8e8", lineHeight: 1.35, marginBottom: 6 }}>{p.title}</div>
-                            <div style={{ fontSize: T.meta, color: C.patentMeta, marginBottom: 8 }}>{p.assignee}</div>
-                            <div style={{ fontSize: T.body, color: C.patentBody, lineHeight: 1.6 }}>{p.relevance}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#ffe8e8", lineHeight: 1.4, marginBottom: 8 }}>{p.title}</div>
+                            <div style={{ fontSize: T.meta, color: C.patentMeta, marginBottom: 10 }}>{p.assignee}</div>
+                            <div style={{ fontSize: T.body, color: C.patentBody, lineHeight: 1.65 }}>{p.relevance}</div>
                           </div>
                         </a>
                       ))}
@@ -511,42 +479,41 @@ export default function SearchPage() {
                   </section>
                 )}
 
+                {/* ── KEY FIGURES ───────────────────────────────────── */}
                 {results.people.length > 0 && (
                   <section>
-                    <div style={{ fontSize: T.sectionLabel, color: "#00bb66", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
-                      ◈ KEY FIGURES ({results.people.length})
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+                    <SectionLabel color="#00dd77">◈ KEY FIGURES ({results.people.length})</SectionLabel>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 10 }}>
                       {results.people.map((p, i) => (
-                        <div key={i} style={{ border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, padding: "11px 13px", background: "rgba(7,21,16,0.8)" }}>
-                          <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: "#00ff88", marginBottom: 4 }}>{p.name}</div>
-                          <div style={{ fontSize: T.meta, color: C.muted, letterSpacing: 0.3, marginBottom: 8 }}>{p.affiliation}</div>
-                          <div style={{ fontSize: T.bodyTight, color: C.peopleRole, fontStyle: "italic", marginBottom: 8 }}>{p.role}</div>
-                          <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.6 }}>{p.significance}</div>
+                        <div key={i} style={{ border: "1px solid rgba(0,187,102,0.2)", borderRadius: 5, padding: "16px 18px", background: "rgba(5,18,12,0.9)" }}>
+                          <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: "#00ff88", marginBottom: 6 }}>{p.name}</div>
+                          <div style={{ fontSize: T.meta, color: C.muted, marginBottom: 6 }}>{p.affiliation}</div>
+                          <div style={{ fontSize: T.bodyTight, color: C.peopleRole, fontStyle: "italic", marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid #0d1e14" }}>{p.role}</div>
+                          <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.65 }}>{p.significance}</div>
                         </div>
                       ))}
                     </div>
                   </section>
                 )}
 
+                {/* ── RELATED EVENTS ────────────────────────────────── */}
                 {results.events.length > 0 && (
                   <section>
-                    <div style={{ fontSize: T.sectionLabel, color: "#ffcc44", letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
-                      ◈ RELATED EVENTS ({results.events.length})
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 1, borderLeft: "1px solid #1a3320", paddingLeft: 16 }}>
+                    <SectionLabel color="#ffcc44">◈ RELATED EVENTS ({results.events.length})</SectionLabel>
+                    <div style={{ borderLeft: "2px solid #1a3320", paddingLeft: 20, display: "flex", flexDirection: "column", gap: 0 }}>
                       {results.events.map((e, i) => (
-                        <div key={i} style={{ display: "flex", gap: 16, padding: "8px 0", borderBottom: "1px solid #0d1a10" }}>
-                          <div style={{ fontSize: T.meta, color: "#ffcc66", whiteSpace: "nowrap", letterSpacing: 0.5, minWidth: 100 }}>{e.date}</div>
+                        <div key={i} style={{ display: "flex", gap: 24, padding: "12px 0", borderBottom: "1px solid #0d1a10" }}>
+                          <div style={{ fontSize: T.meta, color: "#ffcc66", whiteSpace: "nowrap", letterSpacing: 0.3, minWidth: 110, paddingTop: 2 }}>{e.date}</div>
                           <div>
-                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#f0f0d8", marginBottom: 4 }}>{e.title}</div>
-                            <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.6 }}>{e.description}</div>
+                            <div style={{ fontFamily: RAJ, fontSize: T.cardTitle, fontWeight: 700, color: "#f0f0d8", marginBottom: 5 }}>{e.title}</div>
+                            <div style={{ fontSize: T.body, color: C.mutedStrong, lineHeight: 1.65 }}>{e.description}</div>
                           </div>
                         </div>
                       ))}
                     </div>
                   </section>
                 )}
+
               </div>
             )}
           </div>
