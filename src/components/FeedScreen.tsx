@@ -55,24 +55,17 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <Link
-              href="/community"
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(0,187,102,0.35)",
-                color: "#00bb66",
-                fontFamily: "var(--font-raj), sans-serif",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: 2,
-                textTransform: "uppercase",
-                padding: "6px 14px",
-                borderRadius: 3,
-                cursor: "pointer",
-                textDecoration: "none",
-                display: "inline-block",
-              }}
-            >
+            <Link href="/uap"
+              style={{ background: "rgba(0,255,136,0.05)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              ◈ UAP FILES
+            </Link>
+            <Link href="/outbreaks"
+              style={{ background: "rgba(255,51,51,0.08)", border: "1px solid #ff3333", color: "#ff3333", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, animation: "outbreakBlink 1.8s ease-in-out infinite" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "outbreakDot 1s ease-in-out infinite" }} />
+              OUTBREAKS
+            </Link>
+            <Link href="/community"
+              style={{ background: "transparent", border: "1px solid rgba(0,187,102,0.35)", color: "#00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
               ◈ COMMUNITY
             </Link>
             <Link href="/search"
@@ -82,15 +75,6 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
             <Link href="/guide"
               style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
               ? GUIDE
-            </Link>
-            <Link href="/uap"
-              style={{ background: "rgba(0,255,136,0.05)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              ◈ UAP FILES
-            </Link>
-            <Link href="/outbreaks"
-              style={{ background: "rgba(255,51,51,0.08)", border: "1px solid #ff3333", color: "#ff3333", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, animation: "outbreakBlink 1.8s ease-in-out infinite" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "outbreakDot 1s ease-in-out infinite" }} />
-              OUTBREAKS
             </Link>
             <style>{`
               @keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 6px rgba(255,51,51,0.4)} 50%{border-color:rgba(255,51,51,0.4);box-shadow:none} }

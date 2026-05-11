@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import Link from "next/link";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -21,13 +21,17 @@ interface Post {
   author_name: string; author_type: string;
   content: string; attachment_url?: string;
   upvotes: number; created_at: string;
+  parent_post_id?: string | null;
+  likes: number; dislikes: number;
 }
 
-const CAT_COLORS: Record<string,string> = {
+interface GifResult { id: string; url: string; preview: string; }
+
+const CAT_COLORS: Record<string, string> = {
   sighting: "#00ff88", document: "#ff3333", theory: "#c94dff",
   question: "#ffaa00", tip: "#00bb66",
 };
-const CAT_LABELS: Record<string,string> = {
+const CAT_LABELS: Record<string, string> = {
   sighting: "👁 SIGHTING", document: "📄 DOCUMENT", theory: "🔮 THEORY",
   question: "❓ QUESTION", tip: "💡 TIP",
 };
@@ -39,22 +43,66 @@ function timeAgo(d: string) {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h/24)}d ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
-// ── POST RENDERER ─────────────────────────────────────────────
+// ── GIF PICKER ─────────────────────────────────────────────────
+function GifPicker({ onSelect, onClose }: { onSelect: (url: string) => void; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [gifs, setGifs] = useState<GifResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!q.trim()) { setGifs([]); return; }
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = await fetch(`/api/gif-search?q=${encodeURIComponent(q)}`);
+        const d = await r.json() as { gifs?: GifResult[] };
+        setGifs(d.gifs ?? []);
+      } catch { setGifs([]); }
+      setLoading(false);
+    }, 400);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+  }, [q]);
+
+  return (
+    <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#060e08", padding: 10, marginTop: 6 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search GIFs…" autoFocus
+          style={{ flex: 1, background: "#090f0b", border: "1px solid #1a3320", borderRadius: 3, padding: "5px 10px", color: "#c8e8d0", fontFamily: FONT, fontSize: 11, outline: "none" }} />
+        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#5a8068", fontFamily: FONT, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>✕</button>
+      </div>
+      {loading && <div style={{ textAlign: "center", color: "#3a5040", fontSize: 9, letterSpacing: 2, padding: "8px 0" }}>SEARCHING...</div>}
+      {!loading && gifs.length === 0 && q.trim() && <div style={{ textAlign: "center", color: "#3a5040", fontSize: 9, padding: "8px 0" }}>No results</div>}
+      {!q.trim() && <div style={{ textAlign: "center", color: "#3a5040", fontSize: 9, padding: "8px 0" }}>Type to search Tenor GIFs</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+        {gifs.map(gif => (
+          <button key={gif.id} onClick={() => onSelect(gif.url)}
+            style={{ padding: 0, border: "1px solid #1a3320", borderRadius: 3, cursor: "pointer", overflow: "hidden", background: "#090f0b", transition: "border-color 0.15s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={gif.preview} alt="gif" style={{ width: "100%", display: "block", aspectRatio: "16/9", objectFit: "cover" }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── POST CONTENT RENDERER ──────────────────────────────────────
 function PostContent({ content, isOracle }: { content: string; isOracle: boolean }) {
   if (!isOracle) return <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{content}</div>;
-
-  // Parse Oracle markdown-style response
   const lines = content.split("\n");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {lines.map((line, i) => {
         if (!line.trim()) return null;
-        if (line.startsWith("**") && line.endsWith("**")) {
-          return <div key={i} style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#00ff88", letterSpacing: 1, marginTop: 4 }}>{line.replace(/\*\*/g,"")}</div>;
-        }
+        if (line.startsWith("**") && line.endsWith("**"))
+          return <div key={i} style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#00ff88", letterSpacing: 1, marginTop: 4 }}>{line.replace(/\*\*/g, "")}</div>;
         if (line.startsWith("▸ ")) return (
           <div key={i} style={{ display: "flex", gap: 7, fontSize: 11, color: "#7aaa8a", lineHeight: 1.6 }}>
             <span style={{ color: "#00bb66", flexShrink: 0 }}>▸</span><span>{line.slice(2)}</span>
@@ -75,12 +123,11 @@ function PostContent({ content, isOracle }: { content: string; isOracle: boolean
             </a>
           );
         }
-        // Bold inline
         if (line.includes("**")) {
           const parts = line.split(/(\*\*[^*]+\*\*)/g);
           return (
             <div key={i} style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.75 }}>
-              {parts.map((p, j) => p.startsWith("**") ? <strong key={j} style={{ color: "#00ff88" }}>{p.replace(/\*\*/g,"")}</strong> : p)}
+              {parts.map((p, j) => p.startsWith("**") ? <strong key={j} style={{ color: "#00ff88" }}>{p.replace(/\*\*/g, "")}</strong> : p)}
             </div>
           );
         }
@@ -90,7 +137,23 @@ function PostContent({ content, isOracle }: { content: string; isOracle: boolean
   );
 }
 
-// ── THREAD DETAIL ─────────────────────────────────────────────
+// ── REACTION BUTTON ────────────────────────────────────────────
+function ReactionBtn({ type, count, active, onClick }: { type: "like" | "dislike"; count: number; active: boolean; onClick: () => void }) {
+  const col = type === "like" ? "#00ff88" : "#ff3333";
+  return (
+    <button onClick={onClick} style={{
+      display: "flex", alignItems: "center", gap: 4, background: active ? `${col}12` : "transparent",
+      border: `1px solid ${active ? col : "#1a3320"}`, borderRadius: 3, padding: "3px 9px",
+      color: active ? col : "#3a5040", fontFamily: FONT, fontSize: 9, cursor: "pointer", transition: "all 0.15s",
+    }}
+    onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.borderColor = col; (e.currentTarget as HTMLButtonElement).style.color = col; }}}
+    onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.color = "#3a5040"; }}}>
+      {type === "like" ? "↑" : "↓"} {count}
+    </button>
+  );
+}
+
+// ── THREAD DETAIL ──────────────────────────────────────────────
 function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,12 +161,26 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
   const [name, setName] = useState("Anonymous");
   const [posting, setPosting] = useState(false);
   const [oracleTyping, setOracleTyping] = useState(false);
+  // Reactions stored in localStorage {postId: "like"|"dislike"}
+  const [reactions, setReactions] = useState<Record<string, "like" | "dislike">>({});
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [mainGif, setMainGif] = useState<string | null>(null);
+  const [replyGif, setReplyGif] = useState<string | null>(null);
+  const [gifPickerFor, setGifPickerFor] = useState<string | null>(null); // "main" | post_id
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("theorist-reactions");
+      if (stored) setReactions(JSON.parse(stored) as Record<string, "like" | "dislike">);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     fetch(`/api/threads?id=${thread.id}`)
       .then(r => r.json())
-      .then(d => setPosts(d.posts ?? []))
+      .then((d: { posts?: Post[] }) => setPosts(d.posts ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [thread.id]);
@@ -112,29 +189,170 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [posts]);
 
-  async function submit() {
-    if (!reply.trim() || posting) return;
-    const mentionsOracle = /@oracle\b/i.test(reply);
+  const refreshPosts = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/threads?id=${thread.id}`);
+      const d = await r.json() as { posts?: Post[] };
+      setPosts(d.posts ?? []);
+    } catch {}
+  }, [thread.id]);
+
+  const topLevelPosts = useMemo(() => posts.filter(p => !p.parent_post_id), [posts]);
+  const repliesByParent = useMemo(() => {
+    const map: Record<string, Post[]> = {};
+    for (const p of posts) {
+      if (p.parent_post_id) {
+        if (!map[p.parent_post_id]) map[p.parent_post_id] = [];
+        map[p.parent_post_id].push(p);
+      }
+    }
+    return map;
+  }, [posts]);
+
+  function react(postId: string, reaction: "like" | "dislike") {
+    if (reactions[postId] === reaction) return; // already voted this way
+    const prev = reactions[postId];
+    const next = { ...reactions, [postId]: reaction };
+    setReactions(next);
+    try { localStorage.setItem("theorist-reactions", JSON.stringify(next)); } catch {}
+    // Optimistic UI
+    setPosts(ps => ps.map(p => p.id !== postId ? p : {
+      ...p,
+      likes: reaction === "like" ? p.likes + 1 : (prev === "like" ? Math.max(0, p.likes - 1) : p.likes),
+      dislikes: reaction === "dislike" ? p.dislikes + 1 : (prev === "dislike" ? Math.max(0, p.dislikes - 1) : p.dislikes),
+    }));
+    fetch("/api/threads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "react_post", post_id: postId, reaction }),
+    }).catch(() => {});
+  }
+
+  async function submit(parentId?: string) {
+    const text = parentId ? replyText : reply;
+    const gif = parentId ? replyGif : mainGif;
+    if ((!text.trim() && !gif) || posting) return;
+    const mentionsOracle = /@oracle\b/i.test(text);
     setPosting(true);
     if (mentionsOracle) setOracleTyping(true);
     try {
-      const res = await fetch("/api/threads", {
+      await fetch("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_post", thread_id: thread.id, content: reply, author_name: name }),
+        body: JSON.stringify({
+          action: "add_post",
+          thread_id: thread.id,
+          content: text.trim() || "🎞",
+          author_name: name,
+          parent_post_id: parentId ?? null,
+          attachment_url: gif ?? null,
+        }),
       });
-      if (!res.ok) await res.json().catch(() => null);
-      // Refetch posts to get Oracle response too
-      const r2 = await fetch(`/api/threads?id=${thread.id}`);
-      const d2 = await r2.json();
-      setPosts(d2.posts ?? []);
-      setReply("");
+      await refreshPosts();
+      if (parentId) { setReplyText(""); setReplyGif(null); setReplyingTo(null); }
+      else { setReply(""); setMainGif(null); }
     } catch {}
     setPosting(false);
     setOracleTyping(false);
   }
 
   const col = CAT_COLORS[thread.category] ?? "#00ff88";
+
+  function renderPost(post: Post, depth = 0): React.ReactNode {
+    const isOracle = post.author_type === "oracle";
+    const myReaction = reactions[post.id];
+    const postReplies = repliesByParent[post.id] ?? [];
+    const isReplying = replyingTo === post.id;
+
+    return (
+      <div key={post.id} style={{ marginLeft: depth > 0 ? 18 : 0 }}>
+        <div style={{
+          border: `1px solid ${isOracle ? "rgba(0,255,136,0.3)" : depth > 0 ? "#0f1e13" : "#1a3320"}`,
+          borderLeft: depth > 0 ? "2px solid #1a5025" : undefined,
+          borderRadius: 4, padding: "10px 12px",
+          background: isOracle ? "rgba(0,255,136,0.03)" : "#090f0b",
+        }}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {isOracle && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", display: "inline-block" }} />}
+              <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: isOracle ? "#00ff88" : "#c8e8d0", letterSpacing: 1 }}>{post.author_name}</span>
+              {isOracle && <span style={{ fontSize: 8, color: "#00bb66", border: "1px solid #00bb66", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>AI</span>}
+              {depth > 0 && <span style={{ fontSize: 8, color: "#2a4030", letterSpacing: 1 }}>↩</span>}
+            </div>
+            <span style={{ fontSize: 9, color: "#3a5040" }}>{timeAgo(post.created_at)}</span>
+          </div>
+
+          {/* Content */}
+          <PostContent content={post.content} isOracle={isOracle} />
+
+          {/* GIF attachment */}
+          {post.attachment_url && (
+            <div style={{ marginTop: 8 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={post.attachment_url} alt="gif" style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 3, display: "block" }} />
+            </div>
+          )}
+
+          {/* Actions row */}
+          <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+            <ReactionBtn type="like" count={post.likes} active={myReaction === "like"} onClick={() => react(post.id, "like")} />
+            <ReactionBtn type="dislike" count={post.dislikes} active={myReaction === "dislike"} onClick={() => react(post.id, "dislike")} />
+            {!isOracle && (
+              <button onClick={() => { setReplyingTo(isReplying ? null : post.id); setReplyText(""); setReplyGif(null); setGifPickerFor(null); }}
+                style={{ background: isReplying ? "rgba(0,187,102,0.08)" : "transparent", border: `1px solid ${isReplying ? "#00bb66" : "#1a3320"}`, borderRadius: 3, padding: "3px 9px", color: isReplying ? "#00bb66" : "#3a5040", fontFamily: FONT, fontSize: 9, cursor: "pointer", transition: "all 0.15s" }}>
+                ↩ REPLY{postReplies.length > 0 ? ` (${postReplies.length})` : ""}
+              </button>
+            )}
+          </div>
+
+          {/* Inline reply form */}
+          {isReplying && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a3320" }}>
+              {replyGif && (
+                <div style={{ marginBottom: 6, position: "relative", display: "inline-block" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={replyGif} alt="gif" style={{ maxHeight: 110, borderRadius: 3 }} />
+                  <button onClick={() => setReplyGif(null)} style={{ position: "absolute", top: 2, right: 2, background: "rgba(5,12,7,0.85)", border: "none", color: "#ff3333", cursor: "pointer", fontSize: 10, padding: "1px 5px", borderRadius: 2 }}>✕</button>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                <textarea value={replyText} onChange={e => setReplyText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void submit(post.id); }}
+                  placeholder={`Replying to ${post.author_name}… (Ctrl+Enter)`}
+                  rows={2}
+                  style={{ flex: 1, background: "#060e08", border: "1px solid #1a3320", borderRadius: 3, padding: "7px 10px", color: "#c8e8d0", fontFamily: FONT, fontSize: 11, outline: "none", resize: "none" }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, alignSelf: "flex-end" }}>
+                  <button onClick={() => setGifPickerFor(gifPickerFor === post.id ? null : post.id)}
+                    style={{ padding: "4px 8px", background: gifPickerFor === post.id ? "rgba(0,187,102,0.1)" : "transparent", border: `1px solid ${gifPickerFor === post.id ? "#00bb66" : "#1a3320"}`, borderRadius: 3, color: "#5a8068", fontFamily: FONT, fontSize: 9, cursor: "pointer" }}>
+                    🎞 GIF
+                  </button>
+                  <button onClick={() => { setReplyingTo(null); setReplyText(""); setReplyGif(null); }}
+                    style={{ padding: "4px 8px", background: "transparent", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: FONT, fontSize: 9, cursor: "pointer" }}>
+                    CANCEL
+                  </button>
+                  <button onClick={() => void submit(post.id)} disabled={!replyText.trim() && !replyGif}
+                    style={{ padding: "4px 10px", background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer", opacity: (!replyText.trim() && !replyGif) ? 0.4 : 1 }}>
+                    POST ▶
+                  </button>
+                </div>
+              </div>
+              {gifPickerFor === post.id && (
+                <GifPicker onSelect={url => { setReplyGif(url); setGifPickerFor(null); }} onClose={() => setGifPickerFor(null)} />
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Nested replies */}
+        {postReplies.length > 0 && (
+          <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+            {postReplies.map(r => renderPost(r, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -161,22 +379,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
         {loading ? (
           <div style={{ textAlign: "center", color: "#3a5040", fontSize: 10, padding: "2rem 0", letterSpacing: 2 }}>LOADING POSTS...</div>
-        ) : posts.map(post => {
-          const isOracle = post.author_type === "oracle";
-          return (
-            <div key={post.id} style={{ border: `1px solid ${isOracle ? "rgba(0,255,136,0.3)" : "#1a3320"}`, borderRadius: 4, padding: "10px 12px", background: isOracle ? "rgba(0,255,136,0.03)" : "#090f0b" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {isOracle && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", display: "inline-block" }} />}
-                  <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: isOracle ? "#00ff88" : "#c8e8d0", letterSpacing: 1 }}>{post.author_name}</span>
-                  {isOracle && <span style={{ fontSize: 8, color: "#00bb66", border: "1px solid #00bb66", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>AI</span>}
-                </div>
-                <span style={{ fontSize: 9, color: "#3a5040" }}>{timeAgo(post.created_at)}</span>
-              </div>
-              <PostContent content={post.content} isOracle={isOracle} />
-            </div>
-          );
-        })}
+        ) : topLevelPosts.map(post => renderPost(post))}
         {oracleTyping && (
           <div style={{ border: "1px solid rgba(0,255,136,0.3)", borderRadius: 4, padding: "10px 12px", background: "rgba(0,255,136,0.02)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -190,33 +393,48 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
         <div ref={bottomRef} />
       </div>
 
-      {/* Reply box */}
+      {/* Main compose box */}
       <div style={{ padding: "12px 16px", borderTop: "1px solid #1a3320", background: "#050c07" }}>
         <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2, marginBottom: 8 }}>
           TIP: TYPE <span style={{ color: "#00bb66" }}>@oracle</span> TO INVOKE AI ANALYSIS
         </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          <input value={name} onChange={e => setName(e.target.value)}
-            placeholder="Your name"
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
             style={{ width: 120, background: "#090f0b", border: "1px solid #1a3320", borderRadius: 3, padding: "6px 10px", color: "#c8e8d0", fontFamily: FONT, fontSize: 10, outline: "none" }} />
         </div>
+        {mainGif && (
+          <div style={{ marginBottom: 6, position: "relative", display: "inline-block" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={mainGif} alt="gif" style={{ maxHeight: 120, borderRadius: 3 }} />
+            <button onClick={() => setMainGif(null)} style={{ position: "absolute", top: 2, right: 2, background: "rgba(5,12,7,0.85)", border: "none", color: "#ff3333", cursor: "pointer", fontSize: 11, padding: "1px 5px", borderRadius: 2 }}>✕</button>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 6 }}>
           <textarea value={reply} onChange={e => setReply(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit(); }}
-            placeholder="Share what you know... (Ctrl+Enter to post)"
+            onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void submit(); }}
+            placeholder="Share what you know… (Ctrl+Enter to post)"
             rows={2}
             style={{ flex: 1, background: "#090f0b", border: "1px solid #1a3320", borderRadius: 3, padding: "8px 10px", color: "#c8e8d0", fontFamily: FONT, fontSize: 11, outline: "none", resize: "none" }} />
-          <button onClick={submit} disabled={!reply.trim() || posting}
-            style={{ alignSelf: "flex-end", padding: "8px 14px", background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer", opacity: (!reply.trim() || posting) ? 0.4 : 1 }}>
-            {posting ? "..." : "POST ▶"}
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignSelf: "flex-end" }}>
+            <button onClick={() => setGifPickerFor(gifPickerFor === "main" ? null : "main")}
+              style={{ padding: "6px 10px", background: gifPickerFor === "main" ? "rgba(0,187,102,0.1)" : "transparent", border: `1px solid ${gifPickerFor === "main" ? "#00bb66" : "#1a3320"}`, borderRadius: 3, color: gifPickerFor === "main" ? "#00bb66" : "#5a8068", fontFamily: FONT, fontSize: 10, cursor: "pointer" }}>
+              🎞 GIF
+            </button>
+            <button onClick={() => void submit()} disabled={(!reply.trim() && !mainGif) || posting}
+              style={{ padding: "6px 14px", background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer", opacity: ((!reply.trim() && !mainGif) || posting) ? 0.4 : 1 }}>
+              {posting ? "..." : "POST ▶"}
+            </button>
+          </div>
         </div>
+        {gifPickerFor === "main" && (
+          <GifPicker onSelect={url => { setMainGif(url); setGifPickerFor(null); }} onClose={() => setGifPickerFor(null)} />
+        )}
       </div>
     </div>
   );
 }
 
-// ── NEW THREAD FORM ───────────────────────────────────────────
+// ── NEW THREAD FORM ────────────────────────────────────────────
 function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -235,9 +453,9 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "create_thread", title, content: body, category, author_name: name, location }),
       });
-      const d = await res.json();
-      if (d.error) { setError(d.error); setSubmitting(false); return; }
-      onCreated(d.thread);
+      const d = await res.json() as { error?: string; thread?: Thread };
+      if (d.error) { setError(d.error); return; }
+      if (d.thread) onCreated(d.thread);
     } catch {
       setError("Failed to submit.");
     } finally {
@@ -254,35 +472,30 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
         <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, marginTop: 3 }}>Report a sighting, share a document, or start an investigation</div>
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-
-        {/* Category */}
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
           {Object.entries(CAT_LABELS).map(([key, label]) => (
             <button key={key} onClick={() => setCategory(key)}
               style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: "4px 10px", borderRadius: 2, cursor: "pointer",
-                border: `1px solid ${category===key?CAT_COLORS[key]:"#1a3320"}`,
-                background: category===key?`${CAT_COLORS[key]}14`:"transparent",
-                color: category===key?CAT_COLORS[key]:"#5a8068" }}>
+                border: `1px solid ${category === key ? CAT_COLORS[key] : "#1a3320"}`,
+                background: category === key ? `${CAT_COLORS[key]}14` : "transparent",
+                color: category === key ? CAT_COLORS[key] : "#5a8068" }}>
               {label}
             </button>
           ))}
         </div>
-
         <div>
           <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, display: "block", marginBottom: 4 }}>TITLE *</label>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What did you see / find?" style={inp}
             onFocus={e => { (e.target as HTMLInputElement).style.borderColor = "#00bb66"; }}
             onBlur={e => { (e.target as HTMLInputElement).style.borderColor = "#1a3320"; }} />
         </div>
-
         <div>
           <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, display: "block", marginBottom: 4 }}>DESCRIPTION *</label>
-          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Describe in detail. Include dates, locations, links, anything relevant..." rows={4}
+          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Describe in detail. Include dates, locations, links, anything relevant…" rows={4}
             style={{ ...inp, resize: "vertical" }}
             onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#00bb66"; }}
             onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#1a3320"; }} />
         </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
             <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, display: "block", marginBottom: 4 }}>YOUR NAME</label>
@@ -293,14 +506,12 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
             <input value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" style={inp} />
           </div>
         </div>
-
         {error && <div style={{ fontSize: 11, color: "#ff3333", padding: "6px 10px", border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3 }}>[ERROR] {error}</div>}
-
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>
             After posting, type <span style={{ color: "#00bb66" }}>@oracle</span> in the thread to invoke AI analysis
           </div>
-          <button onClick={submit} disabled={submitting || !title.trim() || !body.trim()}
+          <button onClick={() => void submit()} disabled={submitting || !title.trim() || !body.trim()}
             style={{ padding: "9px 20px", background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 12, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer", opacity: (submitting || !title.trim() || !body.trim()) ? 0.4 : 1 }}>
             {submitting ? "SUBMITTING..." : "SUBMIT ▶"}
           </button>
@@ -310,7 +521,7 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
   );
 }
 
-// ── MAIN COMMUNITY PAGE ───────────────────────────────────────
+// ── MAIN COMMUNITY BOARD ───────────────────────────────────────
 export default function CommunityBoard() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -322,31 +533,20 @@ export default function CommunityBoard() {
   const fetchThreadList = useCallback(() => {
     const params = new URLSearchParams({ sort });
     if (category !== "all") params.set("category", category);
-    return fetch(`/api/threads?${params}`).then((r) => r.json() as Promise<{ threads?: Thread[] }>);
+    return fetch(`/api/threads?${params}`).then(r => r.json() as Promise<{ threads?: Thread[] }>);
   }, [category, sort]);
 
   const refreshThreads = useCallback(() => {
-    void fetchThreadList().then((d) => setThreads(d.threads ?? []));
+    void fetchThreadList().then(d => setThreads(d.threads ?? []));
   }, [fetchThreadList]);
 
   useEffect(() => {
     let cancelled = false;
     void fetchThreadList()
-      .then((d) => {
-        if (!cancelled) {
-          setThreads(d.threads ?? []);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then(d => { if (!cancelled) { setThreads(d.threads ?? []); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [fetchThreadList]);
-
-  const visible = threads;
 
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
@@ -378,14 +578,12 @@ export default function CommunityBoard() {
             <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>REPORT SIGHTINGS · SHARE DOCUMENTS · INVOKE ORACLE AI · INVESTIGATE TOGETHER</div>
           </div>
 
-          {/* New thread form */}
           {showNew && (
             <div style={{ marginBottom: "1.5rem" }}>
               <NewThreadForm onCreated={t => { setShowNew(false); setSelectedThread(t); refreshThreads(); }} />
             </div>
           )}
 
-          {/* Thread detail or list */}
           {selectedThread ? (
             <div style={{ height: "calc(100vh - 200px)", border: "1px solid #1a3320", borderRadius: 4, overflow: "hidden", background: "#090f0b" }}>
               <ThreadDetail thread={selectedThread} onBack={() => { setSelectedThread(null); refreshThreads(); }} />
@@ -394,24 +592,24 @@ export default function CommunityBoard() {
             <>
               {/* Filters */}
               <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", gap: 5 }}>
-                  {(["all","sighting","document","theory","question","tip"] as Category[]).map(cat => (
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  {(["all", "sighting", "document", "theory", "question", "tip"] as Category[]).map(cat => (
                     <button key={cat} onClick={() => setCategory(cat)}
                       style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", padding: "4px 10px", borderRadius: 2, cursor: "pointer",
-                        border: `1px solid ${category===cat?(CAT_COLORS[cat]??"#00bb66"):"#1a3320"}`,
-                        background: category===cat?`${(CAT_COLORS[cat]??"#00bb66")}14`:"transparent",
-                        color: category===cat?(CAT_COLORS[cat]??"#00ff88"):"#5a8068" }}>
+                        border: `1px solid ${category === cat ? (CAT_COLORS[cat] ?? "#00bb66") : "#1a3320"}`,
+                        background: category === cat ? `${(CAT_COLORS[cat] ?? "#00bb66")}14` : "transparent",
+                        color: category === cat ? (CAT_COLORS[cat] ?? "#00ff88") : "#5a8068" }}>
                       {cat === "all" ? "ALL" : cat.toUpperCase()}
                     </button>
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 5 }}>
-                  {[["latest","LATEST"],["hot","HOT"],["credibility","TOP CRED"]].map(([key,label]) => (
+                  {[["latest", "LATEST"], ["hot", "HOT"], ["credibility", "TOP CRED"]].map(([key, label]) => (
                     <button key={key} onClick={() => setSort(key)}
                       style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: "4px 10px", borderRadius: 2, cursor: "pointer",
-                        border: `1px solid ${sort===key?"#ffaa00":"#1a3320"}`,
-                        background: sort===key?"rgba(255,170,0,0.08)":"transparent",
-                        color: sort===key?"#ffaa00":"#5a8068" }}>
+                        border: `1px solid ${sort === key ? "#ffaa00" : "#1a3320"}`,
+                        background: sort === key ? "rgba(255,170,0,0.08)" : "transparent",
+                        color: sort === key ? "#ffaa00" : "#5a8068" }}>
                       {label}
                     </button>
                   ))}
@@ -419,7 +617,7 @@ export default function CommunityBoard() {
               </div>
 
               {/* Stats */}
-              <div style={{ display: "flex", gap: 10, marginBottom: "1rem" }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
                 {[
                   { label: "TOTAL THREADS", value: threads.length, col: "#00ff88" },
                   { label: "ORACLE ANALYZED", value: threads.filter(t => t.oracle_analyzed).length, col: "#00bb66" },
@@ -446,15 +644,15 @@ export default function CommunityBoard() {
 
               {/* Thread list */}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {visible.map(t => {
-                  const col = CAT_COLORS[t.category] ?? "#00ff88";
+                {threads.map(t => {
+                  const c = CAT_COLORS[t.category] ?? "#00ff88";
                   return (
                     <div key={t.id} onClick={() => setSelectedThread(t)}
                       style={{ border: "1px solid #1a3320", borderRadius: 4, padding: "12px 14px", background: "#090f0b", cursor: "pointer", transition: "all 0.15s" }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = col; (e.currentTarget as HTMLDivElement).style.background = `${col}08`; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = c; (e.currentTarget as HTMLDivElement).style.background = `${c}08`; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLDivElement).style.background = "#090f0b"; }}>
                       <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 9, color: col, border: `1px solid ${col}`, padding: "1px 6px", borderRadius: 2, letterSpacing: 1 }}>{CAT_LABELS[t.category]}</span>
+                        <span style={{ fontSize: 9, color: c, border: `1px solid ${c}`, padding: "1px 6px", borderRadius: 2, letterSpacing: 1 }}>{CAT_LABELS[t.category]}</span>
                         {t.oracle_analyzed && <span style={{ fontSize: 8, color: "#00ff88", border: "1px solid #00bb66", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>◈ AI</span>}
                         {t.status === "featured" && <span style={{ fontSize: 8, color: "#ffaa00", border: "1px solid #ffaa00", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>★ FEATURED</span>}
                         {t.location && <span style={{ fontSize: 9, color: "#5a8068" }}>📍 {t.location}</span>}

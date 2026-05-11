@@ -112,13 +112,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ thread, success: true });
     }
 
+    if (action === "react_post") {
+      const { post_id, reaction } = body;
+      if (!post_id || !["like", "dislike"].includes(String(reaction))) {
+        return NextResponse.json({ error: "post_id and reaction ('like'|'dislike') required" }, { status: 400 });
+      }
+      const col = reaction === "like" ? "likes" : "dislikes";
+      const { data: result } = await admin.rpc("increment_post_reaction", {
+        post_id_param: post_id,
+        col_name: col,
+      });
+      const row = Array.isArray(result) ? result[0] : result;
+      return NextResponse.json({ success: true, likes: row?.likes ?? 0, dislikes: row?.dislikes ?? 0 });
+    }
+
     if (action === "add_post") {
-      const { thread_id, content, author_name, attachment_url } = body;
-      if (!thread_id || !content?.trim()) {
-        return NextResponse.json({ error: "thread_id and content required" }, { status: 400 });
+      const { thread_id, content, author_name, attachment_url, parent_post_id } = body;
+      const hasContent = typeof content === "string" && content.trim().length > 0;
+      const hasAttachment = typeof attachment_url === "string" && attachment_url.trim().length > 0;
+      if (!thread_id || (!hasContent && !hasAttachment)) {
+        return NextResponse.json({ error: "thread_id and content (or attachment) required" }, { status: 400 });
       }
 
-      const mentionsOracle = /@oracle\b/i.test(content);
+      const mentionsOracle = /@oracle\b/i.test(content ?? "");
       const apiKey = process.env.OPENAI_API_KEY;
 
       const { data: post, error } = await admin
@@ -128,8 +144,9 @@ export async function POST(req: NextRequest) {
           author_name: (author_name ?? "Anonymous").slice(0, 40),
           author_fingerprint: userFp,
           author_type: "human",
-          content: content.trim().slice(0, 1000),
+          content: (content ?? "").trim().slice(0, 1000) || "🎞",
           attachment_url: attachment_url ?? null,
+          parent_post_id: parent_post_id ?? null,
         })
         .select()
         .single();

@@ -357,6 +357,71 @@ const SECTIONS: Section[] = [
     ),
   },
   {
+    id: "community",
+    icon: "◈",
+    title: "Community Intelligence — Threads & Voting",
+    color: "#00bb66",
+    content: (
+      <div>
+        <P>The <InlineCode>/community</InlineCode> page is an open-source intelligence board where anyone can report sightings, share documents and invoke the Oracle AI on any topic. No account required.</P>
+        <H>Thread categories</H>
+        <Row label="👁 SIGHTING" color="#00ff88">Report a direct observation — aerial, terrestrial or unexplained.</Row>
+        <Row label="📄 DOCUMENT" color="#ff3333">Share a FOIA file, leaked document or official record.</Row>
+        <Row label="🔮 THEORY" color="#c94dff">Propose a hypothesis or conspiracy theory for community evaluation.</Row>
+        <Row label="❓ QUESTION" color="#ffaa00">Ask the community or Oracle for analysis of a specific claim.</Row>
+        <Row label="💡 TIP" color="#00bb66">Pass on a tip or link that others should investigate.</Row>
+        <H>Post interactions</H>
+        <Row label="↑ LIKE" color="#00ff88">Up-vote a post you find credible or well-reasoned. Stored per browser — one vote per post.</Row>
+        <Row label="↓ DISLIKE" color="#ff3333">Down-vote misleading or low-quality content.</Row>
+        <Row label="↩ REPLY" color="#5a8068">Reply directly to a specific post. Replies are indented under their parent, creating a threaded discussion.</Row>
+        <Row label="🎞 GIF" color="#00bb66">Insert a Tenor GIF into any post or reply using the built-in GIF search picker.</Row>
+        <H>Oracle AI in threads</H>
+        <P>Type <InlineCode>@oracle</InlineCode> anywhere in a post to trigger Oracle AI analysis of the thread. The Oracle reads all posts, cross-references known data, evaluates credibility and posts a structured report including related theories, sources, open questions and next steps.</P>
+        <H>Credibility score</H>
+        <P>When Oracle AI analyses a thread, it assigns a <InlineCode>credibility_score</InlineCode> (0–100%). This score is displayed on thread cards and used for <InlineCode>TOP CRED</InlineCode> sorting.</P>
+      </div>
+    ),
+  },
+  {
+    id: "share",
+    icon: "↗",
+    title: "Share — Investigation Board Export",
+    color: "#5a8068",
+    content: (
+      <div>
+        <P>Every Investigation Board has a <InlineCode>◈ SHARE ▼</InlineCode> button in the top-right corner. Clicking it opens a dropdown with multiple export and sharing options.</P>
+        <H>Share options</H>
+        <Row label="𝕏 X / TWITTER" color="#c8e8d0">Opens the X (Twitter) compose window pre-filled with the Oracle conclusion, site URL and hashtags.</Row>
+        <Row label="f FACEBOOK" color="#4080ff">Opens Facebook Sharer with the board URL. Facebook automatically pulls the article title and metadata.</Row>
+        <Row label="r/ REDDIT" color="#ff6600">Opens Reddit Submit with the URL and title pre-filled.</Row>
+        <Row label="📱 WHATSAPP" color="#00ff88">Opens WhatsApp web/app with a pre-composed message containing the Oracle conclusion and link.</Row>
+        <Row label="✉ EMAIL" color="#5a8068">Opens your mail client with a pre-written subject and body containing the conclusion and link.</Row>
+        <Row label="🔗 COPY LINK" color="#5a8068">Copies the current board URL to clipboard instantly.</Row>
+        <Row label="💾 DOWNLOAD PNG" color="#ffaa00">Captures the entire Investigation Board as a high-resolution PNG file (1.5× scale) and saves it to your device.</Row>
+      </div>
+    ),
+  },
+  {
+    id: "voting",
+    icon: "⬆",
+    title: "Community Voting — Threat & Theory Consensus",
+    color: "#ffaa00",
+    content: (
+      <div>
+        <P>Every Investigation Board shows a <b style={{color:"#e8ffe8"}}>Community Intelligence panel</b> below the graph. This panel lets you compare the AI threat assessment against the crowd consensus and vote on which theory is most credible.</P>
+        <H>Threat score comparison</H>
+        <Row label="AI SCORE" color="#5a8068">The GPT-4o assigned threat score (0–100%). Fixed at analysis time.</Row>
+        <Row label="COMMUNITY" color="#ffaa00">The average score submitted by all visitors who voted. Updates in real time.</Row>
+        <P>If no community vote exists yet, you will see a row of quick-vote buttons (10 / 25 / 40 / 55 / 70 / 85 / 95) — click one to register your threat assessment.</P>
+        <H>Theory voting</H>
+        <P>If the Oracle produced multiple conspiracy theories, they are listed as vote options. Click the theory you consider most credible. Vote counts are displayed in real time.</P>
+        <H>Witnessed</H>
+        <Row label="👁 WITNESSED" color="#ffaa00">Click if you or someone you know witnessed something related to the story. The panel shows a count of confirmed witness reports.</Row>
+        <P>All votes are anonymous and deduplicated per browser fingerprint — one vote per article per type.</P>
+      </div>
+    ),
+  },
+  {
     id: "pro",
     icon: "◐",
     title: "PRO Account",
@@ -452,7 +517,7 @@ export default function GuidePage() {
           {/* FOOTER NOTE */}
           <div style={{ marginTop: 32, padding: "14px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", fontSize: 10, color: "#3a5040", lineHeight: 1.8 }}>
             <span style={{ color: "#5a8068" }}>◈ PLATFORM VERSION</span>{" "}
-            <span style={{ color: "#00ff88" }}>1.0</span>
+            <span style={{ color: "#00ff88" }}>1.1</span>
             {"  ·  "}
             <span style={{ color: "#5a8068" }}>DATA SOURCES</span>{" "}
             <span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · AARO · WHO</span>
