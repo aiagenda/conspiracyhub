@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
+import ReferenceDocumentIndex from "@/components/ReferenceDocumentIndex";
 import { normalizeVerdict } from "@/lib/verdict";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -71,7 +72,7 @@ function verdictColor(v: string) {
 }
 
 export default function SearchPage() {
-  const [tab, setTab] = useState<"search" | "url">("search");
+  const [tab, setTab] = useState<"search" | "url" | "index">("search");
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [threatFilter, setThreatFilter] = useState("");
@@ -168,7 +169,7 @@ export default function SearchPage() {
                 THE THEORIST — INTELLIGENCE SEARCH
               </div>
               <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, marginTop: 2 }}>
-                CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS
+                CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS · REFERENCE INDEX
               </div>
             </div>
           </div>
@@ -179,11 +180,12 @@ export default function SearchPage() {
           {[
             { key: "search", label: "◈ SEARCH DATABASE" },
             { key: "url", label: "◈ ANALYZE URL" },
+            { key: "index", label: "◈ REFERENCE INDEX" },
           ].map((t) => (
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key as "search" | "url")}
+              onClick={() => setTab(t.key as "search" | "url" | "index")}
               style={{
                 fontFamily: RAJ,
                 fontSize: 12,
@@ -532,6 +534,12 @@ export default function SearchPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {tab === "index" && (
+          <div>
+            <ReferenceDocumentIndex />
           </div>
         )}
 

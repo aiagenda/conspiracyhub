@@ -355,6 +355,8 @@ const SECTIONS: Section[] = [
         <Row label="EVENT" color="#5a8068">e.g. Roswell, Nimitz — returns UAP incidents and articles referencing them.</Row>
         <H>URL analysis (Pro)</H>
         <P>On the same page, the <InlineCode>ANALYZE URL</InlineCode> tab accepts any <InlineCode>https://</InlineCode> link. The server picks the best extractor: X/Twitter and Meta Threads via oEmbed, Reddit via the public <InlineCode>.json</InlineCode> API (title, body, a few top comments), Bluesky via the public ATProto <InlineCode>getPosts</InlineCode> endpoint, YouTube via oEmbed (title and channel only), and standard HTML scraping for news sites. <InlineCode>t.co</InlineCode> and <InlineCode>redd.it</InlineCode> short links are followed first. Login-only or bot-blocked pages (many Facebook/Instagram posts) may still return little or no text.</P>
+        <H>Reference index (A–Z)</H>
+        <P>The <InlineCode>REFERENCE INDEX</InlineCode> tab lists a curated set of official portals and landmark declassified collections (CIA Reading Room, FBI Vault, NARA, NSA FOIA, DARPA, etc.). Entries are sorted alphabetically by title; you can filter by agency and first letter. Each row links out to the primary government or archive URL — PDFs are not hosted on The Theorist.</P>
       </div>
     ),
   },
