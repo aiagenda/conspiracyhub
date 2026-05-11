@@ -385,18 +385,81 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
               <div style={{ marginBottom: "1rem", fontSize: 10, color: "#ff3333" }}>[{hlError}]</div>
             )}
 
-            {/* Summary if no body */}
-            {!body && item.summary && (
-              <div style={{ marginBottom: "1rem", padding: "12px 14px", border: "1px solid #1a3320", borderRadius: 3, background: "rgba(0,255,136,0.02)", fontSize: 13, color: "#7aaa8a", lineHeight: 1.75 }}>
-                <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, marginBottom: 6 }}>ARTICLE SUMMARY</div>
-                {item.summary}
-              </div>
-            )}
-
             {/* Article body with highlights */}
             {body && (
               <div style={{ marginBottom: "1.5rem" }}>
                 <ArticleText text={body} highlights={displayHighlights} />
+              </div>
+            )}
+
+            {/* No body: show summary + prominent source link */}
+            {!body && (
+              <div style={{ marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: 14 }}>
+                {item.summary && (
+                  <div style={{ padding: "16px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "rgba(0,255,136,0.02)", fontSize: 14, color: "#9ec8ae", lineHeight: 1.75 }}>
+                    <div style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1.5, marginBottom: 10, textTransform: "uppercase" }}>◈ AI Summary</div>
+                    {item.summary}
+                  </div>
+                )}
+                {/* "Open original source" CTA — dominant when no body */}
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                      padding: "16px 20px", borderRadius: 4, textDecoration: "none",
+                      border: "1px solid #2a5040",
+                      background: "rgba(0,255,136,0.04)",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.09)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.04)"; }}
+                  >
+                    <div>
+                      <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2, marginBottom: 4 }}>
+                        ↗ OPEN ORIGINAL SOURCE
+                      </div>
+                      <div style={{ fontSize: 12, color: "#5a8068", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 480 }}>
+                        {item.url}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 20, color: "#00bb66", flexShrink: 0 }}>↗</span>
+                  </a>
+                )}
+
+                {/* If article is about UAP/UFO/Pentagon files — show official document links */}
+                {/uap|ufo|pentagon.files|disclosure|extraterrestrial|anomalous.phenomena/i.test(item.title + " " + (item.summary ?? "")) && (
+                  <div style={{ padding: "16px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "#080c09" }}>
+                    <div style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#aac2ff", letterSpacing: 2, marginBottom: 14, textTransform: "uppercase" }}>
+                      ◈ Official Declassified UAP Documents
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {[
+                        { label: "AARO — All-domain Anomaly Resolution Office (DoD)", url: "https://www.aaro.mil/", note: "Latest UAP reports, historical records, and case database" },
+                        { label: "Pentagon UAP Disclosure — April 2024 Report", url: "https://media.defense.gov/2024/Mar/08/2003409233/-1/-1/0/DOPSR-CLEARED-508-COMPLIANT-HRRV1-08-MAR-2024-FINAL.PDF", note: "Official DoD AARO historical record report (PDF)" },
+                        { label: "FBI Vault — UFO / Project Blue Book", url: "https://vault.fbi.gov/UFO", note: "Declassified FBI files on UAP incidents" },
+                        { label: "CIA FOIA — UFO Records", url: "https://www.cia.gov/readingroom/collection/ufos-fact-or-fiction", note: "CIA reading room — UFOs: Fact or Fiction collection" },
+                        { label: "NARA — Project Blue Book (1947–1969)", url: "https://www.archives.gov/research/military/air-force/ufos", note: "National Archives — complete Air Force UAP investigation files" },
+                        { label: "Office of the DNI — UAP Report 2021", url: "https://www.dni.gov/files/ODNI/documents/assessments/Prelimary-Assessment-UAP-20210625.pdf", note: "Preliminary Assessment: Unidentified Aerial Phenomena (PDF)" },
+                      ].map((doc) => (
+                        <a
+                          key={doc.url}
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "flex", flexDirection: "column", gap: 3, padding: "10px 12px", border: "1px solid #1a2a3a", borderRadius: 3, textDecoration: "none", background: "rgba(170,194,255,0.03)", transition: "border-color 0.15s" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "#4a6aaa"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a2a3a"; }}
+                        >
+                          <span style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#aac2ff" }}>{doc.label} ↗</span>
+                          <span style={{ fontSize: 12, color: "#5a7a9a" }}>{doc.note}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

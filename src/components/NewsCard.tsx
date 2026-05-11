@@ -40,9 +40,10 @@ export default function NewsCard({
         (e.currentTarget as HTMLDivElement).style.borderColor = "#1a3320";
       }}
     >
-      {item.image && (
-        <a href={`/article/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
-          <div style={{ position: "relative", height: 140, overflow: "hidden" }}>
+      {/* ── Card header: image OR styled placeholder ───────────────── */}
+      <a href={`/article/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
+        <div style={{ position: "relative", height: 140, overflow: "hidden" }}>
+          {item.image ? (
             <Image
               src={item.image}
               alt=""
@@ -53,80 +54,39 @@ export default function NewsCard({
               sizes="(max-width: 768px) 100vw, 360px"
               style={{ objectFit: "cover", filter: "saturate(0.35) brightness(0.55)", transition: "filter 0.2s" }}
             />
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
+          ) : (
+            /* No-image placeholder: subtle scanline grid + accent glow */
             <div
               style={{
                 position: "absolute",
-                top: 8,
-                right: 8,
-                background: "rgba(5,12,7,0.88)",
-                border: `1px solid ${color}`,
-                borderRadius: 3,
-                padding: "2px 8px",
-                fontSize: 11,
-                color,
-                letterSpacing: 1,
-                fontFamily: "var(--font-raj), sans-serif",
-                fontWeight: 700,
+                inset: 0,
+                background: `
+                  radial-gradient(ellipse 80% 60% at 20% 50%, ${color}14 0%, transparent 70%),
+                  repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(255,255,255,0.018) 18px, rgba(255,255,255,0.018) 19px),
+                  repeating-linear-gradient(90deg, transparent, transparent 24px, rgba(255,255,255,0.012) 24px, rgba(255,255,255,0.012) 25px),
+                  #080d09
+                `,
               }}
-            >
-              {item.score}% THREAT
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                bottom: 8,
-                left: 10,
-                fontSize: 10,
-                color: "#5a8068",
-                letterSpacing: 2,
-                textTransform: "uppercase",
-              }}
-            >
-              {item.section} · {timeAgo(item.date)}
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                left: 8,
-                background: "rgba(5,12,7,0.75)",
-                border: "1px solid #1a3320",
-                borderRadius: 2,
-                padding: "2px 7px",
-                fontSize: 10,
-                color: "#5a8068",
-                letterSpacing: 1,
-              }}
-            >
-              READ ARTICLE
-            </div>
+            />
+          )}
+          {/* shared gradient overlay */}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
+          {/* THREAT badge */}
+          <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "2px 8px", fontSize: 11, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
+            {item.score}% THREAT
           </div>
-        </a>
-      )}
+          {/* Section + time */}
+          <div style={{ position: "absolute", bottom: 8, left: 10, fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
+            {item.section} · {timeAgo(item.date)}
+          </div>
+          {/* READ ARTICLE badge */}
+          <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(5,12,7,0.75)", border: "1px solid #1a3320", borderRadius: 2, padding: "2px 7px", fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>
+            READ ARTICLE
+          </div>
+        </div>
+      </a>
 
       <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-        {!item.image && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
-              {item.section} · {timeAgo(item.date)}
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                color,
-                border: `1px solid ${color}`,
-                borderRadius: 2,
-                padding: "1px 7px",
-                fontFamily: "var(--font-raj), sans-serif",
-                fontWeight: 700,
-                letterSpacing: 1,
-              }}
-            >
-              {item.score}%
-            </span>
-          </div>
-        )}
 
         <a href={`/article/${item.id}`} style={{ textDecoration: "none" }}>
           <h3
@@ -157,11 +117,6 @@ export default function NewsCard({
           </div>
         )}
 
-        {!item.image && (
-          <div style={{ height: 3, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${item.score}%`, background: color, borderRadius: 2, transition: "width 0.8s ease" }} />
-          </div>
-        )}
 
         <button
           type="button"
