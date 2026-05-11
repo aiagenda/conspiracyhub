@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -27,43 +28,29 @@ interface Message {
   subject: string; message: string; created_at: string; read: boolean; ip_hash?: string;
 }
 
-// ── tiny helpers ──────────────────────────────────────────────────────────────
+const border = "1px solid #1a2a22";
+const cardBg = "#080c09";
+const muted = "#5a8068";
 
-const card: React.CSSProperties = {
-  background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10,
-  padding: "20px 24px",
-};
-
-const label: React.CSSProperties = {
-  fontSize: 10, letterSpacing: "0.1em", color: "#444", textTransform: "uppercase",
-  marginBottom: 6, display: "block",
-};
-
-function StatCard({ title, value, sub, accent }: { title: string; value: string | number; sub?: string; accent?: boolean }) {
-  return (
-    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={label}>{title}</span>
-      <span style={{ fontSize: 28, fontWeight: 700, color: accent ? "#e06060" : "#e8e8e8", letterSpacing: "-0.02em" }}>
-        {value}
-      </span>
-      {sub && <span style={{ fontSize: 11, color: "#444" }}>{sub}</span>}
-    </div>
-  );
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 52, padding: "0 2px" }}>
+    <div
+      className="flex w-full items-end gap-0.5 px-1"
+      style={{ height: 112, minHeight: 112 }}
+    >
       {data.map((d) => (
         <div
           key={d.hour}
           title={`${d.hour}:00 — ${d.count} views`}
+          className="min-w-0 flex-1 rounded-sm transition-[height]"
           style={{
-            flex: 1, background: d.count ? "rgba(107,196,107,0.5)" : "#1a1a1a",
-            borderRadius: 2,
-            height: `${Math.max(3, (d.count / max) * 100)}%`,
-            transition: "height 0.3s",
+            height: `${Math.max(4, (d.count / max) * 100)}%`,
+            background: d.count ? "rgba(0, 187, 102, 0.45)" : "#0f1510",
           }}
         />
       ))}
@@ -71,7 +58,48 @@ function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+function StatTile({
+  title,
+  value,
+  sub,
+  danger,
+}: {
+  title: string;
+  value: string | number;
+  sub?: string;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      className="flex min-w-0 flex-col gap-1 rounded-lg p-4"
+      style={{ background: cardBg, border }}
+    >
+      <span className="text-[10px] uppercase tracking-widest" style={{ color: muted }}>
+        {title}
+      </span>
+      <span
+        className="font-raj text-2xl font-bold tracking-tight sm:text-3xl"
+        style={{ color: danger ? "#ff6666" : "var(--foreground)" }}
+      >
+        {value}
+      </span>
+      {sub && <span className="text-xs" style={{ color: muted }}>{sub}</span>}
+    </div>
+  );
+}
+
+function TableShell({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg" style={{ background: cardBg, border }}>
+      <div className="border-b px-4 py-3" style={{ borderColor: "#1a2a22" }}>
+        <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+          {title}
+        </span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -83,9 +111,11 @@ export default function AdminPage() {
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null);
   const [msgPage, setMsgPage] = useState(1);
   const [msgTotal, setMsgTotal] = useState(0);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const loadStats = useCallback(async () => {
-    setLoading(true); setErr("");
+    setLoading(true);
+    setErr("");
     try {
       const res = await fetch("/api/admin/stats");
       if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
@@ -113,18 +143,20 @@ export default function AdminPage() {
 
   async function markRead(id: string, read: boolean) {
     await fetch("/api/admin/messages", {
-      method: "PATCH", headers: JSON_HEADERS,
+      method: "PATCH",
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id, read }),
     });
-    setMessages((ms) => ms.map((m) => m.id === id ? { ...m, read } : m));
-    if (selectedMsg?.id === id) setSelectedMsg((m) => m ? { ...m, read } : m);
+    setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, read } : m)));
+    if (selectedMsg?.id === id) setSelectedMsg((m) => (m ? { ...m, read } : m));
     loadStats();
   }
 
   async function deleteMsg(id: string) {
     if (!confirm("Delete this message?")) return;
     await fetch("/api/admin/messages", {
-      method: "DELETE", headers: JSON_HEADERS,
+      method: "DELETE",
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id }),
     });
     setMessages((ms) => ms.filter((m) => m.id !== id));
@@ -134,184 +166,542 @@ export default function AdminPage() {
 
   const displayed = msgsTab === "unread" ? messages.filter((m) => !m.read) : messages;
 
-  // ── Main dashboard ────────────────────────────────────────────────────────
+  function selectMessage(m: Message) {
+    setSelectedMsg(m);
+    if (!m.read) void markRead(m.id, true);
+    queueMicrotask(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  }
+
+  const navBtn =
+    "w-full rounded-md border border-transparent px-3 py-2.5 text-left text-[13px] transition-colors hover:border-[#1a2a22] hover:bg-[#0f1510]";
+
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem clamp(1rem,3vw,2rem) 4rem" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <p style={{ margin: "0 0 4px", fontSize: 10, letterSpacing: "0.12em", color: "#444", textTransform: "uppercase" }}>ConspiracyHub</p>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#e8e8e8" }}>Admin Dashboard</h1>
+    <div
+      className="flex min-h-screen w-full flex-col"
+      style={{
+        background: "var(--background)",
+        fontFamily: "var(--font-share-tech-mono), monospace",
+      }}
+    >
+      {/* Top bar — full width */}
+      <header
+        className="flex w-full flex-wrap items-center justify-between gap-4 border-b py-4"
+        style={{
+          borderColor: "#1a2a22",
+          maxWidth: PAGE_CONTENT_MAX + 280,
+          marginInline: "auto",
+          paddingInline: "clamp(1rem, 3vw, 2rem)",
+        }}
+      >
+        <div className="min-w-0">
+          <p className="mb-0.5 text-[10px] uppercase tracking-[0.2em]" style={{ color: muted }}>
+            ConspiracyHub
+          </p>
+          <h1 className="font-raj text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+            Operations console
+          </h1>
         </div>
-        <button
-          onClick={() => { void loadStats(); void loadMessages(msgPage); }}
-          disabled={loading}
-          style={{
-            padding: "8px 16px", background: "transparent", border: "1px solid #2a2a2a",
-            borderRadius: 6, color: "#666", fontSize: 11, cursor: "pointer",
-          }}
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+          <a
+            href="/"
+            className="rounded-md border px-3 py-2 text-[12px] no-underline"
+            style={{ borderColor: "#1a2a22", color: muted }}
+          >
+            Feed
+          </a>
+          <a
+            href="/search"
+            className="rounded-md border px-3 py-2 text-[12px] no-underline"
+            style={{ borderColor: "#1a2a22", color: muted }}
+          >
+            Search
+          </a>
+          <a
+            href="/community"
+            className="rounded-md border px-3 py-2 text-[12px] no-underline"
+            style={{ borderColor: "#1a2a22", color: muted }}
+          >
+            Community
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              void loadStats();
+              void loadMessages(msgPage);
+            }}
+            disabled={loading}
+            className="rounded-md border px-4 py-2 text-[12px] font-semibold uppercase tracking-wide"
+            style={{
+              borderColor: "var(--green-dark)",
+              color: "var(--green)",
+              opacity: loading ? 0.5 : 1,
+            }}
+          >
+            {loading ? "Refreshing…" : "↻ Refresh"}
+          </button>
+        </div>
+      </header>
+
+      <div
+        className="flex w-full flex-1 flex-col gap-0 lg:flex-row"
+        style={{
+          maxWidth: PAGE_CONTENT_MAX + 280,
+          marginInline: "auto",
+          width: "100%",
+          padding: PAGE_CONTENT_PADDING,
+          boxSizing: "border-box",
+        }}
+      >
+        {/* Sidebar — desktop */}
+        <aside
+          className="mb-6 flex w-full flex-shrink-0 flex-row flex-wrap gap-2 border-b pb-4 lg:mb-0 lg:w-[220px] lg:flex-col lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6"
+          style={{ borderColor: "#1a2a22" }}
         >
-          {loading ? "Refreshing…" : "↻ Refresh"}
-        </button>
-      </div>
-
-      {err && (
-        <div style={{ padding: "12px 16px", background: "rgba(180,60,60,0.1)", border: "1px solid #4a1a1a", borderRadius: 8, color: "#e06060", fontSize: 13, marginBottom: 24 }}>
-          {err}
-        </div>
-      )}
-
-      {stats && (
-        <>
-          {/* ── Stat cards ─────────────────────────────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14, marginBottom: 28 }}>
-            <StatCard title="Page views (24h)" value={stats.pageViews.last24h} sub={`7d: ${stats.pageViews.last7d} · 30d: ${stats.pageViews.last30d}`} />
-            <StatCard title="API calls (24h)" value={stats.api.calls24h} sub={`avg ${stats.api.avgMs}ms`} />
-            <StatCard title="API errors (24h)" value={stats.api.errors24h} accent={stats.api.errors24h > 0} />
-            <StatCard title="Total articles" value={stats.content.totalArticles} />
-            <StatCard title="Unread messages" value={stats.contact.unread} accent={stats.contact.unread > 0} />
+          <p className="hidden w-full text-[10px] uppercase tracking-widest lg:block" style={{ color: muted }}>
+            Navigate
+          </p>
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("overview")}>
+            Overview
+          </button>
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("traffic")}>
+            Traffic &amp; API
+          </button>
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("contact")}>
+            Inbox
+          </button>
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("reference")}>
+            Reference
+          </button>
+          <div className="mt-auto hidden w-full border-t pt-4 lg:block" style={{ borderColor: "#1a2a22" }}>
+            <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: muted }}>
+              Public site
+            </p>
+            <a href="/guide" className="mb-1 block text-[12px]" style={{ color: "var(--green-dim)" }}>
+              Guide
+            </a>
+            <a href="/uap" className="mb-1 block text-[12px]" style={{ color: "var(--green-dim)" }}>
+              UAP files
+            </a>
+            <a href="/outbreaks" className="block text-[12px]" style={{ color: "var(--green-dim)" }}>
+              Outbreaks
+            </a>
           </div>
+        </aside>
 
-          {/* ── Hourly chart ───────────────────────────────────────── */}
-          <div style={{ ...card, marginBottom: 24 }}>
-            <span style={label}>Page views — last 24 hours</span>
-            <MiniBar data={stats.charts.viewsHourly} />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 9, color: "#333" }}>
-              <span>24h ago</span>
-              <span>now</span>
-            </div>
-          </div>
-
-          {/* ── Top paths + routes ─────────────────────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
-            <div style={card}>
-              <span style={label}>Top pages (7d)</span>
-              {stats.charts.topPaths.map((p) => (
-                <div key={p.path} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #111", fontSize: 12 }}>
-                  <span style={{ color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "75%" }}>{p.path}</span>
-                  <span style={{ color: "#4a4", flexShrink: 0 }}>{p.count}</span>
-                </div>
-              ))}
-              {stats.charts.topPaths.length === 0 && <p style={{ fontSize: 12, color: "#333" }}>No data yet</p>}
-            </div>
-            <div style={card}>
-              <span style={label}>Top API routes (24h)</span>
-              {stats.charts.topRoutes.map((r) => (
-                <div key={r.route} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #111", fontSize: 12 }}>
-                  <span style={{ color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>{r.route}</span>
-                  <span style={{ color: r.errors > 0 ? "#e06060" : "#4a4", flexShrink: 0 }}>
-                    {r.total}{r.errors > 0 ? ` (${r.errors} err)` : ""}
-                  </span>
-                </div>
-              ))}
-              {stats.charts.topRoutes.length === 0 && <p style={{ fontSize: 12, color: "#333" }}>No data yet</p>}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ── Contact messages ─────────────────────────────────────────────── */}
-      <div style={card}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#d0d0d0" }}>
-            Contact Messages
-            {stats && stats.contact.unread > 0 && (
-              <span style={{ marginLeft: 8, padding: "2px 7px", background: "#3a1a1a", border: "1px solid #5a2a2a", borderRadius: 10, fontSize: 10, color: "#e06060" }}>
-                {stats.contact.unread} unread
-              </span>
-            )}
-          </span>
-          <div style={{ display: "flex", gap: 8 }}>
-            {(["unread", "all"] as const).map((t) => (
-              <button
-                key={t} onClick={() => setMsgsTab(t)}
-                style={{
-                  padding: "5px 12px", fontSize: 10, cursor: "pointer",
-                  background: msgsTab === t ? "#1a2a1a" : "transparent",
-                  border: `1px solid ${msgsTab === t ? "#2a5a2a" : "#222"}`,
-                  borderRadius: 5, color: msgsTab === t ? "#6bc46b" : "#444",
-                  textTransform: "uppercase", letterSpacing: "0.06em",
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: selectedMsg ? "1fr 1fr" : "1fr", gap: 16 }}>
-          {/* Message list */}
-          <div>
-            {displayed.length === 0 && (
-              <p style={{ fontSize: 12, color: "#333" }}>No messages to show.</p>
-            )}
-            {displayed.map((m) => (
-              <div
-                key={m.id}
-                onClick={() => { setSelectedMsg(m); if (!m.read) markRead(m.id, true); }}
-                style={{
-                  padding: "12px 14px", borderRadius: 8, marginBottom: 6, cursor: "pointer",
-                  background: selectedMsg?.id === m.id ? "#111" : "transparent",
-                  border: `1px solid ${selectedMsg?.id === m.id ? "#2a2a2a" : "#161616"}`,
-                  opacity: m.read ? 0.6 : 1,
-                  transition: "all 0.15s",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: m.read ? 400 : 600, color: "#d0d0d0" }}>{m.name}</span>
-                  <span style={{ fontSize: 10, color: "#444" }}>
-                    {new Date(m.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: "#555", marginBottom: 3 }}>
-                  [{m.category}] {m.subject}
-                </div>
-                {!m.read && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#6bc46b", display: "inline-block" }} />}
-              </div>
-            ))}
-
-            {/* Pagination for "all" tab */}
-            {msgsTab === "all" && msgTotal > 30 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button disabled={msgPage <= 1} onClick={() => loadMessages(msgPage - 1)} style={{ padding: "5px 10px", background: "#111", border: "1px solid #222", borderRadius: 5, color: "#666", fontSize: 11, cursor: "pointer" }}>← Prev</button>
-                <span style={{ fontSize: 11, color: "#444", padding: "5px 0" }}>{msgPage} / {Math.ceil(msgTotal / 30)}</span>
-                <button disabled={msgPage * 30 >= msgTotal} onClick={() => loadMessages(msgPage + 1)} style={{ padding: "5px 10px", background: "#111", border: "1px solid #222", borderRadius: 5, color: "#666", fontSize: 11, cursor: "pointer" }}>Next →</button>
-              </div>
-            )}
-          </div>
-
-          {/* Message detail */}
-          {selectedMsg && (
-            <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 8, padding: "18px 20px", position: "relative" }}>
-              <button onClick={() => setSelectedMsg(null)} style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", color: "#444", fontSize: 16, cursor: "pointer" }}>✕</button>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#e8e8e8", marginBottom: 4 }}>{selectedMsg.subject}</div>
-                <div style={{ fontSize: 11, color: "#555" }}>
-                  <strong style={{ color: "#888" }}>{selectedMsg.name}</strong> &lt;{selectedMsg.email}&gt;
-                  {" · "}{selectedMsg.category}
-                  {" · "}{new Date(selectedMsg.created_at).toLocaleString("en-GB")}
-                </div>
-              </div>
-              <p style={{ fontSize: 13, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: "0 0 18px" }}>
-                {selectedMsg.message}
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => markRead(selectedMsg.id, !selectedMsg.read)}
-                  style={{ padding: "6px 12px", background: "transparent", border: "1px solid #2a2a2a", borderRadius: 5, color: "#666", fontSize: 11, cursor: "pointer" }}
-                >
-                  {selectedMsg.read ? "Mark unread" : "Mark read"}
-                </button>
-                <button
-                  onClick={() => deleteMsg(selectedMsg.id)}
-                  style={{ padding: "6px 12px", background: "transparent", border: "1px solid #3a1a1a", borderRadius: 5, color: "#844", fontSize: 11, cursor: "pointer" }}
-                >
-                  Delete
-                </button>
-              </div>
+        {/* Main column */}
+        <main className="min-w-0 flex-1 space-y-8">
+          {err && (
+            <div
+              className="rounded-lg border px-4 py-3 text-[13px]"
+              style={{ borderColor: "#4a1a1a", background: "rgba(255,51,51,0.08)", color: "#ff8888" }}
+            >
+              {err}
             </div>
           )}
-        </div>
+
+          {/* Overview */}
+          <section id="overview">
+            <h2 className="font-raj mb-4 text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              Overview
+            </h2>
+            {stats && (
+              <div className="grid w-full grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <StatTile title="Page views (24h)" value={stats.pageViews.last24h} sub={`7d: ${stats.pageViews.last7d} · 30d: ${stats.pageViews.last30d}`} />
+                <StatTile title="API calls (24h)" value={stats.api.calls24h} sub={`avg ${stats.api.avgMs} ms`} />
+                <StatTile title="API errors (24h)" value={stats.api.errors24h} danger={stats.api.errors24h > 0} />
+                <StatTile title="Articles (index)" value={stats.content.totalArticles} sub="rows in articles" />
+                <StatTile title="Unread inbox" value={stats.contact.unread} danger={stats.contact.unread > 0} />
+                <StatTile title="Contact rows" value={msgTotal} sub="total messages in inbox table" />
+              </div>
+            )}
+            {!stats && !err && (
+              <p className="text-sm" style={{ color: muted }}>Loading metrics…</p>
+            )}
+          </section>
+
+          {/* Traffic + tables */}
+          <section id="traffic" className="space-y-6">
+            <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              Traffic &amp; API
+            </h2>
+            {stats && (
+              <>
+                <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3">
+                  <div className="min-w-0 xl:col-span-2" style={{ background: cardBg, border, borderRadius: 8 }}>
+                    <div className="border-b px-4 py-3" style={{ borderColor: "#1a2a22" }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                        Page views — last 24 hours
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <MiniBar data={stats.charts.viewsHourly} />
+                      <div className="mt-2 flex justify-between text-[10px] uppercase" style={{ color: muted }}>
+                        <span>24h ago</span>
+                        <span>now</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-w-0 space-y-3 rounded-lg p-4" style={{ background: cardBg, border }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                      Health
+                    </p>
+                    <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
+                      API route logs populate when requests are recorded to <code className="text-[var(--green-dim)]">api_request_logs</code>.
+                      Page views come from <code className="text-[var(--green-dim)]">/api/track</code> on navigation.
+                    </p>
+                    <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
+                      Error rate (24h):{" "}
+                      <strong style={{ color: "var(--foreground)" }}>
+                        {stats.api.calls24h
+                          ? `${((stats.api.errors24h / stats.api.calls24h) * 100).toFixed(1)}%`
+                          : "—"}
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-2" style={{ minHeight: 280 }}>
+                  <TableShell title="Top pages (7 days)">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Path
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Views
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.charts.topPaths.map((p) => (
+                          <tr key={p.path} className="hover:bg-[#0f1510]">
+                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {p.path}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
+                              {p.count}
+                            </td>
+                          </tr>
+                        ))}
+                        {stats.charts.topPaths.length === 0 && (
+                          <tr>
+                            <td colSpan={2} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
+                              No path data yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </TableShell>
+
+                  <TableShell title="Top API routes (24h)">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Route
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Calls
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Errors
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.charts.topRoutes.map((r) => (
+                          <tr key={r.route} className="hover:bg-[#0f1510]">
+                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {r.route}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
+                              {r.total}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: r.errors > 0 ? "#ff6666" : muted }}>
+                              {r.errors}
+                            </td>
+                          </tr>
+                        ))}
+                        {stats.charts.topRoutes.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
+                              No API log rows yet (instrument routes to write <code className="text-[var(--green-dim)]">api_request_logs</code>)
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </TableShell>
+                </div>
+
+                {stats.contact.recent.length > 0 && (
+                  <TableShell title="Latest contact (snapshot)">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>When</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>From</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Category</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Subject</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Read</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.contact.recent.map((r) => (
+                          <tr key={r.id} className="hover:bg-[#0f1510]">
+                            <td className="whitespace-nowrap border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                              {new Date(r.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
+                            </td>
+                            <td className="max-w-[140px] truncate border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {r.name}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-[12px] uppercase" style={{ borderColor: "#111816", color: muted }}>
+                              {r.category}
+                            </td>
+                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {r.subject}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: r.read ? muted : "var(--green)" }}>
+                              {r.read ? "yes" : "no"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableShell>
+                )}
+              </>
+            )}
+          </section>
+
+          {/* Inbox */}
+          <section id="contact">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+                Inbox
+              </h2>
+              <div className="flex gap-2">
+                {(["unread", "all"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setMsgsTab(t)}
+                    className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                    style={{
+                      borderColor: msgsTab === t ? "var(--green-dark)" : "#1a2a22",
+                      background: msgsTab === t ? "rgba(0,187,102,0.08)" : "transparent",
+                      color: msgsTab === t ? "var(--green)" : muted,
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+              <div className="min-h-[360px] min-w-0 overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
+                    <thead>
+                      <tr style={{ background: "#0a100c" }}>
+                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                          Status
+                        </th>
+                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                          Date
+                        </th>
+                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                          Name
+                        </th>
+                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                          Email
+                        </th>
+                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                          Cat
+                        </th>
+                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                          Subject
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayed.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-12 text-center text-[13px]" style={{ color: muted }}>
+                            No messages in this view.
+                          </td>
+                        </tr>
+                      )}
+                      {displayed.map((m) => (
+                        <tr
+                          key={m.id}
+                          onClick={() => selectMessage(m)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              selectMessage(m);
+                            }
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          className="cursor-pointer outline-none hover:bg-[#0f1510] focus-visible:ring-2"
+                          style={{
+                            background: selectedMsg?.id === m.id ? "rgba(0,187,102,0.06)" : undefined,
+                          }}
+                        >
+                          <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                            {!m.read ? (
+                              <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--green)" }} title="Unread" />
+                            ) : (
+                              <span className="text-[11px]" style={{ color: muted }}>—</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                            {new Date(m.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
+                          </td>
+                          <td className="max-w-[120px] truncate border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                            {m.name}
+                          </td>
+                          <td className="max-w-[180px] truncate border-b px-3 py-2.5 font-mono text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                            {m.email}
+                          </td>
+                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>
+                            {m.category}
+                          </td>
+                          <td className="max-w-[1px] truncate border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                            {m.subject}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {msgsTab === "all" && msgTotal > 30 && (
+                  <div className="flex items-center gap-3 border-t px-4 py-3" style={{ borderColor: "#1a2a22" }}>
+                    <button
+                      type="button"
+                      disabled={msgPage <= 1}
+                      onClick={() => loadMessages(msgPage - 1)}
+                      className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40"
+                      style={{ borderColor: "#1a2a22", color: muted }}
+                    >
+                      ← Prev
+                    </button>
+                    <span className="text-[12px]" style={{ color: muted }}>
+                      Page {msgPage} / {Math.ceil(msgTotal / 30)}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={msgPage * 30 >= msgTotal}
+                      onClick={() => loadMessages(msgPage + 1)}
+                      className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40"
+                      style={{ borderColor: "#1a2a22", color: muted }}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div
+                ref={detailRef}
+                className="min-h-[280px] rounded-lg p-5 lg:min-h-[360px]"
+                style={{ background: cardBg, border }}
+              >
+                {selectedMsg ? (
+                  <>
+                    <div className="mb-4 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="font-raj mb-1 text-base font-bold text-[var(--foreground)]">{selectedMsg.subject}</h3>
+                        <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
+                          <strong style={{ color: "var(--foreground)" }}>{selectedMsg.name}</strong>
+                          {" "}
+                          &lt;{selectedMsg.email}&gt;
+                          <br />
+                          {selectedMsg.category}
+                          {" · "}
+                          {new Date(selectedMsg.created_at).toLocaleString("en-GB")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMsg(null)}
+                        className="flex-shrink-0 rounded border px-2 py-1 text-[11px]"
+                        style={{ borderColor: "#1a2a22", color: muted }}
+                        aria-label="Close detail"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <pre
+                      className="mb-4 max-h-[min(50vh,420px)] overflow-auto whitespace-pre-wrap rounded-md border p-4 text-[13px] leading-relaxed"
+                      style={{ borderColor: "#1a2a22", background: "#050805", color: "var(--foreground)" }}
+                    >
+                      {selectedMsg.message}
+                    </pre>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => markRead(selectedMsg.id, !selectedMsg.read)}
+                        className="rounded-md border px-3 py-2 text-[12px]"
+                        style={{ borderColor: "#1a2a22", color: muted }}
+                      >
+                        {selectedMsg.read ? "Mark unread" : "Mark read"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteMsg(selectedMsg.id)}
+                        className="rounded-md border px-3 py-2 text-[12px]"
+                        style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="py-12 text-center text-[13px]" style={{ color: muted }}>
+                    Select a row to read the full message.
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Reference / docs */}
+          <section id="reference">
+            <h2 className="font-raj mb-3 text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              Data &amp; compliance
+            </h2>
+            <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-lg p-4 text-[13px] leading-relaxed" style={{ background: cardBg, border, color: muted }}>
+                <p className="mb-2 font-semibold uppercase tracking-wide" style={{ color: "var(--foreground)" }}>
+                  Tables in use
+                </p>
+                <ul className="list-inside list-disc space-y-1">
+                  <li><code className="text-[var(--green-dim)]">page_views</code> — anonymous path + fingerprint</li>
+                  <li><code className="text-[var(--green-dim)]">api_request_logs</code> — optional per-route metrics</li>
+                  <li><code className="text-[var(--green-dim)]">contact_messages</code> — form submissions</li>
+                  <li><code className="text-[var(--green-dim)]">articles</code> — feed index count</li>
+                </ul>
+              </div>
+              <div className="rounded-lg p-4 text-[13px] leading-relaxed" style={{ background: cardBg, border, color: muted }}>
+                <p className="mb-2 font-semibold uppercase tracking-wide" style={{ color: "var(--foreground)" }}>
+                  Public pages
+                </p>
+                <p className="mb-3">Legal and help content for visitors:</p>
+                <div className="flex flex-wrap gap-2">
+                  <a href="/privacy" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Privacy</a>
+                  <a href="/terms" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Terms</a>
+                  <a href="/faq" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>FAQ</a>
+                  <a href="/contact" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Contact form</a>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );
