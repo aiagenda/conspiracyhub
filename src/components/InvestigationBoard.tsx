@@ -1315,20 +1315,49 @@ export default function InvestigationBoard({
             {sharing ? "CAPTURING..." : "◈ SHARE ↗"}
           </button>
         </div>
-        {/* Zoom controls */}
-        <div style={{ position: "absolute", bottom: 16, left: internalSelected ? "auto" : 16, right: internalSelected ? "316px" : "auto", zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
-          {[
-            { label: "+", action: () => setTransform(t => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
-            { label: "−", action: () => setTransform(t => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
-            { label: "⊡", action: resetView },
-          ].map(({ label, action }) => (
-            <button key={label} onClick={action} style={{ width: 30, height: 30, background: "rgba(4,11,6,0.9)", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, borderRadius: 3, cursor: "pointer", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66"; (e.currentTarget as HTMLButtonElement).style.color = "#00ff88"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.color = "#5a8068"; }}>
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Zoom controls — bottom-left when no panel; with panel, grouped with stats (see cluster below) */}
+        {!internalSelected ? (
+          <div style={{ position: "absolute", bottom: 16, left: 16, zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+            {[
+              { label: "+", action: () => setTransform((t) => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
+              { label: "−", action: () => setTransform((t) => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
+              { label: "⊡", action: resetView },
+            ].map(({ label, action }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={action}
+                style={{
+                  width: 30,
+                  height: 30,
+                  background: "rgba(4,11,6,0.9)",
+                  border: "1px solid #1a3320",
+                  color: "#5a8068",
+                  fontFamily: "var(--font-raj), sans-serif",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  borderRadius: 3,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {/* Zoom level indicator */}
         <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontSize: 9, color: "#2a4030", letterSpacing: 2, zIndex: 20, fontFamily: FONT }}>
@@ -1399,18 +1428,104 @@ export default function InvestigationBoard({
           ))}
         </div>
 
-        <div style={{ position: "absolute", bottom: 16, right: internalSelected ? 316 : 16, display: "flex", gap: 12 }}>
-          {[
-            [String(nodes.length), "NODES"],
-            [String(edges.length), "EDGES"],
-            [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
-          ].map(([val, label]) => (
-            <div key={label} style={{ background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "8px 12px", textAlign: "center" }}>
-              <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{val}</div>
-              <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginTop: 3 }}>{label}</div>
+        {internalSelected ? (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 16,
+              right: 312,
+              zIndex: 20,
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "flex-end",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
+              {[
+                [String(nodes.length), "NODES"],
+                [String(edges.length), "EDGES"],
+                [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+              ].map(([val, label]) => (
+                <div
+                  key={label}
+                  style={{
+                    background: "rgba(4,11,6,0.85)",
+                    border: "1px solid #1a3320",
+                    borderRadius: 4,
+                    padding: "8px 12px",
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{val}</div>
+                  <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginTop: 3 }}>{label}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+              {[
+                { label: "+", action: () => setTransform((t) => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
+                { label: "−", action: () => setTransform((t) => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
+                { label: "⊡", action: resetView },
+              ].map(({ label, action }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={action}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    background: "rgba(4,11,6,0.9)",
+                    border: "1px solid #1a3320",
+                    color: "#5a8068",
+                    fontFamily: "var(--font-raj), sans-serif",
+                    fontSize: 16,
+                    fontWeight: 700,
+                    borderRadius: 3,
+                    cursor: "pointer",
+                    lineHeight: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ position: "absolute", bottom: 16, right: 16, display: "flex", gap: 12, zIndex: 20 }}>
+            {[
+              [String(nodes.length), "NODES"],
+              [String(edges.length), "EDGES"],
+              [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+            ].map(([val, label]) => (
+              <div
+                key={label}
+                style={{
+                  background: "rgba(4,11,6,0.85)",
+                  border: "1px solid #1a3320",
+                  borderRadius: 4,
+                  padding: "8px 12px",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{val}</div>
+                <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginTop: 3 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {!internalSelected && (
           <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", fontFamily: FONT, fontSize: 9, color: "#1a4a2a", letterSpacing: 2, textTransform: "uppercase", pointerEvents: "none" }}>
