@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import { combinePolymarketQuery } from "@/lib/polymarketQuery";
@@ -379,26 +379,91 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
             </div>
           )}
 
-          {/* Sources */}
+          {!isTheory && d.excerpt && (
+            <div style={{ border: "1px solid #1a3320", borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
+              <div style={{ padding: "10px 12px", background: "rgba(0,255,136,0.02)", borderBottom: "1px solid #1a3320" }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ KEY PASSAGE</div>
+                <blockquote style={{ margin: 0, padding: "0 0 0 12px", borderLeft: "2px solid #1a4a2a" }}>
+                  <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.8, fontStyle: "italic" }}>
+                    &ldquo;{d.excerpt}&rdquo;
+                  </div>
+                </blockquote>
+                <div style={{ marginTop: 6, fontSize: 9, color: "#5a8068" }}>— {d.source}</div>
+              </div>
+              {d.source_url && (
+                <a
+                  href={d.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "flex", gap: 8, color: "#00bb66", fontSize: 10, textDecoration: "none", padding: "7px 12px" }}
+                >
+                  <span>↗</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.source_url}</span>
+                </a>
+              )}
+            </div>
+          )}
+
           {((d.theory_sources && d.theory_sources.length > 0) || d.source_url) && (
             <div>
               <div style={{ fontFamily: FONT, fontSize: 9, color: isTheory ? "#c94dff" : "#00bb66", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>
                 {isTheory ? "Sources & Documentation" : "Primary Source"}
               </div>
-              {d.source_url && (
-                <a href={d.source_url} target="_blank" rel="noreferrer"
-                  style={{ display: "flex", gap: 8, color: "#00bb66", fontSize: 11, textDecoration: "none", marginBottom: 6, padding: "6px 10px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)", wordBreak: "break-all", lineHeight: 1.5 }}>
-                  <span style={{ flexShrink: 0 }}>↗</span><span>{d.source} — {d.source_url}</span>
+              {d.source_url && !d.excerpt && (
+                <a
+                  href={d.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    color: "#00bb66",
+                    fontSize: 11,
+                    textDecoration: "none",
+                    marginBottom: 6,
+                    padding: "6px 10px",
+                    border: "1px solid rgba(0,187,102,0.2)",
+                    borderRadius: 3,
+                    background: "rgba(0,187,102,0.04)",
+                    wordBreak: "break-all",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span style={{ flexShrink: 0 }}>↗</span>
+                  <span>
+                    {d.source} — {d.source_url}
+                  </span>
                 </a>
               )}
               {d.theory_sources?.filter((s: string) => /^https?:\/\//i.test(s)).map((s: string, i: number) => (
-                <a key={i} href={s} target="_blank" rel="noreferrer"
-                  style={{ display: "flex", gap: 8, color: "#00bb66", fontSize: 11, textDecoration: "none", marginBottom: 6, padding: "6px 10px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)", wordBreak: "break-all", lineHeight: 1.5 }}>
-                  <span style={{ flexShrink: 0 }}>↗</span><span>{s}</span>
+                <a
+                  key={i}
+                  href={s}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    color: "#00bb66",
+                    fontSize: 11,
+                    textDecoration: "none",
+                    marginBottom: 6,
+                    padding: "6px 10px",
+                    border: "1px solid rgba(0,187,102,0.2)",
+                    borderRadius: 3,
+                    background: "rgba(0,187,102,0.04)",
+                    wordBreak: "break-all",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span style={{ flexShrink: 0 }}>↗</span>
+                  <span>{s}</span>
                 </a>
               ))}
               {d.theory_sources?.filter((s: string) => !/^https?:\/\//i.test(s)).map((s: string, i: number) => (
-                <div key={i} style={{ fontSize: 10, color: "#5a8068", marginBottom: 4, paddingLeft: 4 }}>⟨{i+1}⟩ {s}</div>
+                <div key={i} style={{ fontSize: 10, color: "#5a8068", marginBottom: 4, paddingLeft: 4 }}>
+                  ⟨{i + 1}⟩ {s}
+                </div>
               ))}
             </div>
           )}
@@ -587,26 +652,92 @@ function DetailPanel({
           <>
             <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.4, marginBottom: 10 }}>{d.title}</div>
             <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75, marginBottom: 12 }}>{d.body}</div>
-            <div style={{ padding: "8px 10px", background: "rgba(0,255,136,0.04)", border: "1px solid #1a3320", borderRadius: 3 }}>
-              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>SOURCE</div>
-              <div style={{ fontFamily: FONT, fontSize: 10, color: c.text }}>{d.source}</div>
+
+            <div style={{ border: "1px solid #1a3320", borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
+              <div
+                style={{
+                  padding: "6px 10px",
+                  background: "rgba(0,255,136,0.03)",
+                  borderBottom: d.excerpt ? "1px solid #1a3320" : "none",
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>SOURCE</div>
+                  <div style={{ fontFamily: FONT, fontSize: 10, color: c.text }}>{d.source}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
+                  {d.source_tier ? (
+                    <span
+                      style={{
+                        fontSize: 8,
+                        border: "1px solid #1a3320",
+                        padding: "1px 5px",
+                        borderRadius: 2,
+                        color: d.source_tier === "A" ? "#00ff88" : d.source_tier === "B" ? "#ffaa00" : "#5a8068",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      TIER {d.source_tier}
+                    </span>
+                  ) : null}
+                  {d.source_type ? (
+                    <span
+                      style={{
+                        fontSize: 8,
+                        border: "1px solid #1a3320",
+                        padding: "1px 5px",
+                        borderRadius: 2,
+                        color: "#5a8068",
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {d.source_type}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              {d.excerpt ? (
+                <div style={{ padding: "10px 12px", background: "rgba(0,255,136,0.02)", borderBottom: d.source_url ? "1px solid #1a3320" : "none" }}>
+                  <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ KEY PASSAGE</div>
+                  <blockquote style={{ margin: 0, padding: "0 0 0 10px", borderLeft: "2px solid #1a4a2a" }}>
+                    <div style={{ fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.75, fontStyle: "italic" }}>
+                      &ldquo;{d.excerpt}&rdquo;
+                    </div>
+                  </blockquote>
+                </div>
+              ) : null}
               {d.source_url ? (
-                <a href={d.source_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: "#00bb66", fontSize: 10, textDecoration: "none" }}>
-                  Open source ↗
+                <a
+                  href={d.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "7px 10px",
+                    color: "#00bb66",
+                    fontSize: 10,
+                    textDecoration: "none",
+                    background: "transparent",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.04)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                  }}
+                >
+                  <span style={{ flexShrink: 0 }}>↗</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.source_url}</span>
                 </a>
               ) : null}
-              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                {d.source_tier ? (
-                  <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a" }}>
-                    Tier {d.source_tier}
-                  </span>
-                ) : null}
-                {d.source_type ? (
-                  <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a", textTransform: "uppercase" }}>
-                    {d.source_type}
-                  </span>
-                ) : null}
-              </div>
             </div>
 
             {d.why_it_matters ? (
@@ -805,6 +936,62 @@ export default function InvestigationBoard({
   const [glitch, setGlitch] = useState(false);
   const [pulse, setPulse] = useState(false);
   const [internalSelected, setInternalSelected] = useState<Node | null>(selectedNode ?? null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareToast, setShareToast] = useState("");
+
+  const captureAndShare = useCallback(async () => {
+    if (!boardRef.current || sharing) return;
+    setSharing(true);
+    setShareToast("Capturing board...");
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(boardRef.current, {
+        backgroundColor: "#050c07",
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        ignoreElements: (el) => el.hasAttribute("data-share-ignore"),
+      });
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            setShareToast("Failed");
+            setTimeout(() => setShareToast(""), 2000);
+            setSharing(false);
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `theorist-investigation-${Date.now()}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          const tweetText = conclusion
+            ? `Investigation: "${conclusion.slice(0, 120)}${conclusion.length > 120 ? "…" : ""}" — The Theorist`
+            : "AI-powered investigation — The Theorist";
+          const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${tweetText} conspiracyhub.vercel.app`)}&hashtags=TheTheorist,UAP,Investigation`;
+          window.open(tweetUrl, "_blank", "width=600,height=400");
+          setShareToast("Screenshot saved + share opened");
+          setTimeout(() => setShareToast(""), 3000);
+          setSharing(false);
+        },
+        "image/png",
+        0.95
+      );
+    } catch (e) {
+      console.error("Screenshot failed:", e);
+      const tweetText = conclusion ? `Investigation — The Theorist` : "The Theorist investigation";
+      window.open(
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${tweetText} conspiracyhub.vercel.app`)}&hashtags=TheTheorist,Investigation`,
+        "_blank"
+      );
+      setShareToast("Share opened");
+      setTimeout(() => setShareToast(""), 2000);
+      setSharing(false);
+    }
+  }, [sharing, conclusion]);
 
   // Pan / zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -942,6 +1129,17 @@ export default function InvestigationBoard({
     return () => svg.removeEventListener("wheel", wheelHandler);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setInternalSelected(null);
+        onNodeClick(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onNodeClick]);
+
   /* eslint-disable react-hooks/set-state-in-effect -- refresh selected node when props.nodes updates */
   useEffect(() => {
     setInternalSelected((prev) => {
@@ -973,6 +1171,7 @@ export default function InvestigationBoard({
         @keyframes glowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
         @keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
         @keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+        @keyframes ol-fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
       <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 14 }}>
         <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#00ff88", letterSpacing: 3 }}>
@@ -1039,7 +1238,7 @@ export default function InvestigationBoard({
         </div>
       </div>
 
-      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+      <div ref={boardRef} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.3 }}>
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -1049,6 +1248,73 @@ export default function InvestigationBoard({
           <rect width="100%" height="100%" fill="url(#grid)" />
         </svg>
         <div style={{ position: "absolute", left: 0, right: 0, height: 2, top: scanLine, background: "rgba(0,255,136,0.04)", zIndex: 5 }} />
+        <div
+          data-share-ignore
+          style={{
+            position: "absolute",
+            top: 12,
+            right: internalSelected ? 316 : 12,
+            zIndex: 20,
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+          }}
+        >
+          {shareToast ? (
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: 9,
+                color: "#00ff88",
+                background: "rgba(5,12,7,0.95)",
+                border: "1px solid #00bb66",
+                borderRadius: 3,
+                padding: "5px 12px",
+                letterSpacing: 1,
+                whiteSpace: "nowrap",
+                animation: "ol-fadein 0.2s ease",
+              }}
+            >
+              {shareToast}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            data-share-ignore
+            onClick={captureAndShare}
+            disabled={sharing}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              background: "rgba(5,12,7,0.92)",
+              border: "1px solid #1a3320",
+              borderRadius: 3,
+              color: "#5a8068",
+              fontFamily: "var(--font-raj), sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 2,
+              cursor: sharing ? "not-allowed" : "pointer",
+              transition: "all 0.15s",
+              backdropFilter: "blur(4px)",
+              opacity: sharing ? 0.6 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!sharing) {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
+                (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+              }
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
+              (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+            }}
+          >
+            {sharing ? "CAPTURING..." : "◈ SHARE ↗"}
+          </button>
+        </div>
         {/* Zoom controls */}
         <div style={{ position: "absolute", bottom: 16, left: internalSelected ? "auto" : 16, right: internalSelected ? "316px" : "auto", zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
           {[

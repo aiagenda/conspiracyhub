@@ -60,6 +60,39 @@ interface Doc {
   description: string;
 }
 
+/** Optional per-person primary source + quote (extend when adding notable witnesses). */
+const TESTIMONY_SOURCES: Record<string, { source: string; url: string; excerpt: string }> = {};
+
+const DOC_EXCERPTS: Record<string, string> = {
+  flir1:
+    "The object appeared to be approximately 40 feet long, had no wings, no rotors, no exhaust plume. It was white, oblong, and moved in ways that defied conventional aerodynamics.",
+  gimbal: "Look at that thing, dude! It's rotating! My gosh! They're all going against the wind. The wind's 120 knots to the west. Look at that thing!",
+  gofast: "Wow, what is that man? Look at it fly!",
+  uaptf2021:
+    "Of the 144 UAP reports we are dealing with here, we have no clear indications that there is any non-terrestrial explanation — but we cannot rule that out.",
+  aaro2024v1:
+    "AARO has found no verifiable evidence for the claims that the U.S. government is hiding extraterrestrial technology and beings from Congress.",
+  pbb: "Of the total 12,618 sightings reported to Project Blue Book, 701 remain listed as unidentified after all analysis was exhausted.",
+  ciaufo:
+    "Some of these phenomena defy analysis of available data. Flight characteristics are inconsistent with known aircraft or natural phenomena.",
+  fbivault:
+    "Three so-called flying saucers had been recovered in New Mexico. Each one was occupied by three bodies of human shape but only 3 feet tall, dressed in metallic cloth.",
+  hottel:
+    "Three so-called flying saucers had been recovered in New Mexico. They were described as being circular in shape with raised centers, approximately 50 feet in diameter.",
+  dia_reports:
+    "The body of the report describes anomalous phenomena including transmedium travel and biologics related to non-human intelligence.",
+  grusch_testimony:
+    "I was informed in the course of my official duties of a multi-decade UAP crash retrieval and reverse-engineering program to which I was denied access.",
+  ndaa2024_uap:
+    "The Secretary of Defense shall declassify and make available to the public records relating to unidentified aerial phenomena within 25 years.",
+  grusch_ig:
+    "The Inspector General found Mr. Grusch's complaint to be credible and urgent — alleging U.S. possession of non-human intelligence and associated biologics.",
+  french_cometa:
+    "COMETA concludes that UFOs are real, material objects of unexplained origin. The extraterrestrial hypothesis is the most scientifically coherent explanation.",
+  uk_mod:
+    "The MoD received numerous reports of UAP which remain unexplained after analysis. Some reports include structured craft with extraordinary performance characteristics.",
+};
+
 function safeHostname(url: string): string {
   const t = url.trim();
   if (!t) return "source";
@@ -167,6 +200,7 @@ function buildBoardData(
     const dist = ringRadius(210, si, incident.id);
     const x = cx + dist * Math.cos(angle);
     const y = cy + dist * Math.sin(angle);
+    const ts = TESTIMONY_SOURCES[p.id];
     nodes.push({
       id: p.id,
       type: "person",
@@ -177,10 +211,11 @@ function buildBoardData(
       detail: {
         title: p.name,
         body: p.bio,
-        source: p.affiliation,
-        source_url: undefined,
+        source: ts?.source ?? p.affiliation,
+        source_url: ts?.url,
+        excerpt: ts?.excerpt,
         source_tier: "A",
-        source_type: "official",
+        source_type: ts ? "testimony" : "official",
         threat: p.clearance.includes("TS") ? 70 : 45,
         why_it_matters: `${p.role} — Clearance: ${p.clearance}`,
         key_claims: [`${p.name} is ${p.role}`, `Affiliated with ${p.affiliation}`],
@@ -252,8 +287,9 @@ function buildBoardData(
         body: d.description,
         source: `${d.type} (${d.year})`,
         source_url: d.url,
+        excerpt: DOC_EXCERPTS[d.id],
         source_tier: d.classification === "DECLASSIFIED" ? "A" : "B",
-        source_type: "official",
+        source_type: d.type === "Testimony" ? "testimony" : "official",
         threat: d.classification === "DECLASSIFIED" ? 60 : 40,
         why_it_matters: `${d.classification} ${d.type} from ${d.year}`,
         key_claims: [d.description.slice(0, 80)],

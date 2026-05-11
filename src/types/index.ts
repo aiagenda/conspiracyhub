@@ -5,9 +5,11 @@ export interface NodeDetail {
   body: string;
   source: string;
   threat: number;
+  /** Direct quote or key passage from the primary source (Oracle / board). */
+  excerpt?: string;
   source_url?: string;
   source_tier?: "A" | "B" | "C";
-  source_type?: "official" | "media" | "research" | "archive";
+  source_type?: "official" | "media" | "research" | "archive" | "testimony";
   why_it_matters?: string;
   key_claims?: string[];
   uncertainties?: string[];
@@ -75,7 +77,7 @@ export interface OracleSource {
   url: string;
   domain: string;
   tier: "A" | "B" | "C";
-  source_type: "official" | "media" | "research" | "archive";
+  source_type: "official" | "media" | "research" | "archive" | "testimony";
   excerpt?: string;
 }
 
@@ -87,6 +89,14 @@ export interface OracleAnalysis {
   sources?: OracleSource[];
   theories: OracleTheory[];
   conclusion: string;
-  verdict: "TRUE" | "PARTIALLY_TRUE" | "QUESTIONABLE" | "DISINFORMATION";
+  verdict:
+    | "TRUE"
+    | "PARTIALLY_TRUE"
+    | "QUESTIONABLE"
+    | "DISINFORMATION"
+    | "VALÓS"
+    | "RÉSZBEN VALÓS"
+    | "MEGKÉRDŐJELEZHETŐ"
+    | "TERJESZTETT DEZINFO";
   created_at?: string;
 }

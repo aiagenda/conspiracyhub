@@ -17,7 +17,8 @@ Return a JSON object with these fields:
      * source (citation text, e.g. "USPTO Patent #10,966,620")
      * source_url (real absolute URL — USPTO, CIA FOIA, gov site, news, etc.)
      * source_tier ("A" = official/primary, "B" = major media/research, "C" = context only)
-     * source_type ("official" | "media" | "research" | "archive")
+     * source_type ("official" | "media" | "research" | "archive" | "testimony")
+     * excerpt (MANDATORY): 1-3 sentences — a direct quote or the most specific factual claim from the source with attribution (patent claim language, FOIA line, headline + key sentence, testimony quote). If no verbatim quote, use the most specific attributed factual claim.
      * why_it_matters (1-2 sentences)
      * key_claims (array, 2-4 items)
      * uncertainties (array, 1-3 items)
@@ -52,6 +53,7 @@ Return a JSON object with these fields:
 6. verdict — exactly one of these English tokens (use these strings only): TRUE | PARTIALLY_TRUE | QUESTIONABLE | DISINFORMATION
 
 CRITICAL RULES:
+- excerpt is required on every node so readers can verify claims against the cited material.
 - Every source_url must be a real, working absolute URL (https://...)
 - Theory sources must be real URLs (Wikipedia articles, declassified docs, academic papers, reputable news)
 - Do NOT invent URLs — if unsure, use Wikipedia or a real news source that covers the topic
