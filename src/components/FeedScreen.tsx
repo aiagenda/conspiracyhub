@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthModal from "@/components/AuthModal";
@@ -8,6 +8,7 @@ import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
 
 const TICKER_ITEMS = [
   "▸ AI-FILTERED CONSPIRACY FEED — LIVE",
@@ -25,6 +26,22 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
   const [showAuth, setShowAuth] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const router = useRouter();
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set(typeof window !== "undefined" ? getReadIds() : []));
+
+  useEffect(() => {
+    function sync() {
+      setReadIds(new Set(getReadIds()));
+    }
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener(READ_ARTICLES_EVENT, sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener(READ_ARTICLES_EVENT, sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   const sections = useMemo(
     () => ["all", ...new Set(initialItems.map((i) => i.section))],
@@ -185,8 +202,8 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           {/* NEWS GRID */}
           {visible.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1.25rem" }}>
-              {visible.map((item) => (
-                <NewsCard key={item.id} item={item} onAnalyze={analyze} />
+              {visible.map((item, idx) => (
+                <NewsCard key={item.id} item={item} read={readIds.has(item.id)} onAnalyze={analyze} priority={idx < 3} />
               ))}
             </div>
           )}

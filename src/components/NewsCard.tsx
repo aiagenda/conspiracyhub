@@ -21,23 +21,38 @@ export default function NewsCard({
   item,
   onAnalyze,
   priority = false,
+  read = false,
 }: {
   item: NewsItem;
   onAnalyze: (item: NewsItem) => void;
   /** First visible cards: improves LCP when image is above the fold */
   priority?: boolean;
+  /** User opened /article/[id] in this browser */
+  read?: boolean;
 }) {
   const color = scoreColor(item.score);
+  const borderIdle = read ? "#1a4030" : "#1a3320";
+  const borderHover = read ? "#2a6048" : "#2a4a30";
 
   return (
     <div
       className="animate-fade-slide-in"
-      style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden", display: "flex", flexDirection: "column", transition: "border-color 0.2s" }}
+      style={{
+        border: `1px solid ${borderIdle}`,
+        borderRadius: 4,
+        background: read ? "rgba(7,14,10,0.95)" : "#090f0b",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        transition: "border-color 0.2s, opacity 0.2s",
+        opacity: read ? 0.88 : 1,
+        boxShadow: read ? "inset 0 0 0 1px rgba(0,187,102,0.06)" : undefined,
+      }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#2a4a30";
+        (e.currentTarget as HTMLDivElement).style.borderColor = borderHover;
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#1a3320";
+        (e.currentTarget as HTMLDivElement).style.borderColor = borderIdle;
       }}
     >
       {/* ── Card header: image OR styled placeholder ───────────────── */}
@@ -79,9 +94,24 @@ export default function NewsCard({
           <div style={{ position: "absolute", bottom: 8, left: 10, fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
             {item.section} · {timeAgo(item.date)}
           </div>
-          {/* READ ARTICLE badge */}
-          <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(5,12,7,0.75)", border: "1px solid #1a3320", borderRadius: 2, padding: "2px 7px", fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>
-            READ ARTICLE
+          {/* READ / VIEWED badge */}
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              background: read ? "rgba(0,40,28,0.85)" : "rgba(5,12,7,0.75)",
+              border: read ? "1px solid rgba(0,187,102,0.45)" : "1px solid #1a3320",
+              borderRadius: 2,
+              padding: "2px 7px",
+              fontSize: 10,
+              color: read ? "#6bc46b" : "#5a8068",
+              letterSpacing: 1,
+              fontFamily: "var(--font-raj), sans-serif",
+              fontWeight: 700,
+            }}
+          >
+            {read ? "✓ VIEWED" : "READ ARTICLE"}
           </div>
         </div>
       </a>
@@ -94,7 +124,7 @@ export default function NewsCard({
               fontFamily: "var(--font-raj), sans-serif",
               fontSize: 17,
               fontWeight: 700,
-              color: "#e8ffe8",
+              color: read ? "#a8c8b0" : "#e8ffe8",
               lineHeight: 1.35,
               margin: 0,
               transition: "color 0.15s",
@@ -103,7 +133,7 @@ export default function NewsCard({
               (e.currentTarget as HTMLHeadingElement).style.color = "#00ff88";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLHeadingElement).style.color = "#e8ffe8";
+              (e.currentTarget as HTMLHeadingElement).style.color = read ? "#a8c8b0" : "#e8ffe8";
             }}
           >
             {item.title}

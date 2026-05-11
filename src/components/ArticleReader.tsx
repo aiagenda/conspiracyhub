@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { markArticleRead } from "@/lib/readArticles";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -244,6 +245,10 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
   const [hlError, setHlError]         = useState("");
   const [legendOpen, setLegendOpen]   = useState(true);
   const [filterCat, setFilterCat]     = useState<string | null>(null);
+
+  useEffect(() => {
+    markArticleRead(item.id);
+  }, [item.id]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- highlights fetch lifecycle */
   useEffect(() => {
