@@ -2,10 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const ADMIN_SECRET =
-  typeof window !== "undefined"
-    ? (localStorage.getItem("admin_secret") ?? "")
-    : "";
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
 interface Stats {
   pageViews: { last24h: number; last7d: number; last30d: number };
@@ -77,8 +74,6 @@ function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [secret, setSecret] = useState(ADMIN_SECRET);
-  const [savedSecret, setSavedSecret] = useState(ADMIN_SECRET);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -89,16 +84,10 @@ export default function AdminPage() {
   const [msgPage, setMsgPage] = useState(1);
   const [msgTotal, setMsgTotal] = useState(0);
 
-  const hdrs = useCallback(
-    () => ({ "Content-Type": "application/json", "x-admin-secret": savedSecret }),
-    [savedSecret],
-  );
-
   const loadStats = useCallback(async () => {
-    if (!savedSecret) return;
     setLoading(true); setErr("");
     try {
-      const res = await fetch("/api/admin/stats", { headers: hdrs() });
+      const res = await fetch("/api/admin/stats");
       if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
       setStats(await res.json());
     } catch (e: unknown) {
@@ -106,23 +95,25 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [savedSecret, hdrs]);
+  }, []);
 
   const loadMessages = useCallback(async (page = 1) => {
-    if (!savedSecret) return;
-    const res = await fetch(`/api/admin/messages?page=${page}`, { headers: hdrs() });
+    const res = await fetch(`/api/admin/messages?page=${page}`);
     if (!res.ok) return;
     const d = await res.json();
     setMessages(d.messages ?? []);
     setMsgTotal(d.total ?? 0);
     setMsgPage(page);
-  }, [savedSecret, hdrs]);
+  }, []);
 
-  useEffect(() => { if (savedSecret) { loadStats(); loadMessages(); } }, [savedSecret, loadStats, loadMessages]);
+  useEffect(() => {
+    loadStats();
+    loadMessages();
+  }, [loadStats, loadMessages]);
 
   async function markRead(id: string, read: boolean) {
     await fetch("/api/admin/messages", {
-      method: "PATCH", headers: hdrs(),
+      method: "PATCH", headers: JSON_HEADERS,
       body: JSON.stringify({ id, read }),
     });
     setMessages((ms) => ms.map((m) => m.id === id ? { ...m, read } : m));
@@ -133,7 +124,7 @@ export default function AdminPage() {
   async function deleteMsg(id: string) {
     if (!confirm("Delete this message?")) return;
     await fetch("/api/admin/messages", {
-      method: "DELETE", headers: hdrs(),
+      method: "DELETE", headers: JSON_HEADERS,
       body: JSON.stringify({ id }),
     });
     setMessages((ms) => ms.filter((m) => m.id !== id));
@@ -141,40 +132,7 @@ export default function AdminPage() {
     loadStats();
   }
 
-  function saveSecret() {
-    localStorage.setItem("admin_secret", secret);
-    setSavedSecret(secret);
-  }
-
   const displayed = msgsTab === "unread" ? messages.filter((m) => !m.read) : messages;
-
-  // ── Login screen ─────────────────────────────────────────────────────────
-  if (!savedSecret) {
-    return (
-      <div style={{ minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ ...card, width: 360 }}>
-          <h2 style={{ margin: "0 0 20px", fontSize: 18, color: "#e8e8e8" }}>Admin Access</h2>
-          <input
-            type="password" value={secret} onChange={(e) => setSecret(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && saveSecret()}
-            placeholder="Admin secret…"
-            style={{
-              width: "100%", boxSizing: "border-box",
-              background: "#0a0a0a", border: "1px solid #2a2a2a",
-              borderRadius: 6, padding: "10px 14px", color: "#e8e8e8", fontSize: 14,
-            }}
-          />
-          <button onClick={saveSecret} style={{
-            marginTop: 14, width: "100%", padding: "10px", background: "#1e3a1e",
-            border: "1px solid #2a5a2a", borderRadius: 7, color: "#6bc46b",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}>
-            Unlock
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // ── Main dashboard ────────────────────────────────────────────────────────
   return (
@@ -185,20 +143,16 @@ export default function AdminPage() {
           <p style={{ margin: "0 0 4px", fontSize: 10, letterSpacing: "0.12em", color: "#444", textTransform: "uppercase" }}>ConspiracyHub</p>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#e8e8e8" }}>Admin Dashboard</h1>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={loadStats} disabled={loading} style={{
+        <button
+          onClick={() => { void loadStats(); void loadMessages(msgPage); }}
+          disabled={loading}
+          style={{
             padding: "8px 16px", background: "transparent", border: "1px solid #2a2a2a",
             borderRadius: 6, color: "#666", fontSize: 11, cursor: "pointer",
-          }}>
-            {loading ? "Refreshing…" : "↻ Refresh"}
-          </button>
-          <button onClick={() => { setSavedSecret(""); localStorage.removeItem("admin_secret"); }} style={{
-            padding: "8px 16px", background: "transparent", border: "1px solid #3a1a1a",
-            borderRadius: 6, color: "#664", fontSize: 11, cursor: "pointer",
-          }}>
-            Log out
-          </button>
-        </div>
+          }}
+        >
+          {loading ? "Refreshing…" : "↻ Refresh"}
+        </button>
       </div>
 
       {err && (

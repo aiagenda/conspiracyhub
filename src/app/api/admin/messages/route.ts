@@ -8,14 +8,8 @@ function admin() {
   );
 }
 
-function isAdmin(req: NextRequest) {
-  return req.headers.get("x-admin-secret") === process.env.ADMIN_SECRET;
-}
-
-// GET all messages (paginated)
+// GET all messages (paginated) — open for now; protect with auth before production.
 export async function GET(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);
   const limit = 30;
@@ -33,8 +27,6 @@ export async function GET(req: NextRequest) {
 
 // PATCH mark as read
 export async function PATCH(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id, read } = await req.json() as { id: string; read: boolean };
   const { error } = await admin()
     .from("contact_messages")
@@ -47,8 +39,6 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE a message
 export async function DELETE(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await req.json() as { id: string };
   const { error } = await admin().from("contact_messages").delete().eq("id", id);
 

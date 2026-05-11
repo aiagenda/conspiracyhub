@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 function admin() {
@@ -8,16 +8,8 @@ function admin() {
   );
 }
 
-async function isAdmin(req: NextRequest): Promise<boolean> {
-  const secret = req.headers.get("x-admin-secret");
-  return secret === process.env.ADMIN_SECRET;
-}
-
-export async function GET(req: NextRequest) {
-  if (!(await isAdmin(req))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+/** Open access for now — re-enable ADMIN_SECRET check before production hardening. */
+export async function GET() {
   const db = admin();
   const now = Date.now();
   const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
