@@ -6,6 +6,7 @@ import SiteNav from "@/components/SiteNav";
 import ReferenceDocumentIndex from "@/components/ReferenceDocumentIndex";
 import { normalizeVerdict } from "@/lib/verdict";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ = "var(--font-raj), sans-serif";
@@ -134,10 +135,10 @@ export default function SearchPage() {
     background: "#090f0b",
     border: "1px solid #1a3320",
     borderRadius: 3,
-    padding: "10px 14px",
+    padding: "12px 16px",
     color: "#00ff88",
     fontFamily: FONT,
-    fontSize: 13,
+    fontSize: 15,
     outline: "none",
     flex: 1,
     transition: "border-color 0.2s",
@@ -146,7 +147,7 @@ export default function SearchPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
+      <div style={{ position: "relative", zIndex: 1, ...pageContentShellStyle() }}>
 
         <div
           style={{
@@ -161,14 +162,14 @@ export default function SearchPage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", minWidth: 0 }}>
-            <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "5px 10px", borderRadius: 3 }}>
+            <Link href="/" style={{ fontSize: 11, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "6px 12px", borderRadius: 3 }}>
               ← FEED
             </Link>
             <div>
-              <div style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
+              <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
                 THE THEORIST — INTELLIGENCE SEARCH
               </div>
-              <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: "#5a8068", letterSpacing: 2, marginTop: 2 }}>
                 CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS · REFERENCE INDEX
               </div>
             </div>
@@ -188,11 +189,11 @@ export default function SearchPage() {
               onClick={() => setTab(t.key as "search" | "url" | "index")}
               style={{
                 fontFamily: RAJ,
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 700,
                 letterSpacing: 2,
                 textTransform: "uppercase",
-                padding: "8px 18px",
+                padding: "9px 20px",
                 borderRadius: 3,
                 cursor: "pointer",
                 border: `1px solid ${tab === t.key ? "#00bb66" : "#1a3320"}`,
@@ -227,11 +228,11 @@ export default function SearchPage() {
                 disabled={searching}
                 style={{
                   fontFamily: RAJ,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 700,
                   letterSpacing: 2,
                   textTransform: "uppercase",
-                  padding: "10px 20px",
+                  padding: "11px 22px",
                   borderRadius: 3,
                   border: "1px solid #00bb66",
                   background: "transparent",
@@ -253,11 +254,11 @@ export default function SearchPage() {
                     onClick={() => setTypeFilter(f.value)}
                     style={{
                       fontFamily: RAJ,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 700,
                       letterSpacing: 1,
                       textTransform: "uppercase",
-                      padding: "4px 10px",
+                      padding: "5px 12px",
                       borderRadius: 2,
                       cursor: "pointer",
                       border: `1px solid ${typeFilter === f.value ? "#00bb66" : "#1a3320"}`,
@@ -278,11 +279,11 @@ export default function SearchPage() {
                     onClick={() => setThreatFilter(f.value)}
                     style={{
                       fontFamily: RAJ,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 700,
                       letterSpacing: 1,
                       textTransform: "uppercase",
-                      padding: "4px 10px",
+                      padding: "5px 12px",
                       borderRadius: 2,
                       cursor: "pointer",
                       border: `1px solid ${threatFilter === f.value ? "#ffaa00" : "#1a3320"}`,
@@ -298,7 +299,7 @@ export default function SearchPage() {
 
             {!results && !searching && (
               <div style={{ marginBottom: "2rem" }}>
-                <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                <div style={{ fontSize: 10, color: "#3a5040", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
                   ◈ BROWSE — POPULAR TOPICS
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -311,8 +312,8 @@ export default function SearchPage() {
                         doSearch(t);
                       }}
                       style={{
-                        fontSize: 10,
-                        padding: "5px 12px",
+                        fontSize: 12,
+                        padding: "6px 14px",
                         border: "1px solid #1a3320",
                         borderRadius: 20,
                         color: "#5a8068",
@@ -339,7 +340,7 @@ export default function SearchPage() {
             )}
 
             {searching && (
-              <div style={{ textAlign: "center", padding: "3rem 0", color: "#00bb66", fontSize: 11, letterSpacing: 2 }}>
+              <div style={{ textAlign: "center", padding: "3rem 0", color: "#00bb66", fontSize: 12, letterSpacing: 2 }}>
                 <div style={{ marginBottom: 16 }}>[ SCANNING INTELLIGENCE DATABASES... ]</div>
                 {[
                   "> Cross-referencing CIA FOIA archives...",
@@ -355,7 +356,7 @@ export default function SearchPage() {
             )}
 
             {searchError && (
-              <div style={{ padding: 12, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 11, marginBottom: "1rem" }}>
+              <div style={{ padding: 14, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 12, marginBottom: "1rem" }}>
                 [ERROR] {searchError}
               </div>
             )}
@@ -364,7 +365,7 @@ export default function SearchPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                 {results.news.length > 0 && (
                   <section>
-                    <div style={{ fontSize: 9, color: "#00bb66", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
+                    <div style={{ fontSize: 10, color: "#00bb66", letterSpacing: 3, marginBottom: 10, textTransform: "uppercase" }}>
                       ◈ MATCHING ARTICLES IN FEED ({results.news.length})
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
@@ -552,14 +553,14 @@ export default function SearchPage() {
                 border: "1px solid rgba(255,170,0,0.2)",
                 borderRadius: 3,
                 background: "rgba(255,170,0,0.03)",
-                fontSize: 11,
+                fontSize: 13,
                 color: "#7a6a40",
                 lineHeight: 1.7,
               }}
             >
               Paste a news article, blog post, or a public social link (X/Twitter, Reddit, Bluesky, Threads). Short links{" "}
-              <span style={{ fontFamily: FONT, fontSize: 10, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 5px", borderRadius: 2 }}>t.co</span> /{" "}
-              <span style={{ fontFamily: FONT, fontSize: 10, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 5px", borderRadius: 2 }}>redd.it</span> are expanded automatically. Reddit uses the JSON API; X and Threads use oEmbed; Bluesky uses the public ATProto API. YouTube gets title/channel via oEmbed only (no transcript). Facebook and private or login-gated posts may still fail. The Theorist then runs Oracle on the extracted text.{" "}
+              <span style={{ fontFamily: FONT, fontSize: 11, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 6px", borderRadius: 2 }}>t.co</span> /{" "}
+              <span style={{ fontFamily: FONT, fontSize: 11, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 6px", borderRadius: 2 }}>redd.it</span> are expanded automatically. Reddit uses the JSON API; X and Threads use oEmbed; Bluesky uses the public ATProto API. YouTube gets title/channel via oEmbed only (no transcript). Facebook and private or login-gated posts may still fail. The Theorist then runs Oracle on the extracted text.{" "}
               <strong style={{ color: "#ffaa00" }}>Pro feature.</strong>
             </div>
 
@@ -583,11 +584,11 @@ export default function SearchPage() {
                 disabled={urlLoading}
                 style={{
                   fontFamily: RAJ,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 700,
                   letterSpacing: 2,
                   textTransform: "uppercase",
-                  padding: "10px 20px",
+                  padding: "11px 22px",
                   borderRadius: 3,
                   border: "1px solid #ffaa00",
                   background: "transparent",
@@ -601,7 +602,7 @@ export default function SearchPage() {
             </div>
 
             {urlLoading && (
-              <div style={{ textAlign: "center", padding: "2rem 0", color: "#ffaa00", fontSize: 11, letterSpacing: 2 }}>
+              <div style={{ textAlign: "center", padding: "2rem 0", color: "#ffaa00", fontSize: 12, letterSpacing: 2 }}>
                 <div style={{ marginBottom: 12 }}>[ SCRAPING + ANALYZING URL... ]</div>
                 {[
                   "> Fetching article content...",
@@ -617,10 +618,10 @@ export default function SearchPage() {
             )}
 
             {urlError && (
-              <div style={{ padding: 12, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 11, marginBottom: "1rem" }}>
+              <div style={{ padding: 14, border: "1px solid rgba(255,51,51,0.3)", borderRadius: 3, color: "#ff3333", fontSize: 12, marginBottom: "1rem" }}>
                 [ERROR] {urlError}
                 {urlError.includes("Sign in") ? (
-                  <div style={{ marginTop: 8, fontSize: 10, color: "#5a2020" }}>
+                  <div style={{ marginTop: 8, fontSize: 11, color: "#5a2020" }}>
                     URL analysis requires a Pro account. Sign in and upgrade from the feed page.
                   </div>
                 ) : null}

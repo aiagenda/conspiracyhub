@@ -5,6 +5,7 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import Link from "next/link";
 import Image from "next/image";
 import type { NewsItem } from "@/types";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -319,7 +320,14 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
           </div>
         </div>
 
-        <div style={{ maxWidth: 1520, margin: "0 auto", padding: "2rem clamp(1rem, 3vw, 2rem) 6rem", display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 320px)", gap: "clamp(1.25rem, 3vw, 2.5rem)" }}>
+        <div
+          style={{
+            ...pageContentShellStyle({ padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem" }),
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 340px)",
+            gap: "clamp(1.25rem, 3vw, 2.5rem)",
+          }}
+        >
 
           {/* MAIN ARTICLE */}
           <div>

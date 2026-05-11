@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import Link from "next/link";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -569,7 +570,7 @@ export default function CommunityBoard() {
           </div>
         </div>
 
-        <div style={{ maxWidth: 1520, margin: "0 auto", padding: "1.5rem 1.25rem 4rem" }}>
+        <div style={pageContentShellStyle()}>
 
           {/* HEADER */}
           <div style={{ marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ = "var(--font-raj), sans-serif";
@@ -152,10 +153,10 @@ function GuideSection({ section, open, onToggle }: { section: Section; open: boo
         }}
       >
         <span style={{ fontSize: 16 }}>{section.icon}</span>
-        <span style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: open ? section.color : "#c8e8d0", letterSpacing: 2, textTransform: "uppercase", flex: 1, textAlign: "left" }}>
+        <span style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: open ? section.color : "#c8e8d0", letterSpacing: 2, textTransform: "uppercase", flex: 1, textAlign: "left" }}>
           {section.title}
         </span>
-        <span style={{ fontFamily: FONT, fontSize: 10, color: open ? section.color : "#3a5040", letterSpacing: 1 }}>{open ? "[ − CLOSE ]" : "[ + OPEN ]"}</span>
+        <span style={{ fontFamily: FONT, fontSize: 11, color: open ? section.color : "#3a5040", letterSpacing: 1 }}>{open ? "[ − CLOSE ]" : "[ + OPEN ]"}</span>
       </button>
 
       {open && (
@@ -172,24 +173,24 @@ function GuideSection({ section, open, onToggle }: { section: Section; open: boo
 function Row({ label, color, children }: { label: string; color?: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
-      <span style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, color: color ?? "#00ff88", border: `1px solid ${color ?? "#00ff88"}`, padding: "2px 8px", borderRadius: 2, letterSpacing: 1, flexShrink: 0, whiteSpace: "nowrap", alignSelf: "flex-start", marginTop: 1 }}>
+      <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: color ?? "#00ff88", border: `1px solid ${color ?? "#00ff88"}`, padding: "2px 8px", borderRadius: 2, letterSpacing: 1, flexShrink: 0, whiteSpace: "nowrap", alignSelf: "flex-start", marginTop: 1 }}>
         {label}
       </span>
-      <span style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75 }}>{children}</span>
+      <span style={{ fontFamily: FONT, fontSize: 13, color: "#7aaa8a", lineHeight: 1.75 }}>{children}</span>
     </div>
   );
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.8, margin: "0 0 10px" }}>{children}</p>;
+  return <p style={{ fontFamily: FONT, fontSize: 13, color: "#7aaa8a", lineHeight: 1.8, margin: "0 0 10px" }}>{children}</p>;
 }
 
 function H({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: "#c8e8d0", letterSpacing: 2, marginBottom: 8, marginTop: 16, textTransform: "uppercase" }}>{children}</div>;
+  return <div style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#c8e8d0", letterSpacing: 2, marginBottom: 8, marginTop: 16, textTransform: "uppercase" }}>{children}</div>;
 }
 
 function InlineCode({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontFamily: FONT, fontSize: 10, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 5px", borderRadius: 2 }}>{children}</span>;
+  return <span style={{ fontFamily: FONT, fontSize: 11, color: "#00ff88", background: "rgba(0,255,136,0.07)", padding: "1px 6px", borderRadius: 2 }}>{children}</span>;
 }
 
 // ── Sections content ─────────────────────────────────────────────
@@ -467,15 +468,15 @@ export default function GuidePage() {
           <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>PLATFORM GUIDE</div>
         </div>
 
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem 1.25rem 5rem" }}>
+        <div style={pageContentShellStyle({ paddingBottom: "5rem" })}>
 
           {/* HEADER */}
           <div style={{ marginBottom: "2rem", paddingBottom: "1.25rem", borderBottom: "1px solid #1a3320" }}>
             <div style={{ fontFamily: RAJ, fontSize: 9, letterSpacing: 5, color: "#3a5040", marginBottom: 6, textTransform: "uppercase" }}>■ INTELLIGENCE PLATFORM DOCUMENTATION ■</div>
-            <h1 style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: "#00ff88", letterSpacing: 2, margin: "0 0 8px", textShadow: "0 0 20px rgba(0,255,136,0.2)" }}>
+            <h1 style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#00ff88", letterSpacing: 2, margin: "0 0 8px", textShadow: "0 0 20px rgba(0,255,136,0.2)" }}>
               Platform Guide
             </h1>
-            <div style={{ fontSize: 11, color: "#5a8068", lineHeight: 1.8, maxWidth: 620 }}>
+            <div style={{ fontSize: 13, color: "#5a8068", lineHeight: 1.8, maxWidth: "100%" }}>
               Click a section header to expand the full explanation and visual illustration.
             </div>
 

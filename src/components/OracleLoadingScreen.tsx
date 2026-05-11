@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ = "var(--font-raj), sans-serif";
@@ -103,12 +104,10 @@ export default function OracleLoadingScreen() {
         style={{
           position: "relative",
           zIndex: 1,
-          maxWidth: 1100,
-          margin: "0 auto",
+          ...pageContentShellStyle(),
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
-          padding: "2rem 1.5rem",
           gap: "3rem",
         }}
       >

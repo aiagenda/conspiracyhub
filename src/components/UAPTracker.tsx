@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -368,7 +369,7 @@ export default function UAPTracker() {
           <div style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>FOIA · PENTAGON · CONGRESS · {new Date(data.generated_at).toLocaleTimeString()}</div>
         </div>
 
-        <div style={{maxWidth:1520,margin:"0 auto",padding:"1.75rem clamp(1rem,3vw,2rem) 4rem"}}>
+        <div style={pageContentShellStyle()}>
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>

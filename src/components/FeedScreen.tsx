@@ -7,6 +7,7 @@ import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
 import type { NewsItem } from "@/types";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const TICKER_ITEMS = [
   "▸ AI-FILTERED CONSPIRACY FEED — LIVE",
@@ -133,7 +134,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
         </div>
 
         {/* MAIN CONTENT */}
-        <div style={{ maxWidth: 1520, margin: "0 auto", padding: "1.75rem clamp(1rem, 3vw, 2rem) 4rem" }}>
+        <div style={pageContentShellStyle()}>
 
           {/* PAGE HEADER */}
           <div style={{ textAlign: "center", marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid #1a3320" }}>

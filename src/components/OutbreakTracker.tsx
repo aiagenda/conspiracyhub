@@ -5,6 +5,7 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
+import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -81,7 +82,7 @@ function OutbreakLoadingScreen() {
         .ob-log{animation:ob-fadein 0.3s ease forwards}
       `}</style>
 
-      <div style={{maxWidth:900,width:"100%",padding:"0 2rem",display:"grid",gridTemplateColumns:"1fr 380px",gap:"3rem",alignItems:"center"}}>
+      <div style={{maxWidth:1520,width:"100%",padding:"0 clamp(1rem, 3vw, 2rem)",display:"grid",gridTemplateColumns:"1fr minmax(280px, 380px)",gap:"3rem",alignItems:"center"}}>
         {/* LEFT: terminal */}
         <div>
           <div style={{fontFamily:RAJ,fontSize:10,fontWeight:700,color:"#1a4a2a",letterSpacing:5,marginBottom:6,textTransform:"uppercase"}}>■ GLOBAL DISEASE SURVEILLANCE ■</div>
@@ -496,13 +497,13 @@ export default function OutbreakTracker() {
           </div>
         </div>
 
-        <div style={{maxWidth:1200,margin:"0 auto",padding:"1.5rem 1.25rem 4rem"}}>
+        <div style={pageContentShellStyle()}>
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
-            <div style={{fontFamily:RAJ,fontSize:10,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ AI-POWERED GLOBAL DISEASE SURVEILLANCE ■</div>
-            <h1 style={{fontFamily:RAJ,fontSize:24,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>Outbreak Tracker</h1>
-            <div style={{fontSize:9,color:"#3a5040",letterSpacing:2}}>WHO FEED · LOCAL NEWS EARLY SIGNALS · CONSPIRACY PATTERN DETECTION · USPTO PATENTS</div>
+            <div style={{fontFamily:RAJ,fontSize:11,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ AI-POWERED GLOBAL DISEASE SURVEILLANCE ■</div>
+            <h1 style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>Outbreak Tracker</h1>
+            <div style={{fontSize:11,color:"#3a5040",letterSpacing:2}}>WHO FEED · LOCAL NEWS EARLY SIGNALS · CONSPIRACY PATTERN DETECTION · USPTO PATENTS</div>
           </div>
 
           {/* STATS */}
@@ -515,7 +516,7 @@ export default function OutbreakTracker() {
                 {label:"LOCAL NEWS FEEDS",value:outbreaks.reduce((a,o)=>a+(o.localNews?.length??0),0),col:"#00bb66"},
               ].map(({label,value,col})=>(
                 <div key={label} style={{border:"1px solid #1a3320",borderRadius:3,padding:"8px 14px",background:"#090f0b"}}>
-                  <div style={{fontSize:8,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
+                  <div style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
                   <div style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
                 </div>
               ))}
@@ -530,8 +531,8 @@ export default function OutbreakTracker() {
               {key:"high",label:"🔴 HIGH/CRITICAL RISK"},
             ].map(f=>(
               <button key={f.key} onClick={()=>setFilter(f.key as typeof filter)}
-                style={{fontFamily:RAJ,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",
-                  padding:"5px 12px",borderRadius:2,cursor:"pointer",
+                style={{fontFamily:RAJ,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",
+                  padding:"6px 14px",borderRadius:2,cursor:"pointer",
                   border:`1px solid ${filter===f.key?"#00bb66":"#1a3320"}`,
                   background:filter===f.key?"rgba(0,255,136,0.06)":"transparent",
                   color:filter===f.key?"#00ff88":"#5a8068"}}>
