@@ -26,9 +26,15 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div>
-      <div className="fixed top-4 left-4 z-50">
+      <div className="fixed top-4 left-4 z-50 flex flex-wrap gap-2">
+        <Link
+          href={`/article/${id}`}
+          className="px-3 py-2 border border-[#00bb66] text-[#00ff88] bg-[#050c07] text-xs font-semibold tracking-wide"
+        >
+          ← BACK TO ARTICLE
+        </Link>
         <Link href="/" className="px-3 py-2 border border-[#1a3320] text-[#5a8068] bg-[#050c07] text-xs">
-          ← BACK TO FEED
+          ← FEED
         </Link>
       </div>
       <BoardScreen news={news as NewsItem} initialAnalysis={(cached as OracleAnalysis | null) ?? null} />
