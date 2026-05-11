@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import InvestigationBoard from "@/components/InvestigationBoard";
+import VotePanel from "@/components/VotePanel";
 import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -391,18 +392,27 @@ export default function BoardScreen({
   };
 
   return (
-    <InvestigationBoard
-      nodes={nodes}
-      edges={edges}
-      selectedNode={selected ? safeSelected : null}
-      onNodeClick={handleNodeClick}
-      conclusion={analysis?.conclusion}
-      verdict={analysis?.verdict}
-      analysisSources={analysis?.sources}
-      articleTitle={news.title}
-      polymarketContext={buildBoardPolymarketContext(news, analysis)}
-      backHref={backHref}
-      backLabel={backLabel}
-    />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <InvestigationBoard
+          nodes={nodes}
+          edges={edges}
+          selectedNode={selected ? safeSelected : null}
+          onNodeClick={handleNodeClick}
+          conclusion={analysis?.conclusion}
+          verdict={analysis?.verdict}
+          analysisSources={analysis?.sources}
+          articleTitle={news.title}
+          polymarketContext={buildBoardPolymarketContext(news, analysis)}
+          backHref={backHref}
+          backLabel={backLabel}
+        />
+      </div>
+      {analysis && (
+        <div style={{ flexShrink: 0, padding: "0 1rem 1rem", maxWidth: 400, marginLeft: "auto", width: "100%" }}>
+          <VotePanel articleId={news.id} aiScore={news.score ?? 0} theories={analysis.theories?.slice(0, 3) ?? []} />
+        </div>
+      )}
+    </div>
   );
 }

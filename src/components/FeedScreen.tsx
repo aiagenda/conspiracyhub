@@ -55,6 +55,26 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <Link
+              href="/community"
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(0,187,102,0.35)",
+                color: "#00bb66",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                padding: "6px 14px",
+                borderRadius: 3,
+                cursor: "pointer",
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              ◈ COMMUNITY
+            </Link>
             <Link href="/search"
               style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
               ◈ SEARCH
