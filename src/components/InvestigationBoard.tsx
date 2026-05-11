@@ -43,6 +43,10 @@ type Props = {
   articleTitle?: string;
   /** Summary, body snippet, Oracle text — improves keyword match vs title-only */
   polymarketContext?: string;
+  /** If set, renders a back-link in the header bar (e.g. "/article/123") */
+  backHref?: string;
+  /** Label for the back-link; defaults to "← BACK" */
+  backLabel?: string;
 };
 
 function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
@@ -931,6 +935,8 @@ export default function InvestigationBoard({
   analysisSources,
   articleTitle,
   polymarketContext,
+  backHref,
+  backLabel = "← BACK",
 }: Props) {
   const [scanLine, setScanLine] = useState(0);
   const [glitch, setGlitch] = useState(false);
@@ -1174,10 +1180,32 @@ export default function InvestigationBoard({
         @keyframes ol-fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
       <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 14 }}>
-        <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#00ff88", letterSpacing: 3 }}>
+        {backHref && (
+          <>
+            <a
+              href={backHref}
+              style={{
+                fontSize: 10,
+                color: "#00ff88",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #00bb66",
+                padding: "4px 10px",
+                borderRadius: 3,
+                flexShrink: 0,
+                fontFamily: RAJ,
+                fontWeight: 700,
+              }}
+            >
+              {backLabel}
+            </a>
+            <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          </>
+        )}
+        <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#00ff88", letterSpacing: 3, flexShrink: 0 }}>
           {glitch ? "C0NSP1RACY 0RACLE" : "CONSPIRACY ORACLE"}
         </div>
-        <div style={{ width: 1, height: 20, background: "#1a3320" }} />
+        <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
         <div style={{ color: "#5a8068", fontSize: 10 }}>INVESTIGATION MODE</div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
           {[

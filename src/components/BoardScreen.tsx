@@ -321,9 +321,13 @@ function sanitizeEdges(edges: unknown, nodes: Node[]): Edge[] {
 export default function BoardScreen({
   news,
   initialAnalysis,
+  backHref,
+  backLabel,
 }: {
   news: NewsItem;
   initialAnalysis: OracleAnalysis | null;
+  backHref?: string;
+  backLabel?: string;
 }) {
   const [analysis, setAnalysis] = useState<OracleAnalysis | null>(initialAnalysis);
   const [selected, setSelected] = useState<Node | null>(analysis?.nodes?.[0] ?? MOCK_NODES[0]);
@@ -397,6 +401,8 @@ export default function BoardScreen({
       analysisSources={analysis?.sources}
       articleTitle={news.title}
       polymarketContext={buildBoardPolymarketContext(news, analysis)}
+      backHref={backHref}
+      backLabel={backLabel}
     />
   );
 }
