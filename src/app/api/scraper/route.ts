@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { SYSTEM_SCORE } from "@/lib/prompts";
 
+export const maxDuration = 300; // 5 min – Vercel Pro max for cron routes
+
 function getAdmin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 }
@@ -150,7 +152,7 @@ async function fetchGoogleNews(): Promise<Article[]> {
         const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
         const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
         const src = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
-        if (title && link && !/^https?:\/\/news\.google\.com/.test(link)) {
+        if (title && link && link.startsWith("http")) {
           const idBase = Buffer.from(link).toString("base64").slice(0, 32);
           results.push({
             guardian_id: `gnews-${idBase}`,
@@ -276,7 +278,8 @@ async function runScraper(openAiKey: string) {
     /* table missing handled below */
   }
 
-  const fresh = all.filter((a) => a.guardian_id && !existing.has(a.guardian_id));
+  // Cap at 60 new articles per run to stay within function timeout
+  const fresh = all.filter((a) => a.guardian_id && !existing.has(a.guardian_id)).slice(0, 60);
   console.log(`[scraper] ${fresh.length} new articles to score`);
 
   if (!fresh.length) {
