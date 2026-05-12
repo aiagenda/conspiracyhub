@@ -1056,6 +1056,11 @@ export default function AdminPage() {
               Vercel cron pings <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> once daily (09:00 UTC on Hobby).
               Each job’s cron should use the same minute and hour so both can run in that tick; use Run now anytime. Schedules are matched in{" "}
               <strong style={{ color: "var(--foreground)" }}>UTC</strong>; under each field you’ll see a plain-English summary.
+              <span className="mt-2 block text-[11px]" style={{ color: muted }}>
+                Runs need <code style={{ color: "var(--green-dim)" }}>CRON_SECRET</code> (news) and{" "}
+                <code style={{ color: "var(--green-dim)" }}>SCRAPER_SECRET</code> (UAP) on Vercel, plus{" "}
+                <code style={{ color: "var(--green-dim)" }}>OPENAI_API_KEY</code> for news scoring.
+              </span>
             </div>
             <div className="space-y-3">
               {scrapers.map((job) => {

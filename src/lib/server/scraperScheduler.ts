@@ -45,6 +45,42 @@ export function matchesCronNow(cronExpr: string, now = new Date()): boolean {
   return [min, hour, dom, mon, dow].every((part, idx) => match(part, vals[idx]));
 }
 
+/**
+ * Server-to-server scraper calls need an absolute origin.
+ * `NEXT_PUBLIC_APP_URL=""` would otherwise win over `VERCEL_URL` with `??` and break fetch URLs.
+ */
+function resolveAppBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_APP_URL;
+  const t = typeof raw === "string" ? raw.trim() : "";
+  if (t) return t.replace(/\/+$/, "");
+  const v = process.env.VERCEL_URL?.trim();
+  if (v) return `https://${v.replace(/^https?:\/\//, "")}`;
+  return "http://localhost:3000";
+}
+
+async function fetchJsonFromRoute(path: string, init: RequestInit): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const res = await fetch(`${resolveAppBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`, init);
+  const text = await res.text();
+  let payload: unknown = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      payload = { _nonJson: true, _preview: text.slice(0, 800) };
+    }
+  }
+  return { ok: res.ok, status: res.status, payload };
+}
+
+function formatRunFailure(status: number, payload: unknown): string {
+  const j = JSON.stringify(payload);
+  if (j && j !== "{}" && j !== "null") return `HTTP ${status} ${j}`;
+  if (payload && typeof payload === "object" && "_preview" in (payload as Record<string, unknown>)) {
+    return `HTTP ${status} non-JSON: ${String((payload as Record<string, unknown>)._preview).slice(0, 400)}`;
+  }
+  return `HTTP ${status} empty body — check Vercel: CRON_SECRET (news /api/scraper), SCRAPER_SECRET (UAP), OPENAI_API_KEY; NEXT_PUBLIC_APP_URL must be full https URL or empty (use VERCEL_URL fallback)`;
+}
+
 async function insertRun(jobId: string, trigger: string) {
   const db = admin();
   const { data, error } = await db
@@ -78,25 +114,17 @@ async function finishRun(
 }
 
 async function runNewsScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-  const res = await fetch(`${appUrl}/api/scraper`, {
+  return fetchJsonFromRoute("/api/scraper", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
   });
-  const payload = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, payload };
 }
 
 async function runUapScraper(config: Record<string, unknown> | null): Promise<{ ok: boolean; status: number; payload: unknown }> {
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
   const maxNewRaw = config?.max_new;
   const maxNew =
     typeof maxNewRaw === "number" ? maxNewRaw : parseInt(String(maxNewRaw ?? "70"), 10) || 70;
-  const res = await fetch(`${appUrl}/api/uap-sightings`, {
+  return fetchJsonFromRoute("/api/uap-sightings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -105,8 +133,6 @@ async function runUapScraper(config: Record<string, unknown> | null): Promise<{ 
       max_new: Math.min(Math.max(maxNew, 1), 120),
     }),
   });
-  const payload = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, payload };
 }
 
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
@@ -135,7 +161,7 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
       startedAt: run.started_at,
       httpStatus: resp.status,
       result: resp.payload,
-      error: resp.ok ? undefined : JSON.stringify(resp.payload),
+      error: resp.ok ? undefined : formatRunFailure(resp.status, resp.payload),
     });
 
     return { skipped: false, ok: resp.ok, status: resp.status, payload: resp.payload };
