@@ -25,6 +25,11 @@ export async function GET() {
     topRoutes,
     hourlyViews,
     recentMessages,
+    totalProUsers,
+    totalFreeUsers,
+    newUsersLast7d,
+    totalOracleAnalyses,
+    totalThreads,
   ] = await Promise.all([
     // Page views
     db.from("page_views").select("*", { count: "exact", head: true }).gte("created_at", since24h),
@@ -35,7 +40,7 @@ export async function GET() {
     // Unread contact messages
     db.from("contact_messages").select("*", { count: "exact", head: true }).eq("read", false),
     // Total articles
-    db.from("articles").select("*", { count: "exact", head: true }),
+    db.from("news_items").select("*", { count: "exact", head: true }),
     // Top 10 paths (7d)
     db.from("page_views").select("path").gte("created_at", since7d).limit(2000),
     // Top 10 API routes (24h)
@@ -47,6 +52,16 @@ export async function GET() {
       .select("id, name, email, category, subject, created_at, read")
       .order("created_at", { ascending: false })
       .limit(20),
+    // PRO subscriber count
+    db.from("user_profiles").select("*", { count: "exact", head: true }).eq("plan", "pro"),
+    // Free user count
+    db.from("user_profiles").select("*", { count: "exact", head: true }).eq("plan", "free"),
+    // New users last 7 days
+    db.from("user_profiles").select("*", { count: "exact", head: true }).gte("created_at", since7d),
+    // Oracle analyses generated
+    db.from("oracle_analyses").select("*", { count: "exact", head: true }),
+    // Community threads
+    db.from("threads").select("*", { count: "exact", head: true }).neq("status", "removed"),
   ]);
 
   // aggregate top paths
@@ -104,10 +119,18 @@ export async function GET() {
     },
     content: {
       totalArticles: totalArticles.count ?? 0,
+      oracleAnalyses: totalOracleAnalyses.count ?? 0,
+      threads: totalThreads.count ?? 0,
     },
     contact: {
       unread: unreadMsgs.count ?? 0,
       recent: recentMessages.data ?? [],
+    },
+    subscribers: {
+      pro: totalProUsers.count ?? 0,
+      free: totalFreeUsers.count ?? 0,
+      newLast7d: newUsersLast7d.count ?? 0,
+      mrr: (totalProUsers.count ?? 0) * 7,
     },
     charts: {
       viewsHourly,

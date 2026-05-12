@@ -10,6 +10,13 @@ function getAdmin() {
   return createClient(url, key);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(s: string) {
+  return UUID_RE.test(s);
+}
+
 function fp(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown";
   const ua = req.headers.get("user-agent") ?? "";
@@ -57,6 +64,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ thread, posts: posts ?? [] });
     }
 
+    const articleId = searchParams.get("article_id") ?? searchParams.get("news_id");
+    if (articleId && isUuid(articleId)) {
+      const { data: threads, error } = await admin
+        .from("threads")
+        .select("*")
+        .eq("linked_article_id", articleId)
+        .neq("status", "removed")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) return NextResponse.json({ error: error.message, threads: [] }, { status: 500 });
+      return NextResponse.json({ threads: threads ?? [] });
+    }
+
     let q = admin.from("threads").select("*").neq("status", "removed");
     if (category && category !== "all") q = q.eq("category", category);
     if (sort === "hot") q = q.order("post_count", { ascending: false });
@@ -80,9 +100,28 @@ export async function POST(req: NextRequest) {
     const userFp = fp(req);
 
     if (action === "create_thread") {
-      const { title, content, category, author_name, location, tags } = body;
+      const { title, content, category, author_name, location, tags, linked_article_id, article_id } = body;
       if (!title?.trim() || !content?.trim()) {
         return NextResponse.json({ error: "title and content required" }, { status: 400 });
+      }
+
+      const linkRaw = linked_article_id ?? article_id;
+      const linkId = typeof linkRaw === "string" && isUuid(linkRaw) ? linkRaw : null;
+
+      if (linkId) {
+        const { data: newsRow } = await admin.from("news_items").select("id").eq("id", linkId).maybeSingle();
+        if (!newsRow) {
+          return NextResponse.json({ error: "article not found" }, { status: 404 });
+        }
+        const { data: existing } = await admin
+          .from("threads")
+          .select("*")
+          .eq("linked_article_id", linkId)
+          .neq("status", "removed")
+          .maybeSingle();
+        if (existing) {
+          return NextResponse.json({ thread: existing, success: true, existing: true });
+        }
       }
 
       const { data: thread, error } = await admin
@@ -95,6 +134,7 @@ export async function POST(req: NextRequest) {
           category: category ?? "sighting",
           location: location?.slice(0, 80) ?? null,
           tags: tags ?? [],
+          linked_article_id: linkId,
         })
         .select()
         .single();
@@ -137,6 +177,45 @@ export async function POST(req: NextRequest) {
       const mentionsOracle = /@oracle\b/i.test(content ?? "");
       const apiKey = process.env.OPENAI_API_KEY;
 
+      // Rate-limit @oracle for free/anonymous users: max 3 per day per fingerprint
+      const FREE_ORACLE_DAILY_LIMIT = 3;
+      let oracleBlocked = false;
+      if (mentionsOracle && apiKey) {
+        // Check auth to see if PRO
+        const authHeader = req.headers.get("authorization") ?? "";
+        let isPro = false;
+        if (authHeader.startsWith("Bearer ")) {
+          try {
+            const { data: { user: authUser } } = await admin.auth.getUser(authHeader.replace("Bearer ", ""));
+            if (authUser) {
+              const { data: prof } = await admin.from("user_profiles").select("plan").eq("id", authUser.id).single();
+              isPro = prof?.plan === "pro";
+            }
+          } catch { /* ignore */ }
+        }
+        if (!isPro) {
+          const since = new Date(Date.now() - 86_400_000).toISOString();
+          const { count } = await admin
+            .from("thread_posts")
+            .select("id", { count: "exact", head: true })
+            .eq("author_fingerprint", userFp)
+            .eq("author_type", "oracle")
+            .gte("created_at", since);
+          // Note: count above counts oracle replies, but we need to count the user's oracle-triggering posts.
+          // Simpler: count posts by this fingerprint that triggered oracle (contains "@oracle") in last 24h.
+          const { count: triggerCount } = await admin
+            .from("thread_posts")
+            .select("id", { count: "exact", head: true })
+            .eq("author_fingerprint", userFp)
+            .eq("author_type", "human")
+            .ilike("content", "%@oracle%")
+            .gte("created_at", since);
+          if ((triggerCount ?? 0) >= FREE_ORACLE_DAILY_LIMIT) {
+            oracleBlocked = true;
+          }
+        }
+      }
+
       const { data: post, error } = await admin
         .from("thread_posts")
         .insert({
@@ -153,7 +232,7 @@ export async function POST(req: NextRequest) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      if (mentionsOracle && apiKey) {
+      if (mentionsOracle && apiKey && !oracleBlocked) {
         try {
           const { data: thread } = await admin.from("threads").select("*").eq("id", thread_id).single();
           const { data: allPosts } = await admin
@@ -226,7 +305,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({ post, oracle_invoked: mentionsOracle, success: true });
+      return NextResponse.json({ post, oracle_invoked: mentionsOracle && !oracleBlocked, oracle_rate_limited: oracleBlocked, success: true });
     }
 
     return NextResponse.json({ error: "unknown action" }, { status: 400 });

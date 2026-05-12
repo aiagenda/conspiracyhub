@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) throw new Error("Supabase env missing");
+  return createClient(url, key);
+}
+
+/** Returns true if the bearer token belongs to a PRO user. */
+async function isPro(auth: string | null): Promise<boolean> {
+  if (!auth?.startsWith("Bearer ")) return false;
+  try {
+    const admin = getAdminClient();
+    const { data: { user }, error } = await admin.auth.getUser(auth.replace("Bearer ", ""));
+    if (error || !user) return false;
+    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
+    return profile?.plan === "pro";
+  } catch {
+    return false;
+  }
+}
 
 const SYSTEM_HIGHLIGHTS = `You are a conspiracy research analyst. LANGUAGE: All notes and category labels in your JSON output MUST be English only.
 
@@ -36,12 +58,16 @@ Severity:
 Find 8-20 highlights. Only highlight phrases that ACTUALLY APPEAR verbatim in the article text.
 Do not make up phrases — only use exact text from the article.`;
 
+const FREE_HIGHLIGHT_LIMIT = 3;
+
 export async function POST(req: NextRequest) {
   try {
     const { text, title } = await req.json();
     if (!text) return NextResponse.json({ error: "text_required" }, { status: 400 });
 
-    const highlights = await callOpenAIJSON<{
+    const pro = await isPro(req.headers.get("authorization"));
+
+    const result = await callOpenAIJSON<{
       highlights: Array<{
         text: string;
         category: string;
@@ -55,7 +81,19 @@ export async function POST(req: NextRequest) {
       maxTokens: 1200,
     });
 
-    return NextResponse.json(highlights);
+    const all = result.highlights ?? [];
+
+    if (pro) {
+      return NextResponse.json({ highlights: all, total: all.length, is_limited: false });
+    }
+
+    // Free users: show only the highest-severity highlights as a teaser
+    const sorted = [...all].sort((a, b) => {
+      const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
+      return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
+    });
+    const teaser = sorted.slice(0, FREE_HIGHLIGHT_LIMIT);
+    return NextResponse.json({ highlights: teaser, total: all.length, is_limited: all.length > FREE_HIGHLIGHT_LIMIT });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[article-highlights]", msg);

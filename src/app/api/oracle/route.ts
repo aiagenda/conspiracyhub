@@ -28,14 +28,16 @@ export async function POST(req: NextRequest) {
     const { newsId } = await req.json();
     if (!newsId) return NextResponse.json({ error: "newsId_required" }, { status: 400 });
 
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
-
     const { data: news } = await admin.from("news_items").select("*").eq("id", newsId).single();
     if (!news) return NextResponse.json({ error: "news_not_found" }, { status: 404 });
 
+    // Cached analysis → everyone can view (free + PRO)
     const { data: cached } = await admin.from("oracle_analyses").select("*").eq("news_id", newsId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (cached) return NextResponse.json(cached);
+
+    // No cache → only PRO can trigger new generation
+    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
+    if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
 
     const analysis = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,

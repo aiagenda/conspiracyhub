@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) throw new Error("Supabase env missing");
+  return createClient(url, key);
+}
+
+async function isProUser(auth: string | null): Promise<boolean> {
+  if (!auth?.startsWith("Bearer ")) return false;
+  try {
+    const admin = getAdminClient();
+    const { data: { user }, error } = await admin.auth.getUser(auth.replace("Bearer ", ""));
+    if (error || !user) return false;
+    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
+    return profile?.plan === "pro";
+  } catch {
+    return false;
+  }
+}
 
 const GAMMA = "https://gamma-api.polymarket.com";
 
@@ -125,6 +146,10 @@ function parseOutcomes(s: string): string[] {
 
 export async function GET(req: NextRequest) {
   try {
+    // PRO-only feature
+    const pro = await isProUser(req.headers.get("authorization"));
+    if (!pro) return NextResponse.json({ markets: [], requires_pro: true });
+
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") ?? "";
     if (!q.trim()) return NextResponse.json({ markets: [] });

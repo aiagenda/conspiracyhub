@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 
 const FEATURES = [
-  { icon: "◈", text: "Full Oracle investigation board — visual node graph with CIA/USPTO links" },
-  { icon: "▸", text: "3 AI-generated conspiracy theories with probability scores per article" },
-  { icon: "◈", text: "Polymarket-style betting on each theory (REAL / NOT REAL)" },
-  { icon: "▸", text: "Email alerts when high-threat articles (75%+) are detected" },
-  { icon: "◈", text: "All analyses cached — no repeated API costs" },
-  { icon: "▸", text: "Unlimited investigations · Cancel anytime" },
+  { icon: "◈", text: "Unlimited investigation boards — visual node graph with CIA/USPTO links" },
+  { icon: "▸", text: "Full article highlights + excerpts (free tier: top 3 signals only)" },
+  { icon: "◈", text: "URL analyzer — submit any link for Oracle investigation" },
+  { icon: "▸", text: "Polymarket real-time prediction odds on every article" },
+  { icon: "◈", text: "Email alerts when high-threat articles (75%+) are detected" },
+  { icon: "▸", text: "Unlimited @oracle calls in community (free tier: 3/day)" },
+  { icon: "◈", text: "Investigation board screenshot + X share" },
 ];
 
 export default function UpgradeModal({
@@ -50,7 +51,7 @@ export default function UpgradeModal({
             Unlock the full investigation board
           </div>
           <div style={{ fontSize: 11, color: "#5a8068", lineHeight: 1.75 }}>
-            The free tier shows the feed and threat scores. Pro unlocks the AI-powered investigation board with visual node graphs, evidence chains, and conspiracy probability scoring.
+            The free tier gives you the feed, threat scores, and 3 signal highlights per article. PRO unlocks the full investigation board, real-time Polymarket odds, URL analyzer, and unlimited Oracle access.
           </div>
 
           {/* FEATURES */}

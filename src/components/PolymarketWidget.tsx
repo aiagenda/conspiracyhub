@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { combinePolymarketQuery } from "@/lib/polymarketQuery";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 const RAJ = "var(--font-raj), sans-serif";
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -20,16 +21,23 @@ function PolymarketFetch({ q }: { q: string }) {
   const [markets, setMarkets] = useState<PM[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [requiresPro, setRequiresPro] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/polymarket?q=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const list = d.markets ?? [];
-        setMarkets(list);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: HeadersInit = session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {};
+        const r = await fetch(`/api/polymarket?q=${encodeURIComponent(q)}`, { headers });
+        const d = await r.json();
+        if (d.requires_pro) { setRequiresPro(true); return; }
+        setMarkets(d.markets ?? []);
+      } catch { /* ignore */ }
+      finally { setLoading(false); }
+    })();
   }, [q]);
 
   if (loading) return (
@@ -38,6 +46,18 @@ function PolymarketFetch({ q }: { q: string }) {
       <span style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>CHECKING POLYMARKET...</span>
     </div>
   );
+
+  if (requiresPro) return (
+    <div style={{ border: "1px solid rgba(201,77,255,0.25)", borderRadius: 4, overflow: "hidden", background: "rgba(20,8,28,0.5)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>◈ POLYMARKET REAL-TIME ODDS</div>
+        <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>Live prediction markets — PRO feature</div>
+      </div>
+      <a href="/account" style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#c94dff", border: "1px solid rgba(201,77,255,0.4)", padding: "4px 10px", borderRadius: 2, textDecoration: "none", flexShrink: 0, textTransform: "uppercase" }}>UNLOCK PRO</a>
+    </div>
+  );
+
   if (!markets.length) return null;
 
   return (

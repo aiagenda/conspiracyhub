@@ -7,6 +7,7 @@ import Image from "next/image";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { markArticleRead } from "@/lib/readArticles";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -240,11 +241,13 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
 }
 
 export default function ArticleReader({ item, body }: { item: NewsItem; body: string }) {
-  const [highlights, setHighlights]   = useState<Highlight[]>([]);
-  const [hlLoading, setHlLoading]     = useState(false);
-  const [hlError, setHlError]         = useState("");
-  const [legendOpen, setLegendOpen]   = useState(true);
-  const [filterCat, setFilterCat]     = useState<string | null>(null);
+  const [highlights, setHighlights]     = useState<Highlight[]>([]);
+  const [hlTotal, setHlTotal]           = useState(0);
+  const [hlLimited, setHlLimited]       = useState(false);
+  const [hlLoading, setHlLoading]       = useState(false);
+  const [hlError, setHlError]           = useState("");
+  const [legendOpen, setLegendOpen]     = useState(true);
+  const [filterCat, setFilterCat]       = useState<string | null>(null);
 
   useEffect(() => {
     markArticleRead(item.id);
@@ -254,18 +257,31 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
   useEffect(() => {
     if (!body) return;
     setHlLoading(true);
-    fetch("/api/article-highlights", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: body, title: item.title }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.highlights) setHighlights(data.highlights);
-        else setHlError("Could not load highlights.");
-      })
-      .catch(() => setHlError("Highlight scan failed."))
-      .finally(() => setHlLoading(false));
+    (async () => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+        const r = await fetch("/api/article-highlights", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ text: body, title: item.title }),
+        });
+        const data = await r.json();
+        if (data.highlights) {
+          setHighlights(data.highlights);
+          setHlTotal(data.total ?? data.highlights.length);
+          setHlLimited(data.is_limited ?? false);
+        } else {
+          setHlError("Could not load highlights.");
+        }
+      } catch {
+        setHlError("Highlight scan failed.");
+      } finally {
+        setHlLoading(false);
+      }
+    })();
   }, [body, item.title]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -469,13 +485,39 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
             )}
 
             {/* CTA to investigation board */}
-            <Link href={`/board/${item.id}`}
-              style={{ display: "block", padding: "14px", border: "1px solid #00bb66", borderRadius: 4, textAlign: "center", textDecoration: "none", background: "rgba(0,255,136,0.04)", transition: "all 0.15s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.08)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.04)"; }}>
-              <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 3, marginBottom: 4 }}>◈ OPEN INVESTIGATION BOARD ▶</div>
-              <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>AI-generated node graph · CIA FOIA · USPTO patents · conspiracy theories</div>
-            </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <Link href={`/board/${item.id}`}
+                style={{ display: "block", padding: "14px", border: "1px solid #00bb66", borderRadius: 4, textAlign: "center", textDecoration: "none", background: "rgba(0,255,136,0.04)", transition: "all 0.15s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.08)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.04)"; }}>
+                <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 3, marginBottom: 4 }}>◈ OPEN INVESTIGATION BOARD ▶</div>
+                <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>AI-generated node graph · CIA FOIA · USPTO patents · conspiracy theories</div>
+              </Link>
+              <Link
+                href={`/community?article=${item.id}`}
+                style={{
+                  display: "block",
+                  padding: "12px 14px",
+                  border: "1px solid #1a3320",
+                  borderRadius: 4,
+                  textAlign: "center",
+                  textDecoration: "none",
+                  background: "#090f0b",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "#c94dff";
+                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(201,77,255,0.06)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
+                  (e.currentTarget as HTMLAnchorElement).style.background = "#090f0b";
+                }}
+              >
+                <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>💬 DISCUSS IN COMMUNITY</div>
+                <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>Thread linked to this article · Oracle · replies</div>
+              </Link>
+            </div>
           </div>
 
           {/* SIDEBAR: Highlight legend + list */}
@@ -521,8 +563,9 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
             {/* Flags list */}
             {highlights.length > 0 && (
               <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
-                <div style={{ padding: "10px 12px", borderBottom: "1px solid #1a3320" }}>
-                  <div style={{ fontFamily: FONT, fontSize: 10, color: "#ff3333", letterSpacing: 2 }}>⚠ FLAGGED SIGNALS ({displayHighlights.length})</div>
+                <div style={{ padding: "10px 12px", borderBottom: "1px solid #1a3320", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontFamily: FONT, fontSize: 10, color: "#ff3333", letterSpacing: 2 }}>⚠ FLAGGED SIGNALS ({displayHighlights.length}{hlLimited ? `/${hlTotal}` : ""})</div>
+                  {hlLimited && <span style={{ fontSize: 9, color: "#ffaa00", letterSpacing: 1, border: "1px solid rgba(255,170,0,0.3)", padding: "2px 6px", borderRadius: 2 }}>PRO: +{hlTotal - highlights.length} more</span>}
                 </div>
                 <div style={{ maxHeight: 420, overflowY: "auto" }}>
                   {displayHighlights.map((h, i) => {
@@ -543,6 +586,22 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
                     );
                   })}
                 </div>
+                {/* PRO upgrade CTA when highlights are limited */}
+                {hlLimited && (
+                  <div style={{ padding: "12px", borderTop: "1px solid #1a3320", background: "rgba(255,170,0,0.03)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: FONT, fontSize: 10, color: "#ffaa00", letterSpacing: 1, marginBottom: 3 }}>
+                        {hlTotal - highlights.length} additional signal{hlTotal - highlights.length > 1 ? "s" : ""} hidden
+                      </div>
+                      <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 0.5 }}>
+                        Upgrade to PRO for full article scan + excerpts
+                      </div>
+                    </div>
+                    <a href="/account" style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#ffaa00", border: "1px solid rgba(255,170,0,0.4)", padding: "5px 10px", borderRadius: 2, textDecoration: "none", flexShrink: 0, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      UNLOCK PRO
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
