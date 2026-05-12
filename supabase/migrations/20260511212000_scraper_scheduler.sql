@@ -44,8 +44,8 @@ for each row execute function public.touch_scraper_jobs_updated_at();
 
 insert into public.scraper_jobs (job_key, name, target, schedule_cron, enabled, config)
 values
-  ('news_main', 'Main news feed scrape', 'news_scraper', '0 */2 * * *', true, '{}'::jsonb),
-  ('uap_nuforc', 'NUFORC sightings scrape', 'uap_scraper', '15 */6 * * *', true, '{"max_new":70}'::jsonb)
+  ('news_main', 'Main news feed scrape', 'news_scraper', '0 9 * * *', true, '{}'::jsonb),
+  ('uap_nuforc', 'NUFORC sightings scrape', 'uap_scraper', '0 9 * * *', true, '{"max_new":70}'::jsonb)
 on conflict (job_key) do update
 set
   name = excluded.name,

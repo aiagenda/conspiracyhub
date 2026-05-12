@@ -16,7 +16,7 @@ export default async function Home() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) {
-    return <FeedScreen initialItems={[]} />;
+    return <FeedScreen initialItems={[]} feedNotice="missing_supabase_env" />;
   }
   const supabase = createClient(url, key);
   // Show articles from the last 7 days sorted by freshest first.
@@ -46,5 +46,10 @@ export default async function Home() {
       angle: omitIfHungarianScript(row.angle ?? ""),
     })) ?? [];
 
-  return <FeedScreen initialItems={items} />;
+  return (
+    <FeedScreen
+      initialItems={items}
+      feedNotice={items.length === 0 ? "empty_database" : undefined}
+    />
+  );
 }

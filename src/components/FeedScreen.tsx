@@ -10,7 +10,7 @@ import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
 import { getCurrentUser, signOut } from "@/lib/auth";
-import type { User } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 
 const TICKER_ITEMS = [
   "▸ AI-FILTERED CONSPIRACY FEED — LIVE",
@@ -25,7 +25,15 @@ const TICKER_ITEMS = [
 
 type HealthStatus = { guardian: string; scraper: string; oracle: string; community: string };
 
-export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] }) {
+export type FeedNotice = "missing_supabase_env" | "empty_database";
+
+export default function FeedScreen({
+  initialItems,
+  feedNotice,
+}: {
+  initialItems: NewsItem[];
+  feedNotice?: FeedNotice;
+}) {
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
   const [showAuth, setShowAuth] = useState(false);
@@ -57,15 +65,23 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
 
   // Fetch plan from account API when user changes
   useEffect(() => {
-    if (!user) { setUserPlan(null); return; }
-    import("@/lib/supabase").then(({ getSupabaseBrowserClient }) => {
-      getSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
-        if (!session?.access_token) return;
-        fetch("/api/account", { headers: { Authorization: `Bearer ${session.access_token}` } })
-          .then(r => r.json())
-          .then(d => setUserPlan(d.plan ?? null))
-          .catch(() => {});
-      });
+    if (!user) {
+      setUserPlan(null);
+      return;
+    }
+    import("@/lib/supabase").then((mod) => {
+      if (!mod.isSupabaseBrowserConfigured()) return;
+      void mod
+        .getSupabaseBrowserClient()
+        .auth.getSession()
+        .then((result: { data: { session: Session | null } }) => {
+          const token = result.data.session?.access_token;
+          if (!token) return;
+          fetch("/api/account", { headers: { Authorization: `Bearer ${token}` } })
+            .then((r) => r.json())
+            .then((d) => setUserPlan(d.plan ?? null))
+            .catch(() => {});
+        });
     });
   }, [user]);
 
@@ -281,8 +297,30 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           {/* EMPTY STATE */}
           {visible.length === 0 && (
             <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
-              <div style={{ marginBottom: 12 }}>◈ NO HIGH-PRIORITY ARTICLES IN THIS CATEGORY</div>
-              <div style={{ fontSize: 9, color: "#2a4030", marginBottom: 20 }}>MULTI-SOURCE SCRAPER — NEW ITEMS AS FEEDS UPDATE — CHECK BACK SOON</div>
+              {initialItems.length === 0 && feedNotice === "missing_supabase_env" ? (
+                <>
+                  <div style={{ marginBottom: 12, color: "#ffaa00" }}>◈ SERVER: SUPABASE NOT CONFIGURED</div>
+                  <div style={{ fontSize: 10, color: "#3a5040", maxWidth: 420, margin: "0 auto 20px", lineHeight: 1.6 }}>
+                    Set <span style={{ color: "#5a8068" }}>NEXT_PUBLIC_SUPABASE_URL</span> and{" "}
+                    <span style={{ color: "#5a8068" }}>SUPABASE_SERVICE_KEY</span> on Vercel (Production), then redeploy.
+                  </div>
+                </>
+              ) : initialItems.length === 0 && feedNotice === "empty_database" ? (
+                <>
+                  <div style={{ marginBottom: 12 }}>◈ NO ARTICLES IN DATABASE YET</div>
+                  <div style={{ fontSize: 10, color: "#3a5040", maxWidth: 440, margin: "0 auto 16px", lineHeight: 1.6 }}>
+                    Open <strong style={{ color: "#5a8068" }}>Admin → Scrapers</strong> and use <strong style={{ color: "#5a8068" }}>Run now</strong> on the news job, or wait for the daily cron (09:00 UTC). Ensure{" "}
+                    <span style={{ color: "#5a8068" }}>OPENAI_API_KEY</span>, <span style={{ color: "#5a8068" }}>CRON_SECRET</span>, and migrations are applied on Supabase.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12 }}>◈ NO HIGH-PRIORITY ARTICLES IN THIS CATEGORY</div>
+                  <div style={{ fontSize: 9, color: "#2a4030", marginBottom: 20 }}>
+                    MULTI-SOURCE SCRAPER — NEW ITEMS AS FEEDS UPDATE — CHECK BACK SOON
+                  </div>
+                </>
+              )}
               {filter !== "all" && (
                 <button
                   type="button"

@@ -24,6 +24,18 @@ type Outbreak = {
   localNews?: LocalNews[];
 };
 
+/** Queued for D3 paint: lines drawn first, then all markers on top. */
+type ObMapMarkerDraw = {
+  o: Outbreak;
+  x: number;
+  y: number;
+  isPrimary: boolean;
+  dotR: number;
+  col: string;
+  isSel: boolean;
+  rLabel: number;
+};
+
 const RISK_COL = (risk:string, score:number) => {
   if (risk==="CRITICAL" || score>=70) return "#ff3333";
   if (risk==="HIGH"     || score>=45) return "#ff6633";
@@ -82,31 +94,66 @@ function OutbreakLoadingScreen() {
         .ob-log{animation:ob-fadein 0.3s ease forwards}
       `}</style>
 
-      <div style={{maxWidth:1520,width:"100%",padding:"0 clamp(1rem, 3vw, 2rem)",display:"grid",gridTemplateColumns:"1fr minmax(280px, 380px)",gap:"3rem",alignItems:"center"}}>
-        {/* LEFT: terminal */}
-        <div>
+      <div
+        style={{
+          maxWidth: 1520,
+          width: "100%",
+          padding: "0 clamp(1rem, 3vw, 2rem)",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 400px) minmax(240px, 280px)",
+          gap: "clamp(1.5rem, 4vw, 2.5rem)",
+          alignItems: "center",
+          justifyContent: "center",
+          justifyItems: "center",
+        }}
+      >
+        {/* LEFT: terminal — fixed max width (same idea as Oracle / AnimatedLoader), not 1fr full-bleed */}
+        <div style={{ width: "100%", maxWidth: 400, justifySelf: "end" }}>
           <div style={{fontFamily:RAJ,fontSize:10,fontWeight:700,color:"#1a4a2a",letterSpacing:5,marginBottom:6,textTransform:"uppercase"}}>■ GLOBAL DISEASE SURVEILLANCE ■</div>
           <div style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",letterSpacing:2,textShadow:"0 0 18px rgba(0,255,136,0.3)",marginBottom:2}}>OUTBREAK TRACKER</div>
-          <div style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:3,marginBottom:"1.5rem"}}>INITIALIZING INTELLIGENCE ENGINE</div>
+          <div style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:3,marginBottom:"1.25rem"}}>INITIALIZING INTELLIGENCE ENGINE</div>
 
-          <div style={{background:"rgba(5,12,7,0.8)",border:"1px solid #1a3320",borderRadius:4,padding:"14px 16px",minHeight:240}}>
-            <div style={{fontSize:9,color:"#1a4a2a",letterSpacing:3,marginBottom:10}}>SYSTEM LOG — {new Date().toISOString().split("T")[0]}</div>
+          <div
+            style={{
+              background: "rgba(5,12,7,0.8)",
+              border: "1px solid #1a3320",
+              borderRadius: 4,
+              padding: "12px 14px",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
+            <div style={{fontSize:9,color:"#1a4a2a",letterSpacing:3,marginBottom:8}}>SYSTEM LOG — {new Date().toISOString().split("T")[0]}</div>
             {OUTBREAK_LOADING_LOGS.slice(0,logIdx+1).map((l,i) => (
-              <div key={i} className="ob-log" style={{fontSize:11,color:l.col,lineHeight:1.8,letterSpacing:0.5}}>{l.text}</div>
+              <div key={i} className="ob-log" style={{fontSize:11,color:l.col,lineHeight:1.65,letterSpacing:0.5}}>{l.text}</div>
             ))}
             {logIdx < OUTBREAK_LOADING_LOGS.length-1 && <span style={{fontSize:11,color:"#7aaa8a"}}><span className="ob-blink" style={{color:"#00ff88"}}>▌</span></span>}
-          </div>
-
-          <div style={{marginTop:10,display:"flex",justifyContent:"space-between",fontSize:10,color:"#2a4a30",letterSpacing:1}}>
-            <span>ELAPSED: {elapsed}s</span>
-            <span>WHO · CDC · GNEWS</span>
-            <span className="ob-blink" style={{color:"#00bb66"}}>● LIVE</span>
+            <div
+              style={{
+                marginTop: 12,
+                paddingTop: 10,
+                borderTop: "1px solid #0d1f12",
+                display: "flex",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "6px 10px",
+                fontSize: 9,
+                color: "#2a4a30",
+                letterSpacing: 1,
+              }}
+            >
+              <span>ELAPSED: {elapsed}s</span>
+              <span>WHO · CDC · GNEWS</span>
+              <span className="ob-blink" style={{ color: "#00bb66" }}>
+                ● LIVE
+              </span>
+            </div>
           </div>
         </div>
 
         {/* RIGHT: animated radar */}
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
-          <svg width="320" height="320" viewBox="0 0 320 320">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, justifySelf: "start" }}>
+          <svg width="260" height="260" viewBox="0 0 320 320">
             <defs>
               <radialGradient id="obGrad" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="#00ff88" stopOpacity="0.12"/>
@@ -219,45 +266,59 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           .attr("repeatCount", "indefinite");
       }
 
+      const markerQueue: ObMapMarkerDraw[] = [];
+
       for (const o of outbreaks) {
-      if (!o.lat && !o.lng) continue;
-      const col = RISK_COL(o.risk_level, o.conspiracy_score);
-      const isSel = selected?.id === o.id;
-      const r = 4 + Math.min(5, o.conspiracy_score / 18);
+        const lat = Number(o.lat);
+        const lng = Number(o.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
-      // Collect all positions for this outbreak
-      const mainPos = proj([o.lng, o.lat]);
-      if (!mainPos) continue;
+        const col = RISK_COL(o.risk_level, o.conspiracy_score);
+        const isSel = selected?.id === o.id;
+        // Larger floor radius so pins stay visible on wide maps (was ~4–9px, easy to lose on dark landmass).
+        const r = Math.max(8, 6 + Math.min(10, (o.conspiracy_score || 0) / 7));
 
-      const allPositions: Array<[number,number,string]> = [[mainPos[0],mainPos[1],"primary"]];
+        const mainPos = proj([lng, lat]);
+        if (!mainPos) continue;
 
-      // Add affected country positions
-      if (o.affectedCoords && o.affectedCoords.length > 1) {
-        for (const ac of o.affectedCoords) {
-          if (Math.abs(ac.lat - o.lat) < 0.1 && Math.abs(ac.lng - o.lng) < 0.1) continue;
-          const ap = proj([ac.lng, ac.lat]);
-          if (ap) allPositions.push([ap[0], ap[1], ac.country]);
+        const allPositions: Array<[number, number, string]> = [[mainPos[0], mainPos[1], "primary"]];
+
+        if (o.affectedCoords && o.affectedCoords.length > 1) {
+          for (const ac of o.affectedCoords) {
+            if (Math.abs(ac.lat - lat) < 0.1 && Math.abs(ac.lng - lng) < 0.1) continue;
+            const ap = proj([ac.lng, ac.lat]);
+            if (ap) allPositions.push([ap[0], ap[1], ac.country]);
+          }
+        }
+
+        // All connector lines first so later outbreaks' lines are not painted over pins.
+        if (allPositions.length > 1) {
+          for (let i = 1; i < allPositions.length; i++) {
+            const [x1, y1] = allPositions[0];
+            const [x2, y2] = allPositions[i];
+            linesG
+              .append("line")
+              .attr("x1", x1)
+              .attr("y1", y1)
+              .attr("x2", x2)
+              .attr("y2", y2)
+              .attr("stroke", col)
+              .attr("stroke-width", isSel ? 1.1 : 0.85)
+              .attr("stroke-opacity", isSel ? 0.5 : 0.22)
+              .attr("stroke-dasharray", "4 6");
+          }
+        }
+
+        for (let pi = 0; pi < allPositions.length; pi++) {
+          const [x, y] = allPositions[pi];
+          const isPrimary = pi === 0;
+          const dotR = isPrimary ? r : Math.max(5, r - 2);
+          markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel, rLabel: r });
         }
       }
 
-      // Draw connecting lines between affected countries (zoom with map)
-      if (allPositions.length > 1) {
-        for (let i = 1; i < allPositions.length; i++) {
-          const [x1,y1] = allPositions[0];
-          const [x2,y2] = allPositions[i];
-          linesG.append("line")
-            .attr("x1",x1).attr("y1",y1).attr("x2",x2).attr("y2",y2)
-            .attr("stroke",col).attr("stroke-width","0.7")
-            .attr("stroke-opacity", isSel ? "0.45" : "0.18")
-            .attr("stroke-dasharray","3 5");
-        }
-      }
-
-      // Draw all country dots — screen-constant size via counter-scale on zoom
-      for (let pi = 0; pi < allPositions.length; pi++) {
-        const [x,y] = allPositions[pi];
-        const isPrimary = pi === 0;
-        const dotR = isPrimary ? r : Math.max(2.5, r - 1.5);
+      for (const m of markerQueue) {
+        const { o, x, y, isPrimary, dotR, col, isSel, rLabel } = m;
 
         const mg = markersG
           .append("g")
@@ -265,32 +326,57 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           .attr("class", "ob-marker")
           .attr("transform", `translate(${x},${y}) scale(1)`);
 
-        pulseHalo(mg, dotR + 3, col);
-        mg.append("circle").attr("cx",0).attr("cy",0).attr("r",dotR+2)
-          .attr("fill",col).attr("fill-opacity","0.05");
-        mg.append("circle").attr("cx",0).attr("cy",0).attr("r",isSel&&isPrimary?dotR+1.5:dotR)
-          .attr("fill",col).attr("fill-opacity",isPrimary?0.82:0.48)
-          .attr("stroke",col).attr("stroke-width",isSel&&isPrimary?1.6:0.65)
-          .style("cursor","pointer")
-          .on("mouseenter", function(event){
-            setTooltip({x:event.offsetX,y:event.offsetY,o});
-            d3.select(this).attr("fill-opacity","1");
+        pulseHalo(mg, dotR + 6, col);
+        mg.append("circle")
+          .attr("cx", 0)
+          .attr("cy", 0)
+          .attr("r", dotR + 3)
+          .attr("fill", col)
+          .attr("fill-opacity", "0.12");
+        // High-contrast rim on dark map
+        mg.append("circle")
+          .attr("cx", 0)
+          .attr("cy", 0)
+          .attr("r", dotR + 1.2)
+          .attr("fill", "none")
+          .attr("stroke", "#e8ffe8")
+          .attr("stroke-opacity", isPrimary ? 0.55 : 0.35)
+          .attr("stroke-width", isSel && isPrimary ? 2.2 : 1.4);
+        mg.append("circle")
+          .attr("cx", 0)
+          .attr("cy", 0)
+          .attr("r", isSel && isPrimary ? dotR + 1.5 : dotR)
+          .attr("fill", col)
+          .attr("fill-opacity", isPrimary ? 0.95 : 0.72)
+          .attr("stroke", "#030806")
+          .attr("stroke-width", isSel && isPrimary ? 1.4 : 1)
+          .style("cursor", "pointer")
+          .on("mouseenter", function (event) {
+            setTooltip({ x: event.offsetX, y: event.offsetY, o });
+            d3.select(this).attr("fill-opacity", "1");
           })
-          .on("mouseleave", function(){
+          .on("mouseleave", function () {
             setTooltip(null);
-            d3.select(this).attr("fill-opacity",isPrimary?0.82:0.48);
+            d3.select(this).attr("fill-opacity", isPrimary ? "0.95" : "0.72");
           })
-          .on("click",()=>onSelect(o));
+          .on("click", () => onSelect(o));
 
-        if (isPrimary && (isSel || o.conspiracy_score >= 55)) {
-          mg.append("text").attr("x", r + 5).attr("y", 3)
-            .attr("fill", col).attr("font-size", "8")
-            .attr("font-family", "'Share Tech Mono',monospace").attr("letter-spacing", "1")
+        if (isPrimary && (isSel || o.conspiracy_score >= 40)) {
+          mg.append("text")
+            .attr("x", rLabel + 6)
+            .attr("y", 4)
+            .attr("fill", col)
+            .attr("font-size", "9")
+            .attr("font-weight", "700")
+            .attr("font-family", "'Share Tech Mono',monospace")
+            .attr("letter-spacing", "0.5")
+            .attr("paint-order", "stroke")
+            .attr("stroke", "#030806")
+            .attr("stroke-width", 3)
+            .attr("stroke-opacity", 0.85)
             .text(o.disease.toUpperCase().slice(0, 14));
         }
       }
-
-    }
 
       function applyObMarkerScale(t: d3.ZoomTransform) {
         const k = t.k || 1;
@@ -341,8 +427,27 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
   },[world,outbreaks,selected,onSelect]);
 
   return (
-    <div style={{position:"relative"}}>
-      <svg ref={svgRef} style={{width:"100%",height:360,background:"#030806",borderRadius:4,border:"1px solid #1a3320",display:"block"}}/>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        marginBottom: 4,
+        isolation: "isolate",
+        flexShrink: 0,
+      }}
+    >
+      <svg
+        ref={svgRef}
+        style={{
+          width: "100%",
+          height: 360,
+          maxWidth: "100%",
+          background: "#030806",
+          borderRadius: 4,
+          border: "1px solid #1a3320",
+          display: "block",
+        }}
+      />
       {tooltip && (
         <div style={{position:"absolute",left:tooltip.x+12,top:tooltip.y-20,background:"#090f0b",border:`1px solid ${RISK_COL(tooltip.o.risk_level,tooltip.o.conspiracy_score)}`,borderRadius:3,padding:"8px 10px",pointerEvents:"none",zIndex:20,maxWidth:200}}>
           <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#e8ffe8",marginBottom:3}}>{tooltip.o.disease}</div>
@@ -609,10 +714,17 @@ export default function OutbreakTracker() {
 
           {/* MAIN GRID */}
           {data&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"1.25rem"}}>
-              <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
-                <WorldMap outbreaks={visible} selected={selected} onSelect={setSelected}/>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 320px)",
+                gap: "1.25rem",
+                alignItems: "start",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
+                <WorldMap outbreaks={visible} selected={selected} onSelect={setSelected} />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {visible.map(o=>(
                     <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
                   ))}

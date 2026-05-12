@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { signInWithEmail, signUpWithEmail } from "@/lib/auth";
+import { isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 export default function AuthModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<"signin" | "signup">("signin");
@@ -19,13 +20,31 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   async function submit() {
-    if (!email || !password) { setError("Email and password required."); return; }
-    setError(""); setLoading(true);
+    if (!email || !password) {
+      setError("Email and password required.");
+      return;
+    }
+    if (!isSupabaseBrowserConfigured()) {
+      setError(
+        "Server misconfiguration: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set on the host (e.g. Vercel env), then redeploy."
+      );
+      return;
+    }
+    setError("");
+    setLoading(true);
     const action = tab === "signin" ? signInWithEmail : signUpWithEmail;
-    const { error: authError } = await action(email, password);
-    setLoading(false);
-    if (authError) { setError(authError.message); return; }
-    onClose();
+    try {
+      const { error: authError } = await action(email, password);
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Authentication failed.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const inp: React.CSSProperties = {

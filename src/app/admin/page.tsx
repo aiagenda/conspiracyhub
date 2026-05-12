@@ -1053,8 +1053,8 @@ export default function AdminPage() {
               </button>
             </div>
             <div className="rounded-lg p-3 text-[12px]" style={{ background: cardBg, border, color: muted }}>
-              Vercel cron now pings <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> every minute.
-              This panel controls per-job cron expression, enabled state, and manual run. Schedules are matched in{" "}
+              Vercel cron pings <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> once daily (09:00 UTC on Hobby).
+              Each job’s cron should use the same minute and hour so both can run in that tick; use Run now anytime. Schedules are matched in{" "}
               <strong style={{ color: "var(--foreground)" }}>UTC</strong>; under each field you’ll see a plain-English summary.
             </div>
             <div className="space-y-3">
