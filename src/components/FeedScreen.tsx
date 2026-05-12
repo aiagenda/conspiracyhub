@@ -127,6 +127,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
                 { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", bg: "rgba(255,51,51,0.08)", blink: true },
                 { href: "/community", label: "COMMUNITY", color: "#00bb66", bg: "transparent" },
                 { href: "/search", label: "SEARCH", color: "#5a8068", bg: "transparent" },
+                { href: "/guide", label: "GUIDE", color: "#5a8068", bg: "transparent" },
               ].map(({ href, label, color, bg, blink }) => (
                 <Link key={href} href={href} style={{ background: bg, border: `1px solid ${color}55`, color, fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, animation: blink ? "outbreakBlink 1.8s ease-in-out infinite" : undefined }}>
                   {blink && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "outbreakDot 1s ease-in-out infinite" }} />}

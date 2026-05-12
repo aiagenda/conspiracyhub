@@ -83,6 +83,10 @@ export default function SiteNav({ spacious, user: userProp, onSignIn }: Props) {
         ◈ COMMUNITY
       </Link>
 
+      <Link href="/guide" style={base(isActive("/guide"))} aria-current={isActive("/guide") ? "page" : undefined}>
+        GUIDE
+      </Link>
+
       {user ? (
         <>
           <Link href="/account" style={base(isActive("/account"))} aria-current={isActive("/account") ? "page" : undefined}>
