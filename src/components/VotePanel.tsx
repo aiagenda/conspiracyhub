@@ -22,6 +22,7 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState<string | null>(null);
   const [witnessed, setWitnessed] = useState(false);
+  const [confirmed, setConfirmed] = useState<string | null>(null); // tracks which type just got confirmed
 
   useEffect(() => {
     fetch(`/api/vote?article_id=${articleId}`)
@@ -50,6 +51,9 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
       if (d.aggregates) setVotes(d.aggregates);
       setMyVotes(p => ({ ...p, [vote_type]: value }));
       if (vote_type === "witnessed") setWitnessed(true);
+      // Flash confirmation for 1.4s
+      setConfirmed(vote_type);
+      setTimeout(() => setConfirmed(null), 1400);
     } catch {}
     setVoting(null);
   }
@@ -65,7 +69,10 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
 
   return (
     <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
-      <style>{`@keyframes bannerDot{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
+      <style>{`
+        @keyframes bannerDot{0%,100%{opacity:1}50%{opacity:0.35}}
+        @keyframes voteConfirm{0%{opacity:0;transform:translateY(-4px)}15%{opacity:1;transform:translateY(0)}80%{opacity:1}100%{opacity:0}}
+      `}</style>
 
       {/* Header */}
       <div style={{ padding: "10px 14px", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", gap: 10 }}>
@@ -120,7 +127,12 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 9, color: "#00bb66", letterSpacing: 1 }}>✓ You voted {myVotes["conspiracy_score"]}%</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 9, color: "#00bb66", letterSpacing: 1 }}>✓ You voted {myVotes["conspiracy_score"]}%</span>
+              {confirmed === "conspiracy_score" && (
+                <span style={{ fontSize: 9, color: "#00ff88", letterSpacing: 1, animation: "voteConfirm 1.4s ease forwards" }}>RECORDED</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -140,7 +152,8 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
                   onMouseLeave={e => { if (!voted) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: voted ? "#c94dff" : "#1a3320", flexShrink: 0 }} />
                   <span style={{ fontFamily: FONT, fontSize: 10, color: voted ? "#e9b3ff" : "#7aaa8a", flex: 1, lineHeight: 1.4 }}>{t.name.slice(0, 50)}{t.name.length > 50 ? "…" : ""}</span>
-                  {agg && <span style={{ fontSize: 9, color: "#c94dff", flexShrink: 0 }}>{agg.vote_count} votes</span>}
+                  {confirmed === key && <span style={{ fontSize: 9, color: "#c94dff", letterSpacing: 1, animation: "voteConfirm 1.4s ease forwards" }}>✓</span>}
+                  {agg && confirmed !== key && <span style={{ fontSize: 9, color: "#c94dff", flexShrink: 0 }}>{agg.vote_count} votes</span>}
                 </button>
               );
             })}
@@ -156,8 +169,13 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
           onMouseLeave={e => { if (!witnessed) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}}>
           <span style={{ fontSize: 14 }}>{witnessed ? "✓" : "👁"}</span>
           <div style={{ flex: 1, textAlign: "left" }}>
-            <div style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: witnessed ? "#ffaa00" : "#c8e8d0", letterSpacing: 1 }}>
-              {witnessed ? "YOU WITNESSED THIS" : "I WITNESSED SOMETHING SIMILAR"}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: witnessed ? "#ffaa00" : "#c8e8d0", letterSpacing: 1 }}>
+                {witnessed ? "YOU WITNESSED THIS" : "I WITNESSED SOMETHING SIMILAR"}
+              </span>
+              {confirmed === "witnessed" && (
+                <span style={{ fontSize: 9, color: "#ffaa00", letterSpacing: 1, animation: "voteConfirm 1.4s ease forwards" }}>CONFIRMED</span>
+              )}
             </div>
             {witnessAgg && witnessAgg.vote_count > 0 && (
               <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{witnessAgg.vote_count} others confirmed</div>

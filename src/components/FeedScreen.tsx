@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthModal from "@/components/AuthModal";
@@ -9,29 +9,35 @@ import UpgradeModal from "@/components/UpgradeModal";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
+import { getCurrentUser, signOut } from "@/lib/auth";
+import type { User } from "@supabase/supabase-js";
 
 const TICKER_ITEMS = [
   "▸ AI-FILTERED CONSPIRACY FEED — LIVE",
   "◈ CIA FOIA INDEX — CROSS-REFERENCE ACTIVE",
   "▸ USPTO PATENT DATABASE — SCANNING",
   "◈ GUARDIAN FEED — 6 CATEGORIES MONITORED",
-  "▸ GPT-4o THREAT SCORER — ONLINE",
-  "◈ ONLY 55%+ THREAT SCORE ARTICLES SHOWN",
+  "▸ GPT-4o PRIORITY SCORER — ONLINE",
+  "◈ ONLY 55%+ PRIORITY SCORE ARTICLES SHOWN",
   "▸ DARPA CONTRACTS — PARTIALLY CLASSIFIED",
   "◈ THE THEORIST — AI INVESTIGATIVE INTELLIGENCE",
 ];
 
+type HealthStatus = { guardian: string; scraper: string; oracle: string; community: string };
+
 export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] }) {
   const [filter, setFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
   const [showAuth, setShowAuth] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [userPlan, setUserPlan] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
   const router = useRouter();
-  const [readIds, setReadIds] = useState<Set<string>>(() => new Set(typeof window !== "undefined" ? getReadIds() : []));
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
-    function sync() {
-      setReadIds(new Set(getReadIds()));
-    }
+    function sync() { setReadIds(new Set(getReadIds())); }
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener(READ_ARTICLES_EVENT, sync);
@@ -43,12 +49,48 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
     };
   }, []);
 
+  const refreshUser = useCallback(() => {
+    void getCurrentUser().then(setUser);
+  }, []);
+
+  useEffect(() => { refreshUser(); }, [refreshUser]);
+
+  // Fetch plan from account API when user changes
+  useEffect(() => {
+    if (!user) { setUserPlan(null); return; }
+    import("@/lib/supabase").then(({ getSupabaseBrowserClient }) => {
+      getSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
+        if (!session?.access_token) return;
+        fetch("/api/account", { headers: { Authorization: `Bearer ${session.access_token}` } })
+          .then(r => r.json())
+          .then(d => setUserPlan(d.plan ?? null))
+          .catch(() => {});
+      });
+    });
+  }, [user]);
+
+  // Dynamic status bar
+  useEffect(() => {
+    fetch("/api/health").then(r => r.json()).then(setHealth).catch(() => {});
+  }, []);
+
   const sections = useMemo(
     () => ["all", ...new Set(initialItems.map((i) => i.section))],
     [initialItems]
   );
-  const visible =
-    filter === "all" ? initialItems : initialItems.filter((i) => i.section === filter);
+  const visible = useMemo(() => {
+    const filtered =
+      filter === "all" ? initialItems : initialItems.filter((i) => i.section === filter);
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "priority") {
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      }
+      const byDate = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (byDate !== 0) return byDate;
+      return b.score - a.score;
+    });
+  }, [filter, initialItems, sortBy]);
 
   async function startCheckout() {
     const res = await fetch("/api/stripe/checkout", { method: "POST" });
@@ -73,63 +115,79 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <Link href="/uap"
-              style={{ background: "rgba(0,255,136,0.05)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              ◈ UAP FILES
-            </Link>
-            <Link href="/outbreaks"
-              style={{ background: "rgba(255,51,51,0.08)", border: "1px solid #ff3333", color: "#ff3333", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, animation: "outbreakBlink 1.8s ease-in-out infinite" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "outbreakDot 1s ease-in-out infinite" }} />
-              OUTBREAKS
-            </Link>
-            <Link href="/community"
-              style={{ background: "transparent", border: "1px solid rgba(0,187,102,0.35)", color: "#00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
-              ◈ COMMUNITY
-            </Link>
-            <Link href="/search"
-              style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
-              ◈ SEARCH
-            </Link>
-            <Link href="/guide"
-              style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
-              ? GUIDE
-            </Link>
             <style>{`
               @keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 6px rgba(255,51,51,0.4)} 50%{border-color:rgba(255,51,51,0.4);box-shadow:none} }
               @keyframes outbreakDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
             `}</style>
-            <button
-              onClick={() => setShowAuth(true)}
-              style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#5a8068"; (e.currentTarget as HTMLButtonElement).style.color = "#c8e8d0"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.color = "#5a8068"; }}
-            >
-              SIGN IN
-            </button>
-            <button
-              onClick={() => setShowUpgrade(true)}
-              style={{ background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.08)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-            >
-              PRO ▶
-            </button>
+
+            {/* Nav links — hidden on very small screens via className */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {[
+                { href: "/uap", label: "UAP", color: "#8aa6ff", bg: "rgba(145,170,255,0.06)" },
+                { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", bg: "rgba(255,51,51,0.08)", blink: true },
+                { href: "/community", label: "COMMUNITY", color: "#00bb66", bg: "transparent" },
+                { href: "/search", label: "SEARCH", color: "#5a8068", bg: "transparent" },
+              ].map(({ href, label, color, bg, blink }) => (
+                <Link key={href} href={href} style={{ background: bg, border: `1px solid ${color}55`, color, fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, animation: blink ? "outbreakBlink 1.8s ease-in-out infinite" : undefined }}>
+                  {blink && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "outbreakDot 1s ease-in-out infinite" }} />}
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            <div style={{ width: 1, height: 18, background: "#1a3320", flexShrink: 0 }} />
+
+            {/* Auth + PRO */}
+            {user ? (
+              <>
+                <Link href="/account" style={{ background: "transparent", border: "1px solid #1a3320", color: "#00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, textDecoration: "none" }}>
+                  ACCOUNT
+                </Link>
+                <button type="button" onClick={() => void signOut().then(() => { refreshUser(); setUserPlan(null); })} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, cursor: "pointer" }}>
+                  SIGN OUT
+                </button>
+              </>
+            ) : (
+              <button onClick={() => setShowAuth(true)} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, cursor: "pointer" }}>
+                SIGN IN
+              </button>
+            )}
+
+            {/* PRO button — only show if not already PRO */}
+            {userPlan !== "pro" && (
+              <button
+                onClick={() => setShowUpgrade(true)}
+                style={{ background: "rgba(0,255,136,0.06)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.14)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.06)"; }}
+              >
+                PRO ▶
+              </button>
+            )}
           </div>
         </header>
 
-        {/* STATUS BAR */}
+        {/* STATUS BAR — dynamic */}
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}>
-          {[
-            { label: "GUARDIAN API", ok: true },
-            { label: "GPT-4o", ok: true },
-            { label: "CIA FOIA INDEX", ok: true },
-            { label: "USPTO LIVE", ok: true },
-          ].map(({ label, ok }) => (
-            <span key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span className="animate-pulse-dot" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: ok ? "#00ff88" : "#ff3333" }} />
-              {label}
-            </span>
-          ))}
+          {([
+            { label: "GUARDIAN API", key: "guardian" },
+            { label: "GPT-4o", key: "oracle" },
+            { label: "SCRAPER", key: "scraper" },
+            { label: "COMMUNITY", key: "community" },
+          ] as const).map(({ label, key }) => {
+            const status = health ? health[key] : null;
+            const col = !status ? "#3a5040" : status === "online" ? "#00ff88" : status === "degraded" || status === "idle" ? "#ffaa00" : "#ff3333";
+            const pulse = status === "online";
+            return (
+              <span key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span className={pulse ? "animate-pulse-dot" : ""} style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: col }} />
+                <span style={{ color: status === "error" ? "#ff8888" : "#5a8068" }}>{label}</span>
+                {status && status !== "online" && (
+                  <span style={{ fontSize: 8, color: col, letterSpacing: 1 }}>[{status.toUpperCase()}]</span>
+                )}
+              </span>
+            );
+          })}
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#ff3333" }} />
             DARPA: <span style={{ background: "#1a3320", color: "transparent", userSelect: "none" }}>████████</span>
@@ -159,7 +217,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
               ■ AI-CURATED CONSPIRACY INVESTIGATION FEED ■
             </div>
             <div style={{ fontSize: 11, color: "#3a6040", letterSpacing: 2 }}>
-              ONLY ARTICLES WITH VERIFIED CONSPIRACY DOCUMENTATION ARE SHOWN
+              LATEST FIRST · SWITCH TO PRIORITY SCORE WHEN NEEDED
             </div>
           </div>
 
@@ -182,10 +240,38 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
                 </button>
               ))}
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1 }}>SORT</span>
+                {[
+                  { id: "latest", label: "LATEST" },
+                  { id: "priority", label: "PRIORITY" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSortBy(opt.id as "latest" | "priority")}
+                    style={{
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 1.2,
+                      textTransform: "uppercase",
+                      padding: "4px 9px",
+                      borderRadius: 2,
+                      border: `1px solid ${sortBy === opt.id ? "#00bb66" : "#1a3320"}`,
+                      background: sortBy === opt.id ? "rgba(0,255,136,0.08)" : "transparent",
+                      color: sortBy === opt.id ? "#00ff88" : "#5a8068",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               {visible.length > 0 && (
                 <span style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1 }}>
-                  {visible.length} ACTIVE THREATS
+                  {visible.length} ACTIVE SIGNALS
                 </span>
               )}
             </div>
@@ -194,8 +280,19 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
           {/* EMPTY STATE */}
           {visible.length === 0 && (
             <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
-              <div style={{ marginBottom: 8 }}>◈ NO HIGH-THREAT ARTICLES IN THIS CATEGORY</div>
-              <div style={{ fontSize: 9, color: "#2a4030" }}>MULTI-SOURCE SCRAPER — NEW ITEMS AS FEEDS UPDATE — CHECK BACK SOON</div>
+              <div style={{ marginBottom: 12 }}>◈ NO HIGH-PRIORITY ARTICLES IN THIS CATEGORY</div>
+              <div style={{ fontSize: 9, color: "#2a4030", marginBottom: 20 }}>MULTI-SOURCE SCRAPER — NEW ITEMS AS FEEDS UPDATE — CHECK BACK SOON</div>
+              {filter !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => setFilter("all")}
+                  style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "7px 16px", borderRadius: 3, border: "1px solid #1a3320", background: "transparent", color: "#5a8068", cursor: "pointer", transition: "all 0.15s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66"; (e.currentTarget as HTMLButtonElement).style.color = "#00ff88"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.color = "#5a8068"; }}
+                >
+                  ← SHOW ALL CATEGORIES
+                </button>
+              )}
             </div>
           )}
 
@@ -244,7 +341,7 @@ export default function FeedScreen({ initialItems }: { initialItems: NewsItem[] 
       >
         ↑
       </button>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {showAuth && <AuthModal onClose={() => { setShowAuth(false); refreshUser(); }} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={startCheckout} />}
     </div>
   );

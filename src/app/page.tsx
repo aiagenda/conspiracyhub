@@ -19,17 +19,17 @@ export default async function Home() {
     return <FeedScreen initialItems={[]} />;
   }
   const supabase = createClient(url, key);
-  // Show articles from the last 7 days sorted by score; fall back to all-time top-100 if none yet
+  // Show articles from the last 7 days sorted by freshest first.
   const cutoff = sevenDaysAgo();
   let { data } = await supabase
     .from("news_items")
     .select("*")
     .gte("published_at", cutoff)
-    .order("score", { ascending: false })
     .order("published_at", { ascending: false })
+    .order("score", { ascending: false })
     .limit(200);
   if (!data || data.length === 0) {
-    ({ data } = await supabase.from("news_items").select("*").order("score", { ascending: false }).limit(100));
+    ({ data } = await supabase.from("news_items").select("*").order("published_at", { ascending: false }).limit(100));
   }
 
   const items: NewsItem[] =

@@ -1,7 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -15,6 +17,7 @@ interface Thread {
   upvotes: number; credibility_score: number;
   oracle_analyzed: boolean; post_count: number;
   created_at: string; updated_at: string;
+  linked_article_id?: string | null;
 }
 
 interface Post {
@@ -36,6 +39,13 @@ const CAT_LABELS: Record<string, string> = {
   sighting: "👁 SIGHTING", document: "📄 DOCUMENT", theory: "🔮 THEORY",
   question: "❓ QUESTION", tip: "💡 TIP",
 };
+
+const ARTICLE_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isArticleUuid(s: string) {
+  return ARTICLE_UUID_RE.test(s);
+}
 
 function timeAgo(d: string) {
   const diff = Date.now() - new Date(d).getTime();
@@ -436,14 +446,32 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
 }
 
 // ── NEW THREAD FORM ────────────────────────────────────────────
-function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [category, setCategory] = useState<string>("sighting");
+function NewThreadForm({
+  onCreated,
+  linkedArticleId,
+  defaultTitle = "",
+  defaultBody = "",
+  defaultCategory,
+}: {
+  onCreated: (t: Thread) => void;
+  linkedArticleId?: string | null;
+  defaultTitle?: string;
+  defaultBody?: string;
+  defaultCategory?: string;
+}) {
+  const [title, setTitle] = useState(defaultTitle);
+  const [body, setBody] = useState(defaultBody);
+  const [category, setCategory] = useState<string>(defaultCategory ?? (linkedArticleId ? "theory" : "sighting"));
   const [name, setName] = useState("Anonymous");
   const [location, setLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setTitle(defaultTitle);
+    setBody(defaultBody);
+    if (defaultCategory) setCategory(defaultCategory);
+  }, [defaultTitle, defaultBody, defaultCategory]);
 
   async function submit() {
     if (!title.trim() || !body.trim()) { setError("Title and description required."); return; }
@@ -452,7 +480,15 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
       const res = await fetch("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create_thread", title, content: body, category, author_name: name, location }),
+        body: JSON.stringify({
+          action: "create_thread",
+          title,
+          content: body,
+          category,
+          author_name: name,
+          location,
+          ...(linkedArticleId ? { linked_article_id: linkedArticleId } : {}),
+        }),
       });
       const d = await res.json() as { error?: string; thread?: Thread };
       if (d.error) { setError(d.error); return; }
@@ -469,8 +505,14 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
   return (
     <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
       <div style={{ padding: "12px 14px", borderBottom: "1px solid #1a3320", background: "#050c07" }}>
-        <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>◈ SUBMIT INTELLIGENCE</div>
-        <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, marginTop: 3 }}>Report a sighting, share a document, or start an investigation</div>
+        <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>
+          {linkedArticleId ? "◈ START ARTICLE DISCUSSION" : "◈ SUBMIT INTELLIGENCE"}
+        </div>
+        <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, marginTop: 3 }}>
+          {linkedArticleId
+            ? "This thread is linked to a news item. One discussion per article."
+            : "Report a sighting, share a document, or start an investigation"}
+        </div>
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
@@ -524,12 +566,19 @@ function NewThreadForm({ onCreated }: { onCreated: (t: Thread) => void }) {
 
 // ── MAIN COMMUNITY BOARD ───────────────────────────────────────
 export default function CommunityBoard() {
+  const searchParams = useSearchParams();
+  const articleParam = searchParams.get("article");
+  const articleFromUrl = articleParam && isArticleUuid(articleParam) ? articleParam : null;
+
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState<Category>("all");
   const [sort, setSort] = useState("latest");
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [articleTitle, setArticleTitle] = useState<string | null>(null);
+  const [articleThreads, setArticleThreads] = useState<Thread[]>([]);
+  const [articleBundleLoading, setArticleBundleLoading] = useState(false);
 
   const fetchThreadList = useCallback(() => {
     const params = new URLSearchParams({ sort });
@@ -541,13 +590,51 @@ export default function CommunityBoard() {
     void fetchThreadList().then(d => setThreads(d.threads ?? []));
   }, [fetchThreadList]);
 
+  const loadArticleBundle = useCallback(async (id: string) => {
+    setArticleBundleLoading(true);
+    try {
+      const [threadsJson, newsRow] = await Promise.all([
+        fetch(`/api/threads?article_id=${encodeURIComponent(id)}`).then(r => r.json() as Promise<{ threads?: Thread[] }>),
+        getSupabaseBrowserClient().from("news_items").select("title").eq("id", id).maybeSingle(),
+      ]);
+      setArticleThreads(threadsJson.threads ?? []);
+      setArticleTitle(typeof newsRow.data?.title === "string" ? newsRow.data.title : "News item");
+    } catch {
+      setArticleThreads([]);
+      setArticleTitle("News item");
+    } finally {
+      setArticleBundleLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    if (articleFromUrl) {
+      setLoading(false);
+      setShowNew(false);
+      void loadArticleBundle(articleFromUrl);
+      return;
+    }
+    setArticleTitle(null);
+    setArticleThreads([]);
     let cancelled = false;
     void fetchThreadList()
       .then(d => { if (!cancelled) { setThreads(d.threads ?? []); setLoading(false); } })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [fetchThreadList]);
+  }, [articleFromUrl, fetchThreadList, loadArticleBundle]);
+
+  const discussionSeedTitle = articleTitle
+    ? `Discussion: ${articleTitle}`.slice(0, 120)
+    : "";
+  const discussionSeedBody = articleTitle
+    ? `Thread about this feed item:\n"${articleTitle.slice(0, 400)}"\n\nWhat stands out? Sources, skepticism, or connections?`
+    : "";
+
+  function onLeaveThreadDetail() {
+    setSelectedThread(null);
+    if (articleFromUrl) void loadArticleBundle(articleFromUrl);
+    else refreshThreads();
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
@@ -563,10 +650,12 @@ export default function CommunityBoard() {
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>COMMUNITY INTELLIGENCE</div>
           <div style={{ marginLeft: "auto" }}>
-            <button onClick={() => setShowNew(s => !s)}
-              style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
-              {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
-            </button>
+            {!articleFromUrl && (
+              <button onClick={() => setShowNew(s => !s)}
+                style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
+                {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -579,17 +668,73 @@ export default function CommunityBoard() {
             <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>REPORT SIGHTINGS · SHARE DOCUMENTS · INVOKE ORACLE AI · INVESTIGATE TOGETHER</div>
           </div>
 
-          {showNew && (
+          {showNew && !articleFromUrl && (
             <div style={{ marginBottom: "1.5rem" }}>
               <NewThreadForm onCreated={t => { setShowNew(false); setSelectedThread(t); refreshThreads(); }} />
             </div>
           )}
 
+          {articleFromUrl && !selectedThread && (
+            <div style={{ marginBottom: "1.25rem", border: "1px solid #1a3320", borderRadius: 4, padding: "14px 16px", background: "#080c09" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
+                <Link href="/community" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
+                  ← ALL THREADS
+                </Link>
+                <Link href={`/article/${articleFromUrl}`} style={{ fontSize: 10, color: "#00bb66", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
+                  OPEN ARTICLE ↗
+                </Link>
+              </div>
+              <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8 }}>ARTICLE DISCUSSION</div>
+              {articleBundleLoading ? (
+                <div style={{ fontSize: 11, color: "#3a5040", letterSpacing: 1, padding: "12px 0" }}>Loading discussion…</div>
+              ) : (
+                <>
+                  <div style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.35, marginBottom: 14 }}>{articleTitle}</div>
+                  {articleThreads.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {articleThreads.map(t => {
+                        const c = CAT_COLORS[t.category] ?? "#00ff88";
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedThread(t)}
+                            style={{
+                              textAlign: "left", border: "1px solid #1a3320", borderRadius: 4, padding: "12px 14px",
+                              background: "#090f0b", cursor: "pointer", color: "#c8e8d0", fontFamily: FONT, fontSize: 12,
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = c; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; }}
+                          >
+                            <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#00ff88", marginBottom: 6 }}>◈ OPEN DISCUSSION</div>
+                            <div style={{ fontSize: 11, color: "#9ec8ae", lineHeight: 1.4 }}>{t.title}</div>
+                            <div style={{ fontSize: 9, color: "#3a5040", marginTop: 8 }}>💬 {t.post_count} posts · {timeAgo(t.created_at)}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <NewThreadForm
+                      linkedArticleId={articleFromUrl}
+                      defaultTitle={discussionSeedTitle}
+                      defaultBody={discussionSeedBody}
+                      defaultCategory="theory"
+                      onCreated={t => {
+                        setSelectedThread(t);
+                        void loadArticleBundle(articleFromUrl);
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {selectedThread ? (
             <div style={{ height: "calc(100vh - 200px)", border: "1px solid #1a3320", borderRadius: 4, overflow: "hidden", background: "#090f0b" }}>
-              <ThreadDetail thread={selectedThread} onBack={() => { setSelectedThread(null); refreshThreads(); }} />
+              <ThreadDetail thread={selectedThread} onBack={onLeaveThreadDetail} />
             </div>
-          ) : (
+          ) : !articleFromUrl ? (
             <>
               {/* Filters */}
               <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", justifyContent: "space-between" }}>
@@ -671,7 +816,7 @@ export default function CommunityBoard() {
                 })}
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

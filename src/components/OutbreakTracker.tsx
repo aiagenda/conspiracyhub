@@ -130,8 +130,10 @@ function OutbreakLoadingScreen() {
             {/* Disease dots appearing */}
             {[[120,80,"#ff3333"],[200,140,"#ffaa00"],[100,200,"#ff6633"],[240,100,"#ffaa00"],[160,240,"#ff3333"],[80,150,"#00bb66"]].slice(0,Math.floor(logIdx/1.5)).map(([x,y,col],i) => (
               <g key={i}>
-                <circle cx={x} cy={y} r={8} fill={col as string} fillOpacity="0.08"/>
-                <circle cx={x} cy={y} r={5} fill={col as string} fillOpacity="0.7" style={{filter:`drop-shadow(0 0 4px ${col})`}}/>
+                <circle cx={x as number} cy={y as number} r={9} fill={col as string} fillOpacity="0.06" stroke={col as string} strokeOpacity="0.2" strokeWidth="0.6">
+                  <animate attributeName="stroke-opacity" values="0.12;0.35;0.12" dur={`${2.4 + i * 0.15}s`} repeatCount="indefinite" />
+                </circle>
+                <circle cx={x as number} cy={y as number} r={5} fill={col as string} fillOpacity="0.72" stroke={col as string} strokeWidth="0.5" strokeOpacity="0.35"/>
               </g>
             ))}
             <text x="160" y="168" textAnchor="middle" fill="#00ff88" opacity="0.4" style={{fontFamily:FONT,fontSize:9,letterSpacing:2}}>SCANNING</text>
@@ -170,6 +172,8 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
       if (!svgEl || !world) return;
       const W = Math.max(svgEl.getBoundingClientRect().width || svgEl.clientWidth, 280);
       const H = 360;
+      svgEl.setAttribute("width", String(W));
+      svgEl.setAttribute("height", String(H));
       const svg = d3.select(svgEl);
       svg.selectAll("*").remove();
 
@@ -179,14 +183,18 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
 
       svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
 
+      const geoG = svg.append("g").attr("class", "ob-geo");
+      const linesG = geoG.append("g").attr("class", "ob-lines");
+      const markersG = geoG.append("g").attr("class", "ob-markers");
+
       const graticule = d3.geoGraticule()();
-      svg.append("path").datum(graticule)
+      geoG.append("path").datum(graticule)
         .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
         .attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
 
       // @ts-expect-error TopoJSON topology typed loosely vs geojson
       const countries = topojson.feature(world, world.objects.countries);
-      svg.append("g").selectAll("path")
+      geoG.append("g").selectAll("path")
         // @ts-expect-error features from topojson.feature
         .data(countries.features).enter().append("path")
         .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
@@ -195,15 +203,27 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
       // Country borders
       // @ts-expect-error TopoJSON mesh callback types
       const borders = topojson.mesh(world, world.objects.countries, (a:unknown,b:unknown)=>a!==b);
-      svg.append("path").datum(borders)
+      geoG.append("path").datum(borders)
         .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
         .attr("fill","none").attr("stroke","#1a3320").attr("stroke-width","0.3");
+
+      function pulseHalo(parent: d3.Selection<SVGGElement, any, null, undefined>, ringR: number, stroke: string) {
+        parent.append("circle")
+          .attr("r", ringR)
+          .attr("cx", 0).attr("cy", 0)
+          .attr("fill", "none").attr("stroke", stroke).attr("stroke-width", 0.75).attr("stroke-opacity", 0.18)
+          .append("animate")
+          .attr("attributeName", "stroke-opacity")
+          .attr("values", "0.08;0.28;0.08")
+          .attr("dur", "2.4s")
+          .attr("repeatCount", "indefinite");
+      }
 
       for (const o of outbreaks) {
       if (!o.lat && !o.lng) continue;
       const col = RISK_COL(o.risk_level, o.conspiracy_score);
       const isSel = selected?.id === o.id;
-      const r = 5 + Math.min(7, o.conspiracy_score/14);
+      const r = 4 + Math.min(5, o.conspiracy_score / 18);
 
       // Collect all positions for this outbreak
       const mainPos = proj([o.lng, o.lat]);
@@ -220,54 +240,98 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
         }
       }
 
-      // Draw connecting lines between affected countries
+      // Draw connecting lines between affected countries (zoom with map)
       if (allPositions.length > 1) {
         for (let i = 1; i < allPositions.length; i++) {
           const [x1,y1] = allPositions[0];
           const [x2,y2] = allPositions[i];
-          svg.append("line")
+          linesG.append("line")
             .attr("x1",x1).attr("y1",y1).attr("x2",x2).attr("y2",y2)
-            .attr("stroke",col).attr("stroke-width","0.8")
-            .attr("stroke-opacity", isSel ? "0.5" : "0.2")
+            .attr("stroke",col).attr("stroke-width","0.7")
+            .attr("stroke-opacity", isSel ? "0.45" : "0.18")
             .attr("stroke-dasharray","3 5");
         }
       }
 
-      // Draw all country dots
+      // Draw all country dots — screen-constant size via counter-scale on zoom
       for (let pi = 0; pi < allPositions.length; pi++) {
         const [x,y] = allPositions[pi];
         const isPrimary = pi === 0;
-        const dotR = isPrimary ? r : Math.max(3, r - 2);
+        const dotR = isPrimary ? r : Math.max(2.5, r - 1.5);
 
-        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",dotR+5)
-          .attr("fill","none").attr("stroke",col).attr("stroke-width","0.8")
-          .attr("stroke-opacity","0.15");
-        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",dotR+2)
-          .attr("fill",col).attr("fill-opacity","0.06");
-        svg.append("circle").attr("cx",x).attr("cy",y).attr("r",isSel&&isPrimary?dotR+3:dotR)
-          .attr("fill",col).attr("fill-opacity",isPrimary?0.85:0.5)
-          .attr("stroke",col).attr("stroke-width",isSel&&isPrimary?2:0.8)
+        const mg = markersG
+          .append("g")
+          .datum({ x, y })
+          .attr("class", "ob-marker")
+          .attr("transform", `translate(${x},${y}) scale(1)`);
+
+        pulseHalo(mg, dotR + 3, col);
+        mg.append("circle").attr("cx",0).attr("cy",0).attr("r",dotR+2)
+          .attr("fill",col).attr("fill-opacity","0.05");
+        mg.append("circle").attr("cx",0).attr("cy",0).attr("r",isSel&&isPrimary?dotR+1.5:dotR)
+          .attr("fill",col).attr("fill-opacity",isPrimary?0.82:0.48)
+          .attr("stroke",col).attr("stroke-width",isSel&&isPrimary?1.6:0.65)
           .style("cursor","pointer")
-          .style("filter",`drop-shadow(0 0 ${isSel&&isPrimary?6:2}px ${col})`)
           .on("mouseenter", function(event){
             setTooltip({x:event.offsetX,y:event.offsetY,o});
             d3.select(this).attr("fill-opacity","1");
           })
           .on("mouseleave", function(){
             setTooltip(null);
-            d3.select(this).attr("fill-opacity",isPrimary?0.85:0.5);
+            d3.select(this).attr("fill-opacity",isPrimary?0.82:0.48);
           })
           .on("click",()=>onSelect(o));
+
+        if (isPrimary && (isSel || o.conspiracy_score >= 55)) {
+          mg.append("text").attr("x", r + 5).attr("y", 3)
+            .attr("fill", col).attr("font-size", "8")
+            .attr("font-family", "'Share Tech Mono',monospace").attr("letter-spacing", "1")
+            .text(o.disease.toUpperCase().slice(0, 14));
+        }
       }
 
-      // Label for selected or high score (main dot only)
-      if (isSel || o.conspiracy_score>=55) {
-        svg.append("text").attr("x",mainPos[0]+r+5).attr("y",mainPos[1]+3)
-          .attr("fill",col).attr("font-size","8")
-          .attr("font-family","'Share Tech Mono',monospace").attr("letter-spacing","1")
-          .text(o.disease.toUpperCase().slice(0,14));
-      }
     }
+
+      function applyObMarkerScale(t: d3.ZoomTransform) {
+        const k = t.k || 1;
+        markersG.selectAll<SVGGElement, { x: number; y: number }>("g.ob-marker").attr("transform", (d) => `translate(${d.x},${d.y}) scale(${1 / k})`);
+      }
+
+      const zoom = d3.zoom<SVGSVGElement, unknown>()
+        .extent([[0, 0], [W, H]])
+        .scaleExtent([1, 10])
+        .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+          geoG.attr("transform", String(event.transform)); // lines + map + markers (markers counter-scale inside)
+          applyObMarkerScale(event.transform);
+          setTooltip(null);
+        });
+      svg.call(zoom);
+      geoG.attr("transform", String(d3.zoomIdentity));
+      applyObMarkerScale(d3.zoomIdentity);
+
+      const ctrl = svg.append("g").attr("transform", `translate(${W - 36}, 10)`);
+      [
+        { dy: 0, label: "+", delta: 1.5 },
+        { dy: 22, label: "−", delta: 1 / 1.5 },
+        { dy: 44, label: "⌂", delta: null as number | null },
+      ].forEach(({ dy, label, delta }) => {
+        const btn = ctrl.append("g").attr("transform", `translate(0,${dy})`).style("cursor", "pointer");
+        btn.append("rect").attr("width", 22).attr("height", 18).attr("rx", 2).attr("fill", "rgba(9,15,11,0.85)").attr("stroke", "#1a3320");
+        btn.append("text").attr("x", 11).attr("y", 13).attr("text-anchor", "middle").attr("fill", "#5a8068").attr("font-size", "12").attr("font-family", "monospace").text(label);
+        btn.on("click", () => {
+          if (delta === null) svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+          else svg.transition().duration(220).call(zoom.scaleBy, delta);
+        });
+        btn.on("mouseenter", function () {
+          d3.select(this).select("rect").attr("stroke", "#00bb66");
+          d3.select(this).select("text").attr("fill", "#00ff88");
+        });
+        btn.on("mouseleave", function () {
+          d3.select(this).select("rect").attr("stroke", "#1a3320");
+          d3.select(this).select("text").attr("fill", "#5a8068");
+        });
+      });
+
     }
 
     paint();
@@ -562,6 +626,16 @@ export default function OutbreakTracker() {
               </div>
             </div>
           )}
+
+          {/* COMMUNITY CTA */}
+          <div style={{marginTop:"1.5rem",padding:"14px 18px",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"var(--font-raj), sans-serif",fontSize:12,fontWeight:700,color:"#c8e8d0",letterSpacing:2,marginBottom:4}}>HAVE INFORMATION? REPORT IT.</div>
+              <div style={{fontFamily:FONT,fontSize:11,color:"#5a8068",lineHeight:1.6}}>Share documents, tips or first-hand reports in the community board. Tag <span style={{color:"#ff3333"}}>@oracle</span> to trigger AI analysis of any outbreak thread.</div>
+            </div>
+            <Link href="/community" style={{fontFamily:"var(--font-raj), sans-serif",fontSize:11,fontWeight:700,letterSpacing:2,textTransform:"uppercase",padding:"9px 18px",border:"1px solid #ff3333",background:"rgba(255,51,51,0.06)",color:"#ff5555",borderRadius:3,textDecoration:"none",flexShrink:0}}>◈ DISCUSS IN COMMUNITY ▸</Link>
+          </div>
+
         </div>
       </div>
     </div>

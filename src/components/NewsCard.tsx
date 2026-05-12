@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import type { NewsItem } from "@/types";
 
 function scoreColor(s: number) {
@@ -86,9 +87,9 @@ export default function NewsCard({
           )}
           {/* shared gradient overlay */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
-          {/* THREAT badge */}
+          {/* PRIORITY SCORE badge */}
           <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "2px 8px", fontSize: 11, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
-            {item.score}% THREAT
+            {item.score}% PRIORITY
           </div>
           {/* Section + time */}
           <div style={{ position: "absolute", bottom: 8, left: 10, fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
@@ -148,33 +149,63 @@ export default function NewsCard({
         )}
 
 
-        <button
-          type="button"
-          onClick={() => onAnalyze(item)}
-          style={{
-            marginTop: "auto",
-            background: "transparent",
-            border: `1px solid ${color}`,
-            color,
-            borderRadius: 3,
-            padding: "8px 12px",
-            fontFamily: "var(--font-raj), sans-serif",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = `${color}18`;
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-          }}
-        >
-          ◈ READ & INVESTIGATE ▶
-        </button>
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => onAnalyze(item)}
+            style={{
+              background: "transparent",
+              border: `1px solid ${color}`,
+              color,
+              borderRadius: 3,
+              padding: "8px 12px",
+              fontFamily: "var(--font-raj), sans-serif",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              cursor: "pointer",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = `${color}18`;
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            }}
+          >
+            ◈ READ & INVESTIGATE ▶
+          </button>
+          <Link
+            href={`/community?article=${item.id}`}
+            style={{
+              display: "block",
+              textAlign: "center",
+              textDecoration: "none",
+              background: "transparent",
+              border: "1px solid #1a3320",
+              color: "#5a8068",
+              borderRadius: 3,
+              padding: "7px 12px",
+              fontFamily: "var(--font-raj), sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
+              (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
+              (e.currentTarget as HTMLAnchorElement).style.color = "#5a8068";
+            }}
+          >
+            💬 Discuss in community
+          </Link>
+        </div>
       </div>
     </div>
   );
