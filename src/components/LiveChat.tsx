@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import RegisteredOnlyGate from "@/components/RegisteredOnlyGate";
 import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+import { ARTICLE_THREAD_STARTER_FP } from "@/lib/articleThreadStarters";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -12,6 +13,7 @@ interface ChatMessage {
   id: string;
   author_name: string;
   author_type: string;
+  author_fingerprint?: string;
   content: string;
   gif_url?: string | null;
   created_at: string;
@@ -43,6 +45,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const starterBackfillRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("chat_name", name);
@@ -88,6 +91,13 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
         if (d.threads?.length) {
           tid = d.threads[0].id;
         } else {
+          const displayName = (() => {
+            try {
+              return (localStorage.getItem("chat_name") || "Anonymous").trim().slice(0, 40) || "Anonymous";
+            } catch {
+              return "Anonymous";
+            }
+          })();
           const cr = await fetchWithSupabaseAuth("/api/threads", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -97,7 +107,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
               title: articleTitle,
               content: `Live discussion: ${articleTitle}`,
               category: "theory",
-              author_name: "TheTheorist",
+              author_name: displayName,
               linked_article_id: articleId,
             }),
           });
@@ -126,7 +136,28 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
         const pd = (await pr.json()) as { posts?: ChatMessage[] };
         if (signal.aborted) return;
 
-        setMessages(pd.posts ?? []);
+        let nextPosts = pd.posts ?? [];
+        const hasStarter = nextPosts.some((p) => p.author_fingerprint === ARTICLE_THREAD_STARTER_FP);
+        if (!hasStarter && starterBackfillRef.current !== tid) {
+          starterBackfillRef.current = tid;
+          try {
+            const er = await fetchWithSupabaseAuth("/api/threads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal,
+              body: JSON.stringify({ action: "ensure_article_thread_starters", thread_id: tid }),
+            });
+            if (er.ok) {
+              const pr2 = await fetchWithSupabaseAuth(`/api/threads?id=${encodeURIComponent(tid)}`, { signal });
+              const pd2 = (await pr2.json()) as { posts?: ChatMessage[] };
+              if (!signal.aborted) nextPosts = pd2.posts ?? nextPosts;
+            }
+          } catch {
+            starterBackfillRef.current = null;
+          }
+        }
+
+        setMessages(nextPosts);
         setLoading(false);
       } catch (e) {
         if (signal.aborted) return;
@@ -308,14 +339,15 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
 
         {messages.map((msg, i) => {
           const isOracle = msg.author_type === "oracle";
-          const isMe = msg.author_name === name;
+          const isSystem = msg.author_type === "system";
+          const isMe = msg.author_name === name && msg.author_type === "human";
           return (
             <div
               key={msg.id}
               className="chat-msg"
               style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}
             >
-              {(i === 0 || messages[i - 1].author_name !== msg.author_name) && (
+              {(i === 0 || messages[i - 1].author_name !== msg.author_name || messages[i - 1].author_type !== msg.author_type) && (
                 <div
                   style={{
                     display: "flex",
@@ -337,10 +369,24 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
                       }}
                     />
                   )}
+                  {isSystem && (
+                    <span
+                      style={{
+                        fontSize: 7,
+                        color: "#c9a227",
+                        border: "1px solid rgba(201,162,39,0.5)",
+                        padding: "1px 4px",
+                        borderRadius: 2,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      STARTER
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: 9,
-                      color: isOracle ? "#00bb66" : isMe ? "#5a8068" : "#3a5040",
+                      color: isOracle ? "#00bb66" : isSystem ? "#c9a227" : isMe ? "#5a8068" : "#3a5040",
                       letterSpacing: 1,
                     }}
                   >
@@ -355,12 +401,20 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
                   maxWidth: "82%",
                   padding: "7px 11px",
                   borderRadius: isMe ? "8px 8px 2px 8px" : "8px 8px 8px 2px",
-                  background: isOracle ? "rgba(0,255,136,0.06)" : isMe ? "rgba(0,187,102,0.12)" : "#111",
+                  background: isOracle
+                    ? "rgba(0,255,136,0.06)"
+                    : isSystem
+                      ? "rgba(201,162,39,0.06)"
+                      : isMe
+                        ? "rgba(0,187,102,0.12)"
+                        : "#111",
                   border: isOracle
                     ? "1px solid rgba(0,255,136,0.2)"
-                    : isMe
-                      ? "1px solid rgba(0,187,102,0.25)"
-                      : "1px solid #1a1a1a",
+                    : isSystem
+                      ? "1px solid rgba(201,162,39,0.25)"
+                      : isMe
+                        ? "1px solid rgba(0,187,102,0.25)"
+                        : "1px solid #1a1a1a",
                   fontSize: 12,
                   color: "#c8e8d0",
                   lineHeight: 1.65,

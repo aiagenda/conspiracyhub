@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import { ARTICLE_THREAD_STARTER_FP, buildArticleThreadStarterRow } from "@/lib/articleThreadStarters";
 import { callOpenAIJSON } from "@/lib/openai";
 
 function getAdmin() {
@@ -174,7 +175,49 @@ export async function POST(req: NextRequest) {
         content: content.trim().slice(0, 2000),
       });
 
+      if (linkId) {
+        const row = buildArticleThreadStarterRow(title.trim());
+        const { error: stErr } = await admin.from("thread_posts").insert({
+          thread_id: thread.id,
+          author_name: row.author_name,
+          author_fingerprint: row.author_fingerprint,
+          author_type: row.author_type,
+          content: row.content,
+        });
+        if (stErr) console.error("[threads] article starter insert", stErr);
+      }
+
       return NextResponse.json({ thread, success: true });
+    }
+
+    if (action === "ensure_article_thread_starters") {
+      const { thread_id } = body as { thread_id?: string };
+      if (!thread_id || !isUuid(thread_id)) {
+        return NextResponse.json({ error: "thread_id required" }, { status: 400 });
+      }
+      const { data: th, error: thErr } = await admin.from("threads").select("id, linked_article_id, title").eq("id", thread_id).maybeSingle();
+      if (thErr || !th?.linked_article_id) {
+        return NextResponse.json({ error: "not_article_thread" }, { status: 400 });
+      }
+      const { count, error: cErr } = await admin
+        .from("thread_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("thread_id", thread_id)
+        .eq("author_fingerprint", ARTICLE_THREAD_STARTER_FP);
+      if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+      if ((count ?? 0) > 0) {
+        return NextResponse.json({ ok: true, already: true });
+      }
+      const starterRow = buildArticleThreadStarterRow(String(th.title ?? ""));
+      const { error: insErr } = await admin.from("thread_posts").insert({
+        thread_id,
+        author_name: starterRow.author_name,
+        author_fingerprint: starterRow.author_fingerprint,
+        author_type: starterRow.author_type,
+        content: starterRow.content,
+      });
+      if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+      return NextResponse.json({ ok: true, seeded: true });
     }
 
     if (action === "react_post") {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import RegisteredOnlyGate from "@/components/RegisteredOnlyGate";
 import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+import { ARTICLE_THREAD_STARTER_FP } from "@/lib/articleThreadStarters";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -25,6 +26,7 @@ interface Thread {
 interface Post {
   id: string; thread_id: string;
   author_name: string; author_type: string;
+  author_fingerprint?: string;
   content: string; attachment_url?: string;
   upvotes: number; created_at: string;
   parent_post_id?: string | null;
@@ -191,12 +193,38 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     fetchWithSupabaseAuth(`/api/threads?id=${thread.id}`)
-      .then(r => r.json())
-      .then((d: { posts?: Post[] }) => setPosts(d.posts ?? []))
+      .then((r) => r.json())
+      .then(async (d: { posts?: Post[] }) => {
+        let list = d.posts ?? [];
+        if (
+          thread.linked_article_id &&
+          !list.some((p) => p.author_fingerprint === ARTICLE_THREAD_STARTER_FP)
+        ) {
+          try {
+            await fetchWithSupabaseAuth("/api/threads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "ensure_article_thread_starters", thread_id: thread.id }),
+            });
+            const r2 = await fetchWithSupabaseAuth(`/api/threads?id=${thread.id}`);
+            const d2 = (await r2.json()) as { posts?: Post[] };
+            list = d2.posts ?? list;
+          } catch {
+            /* keep list */
+          }
+        }
+        if (!cancelled) setPosts(list);
+      })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [thread.id]);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [thread.id, thread.linked_article_id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -273,6 +301,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
 
   function renderPost(post: Post, depth = 0): React.ReactNode {
     const isOracle = post.author_type === "oracle";
+    const isSystem = post.author_type === "system";
     const myReaction = reactions[post.id];
     const postReplies = repliesByParent[post.id] ?? [];
     const isReplying = replyingTo === post.id;
@@ -280,16 +309,23 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
     return (
       <div key={post.id} style={{ marginLeft: depth > 0 ? 18 : 0 }}>
         <div style={{
-          border: `1px solid ${isOracle ? "rgba(0,255,136,0.3)" : depth > 0 ? "#0f1e13" : "#1a3320"}`,
+          border: `1px solid ${
+            isOracle ? "rgba(0,255,136,0.3)" : isSystem ? "rgba(201,162,39,0.35)" : depth > 0 ? "#0f1e13" : "#1a3320"
+          }`,
           borderLeft: depth > 0 ? "2px solid #1a5025" : undefined,
           borderRadius: 4, padding: "10px 12px",
-          background: isOracle ? "rgba(0,255,136,0.03)" : "#090f0b",
+          background: isOracle ? "rgba(0,255,136,0.03)" : isSystem ? "rgba(201,162,39,0.04)" : "#090f0b",
         }}>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {isOracle && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", display: "inline-block" }} />}
-              <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: isOracle ? "#00ff88" : "#c8e8d0", letterSpacing: 1 }}>{post.author_name}</span>
+              {isSystem && (
+                <span style={{ fontSize: 7, color: "#c9a227", border: "1px solid rgba(201,162,39,0.5)", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>
+                  STARTER
+                </span>
+              )}
+              <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: isOracle ? "#00ff88" : isSystem ? "#d4b85c" : "#c8e8d0", letterSpacing: 1 }}>{post.author_name}</span>
               {isOracle && <span style={{ fontSize: 8, color: "#00bb66", border: "1px solid #00bb66", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>AI</span>}
               {depth > 0 && <span style={{ fontSize: 8, color: "#2a4030", letterSpacing: 1 }}>↩</span>}
             </div>
