@@ -6,111 +6,148 @@ import { useEffect, useState } from "react";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
+const RAJ = "var(--font-raj), sans-serif";
+const FONT = "var(--font-share-tech-mono), monospace";
+
 type Props = {
   spacious?: boolean;
-  /** If parent already has user state, pass it to avoid double-fetch */
   user?: User | null;
   onSignIn?: () => void;
 };
 
+const NAV_LINKS = [
+  { href: "/", label: "FEED", color: "#00ff88" },
+  { href: "/uap", label: "UAP FILES", color: "#8aa6ff" },
+  { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", blink: true },
+  { href: "/community", label: "COMMUNITY", color: "#00bb66" },
+  { href: "/blog", label: "ANALYSIS", color: "#00bb66" },
+  { href: "/search", label: "SEARCH", color: "#5a8068" },
+  { href: "/guide", label: "GUIDE", color: "#5a8068" },
+];
+
 export default function SiteNav({ spacious, user: userProp, onSignIn }: Props) {
   const pathname = usePathname() ?? "";
   const [user, setUser] = useState<User | null>(userProp ?? null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Only self-fetch if parent didn't provide user
   useEffect(() => {
     if (userProp !== undefined) return;
     void getCurrentUser().then(setUser);
   }, [userProp]);
 
-  const pad = spacious ? "8px 18px" : "6px 14px";
-  const fontSize = spacious ? 13 : 11;
+  // Close menu on route change
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
-  function base(active: boolean, activeColor = "#00bb66", activeBg = "rgba(0,255,136,0.08)") {
-    return {
-      fontFamily: "var(--font-raj), sans-serif",
-      fontSize,
-      fontWeight: 700 as const,
-      letterSpacing: 2,
-      textTransform: "uppercase" as const,
-      padding: pad,
-      borderRadius: 3,
-      textDecoration: "none" as const,
-      display: "inline-flex" as const,
-      alignItems: "center" as const,
-      gap: 6,
-      border: `1px solid ${active ? activeColor : "#1a3320"}`,
-      background: active ? activeBg : "transparent",
-      color: active ? activeColor : "#5a8068",
-      transition: "all 0.15s",
-    };
-  }
-
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <nav aria-label="Main" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-      <Link href="/" style={base(isActive("/") && pathname === "/")} aria-current={pathname === "/" ? "page" : undefined}>
-        FEED
-      </Link>
+    <>
+      <style>{`
+        @keyframes outbreakBlink{0%,100%{border-color:#ff3333;box-shadow:0 0 5px rgba(255,51,51,0.3)}50%{border-color:rgba(255,51,51,0.3);box-shadow:none}}
+        @keyframes obDot{0%,100%{opacity:1}50%{opacity:0.2}}
+        @keyframes menuSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
 
-      <Link href="/search" style={base(isActive("/search"))} aria-current={isActive("/search") ? "page" : undefined}>
-        SEARCH
-      </Link>
-
-      <Link
-        href="/uap"
-        style={base(isActive("/uap"), "#8aa6ff", "rgba(145,170,255,0.12)")}
-        aria-current={isActive("/uap") ? "page" : undefined}
-      >
-        UAP
-      </Link>
-
-      <Link
-        href="/outbreaks"
-        style={{
-          ...base(isActive("/outbreaks"), "#ff5555", "rgba(255,51,51,0.12)"),
-          color: isActive("/outbreaks") ? "#ffaaaa" : "#ff3333",
-          boxShadow: isActive("/outbreaks") ? "0 0 8px rgba(255,51,51,0.25)" : undefined,
-        }}
-        aria-current={isActive("/outbreaks") ? "page" : undefined}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff3333", display: "inline-block" }} aria-hidden />
-        OUTBREAKS
-      </Link>
-
-      <Link href="/community" style={base(isActive("/community"))} aria-current={isActive("/community") ? "page" : undefined}>
-        COMMUNITY
-      </Link>
-
-      <Link href="/guide" style={base(isActive("/guide"))} aria-current={isActive("/guide") ? "page" : undefined}>
-        GUIDE
-      </Link>
-
-      {user ? (
-        <>
-          <Link href="/account" style={base(isActive("/account"))} aria-current={isActive("/account") ? "page" : undefined}>
-            ACCOUNT
+      {/* Desktop nav */}
+      <nav aria-label="Main" className="desktop-nav" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        {NAV_LINKS.map(({ href, label, color, blink }) => (
+          <Link key={href} href={href}
+            style={{
+              fontFamily: RAJ, fontSize: spacious ? 13 : 11, fontWeight: 700,
+              letterSpacing: 2, textTransform: "uppercase",
+              padding: spacious ? "7px 14px" : "5px 11px",
+              borderRadius: 3, textDecoration: "none",
+              display: "inline-flex", alignItems: "center", gap: 5,
+              border: `1px solid ${isActive(href) ? color : color + "44"}`,
+              background: isActive(href) ? `${color}10` : blink ? "rgba(255,51,51,0.04)" : "transparent",
+              color: isActive(href) ? color : blink ? "#ff3333" : "#5a8068",
+              animation: blink && !isActive(href) ? "outbreakBlink 2s ease-in-out infinite" : undefined,
+              transition: "all 0.15s",
+            }}>
+            {blink && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "obDot 1s ease-in-out infinite" }} />}
+            {label}
           </Link>
-          <button
-            type="button"
-            onClick={() => void signOut().then(() => setUser(null))}
-            style={{ ...base(false), cursor: "pointer", background: "transparent" }}
-            aria-label="Sign out"
-          >
-            SIGN OUT
+        ))}
+        <div style={{ width: 1, height: 18, background: "#1a3320", flexShrink: 0 }} />
+        {user ? (
+          <>
+            <Link href="/account" style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, textDecoration: "none", border: "1px solid #1a3320", color: "#00bb66" }}>ACCOUNT</Link>
+            <button type="button" onClick={() => void signOut().then(() => setUser(null))}
+              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", background: "transparent", cursor: "pointer" }}>
+              SIGN OUT
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={onSignIn}
+            style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", background: "transparent", cursor: "pointer" }}>
+            SIGN IN
           </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          onClick={onSignIn}
-          style={{ ...base(false), cursor: "pointer", background: "transparent" }}
-          aria-label="Sign in"
-        >
-          SIGN IN
-        </button>
+        )}
+      </nav>
+
+      {/* Mobile hamburger button */}
+      <button
+        type="button"
+        onClick={() => setMenuOpen(o => !o)}
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        className="mobile-only"
+        style={{
+          display: "none", // shown via CSS mobile-only class
+          alignItems: "center", justifyContent: "center",
+          width: 40, height: 40,
+          background: "transparent", border: "1px solid #1a3320",
+          borderRadius: 3, cursor: "pointer", flexShrink: 0,
+          flexDirection: "column", gap: 5,
+        }}>
+        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s, opacity 0.2s", transform: menuOpen ? "rotate(45deg) translate(0, 5px)" : "none" }} />
+        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#5a8068", opacity: menuOpen ? 0 : 1, transition: "opacity 0.2s" }} />
+        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s", transform: menuOpen ? "rotate(-45deg) translate(0, -5px)" : "none" }} />
+      </button>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <div style={{
+          position: "fixed", top: 52, left: 0, right: 0, zIndex: 200,
+          background: "#050c07", borderBottom: "1px solid #1a3320",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+          animation: "menuSlide 0.2s ease",
+          display: "flex", flexDirection: "column",
+        }}>
+          {NAV_LINKS.map(({ href, label, color, blink }) => (
+            <Link key={href} href={href}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "16px 20px",
+                borderBottom: "1px solid #0d1a10",
+                fontFamily: RAJ, fontSize: 16, fontWeight: 700,
+                letterSpacing: 2, textTransform: "uppercase",
+                textDecoration: "none",
+                color: isActive(href) ? color : blink ? "#ff3333" : "#7aaa8a",
+                background: isActive(href) ? `${color}08` : "transparent",
+              }}>
+              {blink && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "obDot 1s infinite", flexShrink: 0 }} />}
+              {label}
+              {isActive(href) && <span style={{ marginLeft: "auto", color, fontSize: 10 }}>●</span>}
+            </Link>
+          ))}
+          <div style={{ padding: "12px 20px", borderTop: "1px solid #1a3320", display: "flex", gap: 10 }}>
+            {user ? (
+              <>
+                <Link href="/account" style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#00bb66", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, textDecoration: "none" }}>ACCOUNT</Link>
+                <button type="button" onClick={() => void signOut().then(() => setUser(null))}
+                  style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN OUT</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => { setMenuOpen(false); onSignIn?.(); }}
+                style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN IN</button>
+            )}
+            <Link href="/account"
+              style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #00bb66", borderRadius: 3, color: "#00ff88", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, textDecoration: "none", background: "rgba(0,255,136,0.06)" }}>PRO ▶</Link>
+          </div>
+        </div>
       )}
-    </nav>
+    </>
   );
 }

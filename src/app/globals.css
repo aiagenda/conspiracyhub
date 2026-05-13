@@ -93,71 +93,6 @@ body {
   50% { opacity: 0.35; transform: scale(0.75); }
 }
 
-/* ── Mobile layout ──────────────────────────────────────────────── */
-@media (max-width: 767px) {
-  /* Headers: allow wrapping so nav pills don't overflow */
-  .site-header {
-    height: auto !important;
-    min-height: 48px;
-    flex-wrap: wrap;
-    padding-top: 6px !important;
-    padding-bottom: 6px !important;
-    row-gap: 6px;
-  }
-
-  /* Hide verbose subtitle in narrow headers */
-  .site-header-subtitle { display: none !important; }
-
-  /* Article reader: collapse to single column */
-  .article-grid {
-    display: flex !important;
-    flex-direction: column !important;
-  }
-
-  /* Sidebar in article reader: full width, sensible height */
-  .article-sidebar {
-    min-width: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-  }
-
-  /* Oracle bottom banner: stack vertically */
-  .oracle-banner {
-    flex-direction: column !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: calc(100vw - 32px) !important;
-    max-width: 480px !important;
-    border-radius: 6px !important;
-    bottom: 14px !important;
-  }
-  .oracle-banner > * { border-left: none !important; border-top: 1px solid #1a3320 !important; }
-  .oracle-banner > *:first-child { border-top: none !important; }
-
-  /* Search/patent grids: always single column on mobile */
-  .search-grid-420 {
-    grid-template-columns: 1fr !important;
-  }
-  .search-grid-340 {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Vote panel conspiracy slider chips: 2 rows */
-  .vote-chips {
-    flex-wrap: wrap !important;
-  }
-  .vote-chips > button {
-    flex: 0 0 calc(14.28% - 4px) !important;
-    min-width: 36px !important;
-    padding: 7px 4px !important;
-    font-size: 11px !important;
-  }
-
-  /* Search header: hide full nav, only keep ← FEED */
-  .search-header-nav { display: none !important; }
-  .search-header-divider { display: none !important; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .scanline { opacity: 0.35; }
   .animate-pulse-dot,
@@ -177,4 +112,95 @@ body {
   .site-nav-outbreaks-dot {
     animation: outbreak-nav-dot 1s ease-in-out infinite;
   }
+}
+
+/* ── MOBILE RESPONSIVE ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Hide desktop nav links on mobile */
+  .desktop-nav { display: none !important; }
+  .desktop-only { display: none !important; }
+
+  /* Show mobile elements */
+  .mobile-only { display: flex !important; }
+  .mobile-menu-open { display: flex !important; }
+
+  /* Feed grid: single column on mobile */
+  .feed-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Article reader: stack sidebar below */
+  .article-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Board / investigation: hide sidebar on mobile, show below */
+  .board-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Reduce padding on mobile */
+  .page-pad {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Header height */
+  .site-header {
+    height: 52px !important;
+    padding: 0 12px !important;
+  }
+
+  /* Status bar hidden on mobile */
+  .status-bar { display: none !important; }
+
+  /* Ticker bar: smaller text */
+  .ticker-bar { font-size: 8px !important; }
+
+  /* Category filter: scroll horizontally */
+  .category-filter {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .category-filter::-webkit-scrollbar { display: none; }
+
+  /* Cards full width */
+  .news-card { min-width: unset !important; }
+
+  /* UAP / Outbreak grid */
+  .two-col-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Chat panel full screen on mobile */
+  .chat-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 200 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Modal full screen */
+  .modal-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Voting panel full width */
+  .vote-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body { font-size: 12px; }
+  .hero-title { font-size: clamp(28px, 8vw, 48px) !important; }
+  .stat-number { font-size: clamp(20px, 6vw, 32px) !important; }
 }

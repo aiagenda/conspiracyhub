@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -129,68 +130,35 @@ export default function FeedScreen({
       <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* TOP NAV */}
-        <header className="site-header" style={{ height: 48, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 20px", gap: 14 }}>
-          <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)" }}>
+        <header className="site-header" style={{ height: 48, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 20px", gap: 12, position: "sticky", top: 0, zIndex: 30 }}>
+          {/* Logo */}
+          <Link href="/" style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)", textDecoration: "none", flexShrink: 0 }}>
             THE THEORIST
-          </div>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div className="site-header-subtitle" style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <style>{`
-              @keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 6px rgba(255,51,51,0.4)} 50%{border-color:rgba(255,51,51,0.4);box-shadow:none} }
-              @keyframes outbreakDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
-            `}</style>
+          </Link>
+          <div className="desktop-only" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
 
-            {/* Nav links — hidden on very small screens via className */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {[
-                { href: "/uap", label: "UAP", color: "#8aa6ff", bg: "rgba(145,170,255,0.06)" },
-                { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", bg: "rgba(255,51,51,0.08)", blink: true },
-                { href: "/community", label: "COMMUNITY", color: "#00bb66", bg: "transparent" },
-                { href: "/search", label: "SEARCH", color: "#5a8068", bg: "transparent" },
-                { href: "/guide", label: "GUIDE", color: "#5a8068", bg: "transparent" },
-              ].map(({ href, label, color, bg, blink }) => (
-                <Link key={href} href={href} style={{ background: bg, border: `1px solid ${color}55`, color, fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, animation: blink ? "outbreakBlink 1.8s ease-in-out infinite" : undefined }}>
-                  {blink && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "outbreakDot 1s ease-in-out infinite" }} />}
-                  {label}
-                </Link>
-              ))}
-            </div>
+          {/* Desktop nav via SiteNav */}
+          <SiteNav
+            user={user}
+            onSignIn={() => setShowAuth(true)}
+          />
 
-            <div style={{ width: 1, height: 18, background: "#1a3320", flexShrink: 0 }} />
-
-            {/* Auth + PRO */}
-            {user ? (
-              <>
-                <Link href="/account" style={{ background: "transparent", border: "1px solid #1a3320", color: "#00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, textDecoration: "none" }}>
-                  ACCOUNT
-                </Link>
-                <button type="button" onClick={() => void signOut().then(() => { refreshUser(); setUserPlan(null); })} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, cursor: "pointer" }}>
-                  SIGN OUT
-                </button>
-              </>
-            ) : (
-              <button onClick={() => setShowAuth(true)} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 12px", borderRadius: 3, cursor: "pointer" }}>
-                SIGN IN
-              </button>
-            )}
-
-            {/* PRO button — only show if not already PRO */}
-            {userPlan !== "pro" && (
-              <button
-                onClick={() => setShowUpgrade(true)}
-                style={{ background: "rgba(0,255,136,0.06)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.14)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.06)"; }}
-              >
-                PRO ▶
-              </button>
-            )}
-          </div>
+          {/* PRO button — desktop only */}
+          {userPlan !== "pro" && (
+            <button
+              className="desktop-only"
+              onClick={() => setShowUpgrade(true)}
+              style={{ marginLeft: "auto", background: "rgba(0,255,136,0.06)", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, cursor: "pointer", flexShrink: 0 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.14)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.06)"; }}
+            >
+              PRO ▶
+            </button>
+          )}
         </header>
 
         {/* STATUS BAR — dynamic */}
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}>
+        <div className="status-bar" style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}>
           {([
             { label: "GUARDIAN API", key: "guardian" },
             { label: "GPT-4o", key: "oracle" },
