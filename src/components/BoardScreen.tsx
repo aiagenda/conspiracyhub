@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import InvestigationBoard from "@/components/InvestigationBoard";
 import VotePanel from "@/components/VotePanel";
@@ -251,6 +252,163 @@ function appendTheoryEdges(edges: Edge[], nodes: Node[]): Edge[] {
   return extra.length ? [...edges, ...extra] : edges;
 }
 
+type BoardAccessBlock =
+  | { kind: "sign_in" }
+  | { kind: "pro_required" }
+  | { kind: "error"; message: string };
+
+function BoardAccessGate({
+  block,
+  backHref,
+  backLabel,
+}: {
+  block: BoardAccessBlock;
+  backHref?: string;
+  backLabel?: string;
+}) {
+  const isError = block.kind === "error";
+  const title =
+    block.kind === "sign_in"
+      ? "SIGN IN REQUIRED"
+      : block.kind === "pro_required"
+        ? "PRO SUBSCRIPTION REQUIRED"
+        : "REQUEST FAILED";
+  const body =
+    block.kind === "sign_in"
+      ? "The investigation board needs your session to load or generate the Oracle graph. Create an account or sign in, then open this article again."
+      : block.kind === "pro_required"
+        ? "There is no saved Oracle analysis for this story yet. Generating a new board is a PRO feature. Upgrade to run the Oracle, or check back later if someone with PRO has already generated it."
+        : block.message;
+
+  const border = isError ? "rgba(255,51,51,0.45)" : "rgba(255,170,0,0.55)";
+  const glow = isError ? "rgba(255,51,51,0.08)" : "rgba(255,170,0,0.1)";
+  const titleColor = isError ? "#ff8888" : "#ffcc88";
+  const accent = isError ? "#ff4444" : "#ffaa33";
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#050c07",
+        color: "#c8e8d0",
+        fontFamily: "var(--font-share-tech-mono), monospace",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 440,
+          background: `linear-gradient(180deg, ${glow} 0%, transparent 55%)`,
+          border: `1px solid ${border}`,
+          borderRadius: 6,
+          padding: "28px 26px 26px",
+          textAlign: "center",
+          boxShadow: isError
+            ? "0 0 40px rgba(255,51,51,0.12)"
+            : "0 0 36px rgba(255,170,0,0.14)",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--font-raj), sans-serif",
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 4,
+            color: accent,
+            marginBottom: 10,
+          }}
+        >
+          {isError ? "◈ ERROR" : "⚠ ACCESS WARNING"}
+        </div>
+        <h1
+          style={{
+            fontFamily: "var(--font-raj), sans-serif",
+            fontSize: 20,
+            fontWeight: 700,
+            letterSpacing: 2,
+            color: titleColor,
+            margin: "0 0 14px",
+            lineHeight: 1.25,
+            textTransform: "uppercase",
+          }}
+        >
+          {title}
+        </h1>
+        <p style={{ fontSize: 12, color: "#8aaa96", lineHeight: 1.75, margin: "0 0 22px", textAlign: "center" }}>{body}</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "stretch" }}>
+          {block.kind === "sign_in" && (
+            <Link
+              href="/"
+              style={{
+                display: "block",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                padding: "11px 16px",
+                border: "1px solid #00bb66",
+                background: "rgba(0,255,136,0.08)",
+                color: "#00ff88",
+                textDecoration: "none",
+                borderRadius: 4,
+                textAlign: "center",
+              }}
+            >
+              GO TO FEED — SIGN IN OR SIGN UP
+            </Link>
+          )}
+          {block.kind === "pro_required" && (
+            <Link
+              href="/account"
+              style={{
+                display: "block",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                padding: "11px 16px",
+                border: "1px solid #00bb66",
+                background: "rgba(0,255,136,0.08)",
+                color: "#00ff88",
+                textDecoration: "none",
+                borderRadius: 4,
+                textAlign: "center",
+              }}
+            >
+              UPGRADE TO PRO — ACCOUNT & BILLING
+            </Link>
+          )}
+          {backHref && (
+            <Link
+              href={backHref}
+              style={{
+                display: "block",
+                fontSize: 11,
+                color: "#5a8068",
+                textDecoration: "none",
+                border: "1px solid #1a3320",
+                padding: "9px 14px",
+                borderRadius: 4,
+                textAlign: "center",
+              }}
+            >
+              {backLabel ?? "← BACK"}
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function inferRelationLabel(fromType: NodeType, toType: NodeType): string {
   const pair = `${fromType}->${toType}`;
   const map: Record<string, string> = {
@@ -333,19 +491,20 @@ export default function BoardScreen({
   const [analysis, setAnalysis] = useState<OracleAnalysis | null>(initialAnalysis);
   const [selected, setSelected] = useState<Node | null>(analysis?.nodes?.[0] ?? MOCK_NODES[0]);
   const [loading, setLoading] = useState(!initialAnalysis);
-  const [error, setError] = useState("");
+  const [accessBlock, setAccessBlock] = useState<BoardAccessBlock | null>(null);
 
   useEffect(() => {
     if (analysis) return;
     (async () => {
       try {
+        setAccessBlock(null);
         setLoading(true);
         const supabase = getSupabaseBrowserClient();
         const {
           data: { session },
         } = await supabase.auth.getSession();
         if (!session?.access_token) {
-          setError("No signed-in user found.");
+          setAccessBlock({ kind: "sign_in" });
           return;
         }
         const res = await fetch("/api/oracle", {
@@ -356,12 +515,34 @@ export default function BoardScreen({
           },
           body: JSON.stringify({ newsId: news.id }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Oracle request failed");
-        setAnalysis(data);
-        setSelected(data.nodes?.[0] ?? MOCK_NODES[0]);
+        let payload: { error?: string } = {};
+        try {
+          payload = (await res.json()) as { error?: string };
+        } catch {
+          payload = {};
+        }
+        if (!res.ok) {
+          if (res.status === 403 && payload.error === "upgrade_required") {
+            setAccessBlock({ kind: "pro_required" });
+            return;
+          }
+          if (res.status === 401) {
+            setAccessBlock({ kind: "sign_in" });
+            return;
+          }
+          setAccessBlock({
+            kind: "error",
+            message: payload.error ?? `Oracle request failed (${res.status}).`,
+          });
+          return;
+        }
+        setAnalysis(payload as OracleAnalysis);
+        setSelected((payload as OracleAnalysis).nodes?.[0] ?? MOCK_NODES[0]);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Unknown error");
+        setAccessBlock({
+          kind: "error",
+          message: e instanceof Error ? e.message : "Unknown error",
+        });
       } finally {
         setLoading(false);
       }
@@ -372,8 +553,8 @@ export default function BoardScreen({
     return <OracleLoadingScreen />;
   }
 
-  if (error) {
-    return <div className="min-h-screen bg-[#050c07] text-[#ff3333] p-6">[ERROR] {error}</div>;
+  if (accessBlock) {
+    return <BoardAccessGate block={accessBlock} backHref={backHref} backLabel={backLabel} />;
   }
 
   const normalized = ensureCenterNode(sanitizeNodes(analysis?.nodes), news);
