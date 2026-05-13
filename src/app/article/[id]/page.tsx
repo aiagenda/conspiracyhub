@@ -95,8 +95,19 @@ async function fetchGenericBody(articleUrl: string): Promise<string> {
   }
 }
 
-export default async function ArticlePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ArticlePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
+  const rawChat = sp.chat;
+  const chatVal = Array.isArray(rawChat) ? rawChat[0] : rawChat;
+  const initialChatOpen =
+    chatVal === "1" || chatVal === "open" || chatVal === "true" || chatVal === "yes";
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) return <div className="min-h-screen bg-[#050c07] text-[#ff3333] p-8">[ERROR] Missing env.</div>;
@@ -126,5 +137,5 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
   };
 
   const fallbackBody = omitIfHungarianScript(news.summary ?? "");
-  return <ArticleReader item={item} body={body || fallbackBody} />;
+  return <ArticleReader item={item} body={body || fallbackBody} initialChatOpen={initialChatOpen} />;
 }

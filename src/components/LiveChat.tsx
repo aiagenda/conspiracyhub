@@ -39,7 +39,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
   const [online, setOnline] = useState(1);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("chat_name", name);
@@ -86,7 +86,11 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
   }, [initThread]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, [messages]);
 
   useEffect(() => {
@@ -212,7 +216,10 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+      <div
+        ref={messagesScrollRef}
+        style={{ flex: 1, overflowY: "auto", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}
+      >
         {loading && (
           <div style={{ textAlign: "center", color: "#2a4a30", fontSize: 10, padding: "2rem 0", letterSpacing: 2 }}>
             CONNECTING...
@@ -301,7 +308,6 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
 
       <div style={{ padding: "10px 14px", borderTop: "1px solid #1a3320", background: "#050c07", flexShrink: 0 }}>

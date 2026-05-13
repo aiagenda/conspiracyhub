@@ -205,6 +205,37 @@ export default function NewsCard({
           >
             💬 Discuss in community
           </Link>
+          <Link
+            href={`/article/${item.id}?chat=1`}
+            style={{
+              display: "block",
+              textAlign: "center",
+              textDecoration: "none",
+              background: "rgba(0,255,136,0.04)",
+              border: "1px solid rgba(0,187,102,0.35)",
+              color: "#00bb66",
+              borderRadius: 3,
+              padding: "8px 14px",
+              fontFamily: "var(--font-raj), sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00ff88";
+              (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88";
+              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,187,102,0.35)";
+              (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66";
+              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.04)";
+            }}
+          >
+            ⚡ Live chat on article
+          </Link>
         </div>
       </div>
     </div>

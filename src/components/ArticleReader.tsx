@@ -241,7 +241,15 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
   );
 }
 
-export default function ArticleReader({ item, body }: { item: NewsItem; body: string }) {
+export default function ArticleReader({
+  item,
+  body,
+  initialChatOpen = false,
+}: {
+  item: NewsItem;
+  body: string;
+  initialChatOpen?: boolean;
+}) {
   const [highlights, setHighlights]     = useState<Highlight[]>([]);
   const [hlTotal, setHlTotal]           = useState(0);
   const [hlLimited, setHlLimited]       = useState(false);
@@ -249,7 +257,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
   const [hlError, setHlError]           = useState("");
   const [legendOpen, setLegendOpen]     = useState(true);
   const [filterCat, setFilterCat]       = useState<string | null>(null);
-  const [chatOpen, setChatOpen]         = useState(false);
+  const [chatOpen, setChatOpen]         = useState(initialChatOpen);
 
   useEffect(() => {
     markArticleRead(item.id);
