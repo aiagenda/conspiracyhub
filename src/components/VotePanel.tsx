@@ -111,7 +111,7 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
           {!myVotes["conspiracy_score"] ? (
             <div>
               <div style={{ fontSize: 9, color: "#5a8068", marginBottom: 6, letterSpacing: 1 }}>How suspicious do you think this is?</div>
-              <div style={{ display: "flex", gap: 4 }}>
+              <div className="vote-chips" style={{ display: "flex", gap: 4 }}>
                 {[10, 25, 40, 55, 70, 85, 95].map(val => {
                   const col = val >= 65 ? "#ff3333" : val >= 40 ? "#ffaa00" : "#00bb66";
                   return (

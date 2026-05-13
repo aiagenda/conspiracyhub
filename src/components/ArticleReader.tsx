@@ -305,7 +305,7 @@ export default function ArticleReader({
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
       {/* FLOATING ORACLE BANNER - always visible */}
-      <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 50, display: "flex", alignItems: "center", gap: 0, background: "#090f0b", border: "1px solid #00bb66", borderRadius: 4, overflow: "hidden", boxShadow: "0 0 24px rgba(0,255,136,0.15)", animation: "bannerGlow 2.5s ease-in-out infinite" }}>
+        <div className="oracle-banner" style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 50, display: "flex", alignItems: "center", gap: 0, background: "#090f0b", border: "1px solid #00bb66", borderRadius: 4, overflow: "hidden", boxShadow: "0 0 24px rgba(0,255,136,0.15)", animation: "bannerGlow 2.5s ease-in-out infinite" }}>
         <style>{`
           @keyframes bannerGlow { 0%,100%{box-shadow:0 0 16px rgba(0,255,136,0.12)} 50%{box-shadow:0 0 28px rgba(0,255,136,0.28)} }
           @keyframes bannerDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
@@ -354,7 +354,7 @@ export default function ArticleReader({
       <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* TOP NAV */}
-        <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
+        <div className="site-header" style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
           <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
             ← FEED
           </Link>
@@ -373,6 +373,7 @@ export default function ArticleReader({
         </div>
 
         <div
+          className="article-grid"
           style={{
             ...pageContentShellStyle({
               padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem",
@@ -402,7 +403,7 @@ export default function ArticleReader({
                   </span>
                 )}
               </div>
-              <h1 style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}>{item.title}</h1>
+              <h1 style={{ fontFamily: RAJ, fontSize: "clamp(20px, 4vw, 30px)", fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}>{item.title}</h1>
               {item.angle && (
                 <div style={{ padding: "8px 12px", borderLeft: "2px solid #1a3320", fontSize: 14, color: "#5a8068", lineHeight: 1.65 }}>
                   <span style={{ color: "#00bb66" }}>▸ </span>{item.angle}
@@ -557,7 +558,7 @@ export default function ArticleReader({
           </div>
 
           {/* SIDEBAR: Highlight legend + list */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="article-sidebar" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
             {/* Legend */}
             <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>

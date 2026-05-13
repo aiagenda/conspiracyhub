@@ -129,12 +129,12 @@ export default function FeedScreen({
       <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* TOP NAV */}
-        <header style={{ height: 48, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 20px", gap: 14 }}>
+        <header className="site-header" style={{ height: 48, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 20px", gap: 14 }}>
           <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)" }}>
             THE THEORIST
           </div>
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
+          <div className="site-header-subtitle" style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>AI INVESTIGATIVE INTELLIGENCE</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <style>{`
               @keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 6px rgba(255,51,51,0.4)} 50%{border-color:rgba(255,51,51,0.4);box-shadow:none} }

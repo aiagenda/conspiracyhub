@@ -93,6 +93,71 @@ body {
   50% { opacity: 0.35; transform: scale(0.75); }
 }
 
+/* ── Mobile layout ──────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Headers: allow wrapping so nav pills don't overflow */
+  .site-header {
+    height: auto !important;
+    min-height: 48px;
+    flex-wrap: wrap;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    row-gap: 6px;
+  }
+
+  /* Hide verbose subtitle in narrow headers */
+  .site-header-subtitle { display: none !important; }
+
+  /* Article reader: collapse to single column */
+  .article-grid {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Sidebar in article reader: full width, sensible height */
+  .article-sidebar {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Oracle bottom banner: stack vertically */
+  .oracle-banner {
+    flex-direction: column !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100vw - 32px) !important;
+    max-width: 480px !important;
+    border-radius: 6px !important;
+    bottom: 14px !important;
+  }
+  .oracle-banner > * { border-left: none !important; border-top: 1px solid #1a3320 !important; }
+  .oracle-banner > *:first-child { border-top: none !important; }
+
+  /* Search/patent grids: always single column on mobile */
+  .search-grid-420 {
+    grid-template-columns: 1fr !important;
+  }
+  .search-grid-340 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Vote panel conspiracy slider chips: 2 rows */
+  .vote-chips {
+    flex-wrap: wrap !important;
+  }
+  .vote-chips > button {
+    flex: 0 0 calc(14.28% - 4px) !important;
+    min-width: 36px !important;
+    padding: 7px 4px !important;
+    font-size: 11px !important;
+  }
+
+  /* Search header: hide full nav, only keep ← FEED */
+  .search-header-nav { display: none !important; }
+  .search-header-divider { display: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scanline { opacity: 0.35; }
   .animate-pulse-dot,

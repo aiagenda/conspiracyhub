@@ -216,9 +216,9 @@ export default function SearchPage() {
           <div style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)", whiteSpace: "nowrap" }}>
             THE THEORIST
           </div>
-          <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
-          <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, whiteSpace: "nowrap" }}>INTELLIGENCE SEARCH</div>
-          <div style={{ marginLeft: "auto", flexShrink: 0 }}>
+          <div className="search-header-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="search-header-subtitle site-header-subtitle" style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, whiteSpace: "nowrap" }}>INTELLIGENCE SEARCH</div>
+          <div className="search-header-nav" style={{ marginLeft: "auto", flexShrink: 0 }}>
             <SiteNav />
           </div>
         </header>
@@ -466,7 +466,7 @@ export default function SearchPage() {
                 {results.news.length > 0 && (
                   <section>
                     <SectionLabel color="#00bb66">◈ MATCHING ARTICLES IN FEED ({results.news.length})</SectionLabel>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 10 }}>
+                    <div className="search-grid-420" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 420px), 1fr))", gap: 10 }}>
                       {results.news.map((n) => (
                         <Link key={n.id} href={`/board/${n.id}`} style={{ textDecoration: "none" }}>
                           <div
@@ -530,7 +530,7 @@ export default function SearchPage() {
                 {results.patents.length > 0 && (
                   <section>
                     <SectionLabel color="#ff8888">◈ RELATED PATENTS ({results.patents.length})</SectionLabel>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 10 }}>
+                    <div className="search-grid-420" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 420px), 1fr))", gap: 10 }}>
                       {results.patents.map((p, i) => (
                         <a key={i} href={p.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
                           <div
@@ -555,7 +555,7 @@ export default function SearchPage() {
                 {results.people.length > 0 && (
                   <section>
                     <SectionLabel color="#00dd77">◈ KEY FIGURES ({results.people.length})</SectionLabel>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 10 }}>
+                    <div className="search-grid-340" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 10 }}>
                       {results.people.map((p, i) => (
                         <div key={i} style={{ border: "1px solid rgba(0,187,102,0.2)", borderRadius: 5, padding: "16px 18px", background: "rgba(5,18,12,0.9)" }}>
                           <div style={{ fontFamily: RAJ, fontSize: T.cardTitleAccent, fontWeight: 700, color: "#00ff88", marginBottom: 6 }}>{p.name}</div>
