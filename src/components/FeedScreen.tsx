@@ -25,6 +25,17 @@ const TICKER_ITEMS = [
   "◈ THE THEORIST — AI INVESTIGATIVE INTELLIGENCE",
 ];
 
+type HealthSourceKey =
+  | "ingest"
+  | "guardian_api"
+  | "gnews"
+  | "reddit"
+  | "rss"
+  | "scraper"
+  | "oracle"
+  | "community"
+  | "uap";
+
 type HealthStatus = {
   ingest: string;
   guardian_api: string;
@@ -35,7 +46,22 @@ type HealthStatus = {
   oracle: string;
   community: string;
   uap: string;
+  last_at?: Partial<Record<HealthSourceKey, string | null>>;
 };
+
+function formatHealthAge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const sec = Math.floor((Date.now() - t) / 1000);
+  if (sec < 45) return "just now";
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
 
 export type FeedNotice = "missing_supabase_env" | "empty_database";
 
@@ -63,6 +89,8 @@ export default function FeedScreen({
   const [userLoaded, setUserLoaded] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  /** Re-render periodically so relative "Xm ago" labels advance without re-fetching /api/health. */
+  const [healthAgeTick, setHealthAgeTick] = useState(0);
   const router = useRouter();
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
@@ -110,6 +138,11 @@ export default function FeedScreen({
   // Dynamic status bar
   useEffect(() => {
     fetch("/api/health").then(r => r.json()).then(setHealth).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setHealthAgeTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(id);
   }, []);
 
   const sections = useMemo(
@@ -160,7 +193,11 @@ export default function FeedScreen({
         </header>
 
         {/* STATUS BAR — dynamic */}
-        <div className="status-bar" style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}>
+        <div
+          className="status-bar"
+          data-age-tick={healthAgeTick}
+          style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}
+        >
           {([
             { label: "INGEST", key: "ingest" },
             { label: "GUARDIAN", key: "guardian_api" },
@@ -173,12 +210,16 @@ export default function FeedScreen({
             { label: "COMMUNITY", key: "community" },
           ] as const).map(({ label, key }) => {
             const status = health ? health[key] : null;
+            const age = formatHealthAge(health?.last_at?.[key]);
             const col = !status ? "#3a5040" : status === "online" ? "#00ff88" : status === "degraded" || status === "idle" ? "#ffaa00" : "#ff3333";
             const pulse = status === "online";
             return (
-              <span key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span key={label} style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                 <span className={pulse ? "animate-pulse-dot" : ""} style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: col }} />
-                <span style={{ color: status === "error" ? "#ff8888" : "#5a8068" }}>{label}</span>
+                <span style={{ color: status === "error" ? "#ff8888" : "#5a8068" }}>
+                  {label}
+                  {age ? <span style={{ color: "#3a5040", fontWeight: 400 }}> · {age}</span> : null}
+                </span>
                 {status && status !== "online" && (
                   <span style={{ fontSize: 8, color: col, letterSpacing: 1 }}>[{status.toUpperCase()}]</span>
                 )}
