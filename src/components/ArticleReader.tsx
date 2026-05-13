@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import LiveChat from "@/components/LiveChat";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import Link from "next/link";
 import Image from "next/image";
@@ -248,6 +249,7 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
   const [hlError, setHlError]           = useState("");
   const [legendOpen, setLegendOpen]     = useState(true);
   const [filterCat, setFilterCat]       = useState<string | null>(null);
+  const [chatOpen, setChatOpen]         = useState(false);
 
   useEffect(() => {
     markArticleRead(item.id);
@@ -311,6 +313,27 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
           ◈ OPEN INVESTIGATION BOARD ▶
         </a>
         <button
+          type="button"
+          onClick={() => setChatOpen((o) => !o)}
+          style={{
+            display: "block",
+            padding: "10px 14px",
+            background: chatOpen ? "rgba(0,187,102,0.2)" : "rgba(0,187,102,0.06)",
+            borderLeft: "1px solid #1a3320",
+            fontFamily: "var(--font-raj), sans-serif",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 2,
+            color: "#00bb66",
+            textTransform: "uppercase",
+            transition: "background 0.15s",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          💬 {chatOpen ? "CLOSE" : "LIVE CHAT"}
+        </button>
+        <button
           onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
           style={{ padding: "10px 12px", background: "transparent", border: "none", borderLeft: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-share-tech-mono), monospace", fontSize: 10, cursor: "pointer", letterSpacing: 1, transition: "color 0.15s" }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#00ff88"; }}
@@ -343,9 +366,14 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
 
         <div
           style={{
-            ...pageContentShellStyle({ padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem" }),
+            ...pageContentShellStyle({
+              padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem",
+              ...(chatOpen ? { maxWidth: 1680 } : {}),
+            }),
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 340px)",
+            gridTemplateColumns: chatOpen
+              ? "minmax(0, 1fr) minmax(240px, 300px) minmax(280px, 340px)"
+              : "minmax(0, 1fr) minmax(280px, 340px)",
             gap: "clamp(1.25rem, 3vw, 2.5rem)",
           }}
         >
@@ -612,6 +640,22 @@ export default function ArticleReader({ item, body }: { item: NewsItem; body: st
               </div>
             )}
           </div>
+
+          {chatOpen && (
+            <div
+              style={{
+                position: "sticky",
+                top: 56,
+                height: "calc(100vh - 100px)",
+                minHeight: 360,
+                border: "1px solid #1a3320",
+                borderRadius: 4,
+                overflow: "hidden",
+              }}
+            >
+              <LiveChat articleId={item.id} articleTitle={item.title} onClose={() => setChatOpen(false)} />
+            </div>
+          )}
         </div>
       </div>
     </div>
