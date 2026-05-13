@@ -58,7 +58,7 @@ export default function NewsCard({
     >
       {/* ── Card header: image OR styled placeholder ───────────────── */}
       <a href={`/article/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
-        <div style={{ position: "relative", height: 140, overflow: "hidden" }}>
+        <div style={{ position: "relative", height: 168, overflow: "hidden" }}>
           {item.image ? (
             <Image
               src={item.image}
@@ -67,7 +67,7 @@ export default function NewsCard({
               unoptimized
               priority={priority}
               loading={priority ? "eager" : undefined}
-              sizes="(max-width: 768px) 100vw, 360px"
+              sizes="(max-width: 768px) 100vw, (max-width: 1400px) 50vw, 25vw"
               style={{ objectFit: "cover", filter: "saturate(0.35) brightness(0.55)", transition: "filter 0.2s" }}
             />
           ) : (
@@ -88,24 +88,24 @@ export default function NewsCard({
           {/* shared gradient overlay */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, #090f0b)" }} />
           {/* PRIORITY SCORE badge */}
-          <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "2px 8px", fontSize: 11, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
+          <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(5,12,7,0.88)", border: `1px solid ${color}`, borderRadius: 3, padding: "4px 10px", fontSize: 12, color, letterSpacing: 1, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
             {item.score}% PRIORITY
           </div>
           {/* Section + time */}
-          <div style={{ position: "absolute", bottom: 8, left: 10, fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
+          <div style={{ position: "absolute", bottom: 10, left: 12, fontSize: 11, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
             {item.section} · {timeAgo(item.date)}
           </div>
           {/* READ / VIEWED badge */}
           <div
             style={{
               position: "absolute",
-              top: 8,
-              left: 8,
+              top: 10,
+              left: 10,
               background: read ? "rgba(0,40,28,0.85)" : "rgba(5,12,7,0.75)",
               border: read ? "1px solid rgba(0,187,102,0.45)" : "1px solid #1a3320",
               borderRadius: 2,
-              padding: "2px 7px",
-              fontSize: 10,
+              padding: "3px 9px",
+              fontSize: 11,
               color: read ? "#6bc46b" : "#5a8068",
               letterSpacing: 1,
               fontFamily: "var(--font-raj), sans-serif",
@@ -117,16 +117,16 @@ export default function NewsCard({
         </div>
       </a>
 
-      <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ padding: "16px 18px", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
 
         <a href={`/article/${item.id}`} style={{ textDecoration: "none" }}>
           <h3
             style={{
               fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 17,
+              fontSize: 19,
               fontWeight: 700,
               color: read ? "#a8c8b0" : "#e8ffe8",
-              lineHeight: 1.35,
+              lineHeight: 1.4,
               margin: 0,
               transition: "color 0.15s",
             }}
@@ -142,14 +142,14 @@ export default function NewsCard({
         </a>
 
         {item.angle && (
-          <div style={{ fontSize: 13, color: "#5a8068", borderLeft: "2px solid #1a3320", paddingLeft: 8, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 14, color: "#5a8068", borderLeft: "2px solid #1a3320", paddingLeft: 10, lineHeight: 1.65 }}>
             <span style={{ color: "#00bb66" }}>▸ </span>
             {item.angle}
           </div>
         )}
 
 
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
           <button
             type="button"
             onClick={() => onAnalyze(item)}
@@ -158,9 +158,9 @@ export default function NewsCard({
               border: `1px solid ${color}`,
               color,
               borderRadius: 3,
-              padding: "8px 12px",
+              padding: "11px 14px",
               fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 700,
               letterSpacing: 2,
               textTransform: "uppercase",
@@ -186,9 +186,9 @@ export default function NewsCard({
               border: "1px solid #1a3320",
               color: "#5a8068",
               borderRadius: 3,
-              padding: "7px 12px",
+              padding: "9px 14px",
               fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 700,
               letterSpacing: 1.5,
               textTransform: "uppercase",

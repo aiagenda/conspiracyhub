@@ -8,6 +8,7 @@ import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
 import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { Session, User } from "@supabase/supabase-js";
@@ -107,12 +108,6 @@ export default function FeedScreen({
       return b.score - a.score;
     });
   }, [filter, initialItems, sortBy]);
-
-  async function startCheckout() {
-    const res = await fetch("/api/stripe/checkout", { method: "POST" });
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
-  }
 
   function analyze(item: NewsItem) {
     router.push(`/article/${item.id}`);
@@ -337,7 +332,13 @@ export default function FeedScreen({
 
           {/* NEWS GRID */}
           {visible.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1.25rem" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
+                gap: "1.25rem",
+              }}
+            >
               {visible.map((item, idx) => (
                 <NewsCard key={item.id} item={item} read={readIds.has(item.id)} onAnalyze={analyze} priority={idx < 3} />
               ))}
@@ -381,7 +382,7 @@ export default function FeedScreen({
         ↑
       </button>
       {showAuth && <AuthModal onClose={() => { setShowAuth(false); refreshUser(); }} />}
-      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={startCheckout} />}
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={redirectToStripeCheckout} />}
     </div>
   );
 }

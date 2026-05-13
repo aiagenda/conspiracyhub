@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const FEATURES = [
   { icon: "◈", text: "Unlimited investigation boards — visual node graph with CIA/USPTO links" },
@@ -17,8 +17,11 @@ export default function UpgradeModal({
   onUpgrade,
 }: {
   onClose: () => void;
-  onUpgrade: () => void;
+  onUpgrade: () => void | Promise<void>;
 }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -72,13 +75,45 @@ export default function UpgradeModal({
 
           {/* CTA */}
           <button
-            onClick={onUpgrade}
-            style={{ padding: "12px", background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", borderRadius: 3, cursor: "pointer", transition: "all 0.15s" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.08)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              void Promise.resolve(onUpgrade())
+                .catch((e: unknown) => {
+                  setError(e instanceof Error ? e.message : "Checkout failed.");
+                })
+                .finally(() => setLoading(false));
+            }}
+            style={{
+              padding: "12px",
+              background: "transparent",
+              border: "1px solid #00bb66",
+              color: "#00ff88",
+              fontFamily: "var(--font-raj), sans-serif",
+              fontSize: 14,
+              fontWeight: 700,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              borderRadius: 3,
+              cursor: loading ? "wait" : "pointer",
+              opacity: loading ? 0.75 : 1,
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={e => {
+              if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.08)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            }}
           >
-            ACTIVATE PRO SUBSCRIPTION ▶
+            {loading ? "OPENING CHECKOUT…" : "ACTIVATE PRO SUBSCRIPTION ▶"}
           </button>
+
+          {error ? (
+            <div style={{ fontSize: 11, color: "#ff6b6b", lineHeight: 1.5, textAlign: "center" }}>{error}</div>
+          ) : null}
 
           <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1, textAlign: "center" }}>
             SECURE CHECKOUT VIA STRIPE · 256-BIT ENCRYPTION

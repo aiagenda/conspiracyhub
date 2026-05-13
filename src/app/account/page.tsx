@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
 
 type AccountPayload = {
   email: string;
@@ -20,6 +21,7 @@ export default function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AccountPayload | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -58,6 +60,18 @@ export default function AccountPage() {
     });
     return () => subscription.unsubscribe();
   }, [load]);
+
+  async function startCheckout() {
+    setError(null);
+    setCheckoutLoading(true);
+    try {
+      await redirectToStripeCheckout();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Checkout failed.");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
 
   async function openBillingPortal() {
     const supabase = getSupabaseBrowserClient();
@@ -273,14 +287,31 @@ export default function AccountPage() {
                     Upgrade to <strong style={{ color: "#00ff88" }}>PRO</strong> for unlimited Oracle triggers, full article highlights, Polymarket real-time odds, URL analyzer and board export.
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Link
-                      href="/"
-                      style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "9px 18px", border: "1px solid #00bb66", background: "rgba(0,255,136,0.06)", color: "#00ff88", borderRadius: 3, textDecoration: "none", display: "inline-block" }}
+                    <button
+                      type="button"
+                      disabled={checkoutLoading}
+                      onClick={() => void startCheckout()}
+                      style={{
+                        fontFamily: "var(--font-raj), sans-serif",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: 2,
+                        textTransform: "uppercase",
+                        padding: "9px 18px",
+                        border: "1px solid #00bb66",
+                        background: "rgba(0,255,136,0.06)",
+                        color: "#00ff88",
+                        borderRadius: 3,
+                        cursor: checkoutLoading ? "wait" : "pointer",
+                        opacity: checkoutLoading ? 0.7 : 1,
+                      }}
                     >
-                      ◐ UPGRADE TO PRO — $7/mo ▸
-                    </Link>
+                      {checkoutLoading ? "OPENING CHECKOUT…" : "◐ UPGRADE TO PRO — $7/mo ▸"}
+                    </button>
                   </div>
-                  <div style={{ fontSize: 10, color: "#3a5040", marginTop: 8 }}>Click PRO ▶ on any page to open Stripe Checkout. Cancel anytime.</div>
+                  <div style={{ fontSize: 10, color: "#3a5040", marginTop: 8 }}>
+                    Opens Stripe Checkout on this site. You can also use <strong style={{ color: "#5a8068" }}>PRO ▶</strong> in the feed header.
+                  </div>
                 </div>
               )}
 

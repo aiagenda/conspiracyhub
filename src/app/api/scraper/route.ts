@@ -237,7 +237,7 @@ const RSS_SOURCES: Array<{ url: string; id: string; section: string }> = [
 
 // ── SCRAPER CORE ──────────────────────────────────────────────────────────────
 
-async function runScraper(openAiKey: string) {
+export async function runScraper(openAiKey: string) {
   if (!process.env.GUARDIAN_API_KEY) {
     console.warn("[scraper] GUARDIAN_API_KEY missing — Guardian section skipped");
   }

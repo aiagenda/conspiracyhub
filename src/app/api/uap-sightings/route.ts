@@ -370,6 +370,66 @@ function parseEventDate(raw: string): string | null {
   }
 }
 
+// ── Exported scrape function (called directly from scheduler to avoid HTTP self-call) ──
+
+export async function runUapScrape(maxNew = 70): Promise<{
+  success: boolean;
+  inserted: number;
+  skipped: number;
+  geocoded: number;
+  truncated: boolean;
+  fetched_candidates: number;
+}> {
+  const admin = getAdmin();
+  const rows = await scrapeNUFORC();
+  let inserted = 0;
+  let skipped = 0;
+  let geocoded = 0;
+  let truncated = false;
+
+  for (const row of rows) {
+    if (inserted >= maxNew) { truncated = true; break; }
+    const { data: existing } = await admin
+      .from("uap_sightings")
+      .select("id")
+      .eq("source", "nuforc")
+      .eq("source_id", row.source_id)
+      .maybeSingle();
+    if (existing) { skipped++; continue; }
+
+    const eventDate = parseEventDate(row.dateRaw);
+    const geoQ = row.location;
+    let coords: GeoCoords | null = null;
+    let usedRemote = false;
+    if (geoQ) {
+      const res2 = await geocode(geoQ);
+      coords = res2.coords;
+      usedRemote = res2.usedRemote;
+    }
+    if (coords) geocoded++;
+
+    await admin.from("uap_sightings").insert({
+      source: "nuforc",
+      source_id: row.source_id,
+      source_url: row.source_url,
+      title: row.displayTitle.slice(0, 200),
+      description: row.summary ?? `${row.displayTitle} — sourced from NUFORC.org.`,
+      location_name: (row.locationDisplay ?? geoQ) ?? null,
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
+      geocoded: !!coords,
+      event_date: eventDate,
+      shape: row.shape?.toLowerCase() ?? null,
+      duration_text: row.duration,
+      classification: "REPORTED",
+    });
+    inserted++;
+    if (usedRemote) await new Promise((r) => setTimeout(r, 1100));
+  }
+
+  return { success: true, inserted, skipped, geocoded, truncated, fetched_candidates: rows.length };
+}
+
 // ── GET — list sightings ──────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
