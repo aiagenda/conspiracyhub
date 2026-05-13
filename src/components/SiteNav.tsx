@@ -12,7 +12,9 @@ const FONT = "var(--font-share-tech-mono), monospace";
 type Props = {
   spacious?: boolean;
   user?: User | null;
+  userPlan?: string | null;
   onSignIn?: () => void;
+  onUpgrade?: () => void;
 };
 
 const NAV_LINKS = [
@@ -25,7 +27,7 @@ const NAV_LINKS = [
   { href: "/guide", label: "GUIDE", color: "#5a8068" },
 ];
 
-export default function SiteNav({ spacious, user: userProp, onSignIn }: Props) {
+export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, onUpgrade }: Props) {
   const pathname = usePathname() ?? "";
   const [user, setUser] = useState<User | null>(userProp ?? null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -83,6 +85,24 @@ export default function SiteNav({ spacious, user: userProp, onSignIn }: Props) {
             style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", background: "transparent", cursor: "pointer" }}>
             SIGN IN
           </button>
+        )}
+        {userPlan !== "pro" && (
+          onUpgrade ? (
+            <button
+              type="button"
+              onClick={onUpgrade}
+              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #00bb66", color: "#00ff88", background: "rgba(0,255,136,0.06)", cursor: "pointer" }}
+            >
+              PRO ▶
+            </button>
+          ) : (
+            <Link
+              href="/account"
+              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, textDecoration: "none", border: "1px solid #00bb66", color: "#00ff88", background: "rgba(0,255,136,0.06)" }}
+            >
+              PRO ▶
+            </Link>
+          )
         )}
       </nav>
 
@@ -143,8 +163,20 @@ export default function SiteNav({ spacious, user: userProp, onSignIn }: Props) {
               <button type="button" onClick={() => { setMenuOpen(false); onSignIn?.(); }}
                 style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN IN</button>
             )}
-            <Link href="/account"
-              style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #00bb66", borderRadius: 3, color: "#00ff88", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, textDecoration: "none", background: "rgba(0,255,136,0.06)" }}>PRO ▶</Link>
+            {userPlan !== "pro" && (
+              onUpgrade ? (
+                <button
+                  type="button"
+                  onClick={() => { setMenuOpen(false); onUpgrade(); }}
+                  style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #00bb66", borderRadius: 3, color: "#00ff88", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "rgba(0,255,136,0.06)", cursor: "pointer" }}
+                >
+                  PRO ▶
+                </button>
+              ) : (
+                <Link href="/account"
+                  style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #00bb66", borderRadius: 3, color: "#00ff88", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, textDecoration: "none", background: "rgba(0,255,136,0.06)" }}>PRO ▶</Link>
+              )
+            )}
           </div>
         </div>
       )}

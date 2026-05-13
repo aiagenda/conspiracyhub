@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -24,7 +25,17 @@ const TICKER_ITEMS = [
   "◈ THE THEORIST — AI INVESTIGATIVE INTELLIGENCE",
 ];
 
-type HealthStatus = { guardian: string; scraper: string; oracle: string; community: string };
+type HealthStatus = {
+  ingest: string;
+  guardian_api: string;
+  gnews: string;
+  reddit: string;
+  rss: string;
+  scraper: string;
+  oracle: string;
+  community: string;
+  uap: string;
+};
 
 export type FeedNotice = "missing_supabase_env" | "empty_database";
 
@@ -52,7 +63,6 @@ export default function FeedScreen({
   const [userLoaded, setUserLoaded] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
@@ -124,21 +134,12 @@ export default function FeedScreen({
     router.push(`/article/${item.id}`);
   }
 
-  const navLinks = [
-    { href: "/uap", label: "UAP", color: "#8aa6ff", bg: "rgba(145,170,255,0.06)" },
-    { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", bg: "rgba(255,51,51,0.08)", blink: true },
-    { href: "/community", label: "COMMUNITY", color: "#00bb66", bg: "transparent" },
-    { href: "/blog", label: "ANALYSIS", color: "#00bb66", bg: "rgba(0,255,136,0.04)" },
-    { href: "/search", label: "SEARCH", color: "#5a8068", bg: "transparent" },
-    { href: "/guide", label: "GUIDE", color: "#5a8068", bg: "transparent" },
-  ];
-
   return (
     <div className="min-h-screen" style={{ background: "#050c07", color: "#c8e8d0", fontFamily: "var(--font-share-tech-mono), monospace" }}>
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1 }}>
 
-        {/* TOP NAV — classic layout: brand left, nav + auth + PRO grouped on the right */}
+        {/* TOP NAV */}
         <header className="site-header" style={{ height: 48, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 20px", gap: 14, position: "sticky", top: 0, zIndex: 30 }}>
           <Link href="/" style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)", textDecoration: "none", flexShrink: 0 }}>
             THE THEORIST
@@ -148,255 +149,27 @@ export default function FeedScreen({
             AI INVESTIGATIVE INTELLIGENCE
           </div>
 
-          <div className="desktop-only" style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <style>{`
-              @keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 6px rgba(255,51,51,0.4)} 50%{border-color:rgba(255,51,51,0.4);box-shadow:none} }
-              @keyframes outbreakDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
-            `}</style>
-
-            <div className="feed-header-nav-links" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {navLinks.map(({ href, label, color, bg, blink }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  style={{
-                    background: bg,
-                    border: `1px solid ${color}55`,
-                    color,
-                    fontFamily: "var(--font-raj), sans-serif",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    textTransform: "uppercase",
-                    padding: "6px 12px",
-                    borderRadius: 3,
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
-                    animation: blink ? "outbreakBlink 1.8s ease-in-out infinite" : undefined,
-                  }}
-                >
-                  {blink && (
-                    <span
-                      style={{
-                        width: 5,
-                        height: 5,
-                        borderRadius: "50%",
-                        background: "#ff3333",
-                        display: "inline-block",
-                        animation: "outbreakDot 1s ease-in-out infinite",
-                      }}
-                    />
-                  )}
-                  {label}
-                </Link>
-              ))}
-            </div>
-
-            <div style={{ width: 1, height: 18, background: "#1a3320", flexShrink: 0 }} />
-
-            {user ? (
-              <>
-                <Link
-                  href="/account"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #1a3320",
-                    color: "#00bb66",
-                    fontFamily: "var(--font-raj), sans-serif",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    textTransform: "uppercase",
-                    padding: "6px 12px",
-                    borderRadius: 3,
-                    textDecoration: "none",
-                  }}
-                >
-                  ACCOUNT
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => void signOut().then(() => { refreshUser(); setUserPlan(null); })}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #1a3320",
-                    color: "#5a8068",
-                    fontFamily: "var(--font-raj), sans-serif",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    textTransform: "uppercase",
-                    padding: "6px 12px",
-                    borderRadius: 3,
-                    cursor: "pointer",
-                  }}
-                >
-                  SIGN OUT
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowAuth(true)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid #1a3320",
-                  color: "#5a8068",
-                  fontFamily: "var(--font-raj), sans-serif",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  padding: "6px 12px",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-              >
-                SIGN IN
-              </button>
-            )}
-
-            {userPlan !== "pro" && (
-              <button
-                type="button"
-                onClick={() => setShowUpgrade(true)}
-                style={{
-                  background: "rgba(0,255,136,0.06)",
-                  border: "1px solid #00bb66",
-                  color: "#00ff88",
-                  fontFamily: "var(--font-raj), sans-serif",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  padding: "6px 14px",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.14)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,255,136,0.06)";
-                }}
-              >
-                PRO ▶
-              </button>
-            )}
+          <div style={{ marginLeft: "auto", flexShrink: 0 }}>
+            <SiteNav
+              user={user}
+              userPlan={userPlan}
+              onSignIn={() => setShowAuth(true)}
+              onUpgrade={() => setShowUpgrade(true)}
+            />
           </div>
-
-          <button
-            type="button"
-            className="mobile-only"
-            onClick={() => setMobileMenuOpen((o) => !o)}
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={mobileMenuOpen}
-            style={{
-              display: "none",
-              marginLeft: "auto",
-              width: 40,
-              height: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              border: "1px solid #1a3320",
-              background: "transparent",
-              borderRadius: 3,
-              cursor: "pointer",
-              flexDirection: "column",
-              gap: 5,
-            }}
-          >
-            <span style={{ display: "block", width: 18, height: 1.5, background: mobileMenuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s, opacity 0.2s", transform: mobileMenuOpen ? "rotate(45deg) translate(0, 5px)" : "none" }} />
-            <span style={{ display: "block", width: 18, height: 1.5, background: mobileMenuOpen ? "#00ff88" : "#5a8068", opacity: mobileMenuOpen ? 0 : 1, transition: "opacity 0.2s" }} />
-            <span style={{ display: "block", width: 18, height: 1.5, background: mobileMenuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s", transform: mobileMenuOpen ? "rotate(-45deg) translate(0, -5px)" : "none" }} />
-          </button>
         </header>
-
-        {mobileMenuOpen && (
-          <div
-            className="mobile-only"
-            style={{
-              position: "fixed",
-              top: 52,
-              left: 0,
-              right: 0,
-              zIndex: 200,
-              background: "#050c07",
-              borderBottom: "1px solid #1a3320",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
-              display: "none",
-              flexDirection: "column",
-            }}
-          >
-            {navLinks.map(({ href, label, color, blink }) => (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMobileMenuOpen(false)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "14px 16px",
-                  borderBottom: "1px solid #0d1a10",
-                  fontFamily: "var(--font-raj), sans-serif",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  textDecoration: "none",
-                  color: blink ? "#ff3333" : color,
-                }}
-              >
-                {blink && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ff3333", display: "inline-block" }} />}
-                {label}
-              </Link>
-            ))}
-            <div style={{ display: "flex", gap: 8, padding: "12px 16px" }}>
-              {user ? (
-                <>
-                  <Link href="/account" onClick={() => setMobileMenuOpen(false)} style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, textDecoration: "none" }}>
-                    ACCOUNT
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void signOut().then(() => { refreshUser(); setUserPlan(null); setMobileMenuOpen(false); })}
-                    style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}
-                  >
-                    SIGN OUT
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => { setMobileMenuOpen(false); setShowAuth(true); }}
-                  style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}
-                >
-                  SIGN IN
-                </button>
-              )}
-              {userPlan !== "pro" && (
-                <button
-                  type="button"
-                  onClick={() => { setMobileMenuOpen(false); setShowUpgrade(true); }}
-                  style={{ flex: 1, padding: "10px", border: "1px solid #00bb66", borderRadius: 3, color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, background: "rgba(0,255,136,0.06)", cursor: "pointer" }}
-                >
-                  PRO ▶
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* STATUS BAR — dynamic */}
         <div className="status-bar" style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}>
           {([
-            { label: "GUARDIAN API", key: "guardian" },
-            { label: "GPT-4o", key: "oracle" },
+            { label: "INGEST", key: "ingest" },
+            { label: "GUARDIAN", key: "guardian_api" },
+            { label: "GNEWS", key: "gnews" },
+            { label: "REDDIT", key: "reddit" },
+            { label: "RSS", key: "rss" },
             { label: "SCRAPER", key: "scraper" },
+            { label: "GPT-4o", key: "oracle" },
+            { label: "UAP", key: "uap" },
             { label: "COMMUNITY", key: "community" },
           ] as const).map(({ label, key }) => {
             const status = health ? health[key] : null;
