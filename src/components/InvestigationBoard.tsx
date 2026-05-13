@@ -1680,7 +1680,7 @@ export default function InvestigationBoard({
       </div>
 
       {articleTitle ? (
-        <div style={{ padding: "1rem 1.5rem 1.25rem", borderTop: "1px solid #1a1a2a", flexShrink: 0, background: "rgba(10,4,18,0.6)" }}>
+        <div style={{ padding: "6px 1rem 8px", borderTop: "1px solid #1a1a2a", flexShrink: 0, background: "rgba(10,4,18,0.55)" }}>
           <PolymarketWidget query={articleTitle} context={polymarketContext} variant="board" />
         </div>
       ) : null}

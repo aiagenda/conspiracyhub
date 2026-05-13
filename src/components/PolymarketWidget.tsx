@@ -11,6 +11,60 @@ interface PM { id:string; question:string; yesPrice:number; noPrice:number; volu
 function fmt(v:number) { return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${(v/1e3).toFixed(0)}K`:`$${v}`; }
 function days(d:string) { if(!d)return""; const n=Math.ceil((new Date(d).getTime()-Date.now())/86400000); return n<0?"expired":n===0?"today":`${n}d`; }
 
+const BOARD_EXPAND_MAX_PX = 280;
+
+function BoardMarketCard({ m }: { m: PM }) {
+  const yesWins = m.yesPrice >= m.noPrice;
+  return (
+    <a
+      href={m.url}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        padding: "10px 12px",
+        background: "rgba(20,8,28,0.55)",
+        border: "1px solid rgba(201,77,255,0.16)",
+        borderRadius: 4,
+        textDecoration: "none",
+        transition: "border-color 0.15s, background 0.15s",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(201,77,255,0.38)";
+        (e.currentTarget as HTMLAnchorElement).style.background = "rgba(24,10,32,0.75)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(201,77,255,0.16)";
+        (e.currentTarget as HTMLAnchorElement).style.background = "rgba(20,8,28,0.55)";
+      }}
+    >
+      <div style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#d0a0f0", lineHeight: 1.35 }}>
+        {m.question.length > 100 ? `${m.question.slice(0, 99)}…` : m.question}
+      </div>
+      <div style={{ display: "flex", height: 5, borderRadius: 2, overflow: "hidden", gap: 1 }}>
+        <div style={{ width: `${m.yesPrice}%`, background: "linear-gradient(90deg, #00aa55, #00dd77)" }} />
+        <div style={{ width: `${m.noPrice}%`, background: "linear-gradient(90deg, #aa2222, #ee4444)" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
+          <span style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#00ff88" }}>{m.yesPrice}¢</span>
+          <span style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#ff6b6b" }}>{m.noPrice}¢</span>
+        </div>
+        <span style={{ fontFamily: FONT, fontSize: 8, color: "#5a4a68", letterSpacing: 1 }}>
+          VOL {fmt(m.volume)}
+          {m.endDate ? ` · ${days(m.endDate)}` : ""}
+        </span>
+      </div>
+      <div style={{ fontFamily: FONT, fontSize: 7, letterSpacing: 1.5, color: yesWins ? "#4a8060" : "#805050" }}>
+        LEANS {yesWins ? "YES" : "NO"} · OPEN ON POLYMARKET ↗
+      </div>
+    </a>
+  );
+}
+
 export default function PolymarketWidget({
   query,
   context,
@@ -18,7 +72,7 @@ export default function PolymarketWidget({
 }: {
   query: string;
   context?: string;
-  /** "board" = horizontal always-open card strip; "sidebar" = collapsible (default) */
+  /** "board" = investigation footer: thin collapsed bar, expand for compact cards; "sidebar" = article sidebar (default) */
   variant?: "board" | "sidebar";
 }) {
   const q = useMemo(() => combinePolymarketQuery(query, context), [query, context]);
@@ -49,142 +103,172 @@ function PolymarketFetch({ q, variant }: { q: string; variant: "board" | "sideba
     })();
   }, [q]);
 
-  if (loading) return (
-    <div style={{ border: "1px solid rgba(201,77,255,0.15)", borderRadius: 4, padding: "8px 12px", background: "rgba(20,8,28,0.4)", display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#c94dff", display: "inline-block", animation: "bannerDot 0.9s step-end infinite" }} />
-      <span style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2 }}>CHECKING POLYMARKET...</span>
-    </div>
-  );
-
-  if (requiresPro) return (
-    <div style={{ border: "1px solid rgba(201,77,255,0.25)", borderRadius: 4, overflow: "hidden", background: "rgba(20,8,28,0.5)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>◈ POLYMARKET REAL-TIME ODDS</div>
-        <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>Live prediction markets — PRO feature</div>
+  if (loading) {
+    const rowPad = variant === "board" ? "6px 12px" : "8px 12px";
+    return (
+      <div
+        style={{
+          border: "1px solid rgba(201,77,255,0.15)",
+          borderRadius: 4,
+          padding: rowPad,
+          background: "rgba(20,8,28,0.4)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <span
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: "50%",
+            background: "#c94dff",
+            display: "inline-block",
+            animation: "bannerDot 0.9s step-end infinite",
+          }}
+        />
+        <span style={{ fontFamily: FONT, fontSize: variant === "board" ? 8 : 9, color: "#5a8068", letterSpacing: 2 }}>
+          CHECKING POLYMARKET…
+        </span>
       </div>
-      <a href="/account" style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#c94dff", border: "1px solid rgba(201,77,255,0.4)", padding: "4px 10px", borderRadius: 2, textDecoration: "none", flexShrink: 0, textTransform: "uppercase" }}>UNLOCK PRO</a>
-    </div>
-  );
+    );
+  }
+
+  if (requiresPro) {
+    if (variant === "board") {
+      return (
+        <div
+          style={{
+            border: "1px solid rgba(201,77,255,0.22)",
+            borderRadius: 4,
+            background: "rgba(20,8,28,0.45)",
+            padding: "6px 12px",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#c94dff", flexShrink: 0 }} />
+            <span style={{ fontFamily: FONT, fontSize: 8, color: "#7a6088", letterSpacing: 1.5 }}>
+              Polymarket odds — <span style={{ color: "#c94dff" }}>PRO</span>
+            </span>
+          </div>
+          <a
+            href="/account"
+            style={{
+              fontFamily: RAJ,
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: 2,
+              color: "#c94dff",
+              border: "1px solid rgba(201,77,255,0.35)",
+              padding: "3px 8px",
+              borderRadius: 2,
+              textDecoration: "none",
+              flexShrink: 0,
+              textTransform: "uppercase",
+            }}
+          >
+            Unlock
+          </a>
+        </div>
+      );
+    }
+    return (
+      <div style={{ border: "1px solid rgba(201,77,255,0.25)", borderRadius: 4, overflow: "hidden", background: "rgba(20,8,28,0.5)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>◈ POLYMARKET REAL-TIME ODDS</div>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>Live prediction markets — PRO feature</div>
+        </div>
+        <a href="/account" style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#c94dff", border: "1px solid rgba(201,77,255,0.4)", padding: "4px 10px", borderRadius: 2, textDecoration: "none", flexShrink: 0, textTransform: "uppercase" }}>UNLOCK PRO</a>
+      </div>
+    );
+  }
 
   if (!markets.length) return null;
 
-  // ── BOARD VARIANT — horizontal card strip, always open ─────────────────
+  // ── BOARD VARIANT — thin collapsed bar; expand shows scrollable compact cards ─
   if (variant === "board") {
     return (
-      <div>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c94dff", display: "inline-block", flexShrink: 0, boxShadow: "0 0 6px rgba(201,77,255,0.6)" }} />
-            <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 3, textTransform: "uppercase" }}>
-              Prediction Intelligence
+      <div
+        style={{
+          border: "1px solid rgba(201,77,255,0.2)",
+          borderRadius: 4,
+          overflow: "hidden",
+          background: "rgba(12,6,18,0.75)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "6px 12px",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              background: "#c94dff",
+              flexShrink: 0,
+              boxShadow: "0 0 5px rgba(201,77,255,0.45)",
+            }}
+          />
+          <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: FONT, fontSize: 8, color: "#c94dff", letterSpacing: 2.5, textTransform: "uppercase" }}>
+              Prediction intel
             </span>
-            <span style={{ fontFamily: FONT, fontSize: 9, color: "#3a2a4a", letterSpacing: 1 }}>
-              — {markets.length} active market{markets.length > 1 ? "s" : ""}
+            <span style={{ fontFamily: FONT, fontSize: 8, color: "#4a3558", letterSpacing: 1 }}>
+              {markets.length} market{markets.length > 1 ? "s" : ""}
             </span>
-          </div>
+            {!open && (
+              <span style={{ fontFamily: FONT, fontSize: 7, color: "#3a5040", letterSpacing: 1 }}>— expand</span>
+            )}
+          </span>
+          <span style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", flexShrink: 0 }}>{open ? "▲" : "▼"}</span>
           <a
             href="https://polymarket.com"
             target="_blank"
             rel="noreferrer"
-            style={{ fontFamily: FONT, fontSize: 8, color: "#4a3060", letterSpacing: 1, textDecoration: "none" }}
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontSize: 7, color: "#4a3060", textDecoration: "none", letterSpacing: 1, flexShrink: 0 }}
           >
-            polymarket.com ↗
+            polymarket ↗
           </a>
-        </div>
+        </button>
 
-        {/* Cards — horizontal row */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${Math.min(markets.length, 2)}, 1fr)`,
-          gap: 10,
-        }}>
-          {markets.map((m) => {
-            const yesWins = m.yesPrice >= m.noPrice;
-            return (
-              <a
-                key={m.id}
-                href={m.url}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                  padding: "12px 14px",
-                  background: "rgba(20,8,28,0.6)",
-                  border: "1px solid rgba(201,77,255,0.18)",
-                  borderRadius: 4,
-                  textDecoration: "none",
-                  transition: "border-color 0.15s, background 0.15s",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(201,77,255,0.45)";
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(20,8,28,0.85)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(201,77,255,0.18)";
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(20,8,28,0.6)";
-                }}
-              >
-                {/* Question */}
-                <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#d8a8ff", lineHeight: 1.4, flex: 1 }}>
-                  {m.question.length > 90 ? `${m.question.slice(0, 89)}…` : m.question}
-                </div>
-
-                {/* Progress bar */}
-                <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", gap: 1 }}>
-                  <div style={{ width: `${m.yesPrice}%`, background: "linear-gradient(90deg, #00aa55, #00ff88)", transition: "width 0.6s ease", borderRadius: "3px 0 0 3px" }} />
-                  <div style={{ width: `${m.noPrice}%`, background: "linear-gradient(90deg, #cc2222, #ff4444)", transition: "width 0.6s ease", borderRadius: "0 3px 3px 0" }} />
-                </div>
-
-                {/* Prices + meta */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
-                    <span>
-                      <span style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00ff88", lineHeight: 1 }}>{m.yesPrice}¢</span>
-                      <span style={{ fontFamily: FONT, fontSize: 8, color: "#3a6a4a", marginLeft: 3, letterSpacing: 1 }}>YES</span>
-                    </span>
-                    <span>
-                      <span style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#ff4444", lineHeight: 1 }}>{m.noPrice}¢</span>
-                      <span style={{ fontFamily: FONT, fontSize: 8, color: "#6a3a3a", marginLeft: 3, letterSpacing: 1 }}>NO</span>
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                    <span style={{ fontFamily: FONT, fontSize: 8, color: "#4a3060", letterSpacing: 1 }}>VOL {fmt(m.volume)}</span>
-                    {m.endDate && (
-                      <span style={{ fontFamily: FONT, fontSize: 8, color: "#4a3060", letterSpacing: 1 }}>
-                        {days(m.endDate) === "expired" ? (
-                          <span style={{ color: "#6a3a3a" }}>expired</span>
-                        ) : `closes ${days(m.endDate)}`}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Dominant outcome label */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  paddingTop: 6,
-                  borderTop: "1px solid rgba(201,77,255,0.1)",
-                }}>
-                  <span style={{ fontFamily: FONT, fontSize: 8, letterSpacing: 2, color: yesWins ? "#00aa55" : "#cc2222" }}>
-                    MARKET LEANS {yesWins ? "YES" : "NO"} — {yesWins ? m.yesPrice : m.noPrice}%
-                  </span>
-                  <span style={{ fontFamily: FONT, fontSize: 8, color: "#c94dff", letterSpacing: 1 }}>BET ↗</span>
-                </div>
-              </a>
-            );
-          })}
-        </div>
-
-        <div style={{ marginTop: 6, fontFamily: FONT, fontSize: 7, color: "#2a1a3a", letterSpacing: 1, textAlign: "right" }}>
-          Prediction market data · Not financial advice
-        </div>
+        {open && (
+          <div
+            style={{
+              borderTop: "1px solid rgba(201,77,255,0.12)",
+              maxHeight: BOARD_EXPAND_MAX_PX,
+              overflowY: "auto",
+              padding: "8px 10px 10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            {markets.map((m) => (
+              <BoardMarketCard key={m.id} m={m} />
+            ))}
+            <div style={{ fontFamily: FONT, fontSize: 7, color: "#2a2030", letterSpacing: 0.8, textAlign: "center", paddingTop: 2 }}>
+              Not financial advice · crowd odds
+            </div>
+          </div>
+        )}
       </div>
     );
   }
