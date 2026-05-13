@@ -30,6 +30,57 @@ function stripeCustomerIdField(
   return "";
 }
 
+/** Stripe sends unix seconds; guard so we never call toISOString on Invalid Date (RangeError). */
+function periodEndIsoFromUnixSeconds(ts: unknown): string | null {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return null;
+  const ms = ts * 1000;
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+/** Stripe Node types / webhook payloads: read fields defensively at runtime. */
+type StripeSubscriptionLike = {
+  id: string;
+  status?: string;
+  current_period_end?: unknown;
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer;
+};
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type ProfileBillingPatch = {
+  plan: "pro" | "free";
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  subscription_current_period_end: string | null;
+  subscription_status: string | null;
+};
+
+async function updateProfileAfterCheckout(
+  admin: ReturnType<typeof getAdminClient>,
+  patch: ProfileBillingPatch,
+  session: Stripe.Checkout.Session
+) {
+  const meta =
+    (session.metadata?.supabase_user_id ?? session.client_reference_id ?? "").trim() || null;
+  const userId = meta && UUID_RE.test(meta) ? meta : null;
+  const email =
+    (session.customer_details?.email ?? session.customer_email ?? "").trim() || null;
+
+  if (userId) {
+    const { data, error } = await admin.from("user_profiles").update(patch).eq("id", userId).select("id");
+    if (error) throw error;
+    if (data && data.length > 0) return;
+  }
+  if (email) {
+    const { error } = await admin.from("user_profiles").update(patch).ilike("email", email);
+    if (error) throw error;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
@@ -44,8 +95,6 @@ export async function POST(req: NextRequest) {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const email =
-        session.customer_details?.email ?? session.customer_email ?? null;
       const customerId = customerIdFromSession(session);
 
       let periodEnd: string | null = null;
@@ -55,53 +104,43 @@ export async function POST(req: NextRequest) {
       if (subRef) {
         const sid = typeof subRef === "string" ? subRef : subRef.id;
         subId = sid;
-        const sub = (await stripe.subscriptions.retrieve(sid)) as unknown as {
-          current_period_end: number;
-          status: string;
-        };
-        periodEnd = new Date(sub.current_period_end * 1000).toISOString();
-        subStatus = sub.status;
+        const sub = (await stripe.subscriptions.retrieve(sid)) as unknown as StripeSubscriptionLike;
+        periodEnd = periodEndIsoFromUnixSeconds(sub.current_period_end);
+        subStatus = sub.status ?? null;
       }
 
-      if (email) {
-        await admin
-          .from("user_profiles")
-          .update({
-            plan: "pro",
-            stripe_customer_id: customerId ?? undefined,
-            stripe_subscription_id: subId ?? undefined,
-            subscription_current_period_end: periodEnd,
-            subscription_status: subStatus,
-          })
-          .eq("email", email);
-      }
+      await updateProfileAfterCheckout(
+        admin,
+        {
+          plan: "pro",
+          ...(customerId ? { stripe_customer_id: customerId } : {}),
+          ...(subId ? { stripe_subscription_id: subId } : {}),
+          subscription_current_period_end: periodEnd,
+          subscription_status: subStatus,
+        },
+        session
+      );
     }
 
     if (event.type === "customer.subscription.updated") {
-      const sub = event.data.object as unknown as {
-        id: string;
-        customer: string | Stripe.Customer | Stripe.DeletedCustomer;
-        status: string;
-        current_period_end: number;
-      };
-      const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
+      const sub = event.data.object as unknown as StripeSubscriptionLike;
+      const periodEnd = periodEndIsoFromUnixSeconds(sub.current_period_end);
       const proStatuses = new Set(["active", "trialing", "past_due"]);
-      const plan = proStatuses.has(sub.status) ? "pro" : "free";
+      const status = sub.status ?? "";
+      const plan = proStatuses.has(status) ? "pro" : "free";
       await admin
         .from("user_profiles")
         .update({
           plan,
           stripe_subscription_id: sub.id,
           subscription_current_period_end: periodEnd,
-          subscription_status: sub.status,
+          subscription_status: status || null,
         })
         .eq("stripe_customer_id", stripeCustomerIdField(sub.customer));
     }
 
     if (event.type === "customer.subscription.deleted") {
-      const sub = event.data.object as unknown as {
-        customer: string | Stripe.Customer | Stripe.DeletedCustomer;
-      };
+      const sub = event.data.object as unknown as StripeSubscriptionLike;
       await admin
         .from("user_profiles")
         .update({
