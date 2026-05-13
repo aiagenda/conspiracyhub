@@ -9,17 +9,18 @@ function getAdminClient() {
   return createClient(url, key);
 }
 
-/** Returns true if the bearer token belongs to a PRO user. */
-async function isPro(auth: string | null): Promise<boolean> {
-  if (!auth?.startsWith("Bearer ")) return false;
+type UserTier = "guest" | "free" | "pro";
+
+async function getUserTier(auth: string | null): Promise<UserTier> {
+  if (!auth?.startsWith("Bearer ")) return "guest";
   try {
     const admin = getAdminClient();
     const { data: { user }, error } = await admin.auth.getUser(auth.replace("Bearer ", ""));
-    if (error || !user) return false;
+    if (error || !user) return "guest";
     const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    return profile?.plan === "pro";
+    return profile?.plan === "pro" ? "pro" : "free";
   } catch {
-    return false;
+    return "guest";
   }
 }
 
@@ -58,14 +59,14 @@ Severity:
 Find 8-20 highlights. Only highlight phrases that ACTUALLY APPEAR verbatim in the article text.
 Do not make up phrases — only use exact text from the article.`;
 
-const FREE_HIGHLIGHT_LIMIT = 3;
+const HIGHLIGHT_LIMIT: Record<UserTier, number> = { guest: 3, free: 5, pro: Infinity };
 
 export async function POST(req: NextRequest) {
   try {
     const { text, title } = await req.json();
     if (!text) return NextResponse.json({ error: "text_required" }, { status: 400 });
 
-    const pro = await isPro(req.headers.get("authorization"));
+    const tier = await getUserTier(req.headers.get("authorization"));
 
     const result = await callOpenAIJSON<{
       highlights: Array<{
@@ -82,18 +83,19 @@ export async function POST(req: NextRequest) {
     });
 
     const all = result.highlights ?? [];
+    const limit = HIGHLIGHT_LIMIT[tier];
 
-    if (pro) {
+    if (limit === Infinity) {
       return NextResponse.json({ highlights: all, total: all.length, is_limited: false });
     }
 
-    // Free users: show only the highest-severity highlights as a teaser
+    // Guests and free users: show only the highest-severity highlights as a teaser
     const sorted = [...all].sort((a, b) => {
       const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
       return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
     });
-    const teaser = sorted.slice(0, FREE_HIGHLIGHT_LIMIT);
-    return NextResponse.json({ highlights: teaser, total: all.length, is_limited: all.length > FREE_HIGHLIGHT_LIMIT });
+    const teaser = sorted.slice(0, limit);
+    return NextResponse.json({ highlights: teaser, total: all.length, is_limited: all.length > limit });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[article-highlights]", msg);

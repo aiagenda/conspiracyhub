@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
 import ReferenceDocumentIndex from "@/components/ReferenceDocumentIndex";
@@ -19,6 +19,7 @@ type SearchResult = {
   patents: Array<{ number: string; title: string; assignee: string; year: number; relevance: string; url: string }>;
   people: Array<{ name: string; role: string; affiliation: string; significance: string }>;
   events: Array<{ date: string; title: string; description: string }>;
+  requires_login?: boolean;
 };
 
 type UrlResult = {
@@ -92,12 +93,24 @@ export default function SearchPage() {
   const [threatFilter, setThreatFilter] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<SearchResult | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const [urlInput, setUrlInput] = useState("");
   const [urlLoading, setUrlLoading] = useState(false);
   const [urlResult, setUrlResult] = useState<UrlResult | null>(null);
   const [urlError, setUrlError] = useState("");
   const [searchError, setSearchError] = useState("");
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    void supabase.auth.getSession().then(({ data }) => {
+      setSessionToken(data.session?.access_token ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSessionToken(session?.access_token ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   async function doSearch(q = query) {
     if (!q.trim()) return;
@@ -106,7 +119,10 @@ export default function SearchPage() {
     setResults(null);
     try {
       const params = new URLSearchParams({ q: q.trim(), type: typeFilter, threat: threatFilter });
-      const res = await fetch(`/api/search?${params}`);
+      const headers: HeadersInit = sessionToken
+        ? { Authorization: `Bearer ${sessionToken}` }
+        : {};
+      const res = await fetch(`/api/search?${params}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Search failed");
       setResults(data);
@@ -389,6 +405,52 @@ export default function SearchPage() {
 
             {results && (
               <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+
+                {/* ── GUEST GATE BANNER ─────────────────────────────── */}
+                {results.requires_login && (
+                  <div style={{
+                    border: "1px solid rgba(255,170,0,0.4)",
+                    borderRadius: 6,
+                    padding: "18px 20px",
+                    background: "linear-gradient(180deg, rgba(255,170,0,0.07) 0%, transparent 60%)",
+                    display: "flex",
+                    gap: 18,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                  }}>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 4, color: "#ffaa33", marginBottom: 6 }}>
+                        ⚠ REGISTER FOR FULL INTELLIGENCE ANALYSIS
+                      </div>
+                      <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#ffcc88", marginBottom: 8 }}>
+                        AI analysis locked — DB results only
+                      </div>
+                      <div style={{ fontFamily: FONT, fontSize: 11, color: "#8aaa96", lineHeight: 1.7 }}>
+                        Free accounts unlock conspiracy theory matching, USPTO patent cross-reference, key figures, and related historical events for every query. No credit card required.
+                      </div>
+                    </div>
+                    <a
+                      href="/"
+                      style={{
+                        fontFamily: RAJ,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: 2,
+                        textTransform: "uppercase",
+                        padding: "10px 18px",
+                        border: "1px solid #00bb66",
+                        background: "rgba(0,255,136,0.08)",
+                        color: "#00ff88",
+                        textDecoration: "none",
+                        borderRadius: 4,
+                        alignSelf: "center",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      SIGN UP FREE →
+                    </a>
+                  </div>
+                )}
 
                 {/* ── MATCHING ARTICLES ─────────────────────────────── */}
                 {results.news.length > 0 && (

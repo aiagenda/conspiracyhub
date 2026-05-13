@@ -10,6 +10,17 @@ function getAdminClient() {
   return createClient(url, key);
 }
 
+async function isRegisteredUser(auth: string | null): Promise<boolean> {
+  if (!auth?.startsWith("Bearer ")) return false;
+  try {
+    const admin = getAdminClient();
+    const { data: { user }, error } = await admin.auth.getUser(auth.replace("Bearer ", ""));
+    return !error && !!user;
+  } catch {
+    return false;
+  }
+}
+
 /** Avoid breaking PostgREST `or` / ilike when users type %, _, or commas. */
 function sanitizeIlike(q: string): string {
   return q.replace(/[%_,]/g, " ").trim();
@@ -81,6 +92,27 @@ export async function GET(req: NextRequest) {
       .order("score", { ascending: false })
       .limit(10);
 
+    const newsSanitized = (newsResults ?? []).map((row: { angle?: string | null; summary?: string | null; [k: string]: unknown }) => ({
+      ...row,
+      angle: omitIfHungarianScript(row.angle ?? ""),
+      summary: omitIfHungarianScript(row.summary ?? ""),
+    }));
+
+    // AI enrichment (theories / patents / people / events) requires a registered account
+    const registered = await isRegisteredUser(req.headers.get("authorization"));
+
+    if (!registered) {
+      return NextResponse.json({
+        query: rawQ,
+        news: newsSanitized,
+        theories: [],
+        patents: [],
+        people: [],
+        events: [],
+        requires_login: true,
+      });
+    }
+
     const aiResults = await callOpenAIJSON<{
       theories: Array<{ name: string; summary: string; probability: number; sources: string[]; tags: string[] }>;
       patents: Array<{ number: string; title: string; assignee: string; year: number; relevance: string; url: string }>;
@@ -99,12 +131,6 @@ export async function GET(req: NextRequest) {
     if (threat === "medium") theories = theories.filter((t) => t.probability >= 30 && t.probability < 60);
     if (threat === "low") theories = theories.filter((t) => t.probability < 30);
 
-    const newsSanitized = (newsResults ?? []).map((row: { angle?: string | null; summary?: string | null; [k: string]: unknown }) => ({
-      ...row,
-      angle: omitIfHungarianScript(row.angle ?? ""),
-      summary: omitIfHungarianScript(row.summary ?? ""),
-    }));
-
     return NextResponse.json({
       query: rawQ,
       news: newsSanitized,
@@ -112,6 +138,7 @@ export async function GET(req: NextRequest) {
       patents: type === "theories" || type === "people" ? [] : (aiResults.patents ?? []),
       people: type === "theories" || type === "patents" ? [] : (aiResults.people ?? []),
       events: aiResults.events ?? [],
+      requires_login: false,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

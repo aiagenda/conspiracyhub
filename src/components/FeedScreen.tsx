@@ -49,6 +49,7 @@ export default function FeedScreen({
   const [showAuth, setShowAuth] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [userLoaded, setUserLoaded] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const router = useRouter();
@@ -68,7 +69,7 @@ export default function FeedScreen({
   }, []);
 
   const refreshUser = useCallback(() => {
-    void getCurrentUser().then(setUser);
+    void getCurrentUser().then((u) => { setUser(u); setUserLoaded(true); });
   }, []);
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
@@ -369,85 +370,155 @@ export default function FeedScreen({
                 gap: "12px 20px",
               }}
             >
-              <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 2, width: "100%", textAlign: "center" }}>
-                PAGE {feedPagination.page} / {feedPagination.totalPages}
-              </span>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                {feedPagination.page > 1 ? (
-                  <Link
-                    href={feedPagination.page === 2 ? "/" : `/?page=${feedPagination.page - 1}`}
+              {/* Gate: guest on page 2+ sees a sign-in prompt */}
+              {feedPagination.page > 1 && userLoaded && !user ? (
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: 460,
+                    border: "1px solid rgba(255,170,0,0.4)",
+                    borderRadius: 6,
+                    padding: "20px 22px",
+                    textAlign: "center",
+                    background: "linear-gradient(180deg, rgba(255,170,0,0.07) 0%, transparent 60%)",
+                  }}
+                >
+                  <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 4, color: "#ffaa33", marginBottom: 8 }}>
+                    ⚠ FREE ACCOUNT REQUIRED
+                  </div>
+                  <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 16, fontWeight: 700, color: "#ffcc88", marginBottom: 10 }}>
+                    SIGN IN TO BROWSE MORE PAGES
+                  </div>
+                  <div style={{ fontSize: 11, color: "#8aaa96", lineHeight: 1.7, marginBottom: 16 }}>
+                    Page 1 is always free. Create a free account to access the full archive — no credit card needed.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAuth(true)}
                     style={{
                       fontFamily: "var(--font-raj), sans-serif",
                       fontSize: 12,
                       fontWeight: 700,
                       letterSpacing: 2,
                       textTransform: "uppercase",
-                      padding: "8px 18px",
-                      borderRadius: 3,
+                      padding: "10px 20px",
                       border: "1px solid #00bb66",
-                      background: "rgba(0,255,136,0.06)",
+                      background: "rgba(0,255,136,0.08)",
                       color: "#00ff88",
-                      textDecoration: "none",
+                      borderRadius: 4,
+                      cursor: "pointer",
                     }}
                   >
-                    ← PREV
-                  </Link>
-                ) : (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-raj), sans-serif",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: 2,
-                      textTransform: "uppercase",
-                      padding: "8px 18px",
-                      borderRadius: 3,
-                      border: "1px solid #1a3320",
-                      color: "#2a4030",
-                      cursor: "default",
-                    }}
-                  >
-                    ← PREV
+                    SIGN IN / SIGN UP — FREE
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 2, width: "100%", textAlign: "center" }}>
+                    PAGE {feedPagination.page} / {feedPagination.totalPages}
                   </span>
-                )}
-                {feedPagination.page < feedPagination.totalPages ? (
-                  <Link
-                    href={`/?page=${feedPagination.page + 1}`}
-                    style={{
-                      fontFamily: "var(--font-raj), sans-serif",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: 2,
-                      textTransform: "uppercase",
-                      padding: "8px 18px",
-                      borderRadius: 3,
-                      border: "1px solid #00bb66",
-                      background: "rgba(0,255,136,0.06)",
-                      color: "#00ff88",
-                      textDecoration: "none",
-                    }}
-                  >
-                    NEXT →
-                  </Link>
-                ) : (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-raj), sans-serif",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: 2,
-                      textTransform: "uppercase",
-                      padding: "8px 18px",
-                      borderRadius: 3,
-                      border: "1px solid #1a3320",
-                      color: "#2a4030",
-                      cursor: "default",
-                    }}
-                  >
-                    NEXT →
-                  </span>
-                )}
-              </div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {feedPagination.page > 1 ? (
+                      <Link
+                        href={feedPagination.page === 2 ? "/" : `/?page=${feedPagination.page - 1}`}
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "8px 18px",
+                          borderRadius: 3,
+                          border: "1px solid #00bb66",
+                          background: "rgba(0,255,136,0.06)",
+                          color: "#00ff88",
+                          textDecoration: "none",
+                        }}
+                      >
+                        ← PREV
+                      </Link>
+                    ) : (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "8px 18px",
+                          borderRadius: 3,
+                          border: "1px solid #1a3320",
+                          color: "#2a4030",
+                          cursor: "default",
+                        }}
+                      >
+                        ← PREV
+                      </span>
+                    )}
+                    {feedPagination.page < feedPagination.totalPages ? (
+                      userLoaded && !user ? (
+                        /* Guest on page 1: show locked NEXT with sign-in prompt */
+                        <button
+                          type="button"
+                          onClick={() => setShowAuth(true)}
+                          style={{
+                            fontFamily: "var(--font-raj), sans-serif",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            letterSpacing: 2,
+                            textTransform: "uppercase",
+                            padding: "8px 18px",
+                            borderRadius: 3,
+                            border: "1px solid rgba(255,170,0,0.5)",
+                            background: "rgba(255,170,0,0.06)",
+                            color: "#ffaa33",
+                            cursor: "pointer",
+                          }}
+                          title="Sign in to browse more pages"
+                        >
+                          NEXT → 🔒
+                        </button>
+                      ) : (
+                        <Link
+                          href={`/?page=${feedPagination.page + 1}`}
+                          style={{
+                            fontFamily: "var(--font-raj), sans-serif",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            letterSpacing: 2,
+                            textTransform: "uppercase",
+                            padding: "8px 18px",
+                            borderRadius: 3,
+                            border: "1px solid #00bb66",
+                            background: "rgba(0,255,136,0.06)",
+                            color: "#00ff88",
+                            textDecoration: "none",
+                          }}
+                        >
+                          NEXT →
+                        </Link>
+                      )
+                    ) : (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "8px 18px",
+                          borderRadius: 3,
+                          border: "1px solid #1a3320",
+                          color: "#2a4030",
+                          cursor: "default",
+                        }}
+                      >
+                        NEXT →
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
