@@ -16,9 +16,61 @@ const mono = Share_Tech_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+
+const OG_DESCRIPTION =
+  "AI-curated conspiracy investigation feed. GPT-4o scores and ranks the most significant government cover-ups, UAP sightings, classified patent secrets, and underground theories — updated daily.";
+
 export const metadata: Metadata = {
-  title: "The Theorist",
-  description: "AI-curated conspiracy investigation news portal",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "The Theorist — AI Conspiracy Investigation Feed",
+    template: "%s | The Theorist",
+  },
+  description: OG_DESCRIPTION,
+  keywords: [
+    "conspiracy theories",
+    "UAP",
+    "UFO",
+    "government cover-up",
+    "AI news feed",
+    "declassified documents",
+    "deep state",
+    "classified secrets",
+    "investigative intelligence",
+    "FOIA",
+  ],
+  authors: [{ name: "The Theorist", url: SITE_URL }],
+  creator: "The Theorist",
+  publisher: "The Theorist",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: "The Theorist",
+    title: "The Theorist — AI Conspiracy Investigation Feed",
+    description: OG_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "The Theorist — AI Conspiracy Investigation Feed",
+    description: OG_DESCRIPTION,
+    site: "@TheTheoristAI",
+  },
+  alternates: {
+    canonical: SITE_URL,
+  },
 };
 
 export default function RootLayout({

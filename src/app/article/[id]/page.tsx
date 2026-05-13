@@ -1,7 +1,59 @@
+import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return {};
+
+  const admin = createClient(url, key);
+  const { data: news } = await admin
+    .from("news_items")
+    .select("title, summary, image, published_at, section")
+    .eq("id", id)
+    .single();
+
+  if (!news) return {};
+
+  const title = (news.title ?? "").slice(0, 60) || "Investigation";
+  const rawDesc = omitIfHungarianScript(news.summary ?? "");
+  const description = rawDesc.slice(0, 155) || "Read the full investigation on The Theorist.";
+  const canonicalUrl = `${SITE_URL}/article/${id}`;
+  const images = news.image
+    ? [{ url: news.image, width: 1200, height: 630, alt: title }]
+    : [];
+
+  return {
+    title,
+    description,
+    alternates: { canonical: canonicalUrl },
+    openGraph: {
+      type: "article",
+      url: canonicalUrl,
+      title,
+      description,
+      publishedTime: news.published_at ?? undefined,
+      section: news.section ?? undefined,
+      images,
+    },
+    twitter: {
+      card: news.image ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(news.image ? { images: [news.image] } : {}),
+    },
+  };
+}
 
 function htmlToText(html: string): string {
   return html
@@ -137,5 +189,34 @@ export default async function ArticlePage({
   };
 
   const fallbackBody = omitIfHungarianScript(news.summary ?? "");
-  return <ArticleReader item={item} body={body || fallbackBody} initialChatOpen={initialChatOpen} />;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: item.title,
+    description: item.summary?.slice(0, 200) || undefined,
+    datePublished: item.date,
+    dateModified: item.date,
+    url: `${SITE_URL}/article/${item.id}`,
+    ...(item.image ? { image: [item.image] } : {}),
+    publisher: {
+      "@type": "Organization",
+      name: "The Theorist",
+      url: SITE_URL,
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `${SITE_URL}/article/${item.id}`,
+    },
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ArticleReader item={item} body={body || fallbackBody} initialChatOpen={initialChatOpen} />
+    </>
+  );
 }

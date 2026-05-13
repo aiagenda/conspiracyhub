@@ -1,7 +1,14 @@
 import { Suspense } from "react";
 import CommunityBoard from "@/components/CommunityBoard";
 
-export const metadata = { title: "Community Intelligence — The Theorist" };
+export const metadata = {
+  title: "Community Intelligence",
+  description: "Join the investigation. Share theories, discuss declassified documents, and connect with other researchers in The Theorist's live community board.",
+  openGraph: {
+    title: "Community Intelligence | The Theorist",
+    description: "Share theories, discuss declassified documents, and connect with other investigators in real time.",
+  },
+};
 
 function CommunityFallback() {
   return (

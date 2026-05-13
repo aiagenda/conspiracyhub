@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import FeedScreen, { type FeedPagination } from "@/components/FeedScreen";
@@ -5,6 +6,30 @@ import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
 export const revalidate = 900;
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const sp = (await searchParams) ?? {};
+  const page = parsePage(sp.page);
+  const canonical = page <= 1 ? SITE_URL : `${SITE_URL}/?page=${page}`;
+  return {
+    alternates: {
+      canonical,
+      ...(page > 1 ? { prev: page === 2 ? SITE_URL : `${SITE_URL}/?page=${page - 1}` } : {}),
+    },
+    ...(page > 1
+      ? {
+          title: `Feed — Page ${page}`,
+          robots: { index: false, follow: true },
+        }
+      : {}),
+  };
+}
 
 const PAGE_SIZE = 12;
 
