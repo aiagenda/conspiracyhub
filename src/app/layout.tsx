@@ -3,6 +3,7 @@ import { Rajdhani, Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
 import PageTracker from "@/components/PageTracker";
+import SendFeedbackWidget from "@/components/SendFeedbackWidget";
 
 const raj = Rajdhani({
   variable: "--font-raj",
@@ -91,6 +92,7 @@ export default function RootLayout({
         <main id="main-content" className="flex flex-1 flex-col outline-none">
           {children}
         </main>
+        <SendFeedbackWidget />
         <SiteFooter />
       </body>
     </html>
