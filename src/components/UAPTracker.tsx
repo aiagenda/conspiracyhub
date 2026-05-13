@@ -182,7 +182,12 @@ function UAPMap({
       }
 
       if (showSightingPins) {
-        for (const s of sightings) {
+        const focusOne =
+          selectedSighting != null &&
+          selectedSighting.lat != null &&
+          selectedSighting.lng != null;
+        const pinSource = focusOne ? [selectedSighting] : sightings;
+        for (const s of pinSource) {
           if (s.lat == null || s.lng == null) continue;
           const pos = proj([s.lng, s.lat]);
           if (!pos) continue;
