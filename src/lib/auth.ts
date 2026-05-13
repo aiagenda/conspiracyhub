@@ -4,18 +4,22 @@ export function signInWithEmail(email: string, password: string) {
   return getSupabaseBrowserClient().auth.signInWithPassword({ email, password });
 }
 
-export function signUpWithEmail(email: string, password: string) {
+export function signUpWithEmail(
+  email: string,
+  password: string,
+  profile?: { nickname: string }
+) {
   const client = getSupabaseBrowserClient();
   // Without emailRedirectTo, Supabase uses Dashboard "Site URL" in the confirm link (often still localhost).
   const origin = typeof window !== "undefined" ? window.location.origin : null;
+  const nick = profile?.nickname?.trim() ?? "";
   return client.auth.signUp({
     email,
     password,
-    options: origin
-      ? {
-          emailRedirectTo: `${origin}/account`,
-        }
-      : undefined,
+    options: {
+      ...(origin ? { emailRedirectTo: `${origin}/account` } : {}),
+      ...(nick.length >= 2 ? { data: { nickname: nick } } : {}),
+    },
   });
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { signInWithEmail, signUpWithEmail } from "@/lib/auth";
+import { parseNicknameInput } from "@/lib/nickname";
 import { isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 const RAJ = "var(--font-raj), sans-serif";
@@ -13,6 +14,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState<{ mode: SignupSuccessMode; email: string } | null>(null);
@@ -29,6 +31,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
     setTab(t);
     setError("");
     setSignupSuccess(null);
+    if (t === "signin") setNickname("");
   }
 
   async function submit() {
@@ -55,7 +58,22 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
         return;
       }
 
-      const { data, error: authError } = await signUpWithEmail(email, password);
+      const nickCheck = parseNicknameInput(nickname);
+      if (!nickCheck.ok || !nickCheck.value) {
+        const msg = !nickCheck.ok
+          ? nickCheck.error === "nickname_too_short"
+            ? "Display name must be at least 2 characters."
+            : nickCheck.error === "nickname_too_long"
+              ? "Display name is too long (max 40 characters)."
+              : "Display name: use letters, numbers, spaces, _ - . only."
+          : "Display name is required.";
+        setError(msg);
+        return;
+      }
+
+      const { data, error: authError } = await signUpWithEmail(email, password, {
+        nickname: nickCheck.value,
+      });
       if (authError) {
         setError(authError.message);
         return;
@@ -338,6 +356,40 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
 
             {/* INPUTS */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {tab === "signup" && (
+                <div>
+                  <label
+                    style={{
+                      fontSize: 9,
+                      color: "#5a8068",
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      display: "block",
+                      marginBottom: 5,
+                    }}
+                  >
+                    DISPLAY NAME
+                  </label>
+                  <input
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="e.g. DeepStateDave"
+                    autoComplete="nickname"
+                    maxLength={48}
+                    style={inp}
+                    onFocus={(e) => {
+                      (e.target as HTMLInputElement).style.borderColor = "#00bb66";
+                    }}
+                    onBlur={(e) => {
+                      (e.target as HTMLInputElement).style.borderColor = "#1a3320";
+                    }}
+                  />
+                  <div style={{ fontSize: 8, color: "#3a5040", marginTop: 4, letterSpacing: 0.3 }}>
+                    2–40 characters · letters, numbers, spaces, _ - .
+                  </div>
+                </div>
+              )}
               <div>
                 <label
                   style={{

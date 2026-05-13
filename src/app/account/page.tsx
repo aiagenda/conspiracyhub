@@ -6,9 +6,11 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
+import { parseNicknameInput } from "@/lib/nickname";
 
 type AccountPayload = {
   email: string;
+  nickname: string | null;
   plan: string;
   subscription_status: string | null;
   current_period_end: string | null;
@@ -44,6 +46,8 @@ export default function AccountPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [deletePhrase, setDeletePhrase] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -66,12 +70,18 @@ export default function AccountPage() {
     } else {
       setData({
         ...json,
+        nickname: json.nickname ?? null,
         stripe_subscription_id: json.stripe_subscription_id ?? null,
         subscription_cancel_at_period_end: Boolean(json.subscription_cancel_at_period_end),
       });
     }
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (data?.nickname != null) setNicknameDraft(data.nickname);
+    else setNicknameDraft("");
+  }, [data?.nickname]);
 
   useEffect(() => {
     void load();
@@ -141,6 +151,51 @@ export default function AccountPage() {
     await signOut();
     setData(null);
     void load();
+  }
+
+  async function saveProfile() {
+    if (!data) return;
+    const parsed = parseNicknameInput(nicknameDraft);
+    if (!parsed.ok) {
+      const msg =
+        parsed.error === "nickname_too_short"
+          ? "Display name must be at least 2 characters (or leave empty to clear)."
+          : parsed.error === "nickname_too_long"
+            ? "Display name is too long (max 40 characters)."
+            : "Display name: use letters, numbers, spaces, _ - . only.";
+      setError(msg);
+      return;
+    }
+    setError(null);
+    setProfileSaving(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError("Session expired — sign in again.");
+        return;
+      }
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ nickname: parsed.value }),
+      });
+      const json = (await res.json()) as { nickname?: string | null; error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "Could not update profile");
+        return;
+      }
+      setData((prev) => (prev ? { ...prev, nickname: json.nickname ?? null } : null));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update failed.");
+    } finally {
+      setProfileSaving(false);
+    }
   }
 
   async function confirmDeleteAccount() {
@@ -325,8 +380,57 @@ export default function AccountPage() {
               <div style={card}>
                 <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>PROFILE</div>
                 <div style={{ fontSize: 14, color: "#e8ffe8", marginBottom: 4 }}>{data.email}</div>
+                <div style={{ marginTop: 10, marginBottom: 6 }}>
+                  <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", display: "block", marginBottom: 5 }}>
+                    EDIT DISPLAY NAME
+                  </label>
+                  <input
+                    type="text"
+                    value={nicknameDraft}
+                    onChange={(e) => setNicknameDraft(e.target.value)}
+                    placeholder="2–40 characters · optional after signup"
+                    maxLength={48}
+                    style={{
+                      background: "#050c07",
+                      border: "1px solid #1a3320",
+                      borderRadius: 3,
+                      padding: "8px 10px",
+                      color: "#c8e8d0",
+                      fontFamily: "inherit",
+                      fontSize: 12,
+                      width: "100%",
+                      maxWidth: 320,
+                      outline: "none",
+                    }}
+                  />
+                  <div style={{ fontSize: 9, color: "#3a5040", marginTop: 5, maxWidth: 400, lineHeight: 1.5 }}>
+                    Letters, numbers, spaces, underscore, hyphen, period. Clear the field and save to remove your display name.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={profileSaving}
+                  onClick={() => void saveProfile()}
+                  style={{
+                    marginTop: 8,
+                    fontFamily: "var(--font-raj), sans-serif",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    textTransform: "uppercase",
+                    padding: "8px 16px",
+                    border: "1px solid #00bb66",
+                    background: "rgba(0,255,136,0.06)",
+                    color: "#00ff88",
+                    borderRadius: 3,
+                    cursor: profileSaving ? "wait" : "pointer",
+                    opacity: profileSaving ? 0.7 : 1,
+                  }}
+                >
+                  {profileSaving ? "SAVING…" : "SAVE DISPLAY NAME"}
+                </button>
                 {data.member_since && (
-                  <div style={{ fontSize: 10, color: "#3a5040" }}>
+                  <div style={{ fontSize: 10, color: "#3a5040", marginTop: 12 }}>
                     Member since {new Date(data.member_since).toLocaleDateString()}
                   </div>
                 )}
@@ -493,8 +597,8 @@ export default function AccountPage() {
                   ))}
                 </div>
                 <p style={{ fontSize: 10, color: "#3a5040", marginTop: 12, marginBottom: 0, lineHeight: 1.65 }}>
-                  Email & password changes live in Supabase Auth (magic links / reset from sign-in). In-app email prefs
-                  can ship later.
+                  Display name is stored on your profile (shown above). Email and password changes use Supabase Auth
+                  (reset from sign-in). In-app email prefs can ship later.
                 </p>
               </div>
 
