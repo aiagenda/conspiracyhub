@@ -196,34 +196,44 @@ export default function SearchPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
-      <div style={{ position: "relative", zIndex: 1, ...pageContentShellStyle() }}>
+      <div style={{ position: "relative", zIndex: 1 }}>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            marginBottom: "1.5rem",
-            paddingBottom: "1rem",
-            borderBottom: "1px solid #1a3320",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", minWidth: 0 }}>
-            <Link href="/" style={{ fontSize: T.navBack, color: C.muted, textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "8px 14px", borderRadius: 3 }}>
-              ← FEED
-            </Link>
-            <div>
-              <div style={{ fontFamily: RAJ, fontSize: T.heroTitle, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase" }}>
-                THE THEORIST — INTELLIGENCE SEARCH
-              </div>
-              <div style={{ fontSize: T.heroSub, color: C.mutedStrong, letterSpacing: 1.5, marginTop: 6, lineHeight: 1.5 }}>
-                CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS · REFERENCE INDEX
-              </div>
-            </div>
+        {/* ── HEADER BAR — matches feed / article header ──────────── */}
+        <header style={{
+          height: 48,
+          background: "#050c07",
+          borderBottom: "1px solid #1a3320",
+          display: "flex",
+          alignItems: "center",
+          padding: "0 20px",
+          gap: 14,
+          flexShrink: 0,
+        }}>
+          <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3, whiteSpace: "nowrap" }}>
+            ← FEED
+          </Link>
+          <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)", whiteSpace: "nowrap" }}>
+            THE THEORIST
           </div>
-          <SiteNav spacious />
+          <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, whiteSpace: "nowrap" }}>INTELLIGENCE SEARCH</div>
+          <div style={{ marginLeft: "auto", flexShrink: 0 }}>
+            <SiteNav />
+          </div>
+        </header>
+
+        {/* ── PAGE CONTENT ─────────────────────────────────────────── */}
+        <div style={pageContentShellStyle()}>
+
+        {/* Section title */}
+        <div style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
+          <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
+            INTELLIGENCE SEARCH
+          </div>
+          <div style={{ fontSize: 12, color: C.faint, letterSpacing: 1.5 }}>
+            CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS · REFERENCE INDEX
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 6, marginBottom: "1.5rem", flexWrap: "wrap" }}>
@@ -764,7 +774,8 @@ export default function SearchPage() {
             ) : null}
           </div>
         )}
-      </div>
+        </div>{/* /pageContentShellStyle */}
+      </div>{/* /position:relative */}
     </div>
   );
 }
