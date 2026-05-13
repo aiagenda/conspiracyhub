@@ -469,31 +469,31 @@ function OutbreakCard({o,selected,onClick}:{o:Outbreak;selected:boolean;onClick:
   const col = RISK_COL(o.risk_level, o.conspiracy_score);
   const vs  = VERDICT_STYLE(o.verdict);
   return (
-    <div onClick={onClick} style={{border:`1px solid ${selected?col:"#1a3320"}`,borderRadius:4,background:selected?"rgba(0,0,0,0.5)":"#090f0b",padding:"10px 12px",cursor:"pointer",transition:"border-color 0.15s"}}
+    <div onClick={onClick} style={{border:`1px solid ${selected?col:"#1a3320"}`,borderRadius:4,background:selected?"rgba(0,0,0,0.5)":"#090f0b",padding:"13px 15px",cursor:"pointer",transition:"border-color 0.15s"}}
       onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
       onMouseLeave={e=>{if(!selected)(e.currentTarget as HTMLDivElement).style.borderColor="#1a3320";}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:7}}>
         <div>
-          <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e8ffe8",lineHeight:1.3}}>{o.disease}</div>
-          <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginTop:2}}>{o.location.toUpperCase()}</div>
+          <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#e8ffe8",lineHeight:1.3}}>{o.disease}</div>
+          <div style={{fontSize:11,color:"#5a8068",letterSpacing:1,marginTop:3}}>{o.location.toUpperCase()}</div>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}>
-          <span style={{fontSize:9,color:col,border:`1px solid ${col}`,padding:"1px 6px",borderRadius:2,fontFamily:RAJ,fontWeight:700,letterSpacing:1}}>{o.risk_level}</span>
-          {o.has_conspiracy&&<span style={{fontSize:9,color:"#c94dff",border:"1px solid rgba(201,77,255,0.3)",padding:"1px 6px",borderRadius:2,letterSpacing:1}}>⚠ CONSPIRACY</span>}
-          {o.localNews&&o.localNews.length>0&&<span style={{fontSize:9,color:"#00bb66",border:"1px solid rgba(0,187,102,0.3)",padding:"1px 6px",borderRadius:2,letterSpacing:1}}>◉ {o.localNews.length} LOCAL NEWS</span>}
+        <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+          <span style={{fontSize:11,color:col,border:`1px solid ${col}`,padding:"2px 7px",borderRadius:2,fontFamily:RAJ,fontWeight:700,letterSpacing:1}}>{o.risk_level}</span>
+          {o.has_conspiracy&&<span style={{fontSize:11,color:"#c94dff",border:"1px solid rgba(201,77,255,0.3)",padding:"2px 7px",borderRadius:2,letterSpacing:1}}>⚠ CONSPIRACY</span>}
+          {o.localNews&&o.localNews.length>0&&<span style={{fontSize:11,color:"#00bb66",border:"1px solid rgba(0,187,102,0.3)",padding:"2px 7px",borderRadius:2,letterSpacing:1}}>◉ {o.localNews.length} LOCAL NEWS</span>}
         </div>
       </div>
-      <div style={{fontSize:10,color:"#5a8068",lineHeight:1.6,marginBottom:7}}>
-        {o.description.slice(0,100)}{o.description.length>100?"...":""}
+      <div style={{fontSize:11,color:"#5a8068",lineHeight:1.65,marginBottom:9}}>
+        {o.description.slice(0,110)}{o.description.length>110?"...":""}
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <div style={{fontSize:9,color:"#3a5040",letterSpacing:1,flexShrink:0}}>THREAT</div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{fontSize:10,color:"#3a5040",letterSpacing:1,flexShrink:0}}>THREAT</div>
         <div style={{flex:1,height:2,background:"#1a3320",borderRadius:1,overflow:"hidden"}}>
           <div style={{height:"100%",width:`${o.conspiracy_score}%`,background:col,borderRadius:1}}/>
         </div>
-        <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:col,flexShrink:0}}>{o.conspiracy_score}%</div>
+        <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:col,flexShrink:0}}>{o.conspiracy_score}%</div>
       </div>
-      <div style={{marginTop:6,padding:"2px 7px",display:"inline-block",background:vs.bg,border:`1px solid ${vs.border}`,borderRadius:2,fontSize:8,color:vs.col,letterSpacing:1}}>
+      <div style={{marginTop:8,padding:"3px 8px",display:"inline-block",background:vs.bg,border:`1px solid ${vs.border}`,borderRadius:2,fontSize:10,color:vs.col,letterSpacing:1}}>
         {o.verdict.replace(/_/g," ")}
       </div>
     </div>
@@ -507,21 +507,21 @@ function OutbreakDetail({o}:{o:Outbreak}) {
 
   return (
     <div style={{border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
-      <div style={{padding:"12px 14px",borderBottom:"1px solid #1a3320",background:"#050c07"}}>
-        <div style={{fontFamily:RAJ,fontSize:16,fontWeight:700,color:"#e8ffe8",marginBottom:4}}>{o.disease}</div>
-        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          <span style={{fontSize:9,color:"#5a8068",letterSpacing:1}}>{o.location.toUpperCase()}</span>
-          <span style={{fontSize:9,color:col,border:`1px solid ${col}`,padding:"1px 6px",borderRadius:2}}>{o.risk_level}</span>
-          <span style={{fontSize:9,padding:"1px 8px",background:vs.bg,border:`1px solid ${vs.border}`,borderRadius:2,color:vs.col,letterSpacing:1}}>{o.verdict.replace(/_/g," ")}</span>
+      <div style={{padding:"14px 16px",borderBottom:"1px solid #1a3320",background:"#050c07"}}>
+        <div style={{fontFamily:RAJ,fontSize:18,fontWeight:700,color:"#e8ffe8",marginBottom:6}}>{o.disease}</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,color:"#5a8068",letterSpacing:1}}>{o.location.toUpperCase()}</span>
+          <span style={{fontSize:11,color:col,border:`1px solid ${col}`,padding:"2px 7px",borderRadius:2}}>{o.risk_level}</span>
+          <span style={{fontSize:11,padding:"2px 8px",background:vs.bg,border:`1px solid ${vs.border}`,borderRadius:2,color:vs.col,letterSpacing:1}}>{o.verdict.replace(/_/g," ")}</span>
         </div>
       </div>
 
-      <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:12,maxHeight:560,overflowY:"auto"}}>
+      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:14,maxHeight:580,overflowY:"auto"}}>
 
         {/* Score */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:4}}>CONSPIRACY SCORE</div>
+            <div style={{fontSize:10,color:"#5a8068",letterSpacing:2,marginBottom:4}}>CONSPIRACY SCORE</div>
             <div style={{fontFamily:RAJ,fontSize:36,fontWeight:700,color:col,lineHeight:1}}>{o.conspiracy_score}%</div>
           </div>
           <div style={{width:120}}>
@@ -531,14 +531,14 @@ function OutbreakDetail({o}:{o:Outbreak}) {
           </div>
         </div>
 
-        <div style={{fontSize:11,color:"#7aaa8a",lineHeight:1.7}}>{o.description}</div>
+        <div style={{fontSize:12,color:"#7aaa8a",lineHeight:1.7}}>{o.description}</div>
 
         {/* Key facts */}
         {o.key_facts?.length>0&&(
           <div>
-            <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:7,textTransform:"uppercase"}}>Key Facts</div>
+            <div style={{fontSize:10,color:"#5a8068",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Key Facts</div>
             {o.key_facts.map((f,i)=>(
-              <div key={i} style={{display:"flex",gap:7,color:"#7aaa8a",fontSize:11,marginBottom:5,lineHeight:1.6,alignItems:"flex-start"}}>
+              <div key={i} style={{display:"flex",gap:8,color:"#7aaa8a",fontSize:12,marginBottom:6,lineHeight:1.6,alignItems:"flex-start"}}>
                 <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span>{f}</span>
               </div>
             ))}
@@ -548,21 +548,21 @@ function OutbreakDetail({o}:{o:Outbreak}) {
         {/* LOCAL NEWS — the smart part */}
         {o.localNews&&o.localNews.length>0&&(
           <div>
-            <div style={{fontSize:9,color:"#00bb66",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>
+            <div style={{fontSize:10,color:"#00bb66",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>
               ◉ LOCAL COVERAGE FROM ORIGIN COUNTRY ({o.localNews.length} articles)
             </div>
-            <div style={{fontSize:9,color:"#3a5040",marginBottom:8,letterSpacing:1,lineHeight:1.6}}>
+            <div style={{fontSize:11,color:"#3a5040",marginBottom:8,letterSpacing:1,lineHeight:1.6}}>
               Articles published in or about {o.origin_country?.toUpperCase()||o.location.toUpperCase()} — early signals appear here first
             </div>
             {o.localNews.map((n,i)=>(
               <a key={i} href={n.url} target="_blank" rel="noreferrer"
-                style={{display:"block",border:"1px solid #1a3320",borderRadius:3,padding:"8px 10px",marginBottom:6,textDecoration:"none",background:"rgba(0,255,136,0.02)",transition:"border-color 0.15s"}}
+                style={{display:"block",border:"1px solid #1a3320",borderRadius:3,padding:"10px 12px",marginBottom:7,textDecoration:"none",background:"rgba(0,255,136,0.02)",transition:"border-color 0.15s"}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="#00bb66";}}
                 onMouseLeave={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="#1a3320";}}>
-                <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#c8e8d0",lineHeight:1.35,marginBottom:4}}>{n.title}</div>
+                <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#c8e8d0",lineHeight:1.35,marginBottom:5}}>{n.title}</div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:9,color:"#5a8068",letterSpacing:1}}>{n.source}</span>
-                  <span style={{fontSize:9,color:"#3a5040"}}>{n.pubDate?new Date(n.pubDate).toLocaleDateString():""}</span>
+                  <span style={{fontSize:11,color:"#5a8068",letterSpacing:1}}>{n.source}</span>
+                  <span style={{fontSize:11,color:"#3a5040"}}>{n.pubDate?new Date(n.pubDate).toLocaleDateString():""}</span>
                 </div>
               </a>
             ))}
@@ -572,17 +572,17 @@ function OutbreakDetail({o}:{o:Outbreak}) {
         {/* Theories */}
         {o.theories?.length>0&&(
           <div>
-            <div style={{fontSize:9,color:"#c94dff",letterSpacing:2,marginBottom:7,textTransform:"uppercase"}}>◈ Conspiracy Theories ({o.theories.length})</div>
+            <div style={{fontSize:10,color:"#c94dff",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>◈ Conspiracy Theories ({o.theories.length})</div>
             {o.theories.map((t,i)=>(
-              <div key={i} style={{border:"1px solid rgba(201,77,255,0.2)",borderRadius:3,padding:"9px 11px",background:"rgba(20,8,24,0.6)",marginBottom:7}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                  <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#e9b3ff"}}>{t.name}</div>
+              <div key={i} style={{border:"1px solid rgba(201,77,255,0.2)",borderRadius:3,padding:"11px 13px",background:"rgba(20,8,24,0.6)",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                  <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e9b3ff"}}>{t.name}</div>
                   <div style={{fontFamily:RAJ,fontSize:18,fontWeight:700,color:RISK_COL("",t.probability),flexShrink:0}}>{t.probability}%</div>
                 </div>
-                <div style={{fontSize:10,color:"#7a5a88",lineHeight:1.6,marginBottom:6}}>{t.summary}</div>
+                <div style={{fontSize:11,color:"#7a5a88",lineHeight:1.65,marginBottom:7}}>{t.summary}</div>
                 {t.sources?.filter(s=>/^https?:\/\//.test(s)).map((s,j)=>(
                   <a key={j} href={s} target="_blank" rel="noreferrer"
-                    style={{display:"flex",gap:6,color:"#00bb66",fontSize:9,textDecoration:"none",marginBottom:3,wordBreak:"break-all"}}>
+                    style={{display:"flex",gap:6,color:"#00bb66",fontSize:10,textDecoration:"none",marginBottom:4,wordBreak:"break-all"}}>
                     <span style={{flexShrink:0}}>↗</span><span>{s}</span>
                   </a>
                 ))}
@@ -594,15 +594,15 @@ function OutbreakDetail({o}:{o:Outbreak}) {
         {/* Patents */}
         {o.patents?.length>0&&(
           <div>
-            <div style={{fontSize:9,color:"#ff5555",letterSpacing:2,marginBottom:7,textTransform:"uppercase"}}>◈ Related Patents ({o.patents.length})</div>
+            <div style={{fontSize:10,color:"#ff5555",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>◈ Related Patents ({o.patents.length})</div>
             {o.patents.map((p,i)=>(
               <a key={i} href={p.url} target="_blank" rel="noreferrer"
-                style={{display:"block",border:"1px solid rgba(255,85,85,0.2)",borderRadius:3,padding:"8px 10px",background:"rgba(26,10,10,0.6)",marginBottom:6,textDecoration:"none",transition:"border-color 0.15s"}}
+                style={{display:"block",border:"1px solid rgba(255,85,85,0.2)",borderRadius:3,padding:"10px 12px",background:"rgba(26,10,10,0.6)",marginBottom:7,textDecoration:"none",transition:"border-color 0.15s"}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="#ff5555";}}
                 onMouseLeave={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="rgba(255,85,85,0.2)";}}>
-                <div style={{fontSize:9,color:"#ff5555",letterSpacing:1,marginBottom:3}}>{p.number} · {p.assignee}</div>
-                <div style={{fontFamily:RAJ,fontSize:11,fontWeight:700,color:"#ffe8e8"}}>{p.title}</div>
-                <div style={{fontSize:9,color:"#5a4040",marginTop:3}}>↗ View on Google Patents</div>
+                <div style={{fontSize:10,color:"#ff5555",letterSpacing:1,marginBottom:4}}>{p.number} · {p.assignee}</div>
+                <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#ffe8e8"}}>{p.title}</div>
+                <div style={{fontSize:10,color:"#5a4040",marginTop:4}}>↗ View on Google Patents</div>
               </a>
             ))}
           </div>
@@ -726,7 +726,7 @@ export default function OutbreakTracker() {
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
                 <WorldMap outbreaks={visible} selected={selected} onSelect={setSelected} />
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                   {visible.map(o=>(
                     <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
                   ))}
@@ -735,7 +735,7 @@ export default function OutbreakTracker() {
               <div>
                 {selected
                   ? <OutbreakDetail o={selected}/>
-                  : <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"2rem",textAlign:"center",color:"#3a5040",fontSize:10,letterSpacing:2}}>SELECT AN OUTBREAK<br/>ON THE MAP OR LIST</div>
+                  : <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"2rem",textAlign:"center",color:"#3a5040",fontSize:12,letterSpacing:2}}>SELECT AN OUTBREAK<br/>ON THE MAP OR LIST</div>
                 }
               </div>
             </div>
