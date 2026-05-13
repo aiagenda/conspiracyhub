@@ -52,6 +52,7 @@ export default function FeedScreen({
   const [userLoaded, setUserLoaded] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
@@ -123,6 +124,15 @@ export default function FeedScreen({
     router.push(`/article/${item.id}`);
   }
 
+  const navLinks = [
+    { href: "/uap", label: "UAP", color: "#8aa6ff", bg: "rgba(145,170,255,0.06)" },
+    { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", bg: "rgba(255,51,51,0.08)", blink: true },
+    { href: "/community", label: "COMMUNITY", color: "#00bb66", bg: "transparent" },
+    { href: "/blog", label: "ANALYSIS", color: "#00bb66", bg: "rgba(0,255,136,0.04)" },
+    { href: "/search", label: "SEARCH", color: "#5a8068", bg: "transparent" },
+    { href: "/guide", label: "GUIDE", color: "#5a8068", bg: "transparent" },
+  ];
+
   return (
     <div className="min-h-screen" style={{ background: "#050c07", color: "#c8e8d0", fontFamily: "var(--font-share-tech-mono), monospace" }}>
       <div className="scanline" />
@@ -138,21 +148,14 @@ export default function FeedScreen({
             AI INVESTIGATIVE INTELLIGENCE
           </div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div className="desktop-only" style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
             <style>{`
               @keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 6px rgba(255,51,51,0.4)} 50%{border-color:rgba(255,51,51,0.4);box-shadow:none} }
               @keyframes outbreakDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
             `}</style>
 
             <div className="feed-header-nav-links" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {[
-                { href: "/uap", label: "UAP", color: "#8aa6ff", bg: "rgba(145,170,255,0.06)" },
-                { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", bg: "rgba(255,51,51,0.08)", blink: true },
-                { href: "/community", label: "COMMUNITY", color: "#00bb66", bg: "transparent" },
-                { href: "/blog", label: "ANALYSIS", color: "#00bb66", bg: "rgba(0,255,136,0.04)" },
-                { href: "/search", label: "SEARCH", color: "#5a8068", bg: "transparent" },
-                { href: "/guide", label: "GUIDE", color: "#5a8068", bg: "transparent" },
-              ].map(({ href, label, color, bg, blink }) => (
+              {navLinks.map(({ href, label, color, bg, blink }) => (
                 <Link
                   key={href}
                   href={href}
@@ -284,7 +287,109 @@ export default function FeedScreen({
               </button>
             )}
           </div>
+
+          <button
+            type="button"
+            className="mobile-only"
+            onClick={() => setMobileMenuOpen((o) => !o)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            style={{
+              display: "none",
+              marginLeft: "auto",
+              width: 40,
+              height: 40,
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid #1a3320",
+              background: "transparent",
+              borderRadius: 3,
+              cursor: "pointer",
+              flexDirection: "column",
+              gap: 5,
+            }}
+          >
+            <span style={{ display: "block", width: 18, height: 1.5, background: mobileMenuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s, opacity 0.2s", transform: mobileMenuOpen ? "rotate(45deg) translate(0, 5px)" : "none" }} />
+            <span style={{ display: "block", width: 18, height: 1.5, background: mobileMenuOpen ? "#00ff88" : "#5a8068", opacity: mobileMenuOpen ? 0 : 1, transition: "opacity 0.2s" }} />
+            <span style={{ display: "block", width: 18, height: 1.5, background: mobileMenuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s", transform: mobileMenuOpen ? "rotate(-45deg) translate(0, -5px)" : "none" }} />
+          </button>
         </header>
+
+        {mobileMenuOpen && (
+          <div
+            className="mobile-only"
+            style={{
+              position: "fixed",
+              top: 52,
+              left: 0,
+              right: 0,
+              zIndex: 200,
+              background: "#050c07",
+              borderBottom: "1px solid #1a3320",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+              display: "none",
+              flexDirection: "column",
+            }}
+          >
+            {navLinks.map(({ href, label, color, blink }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "14px 16px",
+                  borderBottom: "1px solid #0d1a10",
+                  fontFamily: "var(--font-raj), sans-serif",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  letterSpacing: 2,
+                  textTransform: "uppercase",
+                  textDecoration: "none",
+                  color: blink ? "#ff3333" : color,
+                }}
+              >
+                {blink && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ff3333", display: "inline-block" }} />}
+                {label}
+              </Link>
+            ))}
+            <div style={{ display: "flex", gap: 8, padding: "12px 16px" }}>
+              {user ? (
+                <>
+                  <Link href="/account" onClick={() => setMobileMenuOpen(false)} style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, textDecoration: "none" }}>
+                    ACCOUNT
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void signOut().then(() => { refreshUser(); setUserPlan(null); setMobileMenuOpen(false); })}
+                    style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}
+                  >
+                    SIGN OUT
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setMobileMenuOpen(false); setShowAuth(true); }}
+                  style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}
+                >
+                  SIGN IN
+                </button>
+              )}
+              {userPlan !== "pro" && (
+                <button
+                  type="button"
+                  onClick={() => { setMobileMenuOpen(false); setShowUpgrade(true); }}
+                  style={{ flex: 1, padding: "10px", border: "1px solid #00bb66", borderRadius: 3, color: "#00ff88", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, background: "rgba(0,255,136,0.06)", cursor: "pointer" }}
+                >
+                  PRO ▶
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* STATUS BAR — dynamic */}
         <div className="status-bar" style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}>
@@ -314,7 +419,7 @@ export default function FeedScreen({
         </div>
 
         {/* TICKER */}
-        <div style={{ height: 26, borderBottom: "1px solid #1a3320", background: "#030803", overflow: "hidden", display: "flex", alignItems: "center" }}>
+        <div className="ticker-bar" style={{ height: 26, borderBottom: "1px solid #1a3320", background: "#030803", overflow: "hidden", display: "flex", alignItems: "center" }}>
           <div style={{ fontSize: 9, color: "#1a4a2a", padding: "0 10px", borderRight: "1px solid #1a3320", whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1 }}>
             LIVE
           </div>
@@ -342,7 +447,7 @@ export default function FeedScreen({
 
           {/* FILTERS + CONTROLS */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 10 }}>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div className="category-filter" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {sections.map((s) => (
                 <button
                   key={s}
@@ -442,6 +547,7 @@ export default function FeedScreen({
           {/* NEWS GRID */}
           {visible.length > 0 && (
             <div
+              className="feed-grid"
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
