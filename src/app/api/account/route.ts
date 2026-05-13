@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
       subscription_status: profile.subscription_status ?? null,
       current_period_end: profile.subscription_current_period_end ?? null,
       billing_portal_available: hasStripeCustomer,
+      stripe_subscription_id: (profile.stripe_subscription_id as string | null) ?? null,
       member_since: profile.created_at ?? null,
     });
   } catch (e) {

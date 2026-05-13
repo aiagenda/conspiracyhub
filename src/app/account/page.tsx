@@ -13,8 +13,19 @@ type AccountPayload = {
   subscription_status: string | null;
   current_period_end: string | null;
   billing_portal_available: boolean;
+  stripe_subscription_id: string | null;
   member_since: string | null;
 };
+
+function renewalDaysLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  const end = new Date(iso).getTime();
+  if (Number.isNaN(end)) return null;
+  const ms = end - Date.now();
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+  if (days <= 0) return "Billing period renews today or has ended — check Stripe if something looks off.";
+  return `Renews in ${days} day${days === 1 ? "" : "s"}.`;
+}
 
 export default function AccountPage() {
   const [loading, setLoading] = useState(true);
@@ -22,6 +33,9 @@ export default function AccountPage() {
   const [data, setData] = useState<AccountPayload | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePhrase, setDeletePhrase] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -42,7 +56,10 @@ export default function AccountPage() {
       setError(json.error ?? "Could not load account");
       setData(null);
     } else {
-      setData(json);
+      setData({
+        ...json,
+        stripe_subscription_id: json.stripe_subscription_id ?? null,
+      });
     }
     setLoading(false);
   }, []);
@@ -61,6 +78,20 @@ export default function AccountPage() {
     return () => subscription.unsubscribe();
   }, [load]);
 
+  /** After Stripe redirect, webhook may lag — poll account a few times. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("checkout") !== "success") return;
+    let n = 0;
+    const id = window.setInterval(() => {
+      void load();
+      n += 1;
+      if (n >= 10) window.clearInterval(id);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
   async function startCheckout() {
     setError(null);
     setCheckoutLoading(true);
@@ -73,7 +104,7 @@ export default function AccountPage() {
     }
   }
 
-  async function openBillingPortal() {
+  async function openBillingPortal(intent: "default" | "cancel_subscription" = "default") {
     const supabase = getSupabaseBrowserClient();
     const {
       data: { session },
@@ -83,7 +114,11 @@ export default function AccountPage() {
     try {
       const res = await fetch("/api/stripe/portal", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(intent === "cancel_subscription" ? { intent: "cancel_subscription" } : {}),
       });
       const json = (await res.json()) as { url?: string; error?: string; message?: string };
       if (json.url) window.location.href = json.url;
@@ -99,12 +134,52 @@ export default function AccountPage() {
     void load();
   }
 
+  async function confirmDeleteAccount() {
+    if (deletePhrase !== "DELETE") {
+      setError('Type DELETE exactly to confirm account removal.');
+      return;
+    }
+    setError(null);
+    setDeleteLoading(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError("Session expired — sign in again.");
+        return;
+      }
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      const json = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        setError(json.message ?? json.error ?? "Delete failed.");
+        return;
+      }
+      await signOut();
+      window.location.href = "/";
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   const card = {
     background: "#090f0b",
     border: "1px solid #1a3320",
     borderRadius: 4,
     padding: "1.25rem",
   } as const;
+
+  const renewalHint = data?.current_period_end ? renewalDaysLabel(data.current_period_end) : null;
 
   return (
     <div
@@ -184,8 +259,8 @@ export default function AccountPage() {
               Your account
             </h1>
             <p style={{ fontSize: 11, color: "#5a8068", marginTop: 8, maxWidth: 520, lineHeight: 1.6 }}>
-              Plan status, renewal window, and Stripe billing (card, invoices, cancel). No social notifications here
-              yet — that comes in a later release.
+              Plan status, renewal countdown, Stripe billing (card, invoices, cancel). After checkout we refresh
+              automatically for a short window while the webhook syncs.
             </p>
           </div>
 
@@ -235,8 +310,6 @@ export default function AccountPage() {
 
           {!loading && data && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
-
-              {/* Profile row */}
               <div style={card}>
                 <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>PROFILE</div>
                 <div style={{ fontSize: 14, color: "#e8ffe8", marginBottom: 4 }}>{data.email}</div>
@@ -247,7 +320,6 @@ export default function AccountPage() {
                 )}
               </div>
 
-              {/* Plan card — PRO variant */}
               {data.plan === "pro" ? (
                 <div style={{ ...card, borderColor: "rgba(0,255,136,0.3)", background: "rgba(0,255,136,0.03)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -260,25 +332,70 @@ export default function AccountPage() {
                     </div>
                   )}
                   {data.current_period_end && (
-                    <div style={{ fontSize: 11, color: "#7aaa8a", marginBottom: 12 }}>
-                      Renews{" "}
+                    <div style={{ fontSize: 11, color: "#7aaa8a", marginBottom: 6, lineHeight: 1.6 }}>
+                      Next renewal date:{" "}
                       <span style={{ color: "#c8e8d0" }}>
-                        {new Date(data.current_period_end).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                        {new Date(data.current_period_end).toLocaleString(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
                       </span>
                     </div>
                   )}
-                  <button
-                    type="button"
-                    disabled={portalLoading}
-                    onClick={() => void openBillingPortal()}
-                    style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "9px 18px", border: "1px solid #00bb66", background: "rgba(0,255,136,0.06)", color: "#00ff88", borderRadius: 3, cursor: portalLoading ? "wait" : "pointer", opacity: portalLoading ? 0.7 : 1 }}
-                  >
-                    {portalLoading ? "OPENING…" : "◈ MANAGE BILLING & INVOICES ▸"}
-                  </button>
-                  <div style={{ fontSize: 10, color: "#3a5040", marginTop: 8 }}>Change card · Download invoices · Cancel anytime</div>
+                  {renewalHint && (
+                    <div style={{ fontSize: 11, color: "#5a8068", marginBottom: 14, letterSpacing: 0.3 }}>{renewalHint}</div>
+                  )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={portalLoading}
+                      onClick={() => void openBillingPortal("default")}
+                      style={{
+                        fontFamily: "var(--font-raj), sans-serif",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: 2,
+                        textTransform: "uppercase",
+                        padding: "9px 18px",
+                        border: "1px solid #00bb66",
+                        background: "rgba(0,255,136,0.06)",
+                        color: "#00ff88",
+                        borderRadius: 3,
+                        cursor: portalLoading ? "wait" : "pointer",
+                        opacity: portalLoading ? 0.7 : 1,
+                      }}
+                    >
+                      {portalLoading ? "OPENING…" : "◈ MANAGE BILLING & INVOICES ▸"}
+                    </button>
+                    {data.billing_portal_available && data.stripe_subscription_id && (
+                      <button
+                        type="button"
+                        disabled={portalLoading}
+                        onClick={() => void openBillingPortal("cancel_subscription")}
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "9px 18px",
+                          border: "1px solid rgba(255,170,0,0.45)",
+                          background: "rgba(255,170,0,0.06)",
+                          color: "#ffcc66",
+                          borderRadius: 3,
+                          cursor: portalLoading ? "wait" : "pointer",
+                          opacity: portalLoading ? 0.7 : 1,
+                        }}
+                      >
+                        CANCEL SUBSCRIPTION
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#3a5040", marginTop: 8 }}>
+                    Change card · Invoices · Cancel ends PRO at period end unless you choose immediate cancel in Stripe.
+                  </div>
                 </div>
               ) : (
-                /* Plan card — FREE variant */
                 <div style={{ ...card, borderColor: "#1a3320" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                     <span style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 22, fontWeight: 700, color: "#5a8068", letterSpacing: 3 }}>FREE</span>
@@ -315,13 +432,153 @@ export default function AccountPage() {
                 </div>
               )}
 
-              {/* Sign out */}
+              <div style={card}>
+                <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>SETTINGS & LINKS</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 11 }}>
+                  {[
+                    { href: "/privacy", label: "Privacy" },
+                    { href: "/terms", label: "Terms" },
+                    { href: "/faq", label: "FAQ" },
+                    { href: "/guide", label: "Guide" },
+                    { href: "/contact", label: "Contact" },
+                  ].map((l) => (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      style={{
+                        color: "#00bb66",
+                        textDecoration: "none",
+                        borderBottom: "1px solid rgba(0,187,102,0.35)",
+                        paddingBottom: 1,
+                      }}
+                    >
+                      {l.label}
+                    </Link>
+                  ))}
+                </div>
+                <p style={{ fontSize: 10, color: "#3a5040", marginTop: 12, marginBottom: 0, lineHeight: 1.65 }}>
+                  Email & password changes live in Supabase Auth (magic links / reset from sign-in). In-app email prefs
+                  can ship later.
+                </p>
+              </div>
+
+              <div style={{ ...card, borderColor: "rgba(255,51,51,0.25)" }}>
+                <div style={{ fontSize: 9, color: "#aa6666", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>DANGER ZONE</div>
+                <p style={{ fontSize: 11, color: "#8a7068", marginTop: 0, marginBottom: 12, lineHeight: 1.6 }}>
+                  Delete removes your login, profile, and linked app data where the database cascades. We cancel your
+                  Stripe subscription first when we have a subscription id.
+                </p>
+                {!showDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDelete(true);
+                      setDeletePhrase("");
+                      setError(null);
+                    }}
+                    style={{
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      padding: "8px 16px",
+                      border: "1px solid rgba(255,51,51,0.45)",
+                      background: "rgba(255,51,51,0.06)",
+                      color: "#ff8888",
+                      borderRadius: 3,
+                      cursor: "pointer",
+                    }}
+                  >
+                    DELETE ACCOUNT…
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <label style={{ fontSize: 10, color: "#5a8068" }}>
+                      Type <strong style={{ color: "#ff6666" }}>DELETE</strong> to confirm
+                    </label>
+                    <input
+                      value={deletePhrase}
+                      onChange={(e) => setDeletePhrase(e.target.value)}
+                      placeholder="DELETE"
+                      style={{
+                        background: "#050c07",
+                        border: "1px solid #1a3320",
+                        borderRadius: 3,
+                        padding: "8px 10px",
+                        color: "#e8e8e8",
+                        fontFamily: "inherit",
+                        fontSize: 12,
+                        maxWidth: 220,
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        disabled={deleteLoading}
+                        onClick={() => void confirmDeleteAccount()}
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "8px 16px",
+                          border: "1px solid #ff3333",
+                          background: "rgba(255,51,51,0.12)",
+                          color: "#ff6666",
+                          borderRadius: 3,
+                          cursor: deleteLoading ? "wait" : "pointer",
+                        }}
+                      >
+                        {deleteLoading ? "REMOVING…" : "PERMANENTLY DELETE"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deleteLoading}
+                        onClick={() => {
+                          setShowDelete(false);
+                          setDeletePhrase("");
+                        }}
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "8px 16px",
+                          border: "1px solid #1a3320",
+                          background: "transparent",
+                          color: "#5a8068",
+                          borderRadius: 3,
+                          cursor: "pointer",
+                        }}
+                      >
+                        BACK
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div style={card}>
                 <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>SESSION</div>
                 <button
                   type="button"
                   onClick={() => void handleSignOut()}
-                  style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "8px 16px", border: "1px solid #1a3320", background: "transparent", color: "#5a8068", borderRadius: 3, cursor: "pointer" }}
+                  style={{
+                    fontFamily: "var(--font-raj), sans-serif",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    textTransform: "uppercase",
+                    padding: "8px 16px",
+                    border: "1px solid #1a3320",
+                    background: "transparent",
+                    color: "#5a8068",
+                    borderRadius: 3,
+                    cursor: "pointer",
+                  }}
                 >
                   SIGN OUT
                 </button>

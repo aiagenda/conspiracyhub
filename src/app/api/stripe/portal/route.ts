@@ -32,9 +32,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid_token" }, { status: 401 });
     }
 
+    const body = (await req.json().catch(() => ({}))) as { intent?: string };
+    const intent = body.intent === "cancel_subscription" ? "cancel_subscription" : "default";
+
     const { data: profile, error } = await admin
       .from("user_profiles")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, stripe_subscription_id")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -47,12 +50,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const subscriptionId = profile?.stripe_subscription_id as string | null | undefined;
+    if (intent === "cancel_subscription" && !subscriptionId) {
+      return NextResponse.json(
+        { error: "no_subscription", message: "No active subscription id on file — use Manage billing in Stripe." },
+        { status: 400 }
+      );
+    }
+
     const stripe = getStripe();
     const origin = req.nextUrl.origin;
-    const session = await stripe.billingPortal.sessions.create({
+
+    const sessionParams: Stripe.BillingPortal.SessionCreateParams = {
       customer: customerId,
       return_url: `${origin}/account`,
-    });
+    };
+    if (intent === "cancel_subscription" && subscriptionId) {
+      sessionParams.flow_data = {
+        type: "subscription_cancel",
+        subscription_cancel: { subscription: subscriptionId },
+      };
+    }
+
+    const session = await stripe.billingPortal.sessions.create(sessionParams);
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
