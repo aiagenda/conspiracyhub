@@ -182,12 +182,7 @@ function UAPMap({
       }
 
       if (showSightingPins) {
-        const focusOne =
-          selectedSighting != null &&
-          selectedSighting.lat != null &&
-          selectedSighting.lng != null;
-        const pinSource = focusOne ? [selectedSighting] : sightings;
-        for (const s of pinSource) {
+        for (const s of sightings) {
           if (s.lat == null || s.lng == null) continue;
           const pos = proj([s.lng, s.lat]);
           if (!pos) continue;
@@ -226,12 +221,7 @@ function UAPMap({
 
       // Official incident pins (hidden on SIGHTINGS tab)
       if (showIncidentPins) {
-        const focusOne =
-          selected != null &&
-          selected.lat != null &&
-          selected.lng != null;
-        const pinSource = focusOne ? [selected] : incidents;
-        for (const inc of pinSource) {
+        for (const inc of incidents) {
           if (inc.lat == null || inc.lng == null) continue;
           const pos = proj([inc.lng, inc.lat]);
           if (!pos) continue;

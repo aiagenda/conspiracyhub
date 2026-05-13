@@ -202,6 +202,7 @@ function OutbreakLoadingScreen() {
 // ── WORLD MAP ──────────────────────────────────────────────────
 function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:Outbreak|null;onSelect:(o:Outbreak)=>void}) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const [world, setWorld] = useState<unknown>(null);
   const [tooltip, setTooltip] = useState<{x:number;y:number;o:Outbreak}|null>(null);
 
@@ -413,13 +414,13 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
         .extent([[0, 0], [W, H]])
         .scaleExtent([1, 10])
         .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+          zoomTransformRef.current = event.transform;
           geoG.attr("transform", String(event.transform)); // lines + map + markers (markers counter-scale inside)
           applyObMarkerScale(event.transform);
           setTooltip(null);
         });
       svg.call(zoom);
-      geoG.attr("transform", String(d3.zoomIdentity));
-      applyObMarkerScale(d3.zoomIdentity);
+      svg.call(zoom.transform, zoomTransformRef.current);
 
       const ctrl = svg.append("g").attr("transform", `translate(${W - 36}, 10)`);
       [
@@ -431,8 +432,10 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
         btn.append("rect").attr("width", 22).attr("height", 18).attr("rx", 2).attr("fill", "rgba(9,15,11,0.85)").attr("stroke", "#1a3320");
         btn.append("text").attr("x", 11).attr("y", 13).attr("text-anchor", "middle").attr("fill", "#5a8068").attr("font-size", "12").attr("font-family", "monospace").text(label);
         btn.on("click", () => {
-          if (delta === null) svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
-          else svg.transition().duration(220).call(zoom.scaleBy, delta);
+          if (delta === null) {
+            zoomTransformRef.current = d3.zoomIdentity;
+            svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+          } else svg.transition().duration(220).call(zoom.scaleBy, delta);
         });
         btn.on("mouseenter", function () {
           d3.select(this).select("rect").attr("stroke", "#00bb66");
@@ -482,6 +485,7 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
             <span style={{fontSize:9,color:RISK_COL(tooltip.o.risk_level,tooltip.o.conspiracy_score),border:`1px solid ${RISK_COL(tooltip.o.risk_level,tooltip.o.conspiracy_score)}`,padding:"1px 5px",borderRadius:2}}>{tooltip.o.risk_level}</span>
             {tooltip.o.has_conspiracy&&<span style={{fontSize:9,color:"#c94dff",border:"1px solid rgba(201,77,255,0.4)",padding:"1px 5px",borderRadius:2}}>CONSPIRACY</span>}
           </div>
+          <div style={{fontSize:8,color:"#3a5040",marginTop:6}}>Click to open</div>
         </div>
       )}
     </div>
@@ -745,6 +749,10 @@ export default function OutbreakTracker() {
     return true;
   });
 
+  /** Keep selected pin on map when filter changes (same idea as UAP: selection stays coherent). */
+  const mapOutbreaks =
+    selected && !visible.some((o) => o.id === selected.id) ? [...visible, selected] : visible;
+
   return (
     <div style={{minHeight:"100vh",background:"#050c07",color:"#c8e8d0",fontFamily:FONT}}>
       <div className="scanline"/>
@@ -838,7 +846,7 @@ export default function OutbreakTracker() {
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
-                <WorldMap outbreaks={visible} selected={selected} onSelect={setSelected} />
+                <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={setSelected} />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                   {visible.map(o=>(
                     <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
