@@ -36,5 +36,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(row.image ? { images: [row.image] } : {}),
   }));
 
-  return [...STATIC_ROUTES, ...articleRoutes];
+  // Blog/generated articles
+  const { data: blogPosts } = await supabase
+    .from("generated_articles")
+    .select("slug, published_at")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(500);
+
+  const blogRoutes: MetadataRoute.Sitemap = (blogPosts ?? []).map(row => ({
+    url: `${SITE_URL}/blog/${row.slug}`,
+    lastModified: row.published_at ? new Date(row.published_at) : new Date(),
+    changeFrequency: "monthly" as const,
+    priority: 0.8,  // Higher priority than source articles — this is original content
+  }));
+
+  // Blog index
+  const blogIndex: MetadataRoute.Sitemap = [
+    { url: `${SITE_URL}/blog`, lastModified: new Date(), changeFrequency: "daily" as const, priority: 0.85 },
+  ];
+
+  return [...STATIC_ROUTES, ...blogIndex, ...blogRoutes, ...articleRoutes];
 }

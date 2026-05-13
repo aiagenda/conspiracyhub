@@ -6,7 +6,7 @@ export type ScraperJob = {
   id: string;
   job_key: string;
   name: string;
-  target: "news_scraper" | "uap_scraper";
+  target: "news_scraper" | "uap_scraper" | "article_writer";
   schedule_cron: string;
   enabled: boolean;
   config: Record<string, unknown> | null;
@@ -105,6 +105,26 @@ async function runUapScraper(config: Record<string, unknown> | null): Promise<{ 
   }
 }
 
+async function runArticleWriter(config: Record<string, unknown> | null): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const mode = (config?.mode as string) ?? "news_jacking";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  try {
+    const res = await fetch(`${baseUrl}/api/generate-article`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.CRON_SECRET ?? ""}`,
+      },
+      body: JSON.stringify({ mode }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    const payload = await res.json();
+    return { ok: res.ok, status: res.status, payload };
+  } catch (e) {
+    return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
+  }
+}
+
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   const db = admin();
 
@@ -125,6 +145,8 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
     const resp =
       job.target === "news_scraper"
         ? await runNewsScraper()
+        : job.target === "article_writer"
+        ? await runArticleWriter(job.config ?? {})
         : await runUapScraper(job.config ?? {});
 
     await finishRun(run.id, resp.ok ? "success" : "failed", {
