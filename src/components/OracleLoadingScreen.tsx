@@ -14,7 +14,7 @@ const LOG_LINES = [
   { text: "> Source-tier confidence weighting applied", color: "#7aaa8a", delay: 4100 },
   { text: "> Node graph topology — resolving edges...", color: "#7aaa8a", delay: 5000 },
   { text: "> [CLASSIFIED SIGNAL DETECTED] ████████████", color: "#ff3333", delay: 5900 },
-  { text: "> Conspiracy pattern matching — 3 theories found", color: "#ffaa00", delay: 6800 },
+  { text: "> Conspiracy pattern matching — theory lenses (1–5)", color: "#ffaa00", delay: 6800 },
   { text: "> Streaming structured intelligence...", color: "#00ff88", delay: 7600 },
 ];
 
@@ -292,7 +292,7 @@ export default function OracleLoadingScreen() {
           {[
             { label: "NODES", value: visibleNodes.length, max: GRAPH_NODES.length, color: "#00ff88" },
             { label: "SOURCES", value: Math.min(Math.floor(elapsed * 0.8), 12), max: 12, color: "#ffaa00" },
-            { label: "THEORIES", value: Math.min(Math.floor(elapsed * 0.15), 3), max: 3, color: "#c94dff" },
+            { label: "THEORIES", value: Math.min(Math.floor(elapsed * 0.12) + 1, 5), max: 5, color: "#c94dff" },
           ].map(({ label, value, max, color }) => (
             <div key={label} style={{ border: "1px solid #1a3320", borderRadius: 3, padding: "10px 12px", background: "rgba(5,12,7,0.75)" }}>
               <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2, marginBottom: 5 }}>{label}</div>

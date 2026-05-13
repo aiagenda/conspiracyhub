@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { normalizeVerdict } from "@/lib/verdict";
 import { fetchUrlContent } from "@/lib/urlContent";
@@ -43,12 +44,18 @@ export async function POST(req: NextRequest) {
 
     const article = await fetchUrlContent(urlStr);
 
-    const analysis = await callOpenAIJSON<OracleAnalysis>({
+    const articleLine = `Source URL: ${urlStr}\nContent extraction: ${article.source}\nTitle: ${article.title}\n\nContent:\n${article.text}`;
+
+    const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
-      user: `Source URL: ${urlStr}\nContent extraction: ${article.source}\nTitle: ${article.title}\n\nContent:\n${article.text}`,
+      user: articleLine,
       maxTokens: 8192,
       maxAttempts: 4,
+    });
+
+    const analysis = await ensureOracleTheoriesAtLeastOne(analysisRaw, articleLine, {
+      apiKey: process.env.OPENAI_API_KEY!,
     });
 
     const payload = {
@@ -69,6 +76,9 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(inserted);
   } catch (err) {
+    if (err instanceof Error && err.message === "oracle_no_theories") {
+      return NextResponse.json({ error: "oracle_no_theories", message: "Model returned no usable theories." }, { status: 422 });
+    }
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[analyze-url]", msg);
     return NextResponse.json({ error: "analysis_failed", message: msg }, { status: 500 });

@@ -36,6 +36,7 @@ Return a JSON object with these fields:
    - Color guide: #ff3333 = direct evidence, #ffaa00 = indirect link, #00bb66 = counter-signal, #5a8068 = cross-reference
 
 3. theories — between 1 and 5 REAL conspiracy theories that genuinely exist or circulate around this topic:
+   - **Minimum 1 theory is mandatory:** the "theories" array must never be empty. Always include at least one object with a non-empty "name".
    - Include ONLY theories that are real, named, and documented — do NOT invent a theory just to fill a slot.
    - If the topic only has 1 or 2 clearly established theories, return only those. Never pad with a vague or made-up theory.
    - If the topic is rich (e.g. 9/11, JFK, MKUltra), you may return up to 5 distinct named theories.
@@ -62,4 +63,5 @@ CRITICAL RULES:
 - Theory sources must be real URLs (Wikipedia articles, declassified docs, academic papers, reputable news)
 - Do NOT invent URLs — if unsure, omit the URL rather than making one up
 - Do NOT add a theory just to reach a target count — quality over quantity
+- The "theories" array must contain at least one object with a non-empty "name" — never return "theories": []
 - Return ONLY valid JSON, no other text`;

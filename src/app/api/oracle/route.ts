@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { normalizeVerdict } from "@/lib/verdict";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
@@ -39,12 +40,18 @@ export async function POST(req: NextRequest) {
     const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
     if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
 
-    const analysis = await callOpenAIJSON<OracleAnalysis>({
+    const articleLine = `Article: ${news.title}\nSummary: ${news.summary}\nURL: ${news.url}`;
+
+    const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
-      user: `Article: ${news.title}\nSummary: ${news.summary}\nURL: ${news.url}`,
+      user: articleLine,
       maxTokens: 8192,
       maxAttempts: 4,
+    });
+
+    const analysis = await ensureOracleTheoriesAtLeastOne(analysisRaw, articleLine, {
+      apiKey: process.env.OPENAI_API_KEY!,
     });
 
     const genericLabels = new Set(["connection", "link", "contextual relationship"]);
@@ -186,6 +193,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(inserted);
   } catch (error) {
+    if (error instanceof Error && error.message === "oracle_no_theories") {
+      return NextResponse.json({ error: "oracle_no_theories", message: "Model returned no usable theories." }, { status: 422 });
+    }
     console.error("[oracle]", error);
     return NextResponse.json({ error: "oracle_failed" }, { status: 500 });
   }
