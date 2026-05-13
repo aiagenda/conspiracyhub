@@ -33,7 +33,6 @@ type ObMapMarkerDraw = {
   dotR: number;
   col: string;
   isSel: boolean;
-  rLabel: number;
 };
 
 const RISK_COL = (risk:string, score:number) => {
@@ -313,12 +312,12 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           const [x, y] = allPositions[pi];
           const isPrimary = pi === 0;
           const dotR = isPrimary ? r : Math.max(5, r - 2);
-          markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel, rLabel: r });
+          markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel });
         }
       }
 
       for (const m of markerQueue) {
-        const { o, x, y, isPrimary, dotR, col, isSel, rLabel } = m;
+        const { o, x, y, isPrimary, dotR, col, isSel } = m;
 
         const mg = markersG
           .append("g")
@@ -362,9 +361,12 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           .on("click", () => onSelect(o));
 
         if (isPrimary && (isSel || o.conspiracy_score >= 40)) {
+          // Outer glow circle uses r = dotR + 3; keep label clear of that + glyph stroke.
+          const labelX = dotR + 3 + 12;
           mg.append("text")
-            .attr("x", rLabel + 6)
-            .attr("y", 4)
+            .attr("x", labelX)
+            .attr("y", 0)
+            .attr("dominant-baseline", "middle")
             .attr("fill", col)
             .attr("font-size", "9")
             .attr("font-weight", "700")
