@@ -230,8 +230,6 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
       svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
 
       const geoG = svg.append("g").attr("class", "ob-geo");
-      const linesG = geoG.append("g").attr("class", "ob-lines");
-      const markersG = geoG.append("g").attr("class", "ob-markers");
 
       const graticule = d3.geoGraticule()();
       geoG.append("path").datum(graticule)
@@ -252,6 +250,10 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
       geoG.append("path").datum(borders)
         .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
         .attr("fill","none").attr("stroke","#1a3320").attr("stroke-width","0.3");
+
+      // Lines + markers AFTER landmasses so pins paint on top (SVG paint order = DOM order).
+      const linesG = geoG.append("g").attr("class", "ob-lines");
+      const markersG = geoG.append("g").attr("class", "ob-markers");
 
       function pulseHalo(parent: d3.Selection<SVGGElement, any, null, undefined>, ringR: number, stroke: string) {
         parent.append("circle")
