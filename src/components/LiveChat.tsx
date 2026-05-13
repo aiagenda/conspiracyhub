@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import RegisteredOnlyGate from "@/components/RegisteredOnlyGate";
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -39,6 +41,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
   const [online, setOnline] = useState(1);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,15 +54,41 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
 
     (async () => {
       try {
-        const res = await fetch(`/api/threads?article_id=${encodeURIComponent(articleId)}`, { signal });
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (!signal.aborted) {
+            setNeedsSignIn(true);
+            setLoading(false);
+          }
+          return;
+        }
+
+        const res = await fetchWithSupabaseAuth(`/api/threads?article_id=${encodeURIComponent(articleId)}`, {
+          signal,
+        });
         const d = (await res.json()) as { threads?: { id: string }[]; error?: string };
         if (signal.aborted) return;
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            if (!signal.aborted) {
+              setNeedsSignIn(true);
+              setLoading(false);
+            }
+            return;
+          }
+          if (!signal.aborted) setLoading(false);
+          return;
+        }
 
         let tid: string | undefined;
         if (d.threads?.length) {
           tid = d.threads[0].id;
         } else {
-          const cr = await fetch("/api/threads", {
+          const cr = await fetchWithSupabaseAuth("/api/threads", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal,
@@ -73,6 +102,13 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
             }),
           });
           const cd = (await cr.json()) as { thread?: { id: string }; error?: string };
+          if (!cr.ok && cr.status === 401) {
+            if (!signal.aborted) {
+              setNeedsSignIn(true);
+              setLoading(false);
+            }
+            return;
+          }
           tid = cd.thread?.id;
         }
 
@@ -86,7 +122,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
         if (signal.aborted) return;
         setThreadId(tid);
 
-        const pr = await fetch(`/api/threads?id=${encodeURIComponent(tid)}`, { signal });
+        const pr = await fetchWithSupabaseAuth(`/api/threads?id=${encodeURIComponent(tid)}`, { signal });
         const pd = (await pr.json()) as { posts?: ChatMessage[] };
         if (signal.aborted) return;
 
@@ -163,7 +199,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
     setMessages((p) => [...p, optimistic]);
     setText("");
     try {
-      const res = await fetch("/api/threads", {
+      const res = await fetchWithSupabaseAuth("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -183,7 +219,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
         });
       } else {
         try {
-          const r = await fetch(`/api/threads?id=${encodeURIComponent(threadId)}`);
+          const r = await fetchWithSupabaseAuth(`/api/threads?id=${encodeURIComponent(threadId)}`);
           const j = (await r.json()) as { posts?: ChatMessage[] };
           if (Array.isArray(j.posts)) setMessages(j.posts);
           else setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
@@ -196,6 +232,17 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
     } finally {
       setSending(false);
     }
+  }
+
+  if (needsSignIn) {
+    return (
+      <RegisteredOnlyGate
+        variant="embedded"
+        title="LIVE CHAT — SIGN IN"
+        subtitle="Article discussion is for registered members only. Sign in on the feed, then reopen live chat."
+        onClose={onClose}
+      />
+    );
   }
 
   return (

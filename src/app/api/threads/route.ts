@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { callOpenAIJSON } from "@/lib/openai";
 
@@ -8,6 +8,24 @@ function getAdmin() {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error("Missing Supabase env");
   return createClient(url, key);
+}
+
+type AuthResult = { user: User } | { response: NextResponse };
+
+async function requireRegisteredUser(req: NextRequest, admin: SupabaseClient): Promise<AuthResult> {
+  const auth = req.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) {
+    return { response: NextResponse.json({ error: "missing_token" }, { status: 401 }) };
+  }
+  const token = auth.replace(/^Bearer\s+/i, "");
+  const {
+    data: { user },
+    error,
+  } = await admin.auth.getUser(token);
+  if (error || !user) {
+    return { response: NextResponse.json({ error: "invalid_token" }, { status: 401 }) };
+  }
+  return { user };
 }
 
 const UUID_RE =
@@ -45,10 +63,13 @@ Return ONLY valid JSON:
   "next_steps": ["Step 1", "Step 2"]
 }`;
 
-// GET — list threads or single thread with posts
+// GET — list threads or single thread with posts (registered users only)
 export async function GET(req: NextRequest) {
   try {
     const admin = getAdmin();
+    const authResult = await requireRegisteredUser(req, admin);
+    if ("response" in authResult) return authResult.response;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const category = searchParams.get("category");
@@ -91,10 +112,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — create thread or add post (optional @oracle)
+// POST — create thread or add post (optional @oracle) — registered users only
 export async function POST(req: NextRequest) {
   try {
     const admin = getAdmin();
+    const authResult = await requireRegisteredUser(req, admin);
+    if ("response" in authResult) return authResult.response;
+    const { user: authUser } = authResult;
+
     const body = await req.json();
     const action = body.action ?? "create_thread";
     const userFp = fp(req);
@@ -177,22 +202,12 @@ export async function POST(req: NextRequest) {
       const mentionsOracle = /@oracle\b/i.test(content ?? "");
       const apiKey = process.env.OPENAI_API_KEY;
 
-      // Rate-limit @oracle for free/anonymous users: max 3 per day per fingerprint
+      // Rate-limit @oracle for free users: max 3 per day per fingerprint
       const FREE_ORACLE_DAILY_LIMIT = 3;
       let oracleBlocked = false;
       if (mentionsOracle && apiKey) {
-        // Check auth to see if PRO
-        const authHeader = req.headers.get("authorization") ?? "";
-        let isPro = false;
-        if (authHeader.startsWith("Bearer ")) {
-          try {
-            const { data: { user: authUser } } = await admin.auth.getUser(authHeader.replace("Bearer ", ""));
-            if (authUser) {
-              const { data: prof } = await admin.from("user_profiles").select("plan").eq("id", authUser.id).single();
-              isPro = prof?.plan === "pro";
-            }
-          } catch { /* ignore */ }
-        }
+        const { data: prof } = await admin.from("user_profiles").select("plan").eq("id", authUser.id).single();
+        const isPro = prof?.plan === "pro";
         if (!isPro) {
           const since = new Date(Date.now() - 86_400_000).toISOString();
           const { count } = await admin

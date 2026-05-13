@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import RegisteredOnlyGate from "@/components/RegisteredOnlyGate";
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -189,7 +191,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
   }, []);
 
   useEffect(() => {
-    fetch(`/api/threads?id=${thread.id}`)
+    fetchWithSupabaseAuth(`/api/threads?id=${thread.id}`)
       .then(r => r.json())
       .then((d: { posts?: Post[] }) => setPosts(d.posts ?? []))
       .catch(() => {})
@@ -202,7 +204,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
 
   const refreshPosts = useCallback(async () => {
     try {
-      const r = await fetch(`/api/threads?id=${thread.id}`);
+      const r = await fetchWithSupabaseAuth(`/api/threads?id=${thread.id}`);
       const d = await r.json() as { posts?: Post[] };
       setPosts(d.posts ?? []);
     } catch {}
@@ -232,7 +234,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
       likes: reaction === "like" ? p.likes + 1 : (prev === "like" ? Math.max(0, p.likes - 1) : p.likes),
       dislikes: reaction === "dislike" ? p.dislikes + 1 : (prev === "dislike" ? Math.max(0, p.dislikes - 1) : p.dislikes),
     }));
-    fetch("/api/threads", {
+    fetchWithSupabaseAuth("/api/threads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "react_post", post_id: postId, reaction }),
@@ -247,7 +249,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
     setPosting(true);
     if (mentionsOracle) setOracleTyping(true);
     try {
-      await fetch("/api/threads", {
+      await fetchWithSupabaseAuth("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -477,7 +479,7 @@ function NewThreadForm({
     if (!title.trim() || !body.trim()) { setError("Title and description required."); return; }
     setSubmitting(true); setError("");
     try {
-      const res = await fetch("/api/threads", {
+      const res = await fetchWithSupabaseAuth("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -570,6 +572,9 @@ export default function CommunityBoard() {
   const articleParam = searchParams.get("article");
   const articleFromUrl = articleParam && isArticleUuid(articleParam) ? articleParam : null;
 
+  const [authReady, setAuthReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState<Category>("all");
@@ -583,7 +588,9 @@ export default function CommunityBoard() {
   const fetchThreadList = useCallback(() => {
     const params = new URLSearchParams({ sort });
     if (category !== "all") params.set("category", category);
-    return fetch(`/api/threads?${params}`).then(r => r.json() as Promise<{ threads?: Thread[] }>);
+    return fetchWithSupabaseAuth(`/api/threads?${params}`).then(
+      (r) => r.json() as Promise<{ threads?: Thread[] }>
+    );
   }, [category, sort]);
 
   const refreshThreads = useCallback(() => {
@@ -594,7 +601,9 @@ export default function CommunityBoard() {
     setArticleBundleLoading(true);
     try {
       const [threadsJson, newsRow] = await Promise.all([
-        fetch(`/api/threads?article_id=${encodeURIComponent(id)}`).then(r => r.json() as Promise<{ threads?: Thread[] }>),
+        fetchWithSupabaseAuth(`/api/threads?article_id=${encodeURIComponent(id)}`).then((r) =>
+          r.json() as Promise<{ threads?: Thread[] }>
+        ),
         getSupabaseBrowserClient().from("news_items").select("title").eq("id", id).maybeSingle(),
       ]);
       setArticleThreads(threadsJson.threads ?? []);
@@ -608,6 +617,21 @@ export default function CommunityBoard() {
   }, []);
 
   useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    void sb.auth.getSession().then(({ data }) => {
+      setSignedIn(Boolean(data.session?.access_token));
+      setAuthReady(true);
+    });
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(Boolean(session?.access_token));
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || !signedIn) return;
     if (articleFromUrl) {
       setLoading(false);
       setShowNew(false);
@@ -618,10 +642,19 @@ export default function CommunityBoard() {
     setArticleThreads([]);
     let cancelled = false;
     void fetchThreadList()
-      .then(d => { if (!cancelled) { setThreads(d.threads ?? []); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [articleFromUrl, fetchThreadList, loadArticleBundle]);
+      .then((d) => {
+        if (!cancelled) {
+          setThreads(d.threads ?? []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, signedIn, articleFromUrl, fetchThreadList, loadArticleBundle]);
 
   const discussionSeedTitle = articleTitle
     ? `Discussion: ${articleTitle}`.slice(0, 120)
@@ -634,6 +667,39 @@ export default function CommunityBoard() {
     setSelectedThread(null);
     if (articleFromUrl) void loadArticleBundle(articleFromUrl);
     else refreshThreads();
+  }
+
+  if (!authReady) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#050c07", color: "#3a5040", fontFamily: FONT }}>
+        <div className="scanline" />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "50vh",
+            letterSpacing: 3,
+            fontSize: 10,
+          }}
+        >
+          VERIFYING SESSION…
+        </div>
+      </div>
+    );
+  }
+
+  if (!signedIn) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#050c07" }}>
+        <div className="scanline" />
+        <RegisteredOnlyGate
+          variant="fullscreen"
+          title="COMMUNITY — SIGN IN REQUIRED"
+          subtitle="Threads, replies, and @oracle on the community board are for registered members only."
+        />
+      </div>
+    );
   }
 
   return (
