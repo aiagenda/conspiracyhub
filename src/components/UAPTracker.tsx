@@ -226,7 +226,13 @@ function UAPMap({
 
       // Official incident pins (hidden on SIGHTINGS tab)
       if (showIncidentPins) {
-        for (const inc of incidents) {
+        const focusOne =
+          selected != null &&
+          selected.lat != null &&
+          selected.lng != null;
+        const pinSource = focusOne ? [selected] : incidents;
+        for (const inc of pinSource) {
+          if (inc.lat == null || inc.lng == null) continue;
           const pos = proj([inc.lng, inc.lat]);
           if (!pos) continue;
           const [x, y] = pos;
