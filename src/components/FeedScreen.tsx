@@ -28,12 +28,21 @@ type HealthStatus = { guardian: string; scraper: string; oracle: string; communi
 
 export type FeedNotice = "missing_supabase_env" | "empty_database";
 
+export type FeedPagination = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
 export default function FeedScreen({
   initialItems,
   feedNotice,
+  feedPagination,
 }: {
   initialItems: NewsItem[];
   feedNotice?: FeedNotice;
+  feedPagination?: FeedPagination;
 }) {
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
@@ -283,7 +292,9 @@ export default function FeedScreen({
               </div>
               {visible.length > 0 && (
                 <span style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1 }}>
-                  {visible.length} ACTIVE SIGNALS
+                  {feedPagination
+                    ? `${visible.length} ON THIS PAGE · ${feedPagination.totalCount} TOTAL`
+                    : `${visible.length} ACTIVE SIGNALS`}
                 </span>
               )}
             </div>
@@ -342,6 +353,101 @@ export default function FeedScreen({
               {visible.map((item, idx) => (
                 <NewsCard key={item.id} item={item} read={readIds.has(item.id)} onAnalyze={analyze} priority={idx < 3} />
               ))}
+            </div>
+          )}
+
+          {feedPagination && feedPagination.totalPages > 1 && (
+            <div
+              style={{
+                marginTop: "2rem",
+                paddingTop: "1.25rem",
+                borderTop: "1px solid #1a3320",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px 20px",
+              }}
+            >
+              <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 2, width: "100%", textAlign: "center" }}>
+                PAGE {feedPagination.page} / {feedPagination.totalPages}
+              </span>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {feedPagination.page > 1 ? (
+                  <Link
+                    href={feedPagination.page === 2 ? "/" : `/?page=${feedPagination.page - 1}`}
+                    style={{
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      padding: "8px 18px",
+                      borderRadius: 3,
+                      border: "1px solid #00bb66",
+                      background: "rgba(0,255,136,0.06)",
+                      color: "#00ff88",
+                      textDecoration: "none",
+                    }}
+                  >
+                    ← PREV
+                  </Link>
+                ) : (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      padding: "8px 18px",
+                      borderRadius: 3,
+                      border: "1px solid #1a3320",
+                      color: "#2a4030",
+                      cursor: "default",
+                    }}
+                  >
+                    ← PREV
+                  </span>
+                )}
+                {feedPagination.page < feedPagination.totalPages ? (
+                  <Link
+                    href={`/?page=${feedPagination.page + 1}`}
+                    style={{
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      padding: "8px 18px",
+                      borderRadius: 3,
+                      border: "1px solid #00bb66",
+                      background: "rgba(0,255,136,0.06)",
+                      color: "#00ff88",
+                      textDecoration: "none",
+                    }}
+                  >
+                    NEXT →
+                  </Link>
+                ) : (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-raj), sans-serif",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      padding: "8px 18px",
+                      borderRadius: 3,
+                      border: "1px solid #1a3320",
+                      color: "#2a4030",
+                      cursor: "default",
+                    }}
+                  >
+                    NEXT →
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>

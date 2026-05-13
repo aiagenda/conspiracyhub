@@ -1,9 +1,12 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import FeedScreen from "@/components/FeedScreen";
+import FeedScreen, { type FeedPagination } from "@/components/FeedScreen";
 import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
 export const revalidate = 900;
+
+const PAGE_SIZE = 20;
 
 /** Returns an ISO cutoff string 7 days in the past. Extracted from the component to satisfy purity rules. */
 function sevenDaysAgo(): string {
@@ -12,25 +15,58 @@ function sevenDaysAgo(): string {
   return d.toISOString();
 }
 
-export default async function Home() {
+function parsePage(raw: string | string[] | undefined): number {
+  const s = Array.isArray(raw) ? raw[0] : raw;
+  const n = parseInt(String(s ?? "1"), 10);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await searchParams) ?? {};
+  const requestedPage = parsePage(sp.page);
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) {
     return <FeedScreen initialItems={[]} feedNotice="missing_supabase_env" />;
   }
   const supabase = createClient(url, key);
-  // Show articles from the last 7 days sorted by freshest first.
   const cutoff = sevenDaysAgo();
-  let { data } = await supabase
+
+  const { count: countSeven } = await supabase
     .from("news_items")
-    .select("*")
-    .gte("published_at", cutoff)
-    .order("published_at", { ascending: false })
-    .order("score", { ascending: false })
-    .limit(200);
-  if (!data || data.length === 0) {
-    ({ data } = await supabase.from("news_items").select("*").order("published_at", { ascending: false }).limit(100));
+    .select("*", { count: "exact", head: true })
+    .gte("published_at", cutoff);
+
+  const sevenDayTotal = countSeven ?? 0;
+  const useSevenDayWindow = sevenDayTotal > 0;
+
+  let totalCount = sevenDayTotal;
+  if (!useSevenDayWindow) {
+    const { count: countAll } = await supabase.from("news_items").select("*", { count: "exact", head: true });
+    totalCount = countAll ?? 0;
   }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const currentPage = Math.min(requestedPage, totalPages);
+  if (totalCount > 0 && requestedPage !== currentPage) {
+    redirect(currentPage <= 1 ? "/" : `/?page=${currentPage}`);
+  }
+  const from = (currentPage - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  let q = supabase.from("news_items").select("*");
+  if (useSevenDayWindow) {
+    q = q.gte("published_at", cutoff).order("published_at", { ascending: false }).order("score", { ascending: false });
+  } else {
+    q = q.order("published_at", { ascending: false });
+  }
+
+  const { data } = await q.range(from, to);
 
   const items: NewsItem[] =
     (data ?? []).map((row) => ({
@@ -46,10 +82,16 @@ export default async function Home() {
       angle: omitIfHungarianScript(row.angle ?? ""),
     })) ?? [];
 
+  const feedPagination: FeedPagination | undefined =
+    totalCount > 0
+      ? { page: currentPage, pageSize: PAGE_SIZE, totalCount, totalPages }
+      : undefined;
+
   return (
     <FeedScreen
       initialItems={items}
       feedNotice={items.length === 0 ? "empty_database" : undefined}
+      feedPagination={feedPagination}
     />
   );
 }
