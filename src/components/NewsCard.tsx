@@ -95,25 +95,27 @@ export default function NewsCard({
           <div style={{ position: "absolute", bottom: 10, left: 12, fontSize: 11, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
             {item.section} · {timeAgo(item.date)}
           </div>
-          {/* READ / VIEWED badge */}
-          <div
-            style={{
-              position: "absolute",
-              top: 10,
-              left: 10,
-              background: read ? "rgba(0,40,28,0.85)" : "rgba(5,12,7,0.75)",
-              border: read ? "1px solid rgba(0,187,102,0.45)" : "1px solid #1a3320",
-              borderRadius: 2,
-              padding: "3px 9px",
-              fontSize: 11,
-              color: read ? "#6bc46b" : "#5a8068",
-              letterSpacing: 1,
-              fontFamily: "var(--font-raj), sans-serif",
-              fontWeight: 700,
-            }}
-          >
-            {read ? "✓ VIEWED" : "READ ARTICLE"}
-          </div>
+          {/* VIEWED badge — only show when read */}
+          {read && (
+            <div
+              style={{
+                position: "absolute",
+                top: 10,
+                left: 10,
+                background: "rgba(0,40,28,0.85)",
+                border: "1px solid rgba(0,187,102,0.45)",
+                borderRadius: 2,
+                padding: "3px 9px",
+                fontSize: 11,
+                color: "#6bc46b",
+                letterSpacing: 1,
+                fontFamily: "var(--font-raj), sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              ✓ VIEWED
+            </div>
+          )}
         </div>
       </a>
 
@@ -149,7 +151,7 @@ export default function NewsCard({
         )}
 
 
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
           <button
             type="button"
             onClick={() => onAnalyze(item)}
@@ -158,9 +160,9 @@ export default function NewsCard({
               border: `1px solid ${color}`,
               color,
               borderRadius: 3,
-              padding: "11px 14px",
+              padding: "10px 14px",
               fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 700,
               letterSpacing: 2,
               textTransform: "uppercase",
@@ -186,11 +188,11 @@ export default function NewsCard({
               border: "1px solid #1a3320",
               color: "#5a8068",
               borderRadius: 3,
-              padding: "9px 14px",
+              padding: "10px 14px",
               fontFamily: "var(--font-raj), sans-serif",
               fontSize: 12,
               fontWeight: 700,
-              letterSpacing: 1.5,
+              letterSpacing: 2,
               textTransform: "uppercase",
               transition: "all 0.15s",
             }}
@@ -203,7 +205,7 @@ export default function NewsCard({
               (e.currentTarget as HTMLAnchorElement).style.color = "#5a8068";
             }}
           >
-            💬 Discuss in community
+            ▸ DISCUSS IN COMMUNITY
           </Link>
           <Link
             href={`/article/${item.id}?chat=1`}
@@ -211,30 +213,28 @@ export default function NewsCard({
               display: "block",
               textAlign: "center",
               textDecoration: "none",
-              background: "rgba(0,255,136,0.04)",
-              border: "1px solid rgba(0,187,102,0.35)",
-              color: "#00bb66",
+              background: "transparent",
+              border: "1px solid rgba(0,187,102,0.3)",
+              color: "#4a7060",
               borderRadius: 3,
-              padding: "8px 14px",
+              padding: "10px 14px",
               fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 700,
-              letterSpacing: 1.5,
+              letterSpacing: 2,
               textTransform: "uppercase",
               transition: "all 0.15s",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00ff88";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88";
-              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.1)";
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
+              (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,187,102,0.35)";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66";
-              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.04)";
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,187,102,0.3)";
+              (e.currentTarget as HTMLAnchorElement).style.color = "#4a7060";
             }}
           >
-            ⚡ Live chat on article
+            ◈ LIVE CHAT
           </Link>
         </div>
       </div>

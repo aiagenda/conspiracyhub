@@ -4,8 +4,9 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/faq",     label: "FAQ" },
-  { href: "/privacy", label: "Privacy Policy" },
-  { href: "/terms",   label: "Terms of Service" },
+  { href: "/guide",   label: "Guide" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms",   label: "Terms" },
   { href: "/contact", label: "Contact" },
 ];
 
@@ -20,33 +21,43 @@ export default function SiteFooter() {
   return (
     <footer
       style={{
-        borderTop: "1px solid #111",
-        padding: "28px clamp(1rem, 3vw, 2rem)",
+        borderTop: "1px solid #1a3320",
+        padding: "20px clamp(1rem, 3vw, 2rem)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexWrap: "wrap",
-        gap: 16,
-        fontSize: 11,
-        letterSpacing: "0.05em",
+        gap: 12,
+        background: "#050c07",
+        fontFamily: "var(--font-raj), sans-serif",
       }}
     >
-      <span style={{ color: "#333", textTransform: "uppercase" }}>
-        © {new Date().getFullYear()} ConspiracyHub — All rights reserved
-      </span>
-      <nav style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 9, color: "#2a4030", letterSpacing: 3, textTransform: "uppercase" }}>
+          ■ THE THEORIST
+        </span>
+        <span style={{ width: 1, height: 12, background: "#1a3320", display: "inline-block" }} />
+        <span style={{ fontSize: 9, color: "#1e3028", letterSpacing: 1, textTransform: "uppercase" }}>
+          © {new Date().getFullYear()} · AI INVESTIGATIVE INTELLIGENCE
+        </span>
+      </div>
+      <nav style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         {LINKS.map((l) => (
           <a
             key={l.href}
             href={l.href}
             style={{
-              color: pathname === l.href ? "#6bc46b" : "#444",
-              textDecoration: "none",
+              fontFamily: "var(--font-raj), sans-serif",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 2,
               textTransform: "uppercase",
+              color: pathname === l.href ? "#00bb66" : "#2a4030",
+              textDecoration: "none",
               transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => { (e.target as HTMLAnchorElement).style.color = "#6bc46b"; }}
-            onMouseLeave={(e) => { (e.target as HTMLAnchorElement).style.color = pathname === l.href ? "#6bc46b" : "#444"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = pathname === l.href ? "#00bb66" : "#2a4030"; }}
           >
             {l.label}
           </a>

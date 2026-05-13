@@ -336,7 +336,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
                   onClick={() => switchTab(t)}
                   style={{
                     flex: 1,
-                    padding: "7px",
+                    padding: "9px 16px",
                     fontFamily: RAJ,
                     fontSize: 12,
                     fontWeight: 700,
@@ -347,6 +347,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
                     color: tab === t ? "#00ff88" : "#5a8068",
                     borderRadius: 3,
                     cursor: "pointer",
+                    transition: "all 0.15s",
                   }}
                 >
                   {t === "signin" ? "SIGN IN" : "SIGN UP"}

@@ -323,7 +323,7 @@ export default function AccountPage() {
                 margin: 0,
               }}
             >
-              Your account
+              YOUR ACCOUNT
             </h1>
             <p style={{ fontSize: 11, color: "#5a8068", marginTop: 8, maxWidth: 520, lineHeight: 1.6 }}>
               Plan status, renewal countdown, Stripe billing (card, invoices, cancel). After checkout we refresh

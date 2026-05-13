@@ -339,7 +339,7 @@ export default function ArticleReader({
             cursor: "pointer",
           }}
         >
-          💬 {chatOpen ? "CLOSE" : "LIVE CHAT"}
+          {chatOpen ? "✕ CLOSE" : "◈ LIVE CHAT"}
         </button>
         <button
           onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
@@ -550,7 +550,7 @@ export default function ArticleReader({
                   (e.currentTarget as HTMLAnchorElement).style.background = "#090f0b";
                 }}
               >
-                <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>💬 DISCUSS IN COMMUNITY</div>
+                <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>▸ DISCUSS IN COMMUNITY</div>
                 <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>Thread linked to this article · Oracle · replies</div>
               </Link>
             </div>
@@ -624,17 +624,41 @@ export default function ArticleReader({
                 </div>
                 {/* PRO upgrade CTA when highlights are limited */}
                 {hlLimited && (
-                  <div style={{ padding: "12px", borderTop: "1px solid #1a3320", background: "rgba(255,170,0,0.03)", display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: FONT, fontSize: 10, color: "#ffaa00", letterSpacing: 1, marginBottom: 3 }}>
-                        {hlTotal - highlights.length} additional signal{hlTotal - highlights.length > 1 ? "s" : ""} hidden
-                      </div>
-                      <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 0.5 }}>
-                        Upgrade to PRO for full article scan + excerpts
-                      </div>
+                  <div style={{ padding: "14px 12px", borderTop: "1px solid rgba(255,170,0,0.25)", background: "linear-gradient(180deg, rgba(255,170,0,0.07) 0%, rgba(255,170,0,0.02) 100%)" }}>
+                    <div style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#ffaa33", marginBottom: 6, textTransform: "uppercase" }}>
+                      ⚠ {hlTotal - highlights.length} SIGNAL{hlTotal - highlights.length > 1 ? "S" : ""} HIDDEN
                     </div>
-                    <a href="/account" style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#ffaa00", border: "1px solid rgba(255,170,0,0.4)", padding: "5px 10px", borderRadius: 2, textDecoration: "none", flexShrink: 0, textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                      UNLOCK PRO
+                    <div style={{ fontFamily: FONT, fontSize: 10, color: "#8a7a60", letterSpacing: 0.5, lineHeight: 1.55, marginBottom: 10 }}>
+                      PRO unlocks all {hlTotal} signals — medium + low severity flags with full notes.
+                    </div>
+                    <a
+                      href="/account"
+                      style={{
+                        display: "block",
+                        textAlign: "center",
+                        fontFamily: RAJ,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: 2,
+                        color: "#ffcc66",
+                        border: "1px solid rgba(255,170,0,0.5)",
+                        padding: "8px 10px",
+                        borderRadius: 3,
+                        textDecoration: "none",
+                        textTransform: "uppercase",
+                        background: "rgba(255,170,0,0.06)",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,170,0,0.14)";
+                        (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,170,0,0.8)";
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,170,0,0.06)";
+                        (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,170,0,0.5)";
+                      }}
+                    >
+                      UPGRADE TO PRO — $7/MO ▶
                     </a>
                   </div>
                 )}

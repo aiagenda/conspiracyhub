@@ -76,8 +76,8 @@ export default function SendFeedbackWidget() {
         }}
         style={{
           position: "fixed",
-          right: 14,
-          bottom: 18,
+        right: 20,
+        bottom: 20,
           zIndex: 90,
           fontFamily: RAJ,
           fontSize: 11,
@@ -191,7 +191,7 @@ export default function SendFeedbackWidget() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
-                    <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>NAME</label>
+                    <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>NAME <span style={{ color: "#3a5040" }}>(optional)</span></label>
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -211,7 +211,7 @@ export default function SendFeedbackWidget() {
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>EMAIL *</label>
+                    <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>EMAIL <span style={{ color: "#00bb66" }}>*</span></label>
                     <input
                       required
                       type="email"
@@ -234,7 +234,7 @@ export default function SendFeedbackWidget() {
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>MESSAGE *</label>
+                  <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>MESSAGE <span style={{ color: "#00bb66" }}>*</span></label>
                   <textarea
                     required
                     value={message}
@@ -262,7 +262,8 @@ export default function SendFeedbackWidget() {
                 {status === "error" && (
                   <div style={{ fontSize: 11, color: "#ff8888", border: "1px solid rgba(255,51,51,0.35)", padding: "8px 10px", borderRadius: 3 }}>{errorMsg}</div>
                 )}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                <div style={{ fontSize: 9, color: "#2a4030", letterSpacing: 1 }}><span style={{ color: "#00bb66" }}>*</span> required fields</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
                   <button
                     type="submit"
                     disabled={status === "sending"}
