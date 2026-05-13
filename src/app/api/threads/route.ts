@@ -42,27 +42,36 @@ function fp(req: NextRequest) {
   return createHash("sha256").update(ip + ua).digest("hex").slice(0, 16);
 }
 
-const ORACLE_SYSTEM = `You are The Theorist's Oracle AI, participating in a community investigation thread.
-Analyze the submitted topic and posts. Provide:
-1. What conspiracy theories or documented incidents relate to this
-2. Relevant patents, FOIA documents, or government records
-3. Key questions the community should investigate
-4. Your assessment of credibility (0-100%)
-5. Suggested next steps for investigation
+const ORACLE_SYSTEM = `You are The Theorist's Oracle AI in a LIVE CHAT sidebar. Replies must be SHORT so users can read them without scrolling.
 
-LANGUAGE: Output MUST be English only.
+LANGUAGE: English only.
 
-Be direct, cite real sources where possible, and engage with specific claims made in the thread.
+Brevity rules (strict):
+- "analysis": at most 2 short paragraphs OR ~500 characters total — punchy, no filler, no repetition.
+- "related_theories": 0–2 items, each max ~12 words.
+- "key_sources": 0–2 items; "relevance" max ~50 characters each; URLs must be real https links when known, else omit that source.
+- "questions": exactly 2 short lines (one sentence each).
+- "next_steps": exactly 2 items, each one short phrase (max ~60 characters).
+
 Return ONLY valid JSON:
 {
-  "analysis": "3-4 paragraphs of analysis",
+  "analysis": "Very brief analysis for chat UI",
   "credibility": 45,
-  "related_theories": ["theory 1", "theory 2"],
-  "key_sources": [{"title": "Source name", "url": "https://...", "relevance": "Why relevant"}],
-  "questions": ["Question 1?", "Question 2?"],
+  "related_theories": ["optional short item"],
+  "key_sources": [{"title": "Short", "url": "https://...", "relevance": "max 50 chars"}],
+  "questions": ["Short Q1?", "Short Q2?"],
   "verdict": "CREDIBLE | POSSIBLE | UNLIKELY | UNVERIFIED",
-  "next_steps": ["Step 1", "Step 2"]
+  "next_steps": ["Short step 1", "Short step 2"]
 }`;
+
+const ORACLE_ANALYSIS_MAX_CHARS = 520;
+const ORACLE_FIELD_TRUNC = { relevance: 52, theory: 90, question: 120, step: 72 };
+
+function truncateChat(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
 
 // GET — list threads or single thread with posts (registered users only)
 export async function GET(req: NextRequest) {
@@ -314,34 +323,44 @@ export async function POST(req: NextRequest) {
             apiKey,
             system: ORACLE_SYSTEM,
             user: context,
-            maxTokens: 1200,
+            maxTokens: 480,
             model: "gpt-4o-mini",
           });
 
-          const oracleContent = [
-            `**◈ ORACLE ANALYSIS** — Credibility: ${oracleResult.credibility}% · Verdict: **${oracleResult.verdict}**`,
-            "",
-            oracleResult.analysis,
-            "",
-            oracleResult.related_theories?.length
-              ? `**Related theories:** ${oracleResult.related_theories.join(" · ")}`
-              : "",
-            "",
-            oracleResult.questions?.length
-              ? `**Key questions for investigation:**\n${oracleResult.questions.map((q) => `▸ ${q}`).join("\n")}`
-              : "",
-            "",
-            oracleResult.key_sources?.length
-              ? `**Sources:**\n${oracleResult.key_sources.map((s) => `↗ [${s.title}](${s.url}) — ${s.relevance}`).join("\n")}`
-              : "",
-            "",
-            oracleResult.next_steps?.length
-              ? `**Next steps:**\n${oracleResult.next_steps.map((s) => `→ ${s}`).join("\n")}`
-              : "",
-          ]
-            .filter(Boolean)
-            .join("\n")
-            .trim();
+          const analysisShort = truncateChat(String(oracleResult.analysis ?? ""), ORACLE_ANALYSIS_MAX_CHARS);
+          const theories = (oracleResult.related_theories ?? [])
+            .slice(0, 2)
+            .map((t) => truncateChat(String(t), ORACLE_FIELD_TRUNC.theory))
+            .filter(Boolean);
+          const questions = (oracleResult.questions ?? [])
+            .slice(0, 2)
+            .map((q) => truncateChat(String(q), ORACLE_FIELD_TRUNC.question))
+            .filter(Boolean);
+          const steps = (oracleResult.next_steps ?? [])
+            .slice(0, 2)
+            .map((s) => truncateChat(String(s), ORACLE_FIELD_TRUNC.step))
+            .filter(Boolean);
+          const sources = (oracleResult.key_sources ?? []).slice(0, 2).filter((s) => s?.title && /^https?:\/\//i.test(String(s.url ?? "")));
+
+          const parts: string[] = [
+            `◈ ORACLE — ${Math.max(0, Math.min(100, Math.round(Number(oracleResult.credibility) || 0)))}% · **${String(oracleResult.verdict ?? "UNVERIFIED").slice(0, 24)}**`,
+            analysisShort,
+          ];
+          if (theories.length) parts.push(`**Angles:** ${theories.join(" · ")}`);
+          if (questions.length) parts.push(`**Ask:**\n${questions.map((q) => `▸ ${q}`).join("\n")}`);
+          if (sources.length) {
+            parts.push(
+              `**Links:**\n${sources
+                .map((s) => {
+                  const rel = truncateChat(String(s.relevance ?? ""), ORACLE_FIELD_TRUNC.relevance);
+                  return `↗ [${truncateChat(String(s.title), 48)}](${s.url})${rel ? ` — ${rel}` : ""}`;
+                })
+                .join("\n")}`
+            );
+          }
+          if (steps.length) parts.push(`**Next:** ${steps.join(" · ")}`);
+
+          const oracleContent = parts.join("\n\n").trim();
 
           await admin.from("thread_posts").insert({
             thread_id,
