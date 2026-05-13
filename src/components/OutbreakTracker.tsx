@@ -274,8 +274,7 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
 
         const col = RISK_COL(o.risk_level, o.conspiracy_score);
         const isSel = selected?.id === o.id;
-        // Larger floor radius so pins stay visible on wide maps (was ~4–9px, easy to lose on dark landmass).
-        const r = Math.max(8, 6 + Math.min(10, (o.conspiracy_score || 0) / 7));
+        const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
 
         const mainPos = proj([lng, lat]);
         if (!mainPos) continue;
@@ -311,8 +310,31 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
         for (let pi = 0; pi < allPositions.length; pi++) {
           const [x, y] = allPositions[pi];
           const isPrimary = pi === 0;
-          const dotR = isPrimary ? r : Math.max(5, r - 2);
+          const dotR = isPrimary ? r : Math.max(4, r - 2);
           markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel });
+        }
+      }
+
+      // Collision jitter: push apart pins that land within MIN_DIST px of each other.
+      const MIN_DIST = 18;
+      for (let i = 0; i < markerQueue.length; i++) {
+        for (let j = i + 1; j < markerQueue.length; j++) {
+          const a = markerQueue[i];
+          const b = markerQueue[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < MIN_DIST && dist > 0) {
+            const push = (MIN_DIST - dist) / 2 + 1;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            markerQueue[i] = { ...a, x: a.x - nx * push, y: a.y - ny * push };
+            markerQueue[j] = { ...b, x: b.x + nx * push, y: b.y + ny * push };
+          } else if (dist === 0) {
+            // Exact same point: spread in a circle
+            const angle = (j * Math.PI * 2) / markerQueue.length;
+            markerQueue[j] = { ...b, x: b.x + Math.cos(angle) * MIN_DIST, y: b.y + Math.sin(angle) * MIN_DIST };
+          }
         }
       }
 
@@ -360,9 +382,9 @@ function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:O
           })
           .on("click", () => onSelect(o));
 
-        if (isPrimary && (isSel || o.conspiracy_score >= 40)) {
+        if (isPrimary && (isSel || o.conspiracy_score >= 65)) {
           // Outer glow circle uses r = dotR + 3; keep label clear of that + glyph stroke.
-          const labelX = dotR + 3 + 12;
+          const labelX = dotR + 3 + 10;
           mg.append("text")
             .attr("x", labelX)
             .attr("y", 0)
