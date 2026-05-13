@@ -7,7 +7,7 @@ export function signInWithEmail(email: string, password: string) {
 export function signUpWithEmail(
   email: string,
   password: string,
-  profile?: { nickname: string }
+  profile?: { nickname?: string }
 ) {
   const client = getSupabaseBrowserClient();
   // Without emailRedirectTo, Supabase uses Dashboard "Site URL" in the confirm link (often still localhost).

@@ -49,6 +49,8 @@ export default function AccountPage() {
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
 
+  const [visitor, setVisitor] = useState(false);
+
   const load = useCallback(async () => {
     setError(null);
     const supabase = getSupabaseBrowserClient();
@@ -56,10 +58,12 @@ export default function AccountPage() {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session?.access_token) {
+      setVisitor(true);
       setData(null);
       setLoading(false);
       return;
     }
+    setVisitor(false);
     const res = await fetch("/api/account", {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
@@ -335,7 +339,7 @@ export default function AccountPage() {
             <div style={{ ...card, fontSize: 11, color: "#3a5040", letterSpacing: 2 }}>LOADING…</div>
           )}
 
-          {!loading && !data && (
+          {!loading && visitor && !data && (
             <div style={card}>
               <p style={{ fontSize: 12, color: "#c8e8d0", marginBottom: 12 }}>
                 Sign in to view your profile and subscription.
@@ -371,7 +375,16 @@ export default function AccountPage() {
                 marginBottom: 12,
               }}
             >
-              {error}
+              <div style={{ marginBottom: error.includes("nickname") ? 10 : 0 }}>{error}</div>
+              {error.includes("nickname") && (
+                <div style={{ fontSize: 11, color: "#c8e8d0", lineHeight: 1.55, opacity: 0.95 }}>
+                  The app expects a <code style={{ color: "#8ab89a" }}>nickname</code> column on{" "}
+                  <code style={{ color: "#8ab89a" }}>public.user_profiles</code>. In the Supabase project linked to this
+                  deployment, run the migration{" "}
+                  <code style={{ color: "#8ab89a" }}>20260513203000_user_profiles_nickname.sql</code> (Dashboard → SQL
+                  editor, or <code style={{ color: "#8ab89a" }}>supabase db push</code>).
+                </div>
+              )}
             </div>
           )}
 

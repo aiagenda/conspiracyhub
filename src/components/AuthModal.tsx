@@ -58,22 +58,25 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
         return;
       }
 
-      const nickCheck = parseNicknameInput(nickname);
-      if (!nickCheck.ok || !nickCheck.value) {
-        const msg = !nickCheck.ok
-          ? nickCheck.error === "nickname_too_short"
-            ? "Display name must be at least 2 characters."
-            : nickCheck.error === "nickname_too_long"
-              ? "Display name is too long (max 40 characters)."
-              : "Display name: use letters, numbers, spaces, _ - . only."
-          : "Display name is required.";
-        setError(msg);
-        return;
+      const trimmedNick = nickname.trim();
+      let signupProfile: { nickname: string } | undefined;
+      if (trimmedNick.length > 0) {
+        const nickCheck = parseNicknameInput(nickname);
+        if (!nickCheck.ok || !nickCheck.value) {
+          const msg = !nickCheck.ok
+            ? nickCheck.error === "nickname_too_short"
+              ? "Display name must be at least 2 characters."
+              : nickCheck.error === "nickname_too_long"
+                ? "Display name is too long (max 40 characters)."
+                : "Display name: use letters, numbers, spaces, _ - . only."
+            : "Invalid display name.";
+          setError(msg);
+          return;
+        }
+        signupProfile = { nickname: nickCheck.value };
       }
 
-      const { data, error: authError } = await signUpWithEmail(email, password, {
-        nickname: nickCheck.value,
-      });
+      const { data, error: authError } = await signUpWithEmail(email, password, signupProfile);
       if (authError) {
         setError(authError.message);
         return;
@@ -369,13 +372,14 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
                       marginBottom: 5,
                     }}
                   >
-                    DISPLAY NAME
+                    DISPLAY NAME{" "}
+                    <span style={{ color: "#3a5040", textTransform: "none", letterSpacing: 0.5 }}>(optional)</span>
                   </label>
                   <input
                     type="text"
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
-                    placeholder="e.g. DeepStateDave"
+                    placeholder="Set later on Account if you skip"
                     autoComplete="nickname"
                     maxLength={48}
                     style={inp}
@@ -387,7 +391,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
                     }}
                   />
                   <div style={{ fontSize: 8, color: "#3a5040", marginTop: 4, letterSpacing: 0.3 }}>
-                    2–40 characters · letters, numbers, spaces, _ - .
+                    Optional · 2–40 characters · letters, numbers, spaces, _ - .
                   </div>
                 </div>
               )}
