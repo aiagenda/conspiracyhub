@@ -35,13 +35,17 @@ Return a JSON object with these fields:
      e.g. if a person donated to another person, or a patent was filed by a company — connect them directly
    - Color guide: #ff3333 = direct evidence, #ffaa00 = indirect link, #00bb66 = counter-signal, #5a8068 = cross-reference
 
-3. theories — exactly 3 REAL conspiracy theories that actually exist or circulate around this topic:
+3. theories — between 1 and 5 REAL conspiracy theories that genuinely exist or circulate around this topic:
+   - Include ONLY theories that are real, named, and documented — do NOT invent a theory just to fill a slot.
+   - If the topic only has 1 or 2 clearly established theories, return only those. Never pad with a vague or made-up theory.
+   - If the topic is rich (e.g. 9/11, JFK, MKUltra), you may return up to 5 distinct named theories.
+   - Each theory object must have:
    - name: the actual name of the conspiracy theory (e.g. "MKUltra Psychedelic Mind Control Revival")
    - summary: 3-4 sentences explaining the theory in detail — what people believe, why, what the alleged evidence is
    - full_explanation: a thorough paragraph (5-8 sentences) explaining the full theory narrative, the key actors involved, what allegedly happened or is happening, and why believers find it credible
    - evidence: array of 3-5 specific evidence points people cite for this theory (real events, documents, quotes)
    - counter_evidence: array of 2-3 mainstream explanations that debunk or complicate the theory
-   - sources: array of 3-5 REAL URLs where this theory is documented or discussed (Wikipedia, academic papers, news articles, declassified documents, FOIA archives)
+   - sources: array of 2-5 REAL URLs where this theory is documented or discussed (Wikipedia, academic papers, news articles, declassified documents, FOIA archives) — only include URLs you are confident exist
    - key_people: array of real names associated with this theory
    - probability: realistic plausibility score 0-100 (most theories should be 5-35%, well-documented ones up to 60%)
    - timeline: array of {date, event} showing how the theory developed (2-5 items)
@@ -56,5 +60,6 @@ CRITICAL RULES:
 - excerpt is required on every node so readers can verify claims against the cited material.
 - Every source_url must be a real, working absolute URL (https://...)
 - Theory sources must be real URLs (Wikipedia articles, declassified docs, academic papers, reputable news)
-- Do NOT invent URLs — if unsure, use Wikipedia or a real news source that covers the topic
+- Do NOT invent URLs — if unsure, omit the URL rather than making one up
+- Do NOT add a theory just to reach a target count — quality over quantity
 - Return ONLY valid JSON, no other text`;
