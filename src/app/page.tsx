@@ -6,7 +6,7 @@ import type { NewsItem } from "@/types";
 
 export const revalidate = 900;
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 12;
 
 /** Returns an ISO cutoff string 7 days in the past. Extracted from the component to satisfy purity rules. */
 function sevenDaysAgo(): string {
