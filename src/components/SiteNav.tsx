@@ -7,14 +7,16 @@ import { getCurrentUser, signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
 const RAJ = "var(--font-raj), sans-serif";
-const FONT = "var(--font-share-tech-mono), monospace";
 
 type Props = {
   spacious?: boolean;
+  /** When passed (including `null`), nav auth UI follows this value; parent should refresh after sign-out. */
   user?: User | null;
   userPlan?: string | null;
   onSignIn?: () => void;
   onUpgrade?: () => void;
+  /** Called after sign-out when `user` prop is controlled (e.g. feed re-fetches session). */
+  onSignedOut?: () => void;
 };
 
 const NAV_LINKS = [
@@ -27,15 +29,23 @@ const NAV_LINKS = [
   { href: "/guide", label: "GUIDE", color: "#5a8068" },
 ];
 
-export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, onUpgrade }: Props) {
+export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, onUpgrade, onSignedOut }: Props) {
   const pathname = usePathname() ?? "";
-  const [user, setUser] = useState<User | null>(userProp ?? null);
+  const controlled = userProp !== undefined;
+  const [uncontrolledUser, setUncontrolledUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const user = controlled ? (userProp ?? null) : uncontrolledUser;
+
   useEffect(() => {
-    if (userProp !== undefined) return;
-    void getCurrentUser().then(setUser);
-  }, [userProp]);
+    if (controlled) return;
+    void getCurrentUser().then(setUncontrolledUser);
+  }, [controlled]);
+
+  function afterSignOut() {
+    if (controlled) onSignedOut?.();
+    else setUncontrolledUser(null);
+  }
 
   // Close menu on route change
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -75,7 +85,7 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
         {user ? (
           <>
             <Link href="/account" style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, textDecoration: "none", border: "1px solid #1a3320", color: "#00bb66" }}>ACCOUNT</Link>
-            <button type="button" onClick={() => void signOut().then(() => setUser(null))}
+            <button type="button" onClick={() => void signOut().then(afterSignOut)}
               style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", background: "transparent", cursor: "pointer" }}>
               SIGN OUT
             </button>
@@ -86,7 +96,7 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
             SIGN IN
           </button>
         )}
-        {userPlan !== "pro" && (
+        {(userPlan ?? "").toLowerCase() !== "pro" && (
           onUpgrade ? (
             <button
               type="button"
@@ -156,14 +166,14 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
             {user ? (
               <>
                 <Link href="/account" style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#00bb66", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, textDecoration: "none" }}>ACCOUNT</Link>
-                <button type="button" onClick={() => void signOut().then(() => setUser(null))}
+                <button type="button" onClick={() => void signOut().then(afterSignOut)}
                   style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN OUT</button>
               </>
             ) : (
               <button type="button" onClick={() => { setMenuOpen(false); onSignIn?.(); }}
                 style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN IN</button>
             )}
-            {userPlan !== "pro" && (
+            {(userPlan ?? "").toLowerCase() !== "pro" && (
               onUpgrade ? (
                 <button
                   type="button"

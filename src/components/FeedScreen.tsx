@@ -188,6 +188,7 @@ export default function FeedScreen({
               userPlan={userPlan}
               onSignIn={() => setShowAuth(true)}
               onUpgrade={() => setShowUpgrade(true)}
+              onSignedOut={refreshUser}
             />
           </div>
         </header>
