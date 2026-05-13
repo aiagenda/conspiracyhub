@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 
@@ -201,7 +201,60 @@ async function fetchWHO(): Promise<CuratedItem[]> {
   }
 }
 
-export async function GET() {
+/** Fast path: no Supabase, no OpenAI — used when full /api/outbreaks fails or times out. */
+function buildPreviewPayload() {
+  const rows = CURATED_DISEASES.slice(0, 2).map((item, i) => {
+    const diseaseGuess = item.title.split(/[—\-–]/)[0]?.trim() ?? "Pathogen signal";
+    const latLng = i === 0 ? COORDS.brazil! : COORDS.global!;
+    return {
+      id: `preview-${i}-${Date.now()}`,
+      title: item.title,
+      description: item.description,
+      source_url: item.link,
+      published_at: item.pubDate,
+      disease: diseaseGuess,
+      location: i === 0 ? "brazil" : "multiple countries",
+      origin_country: i === 0 ? "brazil" : "global",
+      affected_countries: i === 0 ? ["brazil"] : ["brazil", "india", "united states"],
+      lat: latLng[0],
+      lng: latLng[1],
+      affectedCoords:
+        i === 0
+          ? [{ country: "brazil", lat: latLng[0], lng: latLng[1] }]
+          : [
+              { country: "brazil", lat: COORDS.brazil![0], lng: COORDS.brazil![1] },
+              { country: "india", lat: COORDS.india![0], lng: COORDS.india![1] },
+            ],
+      conspiracy_score: 12,
+      has_conspiracy: false,
+      theories: [
+        {
+          name: "Preview mode",
+          summary:
+            "Static WHO-style watchlist entry only — no live AI enrichment in this preview. Reload for the full pipeline when the server responds in time.",
+          probability: 10,
+          sources: [item.link],
+        },
+      ],
+      patents: [] as Array<{ number: string; title: string; assignee: string; url: string }>,
+      key_facts: [
+        "Preview: two sample signals from our curated disease watchlist.",
+        "Full tracker adds Google News, USPTO cross-scan, and GPT analysis when available.",
+      ],
+      verdict: "UNKNOWN",
+      risk_level: "MEDIUM",
+      localNews: [] as Array<{ title: string; url: string; source: string; pubDate: string }>,
+    };
+  });
+  return { outbreaks: rows, generated_at: new Date().toISOString(), preview: true as const };
+}
+
+export async function GET(req: NextRequest) {
+  const preview = new URL(req.url).searchParams.get("preview") === "1";
+  if (preview) {
+    return NextResponse.json(buildPreviewPayload());
+  }
+
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;

@@ -650,21 +650,91 @@ function OutbreakDetail({o}:{o:Outbreak}) {
   );
 }
 
+type OutbreakData = {
+  outbreaks: Outbreak[];
+  generated_at: string;
+  preview?: boolean;
+  error?: string;
+};
+
+async function parseOutbreakJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function isOutbreakPayload(d: Record<string, unknown>): d is OutbreakData {
+  return Array.isArray(d.outbreaks) && (d.outbreaks as unknown[]).length > 0;
+}
+
+function describeOutbreakApiFailure(res: Response, d: Record<string, unknown>): string {
+  const code = typeof d.error === "string" ? d.error : "";
+  if (res.status === 504 || res.status === 408) {
+    return "The outbreak engine timed out (full run is heavy). Sample preview is shown below.";
+  }
+  if (!res.ok && res.status >= 500) {
+    if (code === "openai_missing") return "Outbreak AI is not configured on the server.";
+    if (code === "server_misconfigured") return "Server database configuration is incomplete.";
+    return `Server error (${res.status}). Sample preview is shown below when available.`;
+  }
+  if (!res.ok) return `Request failed (${res.status}).`;
+  if (code) return code;
+  return "No outbreak rows returned.";
+}
+
 // ── MAIN ───────────────────────────────────────────────────────
 export default function OutbreakTracker() {
-  const [data, setData]         = useState<{outbreaks:Outbreak[];generated_at:string}|null>(null);
+  const [data, setData] = useState<OutbreakData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
   const [selected, setSelected] = useState<Outbreak|null>(null);
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
 
-  useEffect(()=>{
-    fetch("/api/outbreaks")
-      .then(r=>r.json())
-      .then(d=>{setData(d);if(d.outbreaks?.length)setSelected(d.outbreaks[0]);})
-      .catch(()=>setError("Failed to load outbreak data."))
-      .finally(()=>setLoading(false));
-  },[]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPreview = async (): Promise<boolean> => {
+      const pr = await fetch("/api/outbreaks?preview=1");
+      const pd = await parseOutbreakJson(pr);
+      if (cancelled || !isOutbreakPayload(pd)) return false;
+      setData(pd);
+      if (pd.outbreaks.length) setSelected(pd.outbreaks[0]);
+      return true;
+    };
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/outbreaks");
+        const d = await parseOutbreakJson(res);
+        if (cancelled) return;
+
+        if (isOutbreakPayload(d)) {
+          setData(d);
+          if (d.outbreaks.length) setSelected(d.outbreaks[0]);
+          return;
+        }
+
+        const previewOk = await loadPreview();
+        if (cancelled) return;
+        if (!previewOk) {
+          setError(describeOutbreakApiFailure(res, d));
+        }
+      } catch {
+        if (cancelled) return;
+        const ok = await loadPreview().catch(() => false);
+        if (!cancelled && !ok) setError("Network or parse error while loading outbreaks.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (loading) return <OutbreakLoadingScreen/>;
 
@@ -735,6 +805,25 @@ export default function OutbreakTracker() {
               </button>
             ))}
           </div>
+
+          {data?.preview && (
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "12px 14px",
+                border: "1px solid rgba(255,170,0,0.45)",
+                borderRadius: 4,
+                background: "rgba(255,170,0,0.06)",
+                fontSize: 11,
+                color: "#ffcc88",
+                lineHeight: 1.65,
+              }}
+            >
+              <strong style={{ letterSpacing: 2 }}>PREVIEW MODE</strong> — Showing 2 sample WHO-style watchlist topics
+              (no live OpenAI map build). This is <strong>not</strong> tied to sign-in: the full tracker can time out or fail
+              when the server runs the heavy pipeline. Reload later for patents, local news, and full scoring.
+            </div>
+          )}
 
           {error&&<div style={{padding:12,border:"1px solid rgba(255,51,51,0.3)",borderRadius:3,color:"#ff3333",fontSize:11}}>[ERROR] {error}</div>}
 
