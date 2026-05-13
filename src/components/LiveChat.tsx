@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -45,45 +45,64 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
     if (typeof window !== "undefined") localStorage.setItem("chat_name", name);
   }, [name]);
 
-  const initThread = useCallback(async () => {
-    const res = await fetch(`/api/threads?article_id=${encodeURIComponent(articleId)}`);
-    const d = (await res.json()) as { threads?: { id: string }[]; error?: string };
-
-    let tid: string | undefined;
-    if (d.threads?.length) {
-      tid = d.threads[0].id;
-    } else {
-      const cr = await fetch("/api/threads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create_thread",
-          title: articleTitle,
-          content: `Live discussion: ${articleTitle}`,
-          category: "theory",
-          author_name: "TheTheorist",
-          linked_article_id: articleId,
-        }),
-      });
-      const cd = (await cr.json()) as { thread?: { id: string }; error?: string };
-      tid = cd.thread?.id;
-    }
-
-    if (!tid) {
-      setLoading(false);
-      return;
-    }
-    setThreadId(tid);
-
-    const pr = await fetch(`/api/threads?id=${encodeURIComponent(tid)}`);
-    const pd = (await pr.json()) as { posts?: ChatMessage[] };
-    setMessages(pd.posts ?? []);
-    setLoading(false);
-  }, [articleId, articleTitle]);
-
   useEffect(() => {
-    void initThread();
-  }, [initThread]);
+    const ac = new AbortController();
+    const { signal } = ac;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/threads?article_id=${encodeURIComponent(articleId)}`, { signal });
+        const d = (await res.json()) as { threads?: { id: string }[]; error?: string };
+        if (signal.aborted) return;
+
+        let tid: string | undefined;
+        if (d.threads?.length) {
+          tid = d.threads[0].id;
+        } else {
+          const cr = await fetch("/api/threads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal,
+            body: JSON.stringify({
+              action: "create_thread",
+              title: articleTitle,
+              content: `Live discussion: ${articleTitle}`,
+              category: "theory",
+              author_name: "TheTheorist",
+              linked_article_id: articleId,
+            }),
+          });
+          const cd = (await cr.json()) as { thread?: { id: string }; error?: string };
+          tid = cd.thread?.id;
+        }
+
+        if (signal.aborted) return;
+
+        if (!tid) {
+          if (!signal.aborted) setLoading(false);
+          return;
+        }
+
+        if (signal.aborted) return;
+        setThreadId(tid);
+
+        const pr = await fetch(`/api/threads?id=${encodeURIComponent(tid)}`, { signal });
+        const pd = (await pr.json()) as { posts?: ChatMessage[] };
+        if (signal.aborted) return;
+
+        setMessages(pd.posts ?? []);
+        setLoading(false);
+      } catch (e) {
+        if (signal.aborted) return;
+        console.error("[LiveChat] initThread", e);
+        if (!signal.aborted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      ac.abort();
+    };
+  }, [articleId, articleTitle]);
 
   useEffect(() => {
     const el = messagesScrollRef.current;
@@ -163,7 +182,14 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
           return [...noTmp, json.post!];
         });
       } else {
-        setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
+        try {
+          const r = await fetch(`/api/threads?id=${encodeURIComponent(threadId)}`);
+          const j = (await r.json()) as { posts?: ChatMessage[] };
+          if (Array.isArray(j.posts)) setMessages(j.posts);
+          else setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
+        } catch {
+          setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
+        }
       }
     } catch {
       setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("tmp-")));
