@@ -75,6 +75,7 @@ interface ScraperRun {
   duration_ms: number | null;
   http_status: number | null;
   error_text: string | null;
+  result: { success?: boolean; article?: { title?: string; url?: string; slug?: string } } | null;
 }
 
 interface ScraperJob {
@@ -1169,6 +1170,19 @@ export default function AdminPage() {
                     {last?.error_text && (
                       <div className="mt-2 rounded border px-3 py-2 text-[11px]" style={{ borderColor: "#4a1a1a", color: "#ff9b9b", background: "rgba(255,51,51,0.08)" }}>
                         {last.error_text}
+                      </div>
+                    )}
+                    {job.target === "article_writer" && last?.status === "success" && last.result?.article && (
+                      <div className="mt-2 rounded border px-3 py-2 text-[11px]" style={{ borderColor: "#1a3320", background: "rgba(0,187,102,0.04)" }}>
+                        <span style={{ color: muted }}>Last article: </span>
+                        <a
+                          href={last.result.article.url ?? `/blog/${last.result.article.slug ?? ""}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "var(--green)", textDecoration: "underline" }}
+                        >
+                          {last.result.article.title ?? last.result.article.slug ?? "View article"}
+                        </a>
                       </div>
                     )}
                   </div>

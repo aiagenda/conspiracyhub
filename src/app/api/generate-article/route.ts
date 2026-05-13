@@ -59,12 +59,12 @@ export async function POST(req: NextRequest) {
   try {
     const admin = getAdmin();
     const body = await req.json().catch(() => ({}));
-    const mode = body.mode ?? "news_jacking"; // 'news_jacking' | 'evergreen'
+    // modes: 'news_jacking' | 'evergreen' | 'uap_incident' | 'oracle_deep_dive' | 'reference_doc'
+    const mode = body.mode ?? "news_jacking";
 
     let prompt = "";
 
     if (mode === "news_jacking") {
-      // Get today's highest-scoring articles
       const { data: topNews } = await admin
         .from("news_items")
         .select("id, title, summary, angle, score, section, url")
@@ -97,8 +97,119 @@ The article should:
 Internal link opportunity: reference "${SITE_URL}/board" for the AI investigation board.
 Related article: ${top.url}`;
 
+    } else if (mode === "uap_incident") {
+      // Pick a high-upvote UAP sighting and write a deep-dive around it
+      const { data: sightings } = await admin
+        .from("uap_sightings")
+        .select("id, title, description, location_name, event_date, shape, duration_text, witness_count, classification, source_url")
+        .eq("status", "active")
+        .not("description", "eq", "")
+        .order("upvotes", { ascending: false })
+        .limit(20);
+
+      if (!sightings?.length) {
+        return NextResponse.json({ error: "no_uap_sightings" }, { status: 404 });
+      }
+
+      // Random pick from top 20 to avoid always writing about the same incident
+      const pick = sightings[Math.floor(Math.random() * sightings.length)];
+      const dateStr = pick.event_date ? new Date(pick.event_date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "unknown date";
+
+      prompt = `Write a compelling investigative deep-dive article about this specific UAP incident.
+
+Incident details:
+- Title: "${pick.title}"
+- Date: ${dateStr}
+- Location: ${pick.location_name ?? "undisclosed location"}
+- Object shape: ${pick.shape ?? "not specified"}
+- Duration: ${pick.duration_text ?? "not recorded"}
+- Witnesses: ${pick.witness_count ?? "unknown number of"}
+- Classification: ${pick.classification}
+- Witness description: "${pick.description?.slice(0, 500)}"
+${pick.source_url ? `- Source report: ${pick.source_url}` : ""}
+
+The article should:
+1. Set the scene — location, date, what the witnesses reported
+2. Compare this incident to known, documented UAP cases (AARO, Project Blue Book, NUFORC patterns)
+3. Examine possible explanations: experimental craft, natural phenomena, misidentification — and why each falls short
+4. Cross-reference with any known government programs or patents related to the object's described shape/behavior
+5. Discuss what official bodies (AARO, DoD, FAA) have or haven't said about incidents in this area
+6. End with open questions for readers to investigate
+
+Internal links: reference "${SITE_URL}/uap" for the UAP files page.`;
+
+    } else if (mode === "oracle_deep_dive") {
+      // Take an existing Oracle AI analysis and expand it into a full article
+      const { data: analyses } = await admin
+        .from("oracle_analyses")
+        .select("id, nodes, theories, conclusion, verdict, news_items(title, url, summary, angle, score, section)")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (!analyses?.length) {
+        return NextResponse.json({ error: "no_oracle_analyses" }, { status: 404 });
+      }
+
+      const pick = analyses[Math.floor(Math.random() * analyses.length)];
+      const newsRaw = pick.news_items;
+      const news = (Array.isArray(newsRaw) ? newsRaw[0] : newsRaw) as { title: string; url: string; summary: string; angle: string; score: number; section: string } | null;
+      const theories = Array.isArray(pick.theories) ? pick.theories.slice(0, 3) : [];
+      const theoryNames = theories.map((t: { name?: string }) => t.name ?? "").filter(Boolean).join(", ");
+
+      prompt = `Write a comprehensive investigative article that expands on an AI Oracle analysis of a news story.
+
+Source article: "${news?.title ?? "Classified"}"
+Original URL: ${news?.url ?? ""}
+Threat assessment: ${news?.score ?? "?"}%
+AI Oracle verdict: "${pick.verdict}"
+AI Oracle conclusion: "${pick.conclusion}"
+Identified conspiracy theories: ${theoryNames || "government cover-up"}
+${news?.angle ? `Conspiracy angle: "${news.angle}"` : ""}
+
+The article should:
+1. Explain the original news story and its threat assessment context
+2. Deep-dive into each identified conspiracy theory — its origins, evidence base, key proponents
+3. Cross-reference with known declassified documents, FOIA releases, or Congressional testimony
+4. Analyze the nodes in the investigation graph (key actors, organizations, technologies)
+5. Present the AI Oracle verdict and explain why the evidence points this way
+6. End with concrete steps readers can take to investigate further
+
+Internal links: reference "${SITE_URL}/board" for the AI investigation board, "${SITE_URL}/uap" for UAP content.`;
+
+    } else if (mode === "reference_doc") {
+      // Pick a declassified document / agency from reference_documents and write about it
+      const { data: docs } = await admin
+        .from("reference_documents")
+        .select("id, agency, title, canonical_url, excerpt, year")
+        .order("id") // stable order, then random slice
+        .limit(100);
+
+      if (!docs?.length) {
+        return NextResponse.json({ error: "no_reference_documents" }, { status: 404 });
+      }
+
+      const pick = docs[Math.floor(Math.random() * docs.length)];
+
+      prompt = `Write a deep-dive investigative article about this declassified government document or program.
+
+Document / program: "${pick.title}"
+Agency: ${pick.agency}
+Official URL: ${pick.canonical_url}
+${pick.year ? `Year: ${pick.year}` : ""}
+${pick.excerpt ? `Description: "${pick.excerpt}"` : ""}
+
+The article should:
+1. Explain what this document/program is and why it matters
+2. Summarize the key declassified revelations — what was hidden and what we now know
+3. Investigate the conspiracy theories that surround it — what critics and researchers claim
+4. Cross-reference with other known programs, patents, or Congressional testimony from the same era
+5. Explain why this is still relevant today — ongoing implications, unanswered questions
+6. End with a call to readers to explore the original documents themselves
+
+Include the official source URL prominently. Internal links: reference "${SITE_URL}/search" for the document search tool, "${SITE_URL}/board" for the investigation board.`;
+
     } else {
-      // Evergreen: pick a classic under-covered conspiracy topic
+      // Evergreen: classic under-covered conspiracy topic
       const EVERGREEN_TOPICS = [
         "The CIA's MKULTRA program: what the declassified documents actually reveal",
         "Pentagon UAP programs: a complete timeline of what we know",
@@ -110,6 +221,11 @@ Related article: ${top.url}`;
         "Bioweapon treaties and violations: the documented history",
         "The Federal Reserve: who actually controls the US money supply",
         "Operation Northwoods: the declassified false flag plan the JFK administration rejected",
+        "HAARP: ionospheric research weapon or weather control program?",
+        "Project PRISM and mass surveillance: what Snowden's documents revealed",
+        "The Pentagon's secret UFO program (AATIP): timeline and key witnesses",
+        "MKNaomi and biological weapons: the CIA's secret experiments",
+        "Operation Mockingbird: the CIA's media infiltration program",
       ];
       const topic = EVERGREEN_TOPICS[Math.floor(Math.random() * EVERGREEN_TOPICS.length)];
       prompt = `Write a comprehensive, SEO-optimized deep-dive article about: "${topic}"
