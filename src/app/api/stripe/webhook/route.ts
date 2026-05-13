@@ -45,8 +45,13 @@ type StripeSubscriptionLike = {
   id: string;
   status?: string;
   current_period_end?: unknown;
+  cancel_at_period_end?: unknown;
   customer: string | Stripe.Customer | Stripe.DeletedCustomer;
 };
+
+function cancelAtPeriodEndFromStripe(v: unknown): boolean {
+  return v === true || v === "true";
+}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -57,6 +62,7 @@ type ProfileBillingPatch = {
   stripe_subscription_id?: string;
   subscription_current_period_end: string | null;
   subscription_status: string | null;
+  subscription_cancel_at_period_end?: boolean;
 };
 
 async function updateProfileAfterCheckout(
@@ -100,6 +106,7 @@ export async function POST(req: NextRequest) {
       let periodEnd: string | null = null;
       let subStatus: string | null = null;
       let subId: string | null = null;
+      let cancelAtEnd = false;
       const subRef = session.subscription;
       if (subRef) {
         const sid = typeof subRef === "string" ? subRef : subRef.id;
@@ -107,6 +114,7 @@ export async function POST(req: NextRequest) {
         const sub = (await stripe.subscriptions.retrieve(sid)) as unknown as StripeSubscriptionLike;
         periodEnd = periodEndIsoFromUnixSeconds(sub.current_period_end);
         subStatus = sub.status ?? null;
+        cancelAtEnd = cancelAtPeriodEndFromStripe(sub.cancel_at_period_end);
       }
 
       await updateProfileAfterCheckout(
@@ -117,6 +125,7 @@ export async function POST(req: NextRequest) {
           ...(subId ? { stripe_subscription_id: subId } : {}),
           subscription_current_period_end: periodEnd,
           subscription_status: subStatus,
+          subscription_cancel_at_period_end: cancelAtEnd,
         },
         session
       );
@@ -135,6 +144,7 @@ export async function POST(req: NextRequest) {
           stripe_subscription_id: sub.id,
           subscription_current_period_end: periodEnd,
           subscription_status: status || null,
+          subscription_cancel_at_period_end: cancelAtPeriodEndFromStripe(sub.cancel_at_period_end),
         })
         .eq("stripe_customer_id", stripeCustomerIdField(sub.customer));
     }
@@ -148,6 +158,7 @@ export async function POST(req: NextRequest) {
           stripe_subscription_id: null,
           subscription_current_period_end: null,
           subscription_status: "canceled",
+          subscription_cancel_at_period_end: false,
         })
         .eq("stripe_customer_id", stripeCustomerIdField(sub.customer));
     }

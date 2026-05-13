@@ -14,16 +14,24 @@ type AccountPayload = {
   current_period_end: string | null;
   billing_portal_available: boolean;
   stripe_subscription_id: string | null;
+  subscription_cancel_at_period_end: boolean;
   member_since: string | null;
 };
 
-function renewalDaysLabel(iso: string | null): string | null {
+function accessPeriodHint(iso: string | null, cancelAtEnd: boolean): string | null {
   if (!iso) return null;
   const end = new Date(iso).getTime();
   if (Number.isNaN(end)) return null;
   const ms = end - Date.now();
   const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  if (days <= 0) return "Billing period renews today or has ended — check Stripe if something looks off.";
+  if (days <= 0) {
+    return cancelAtEnd
+      ? "PRO access ends today or has ended. Stripe will move you to FREE when the billing period closes."
+      : "Renewal date is today or in the past — open Manage billing if this looks wrong.";
+  }
+  if (cancelAtEnd) {
+    return `PRO features stay on for ${days} more day${days === 1 ? "" : "s"}, then your plan becomes FREE — subscription is canceled (no renewal).`;
+  }
   return `Renews in ${days} day${days === 1 ? "" : "s"}.`;
 }
 
@@ -59,6 +67,7 @@ export default function AccountPage() {
       setData({
         ...json,
         stripe_subscription_id: json.stripe_subscription_id ?? null,
+        subscription_cancel_at_period_end: Boolean(json.subscription_cancel_at_period_end),
       });
     }
     setLoading(false);
@@ -179,7 +188,10 @@ export default function AccountPage() {
     padding: "1.25rem",
   } as const;
 
-  const renewalHint = data?.current_period_end ? renewalDaysLabel(data.current_period_end) : null;
+  const cancelingSubscription = Boolean(data?.subscription_cancel_at_period_end);
+  const periodHint = data?.current_period_end
+    ? accessPeriodHint(data.current_period_end, cancelingSubscription)
+    : null;
 
   return (
     <div
@@ -322,18 +334,40 @@ export default function AccountPage() {
 
               {data.plan === "pro" ? (
                 <div style={{ ...card, borderColor: "rgba(0,255,136,0.3)", background: "rgba(0,255,136,0.03)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
                     <span style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 3 }}>PRO</span>
-                    <span style={{ fontSize: 9, background: "rgba(0,255,136,0.15)", border: "1px solid rgba(0,255,136,0.4)", color: "#00ff88", padding: "2px 8px", borderRadius: 2, letterSpacing: 2 }}>ACTIVE</span>
+                    {cancelingSubscription ? (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          background: "rgba(255,170,0,0.12)",
+                          border: "1px solid rgba(255,170,0,0.5)",
+                          color: "#ffcc88",
+                          padding: "2px 8px",
+                          borderRadius: 2,
+                          letterSpacing: 2,
+                        }}
+                      >
+                        CANCELED · ACCESS UNTIL PERIOD END
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 9, background: "rgba(0,255,136,0.15)", border: "1px solid rgba(0,255,136,0.4)", color: "#00ff88", padding: "2px 8px", borderRadius: 2, letterSpacing: 2 }}>ACTIVE</span>
+                    )}
                   </div>
-                  {data.subscription_status && data.subscription_status !== "active" && (
+                  {cancelingSubscription && (
+                    <div style={{ fontSize: 11, color: "#ffcc88", marginBottom: 10, lineHeight: 1.65 }}>
+                      You canceled PRO in Stripe. Billing does not renew — you keep PRO features until the date below,
+                      then the plan becomes FREE automatically.
+                    </div>
+                  )}
+                  {data.subscription_status && data.subscription_status !== "active" && !cancelingSubscription && (
                     <div style={{ fontSize: 11, color: "#ffaa00", marginBottom: 6 }}>
                       Subscription status: <span style={{ color: "#e8ffe8" }}>{data.subscription_status}</span>
                     </div>
                   )}
                   {data.current_period_end && (
                     <div style={{ fontSize: 11, color: "#7aaa8a", marginBottom: 6, lineHeight: 1.6 }}>
-                      Next renewal date:{" "}
+                      {cancelingSubscription ? "PRO access ends:" : "Next renewal date:"}{" "}
                       <span style={{ color: "#c8e8d0" }}>
                         {new Date(data.current_period_end).toLocaleString(undefined, {
                           dateStyle: "medium",
@@ -342,8 +376,8 @@ export default function AccountPage() {
                       </span>
                     </div>
                   )}
-                  {renewalHint && (
-                    <div style={{ fontSize: 11, color: "#5a8068", marginBottom: 14, letterSpacing: 0.3 }}>{renewalHint}</div>
+                  {periodHint && (
+                    <div style={{ fontSize: 11, color: "#5a8068", marginBottom: 14, letterSpacing: 0.3 }}>{periodHint}</div>
                   )}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     <button
@@ -367,7 +401,7 @@ export default function AccountPage() {
                     >
                       {portalLoading ? "OPENING…" : "◈ MANAGE BILLING & INVOICES ▸"}
                     </button>
-                    {data.billing_portal_available && data.stripe_subscription_id && (
+                    {data.billing_portal_available && data.stripe_subscription_id && !cancelingSubscription && (
                       <button
                         type="button"
                         disabled={portalLoading}
@@ -392,7 +426,9 @@ export default function AccountPage() {
                     )}
                   </div>
                   <div style={{ fontSize: 10, color: "#3a5040", marginTop: 8 }}>
-                    Change card · Invoices · Cancel ends PRO at period end unless you choose immediate cancel in Stripe.
+                    {cancelingSubscription
+                      ? "You can still use Manage billing to update payment methods or invoices. Reactivate in Stripe if you change your mind before the end date."
+                      : "Change card · Invoices · Cancel ends PRO at period end unless you choose immediate cancel in Stripe."}
                   </div>
                 </div>
               ) : (

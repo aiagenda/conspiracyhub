@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     let { data: profile, error: selErr } = await admin
       .from("user_profiles")
       .select(
-        "email, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, created_at"
+        "email, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, created_at"
       )
       .eq("id", user.id)
       .maybeSingle();
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       const again = await admin
         .from("user_profiles")
         .select(
-          "email, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, created_at"
+          "email, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, created_at"
         )
         .eq("id", user.id)
         .single();
@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
       current_period_end: profile.subscription_current_period_end ?? null,
       billing_portal_available: hasStripeCustomer,
       stripe_subscription_id: (profile.stripe_subscription_id as string | null) ?? null,
+      subscription_cancel_at_period_end: Boolean(profile.subscription_cancel_at_period_end),
       member_since: profile.created_at ?? null,
     });
   } catch (e) {
