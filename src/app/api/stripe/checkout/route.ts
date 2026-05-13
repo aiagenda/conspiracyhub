@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      // Card-only: avoids Stripe Link as default (Link + some debit/virtual cards breaks subscriptions).
+      payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${req.nextUrl.origin}/account?checkout=success`,
       cancel_url: `${req.nextUrl.origin}/`,
