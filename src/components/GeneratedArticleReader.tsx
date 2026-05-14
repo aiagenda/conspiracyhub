@@ -175,20 +175,36 @@ export default function GeneratedArticleReader({
             gap: 12,
           }}
         >
-          <Link
-            href="/"
-            style={{
-              fontSize: 10,
-              color: "#5a8068",
-              textDecoration: "none",
-              letterSpacing: 2,
-              border: "1px solid #1a3320",
-              padding: "4px 10px",
-              borderRadius: 3,
-            }}
-          >
-            ← FEED
-          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href="/blog"
+              style={{
+                fontSize: 10,
+                color: "#c94dff",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid rgba(201,77,255,0.45)",
+                padding: "4px 10px",
+                borderRadius: 3,
+              }}
+            >
+              ← ANALYSIS
+            </Link>
+            <Link
+              href="/"
+              style={{
+                fontSize: 10,
+                color: "#5a8068",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #1a3320",
+                padding: "4px 10px",
+                borderRadius: 3,
+              }}
+            >
+              FEED
+            </Link>
+          </div>
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
@@ -408,6 +424,25 @@ export default function GeneratedArticleReader({
                   ▸ DISCUSS IN COMMUNITY
                 </div>
                 <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>Thread linked to this report</div>
+              </Link>
+              <Link
+                href="/"
+                style={{
+                  display: "block",
+                  padding: "10px 14px",
+                  border: "1px solid #1a3320",
+                  borderRadius: 4,
+                  textAlign: "center",
+                  textDecoration: "none",
+                  background: "#050c07",
+                  fontFamily: RAJ,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: 2,
+                  color: "#5a8068",
+                }}
+              >
+                OPEN INVESTIGATION FEED →
               </Link>
             </div>
           </div>
