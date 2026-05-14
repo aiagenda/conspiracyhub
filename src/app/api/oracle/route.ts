@@ -37,8 +37,28 @@ function urlsFromGeneratedSources(sources: unknown): string[] {
   return out;
 }
 
+/** `source_documents.source_type` check constraint (no `testimony`). */
+function clampDbSourceType(st: unknown): "official" | "media" | "research" | "archive" {
+  const t = String(st ?? "media").toLowerCase().trim();
+  if (t === "official" || t === "media" || t === "research" || t === "archive") return t;
+  if (t === "testimony") return "archive";
+  return "media";
+}
+
+function clampDbTier(tier: unknown): "A" | "B" | "C" {
+  const t = String(tier ?? "B").toUpperCase().trim();
+  return t === "A" || t === "B" || t === "C" ? t : "B";
+}
+
 export async function POST(req: NextRequest) {
   try {
+    if (!process.env.OPENAI_API_KEY?.trim()) {
+      return NextResponse.json(
+        { error: "oracle_config", message: "OPENAI_API_KEY is not configured on the server." },
+        { status: 503 },
+      );
+    }
+
     const admin = getAdminClient();
     const auth = req.headers.get("authorization");
     if (!auth?.startsWith("Bearer ")) return NextResponse.json({ error: "missing_token" }, { status: 401 });
@@ -143,8 +163,8 @@ export async function POST(req: NextRequest) {
       detail: {
         ...node.detail,
         source_url: node.detail?.source_url,
-        source_tier: node.detail?.source_tier ?? "B",
-        source_type: node.detail?.source_type ?? "media",
+        source_tier: clampDbTier(node.detail?.source_tier),
+        source_type: clampDbSourceType(node.detail?.source_type ?? "media"),
         why_it_matters:
           node.detail?.why_it_matters && node.detail.why_it_matters.trim().length > 0
             ? node.detail.why_it_matters
@@ -192,8 +212,8 @@ export async function POST(req: NextRequest) {
           title: node.detail?.source || node.label,
           url,
           domain: safeHostname(url),
-          tier: node.detail?.source_tier ?? "B",
-          source_type: node.detail?.source_type ?? "media",
+          tier: clampDbTier(node.detail?.source_tier),
+          source_type: clampDbSourceType(node.detail?.source_type ?? "media"),
           excerpt: node.detail?.body?.slice(0, 240),
         } satisfies OracleSource;
       })
@@ -214,7 +234,7 @@ export async function POST(req: NextRequest) {
         tier: "B",
         source_type: "media",
         excerpt: primaryExcerpt.slice(0, 240),
-      });
+      } satisfies OracleSource);
     }
 
     if (validSources.length < 2 && !newsId && generatedArticleId) {
@@ -259,34 +279,42 @@ export async function POST(req: NextRequest) {
           .select("*")
           .single();
 
-    const { data: inserted, error } = insertRes;
-    if (error) throw error;
+    const { data: inserted, error: insertErr } = insertRes;
+    if (insertErr) {
+      throw new Error(insertErr.message || "oracle_insert_failed");
+    }
 
-    if (validSources.length) {
-      const { data: sourceRows } = await admin
-        .from("source_documents")
-        .upsert(
-          validSources.map((source) => ({
-            url: source.url,
-            domain: source.domain,
-            title: source.title,
-            source_type: source.source_type,
-            tier: source.tier,
-            excerpt: source.excerpt ?? null,
-          })),
-          { onConflict: "url" },
-        )
-        .select("id,url");
+    if (validSources.length && inserted?.id) {
+      const rowsForDb = validSources.map((source) => ({
+        url: source.url,
+        domain: typeof source.domain === "string" && source.domain.trim() ? source.domain.trim() : safeHostname(source.url),
+        title: String(source.title || "Source").slice(0, 500),
+        source_type: clampDbSourceType(source.source_type),
+        tier: clampDbTier(source.tier),
+        excerpt: source.excerpt ?? null,
+      }));
 
-      if (sourceRows?.length && inserted?.id) {
-        await admin.from("analysis_sources").upsert(
-          sourceRows.map((row) => ({
-            analysis_id: inserted.id,
-            source_id: row.id,
-            relation_note: "Auto-linked from oracle analysis",
-          })),
-          { onConflict: "analysis_id,source_id" },
-        );
+      try {
+        const { data: sourceRows, error: upErr } = await admin
+          .from("source_documents")
+          .upsert(rowsForDb, { onConflict: "url" })
+          .select("id,url");
+
+        if (upErr) {
+          console.warn("[oracle] source_documents upsert:", upErr.message);
+        } else if (sourceRows?.length) {
+          const { error: linkErr } = await admin.from("analysis_sources").upsert(
+            sourceRows.map((row) => ({
+              analysis_id: inserted.id,
+              source_id: row.id,
+              relation_note: "Auto-linked from oracle analysis",
+            })),
+            { onConflict: "analysis_id,source_id" },
+          );
+          if (linkErr) console.warn("[oracle] analysis_sources upsert:", linkErr.message);
+        }
+      } catch (regErr) {
+        console.warn("[oracle] source registry skipped:", regErr);
       }
     }
 
@@ -296,6 +324,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "oracle_no_theories", message: "Model returned no usable theories." }, { status: 422 });
     }
     console.error("[oracle]", error);
-    return NextResponse.json({ error: "oracle_failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: "oracle_failed", message }, { status: 500 });
   }
 }

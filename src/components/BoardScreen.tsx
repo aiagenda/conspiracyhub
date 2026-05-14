@@ -521,9 +521,9 @@ export default function BoardScreen({
               : { newsId: news.id },
           ),
         });
-        let payload: { error?: string } = {};
+        let payload: { error?: string; message?: string } = {};
         try {
-          payload = (await res.json()) as { error?: string };
+          payload = (await res.json()) as { error?: string; message?: string };
         } catch {
           payload = {};
         }
@@ -536,9 +536,10 @@ export default function BoardScreen({
             setAccessBlock({ kind: "sign_in" });
             return;
           }
+          const detail = [payload.message, payload.error].filter(Boolean).join(" — ");
           setAccessBlock({
             kind: "error",
-            message: payload.error ?? `Oracle request failed (${res.status}).`,
+            message: detail || `Oracle request failed (${res.status}).`,
           });
           return;
         }
