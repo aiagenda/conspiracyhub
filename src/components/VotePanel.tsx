@@ -11,12 +11,15 @@ interface VoteData {
 }
 
 interface Props {
-  articleId: string;
+  articleId?: string;
+  generatedArticleId?: string;
   aiScore: number;
   theories?: Array<{ name: string; probability: number }>;
 }
 
-export default function VotePanel({ articleId, aiScore, theories = [] }: Props) {
+export default function VotePanel({ articleId, generatedArticleId, aiScore, theories = [] }: Props) {
+  const targetId = articleId ?? generatedArticleId;
+  const isGenerated = Boolean(generatedArticleId);
   const [votes, setVotes] = useState<VoteData[]>([]);
   const [myVotes, setMyVotes] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -25,7 +28,11 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
   const [confirmed, setConfirmed] = useState<string | null>(null); // tracks which type just got confirmed
 
   useEffect(() => {
-    fetch(`/api/vote?article_id=${articleId}`)
+    if (!targetId) return;
+    const q = isGenerated
+      ? `generated_article_id=${encodeURIComponent(targetId)}`
+      : `article_id=${encodeURIComponent(targetId)}`;
+    fetch(`/api/vote?${q}`)
       .then(r => r.json())
       .then(d => {
         setVotes(d.aggregates ?? []);
@@ -36,16 +43,20 @@ export default function VotePanel({ articleId, aiScore, theories = [] }: Props) 
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [articleId]);
+  }, [targetId, isGenerated]);
 
   async function castVote(vote_type: string, value: number) {
-    if (voting) return;
+    if (voting || !targetId) return;
     setVoting(vote_type);
     try {
       const res = await fetch("/api/vote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ article_id: articleId, vote_type, value }),
+        body: JSON.stringify(
+          isGenerated
+            ? { generated_article_id: generatedArticleId, vote_type, value }
+            : { article_id: articleId, vote_type, value },
+        ),
       });
       const d = await res.json();
       if (d.aggregates) setVotes(d.aggregates);

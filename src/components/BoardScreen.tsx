@@ -482,11 +482,13 @@ export default function BoardScreen({
   initialAnalysis,
   backHref,
   backLabel,
+  oracleMode = "news",
 }: {
   news: NewsItem;
   initialAnalysis: OracleAnalysis | null;
   backHref?: string;
   backLabel?: string;
+  oracleMode?: "news" | "generated";
 }) {
   const [analysis, setAnalysis] = useState<OracleAnalysis | null>(initialAnalysis);
   const [selected, setSelected] = useState<Node | null>(analysis?.nodes?.[0] ?? MOCK_NODES[0]);
@@ -513,7 +515,11 @@ export default function BoardScreen({
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ newsId: news.id }),
+          body: JSON.stringify(
+            oracleMode === "generated"
+              ? { generatedArticleId: news.id }
+              : { newsId: news.id },
+          ),
         });
         let payload: { error?: string } = {};
         try {
@@ -547,7 +553,7 @@ export default function BoardScreen({
         setLoading(false);
       }
     })();
-  }, [analysis, news.id]);
+  }, [analysis, news.id, oracleMode]);
 
   if (loading) {
     return <OracleLoadingScreen />;
@@ -591,7 +597,12 @@ export default function BoardScreen({
       </div>
       {analysis && (
         <div style={{ flexShrink: 0, padding: "0 1rem 1rem", maxWidth: 400, marginLeft: "auto", width: "100%" }}>
-          <VotePanel articleId={news.id} aiScore={news.score ?? 0} theories={analysis.theories?.slice(0, 3) ?? []} />
+          <VotePanel
+            articleId={oracleMode === "news" ? news.id : undefined}
+            generatedArticleId={oracleMode === "generated" ? news.id : undefined}
+            aiScore={news.score ?? 0}
+            theories={analysis.theories?.slice(0, 3) ?? []}
+          />
         </div>
       )}
     </div>

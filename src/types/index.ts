@@ -84,6 +84,7 @@ export interface OracleSource {
 export interface OracleAnalysis {
   id?: string;
   news_id?: string;
+  generated_article_id?: string;
   nodes: Node[];
   edges: Edge[];
   sources?: OracleSource[];

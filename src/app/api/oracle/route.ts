@@ -13,6 +13,30 @@ function getAdminClient() {
   return createClient(url, key);
 }
 
+function siteBase(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+}
+
+function safeHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "unknown";
+  }
+}
+
+function urlsFromGeneratedSources(sources: unknown): string[] {
+  if (!Array.isArray(sources)) return [];
+  const out: string[] = [];
+  for (const s of sources) {
+    if (s && typeof s === "object" && "url" in s) {
+      const u = String((s as { url?: string }).url ?? "");
+      if (/^https?:\/\//i.test(u)) out.push(u);
+    }
+  }
+  return out;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const admin = getAdminClient();
@@ -26,21 +50,71 @@ export async function POST(req: NextRequest) {
     } = await admin.auth.getUser(token);
     if (userErr || !user) return NextResponse.json({ error: "invalid_token" }, { status: 401 });
 
-    const { newsId } = await req.json();
-    if (!newsId) return NextResponse.json({ error: "newsId_required" }, { status: 400 });
+    const body = (await req.json()) as { newsId?: string; generatedArticleId?: string };
+    const newsId = body.newsId?.trim();
+    const generatedArticleId = body.generatedArticleId?.trim();
+    if ((!newsId && !generatedArticleId) || (Boolean(newsId) && Boolean(generatedArticleId))) {
+      return NextResponse.json({ error: "provide exactly one of newsId or generatedArticleId" }, { status: 400 });
+    }
 
-    const { data: news } = await admin.from("news_items").select("*").eq("id", newsId).single();
-    if (!news) return NextResponse.json({ error: "news_not_found" }, { status: 404 });
+    let articleLine: string;
+    let primaryTitle: string;
+    let primaryUrl: string;
+    let primaryExcerpt: string;
 
-    // Cached analysis → everyone can view (free + PRO)
-    const { data: cached } = await admin.from("oracle_analyses").select("*").eq("news_id", newsId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (cached) return NextResponse.json(cached);
+    if (newsId) {
+      const { data: news, error } = await admin.from("news_items").select("*").eq("id", newsId).single();
+      if (error || !news) return NextResponse.json({ error: "news_not_found" }, { status: 404 });
 
-    // No cache → only PRO can trigger new generation
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+      const { data: cached } = await admin
+        .from("oracle_analyses")
+        .select("*")
+        .eq("news_id", newsId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cached) return NextResponse.json(cached);
 
-    const articleLine = `Article: ${news.title}\nSummary: ${news.summary}\nURL: ${news.url}`;
+      const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
+      if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+
+      primaryTitle = news.title as string;
+      primaryUrl = news.url as string;
+      primaryExcerpt = (news.summary as string) ?? "";
+      articleLine = `Article: ${primaryTitle}\nSummary: ${primaryExcerpt}\nURL: ${primaryUrl}`;
+    } else {
+      const { data: gen, error } = await admin
+        .from("generated_articles")
+        .select("*")
+        .eq("id", generatedArticleId)
+        .eq("status", "published")
+        .single();
+      if (error || !gen) return NextResponse.json({ error: "generated_article_not_found" }, { status: 404 });
+
+      const { data: cached } = await admin
+        .from("oracle_analyses")
+        .select("*")
+        .eq("generated_article_id", generatedArticleId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cached) return NextResponse.json(cached);
+
+      const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
+      if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+
+      primaryTitle = gen.title as string;
+      primaryUrl = `${siteBase().replace(/\/$/, "")}/blog/${gen.slug as string}`;
+      primaryExcerpt =
+        (typeof gen.excerpt === "string" && gen.excerpt.trim()) ||
+        (typeof gen.meta_description === "string" && gen.meta_description.trim()) ||
+        "";
+      const bodyPreview = String(gen.content ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 2500);
+      articleLine = `Investigation report: ${primaryTitle}\nSummary: ${primaryExcerpt}\nBody preview:\n${bodyPreview}\nURL: ${primaryUrl}`;
+    }
 
     const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
@@ -113,17 +187,11 @@ export async function POST(req: NextRequest) {
       .map((node, index) => {
         const url = node.detail?.source_url;
         if (!url || !/^https?:\/\//i.test(url)) return null;
-        let domain = "unknown";
-        try {
-          domain = new URL(url).hostname;
-        } catch {
-          domain = "unknown";
-        }
         return {
           id: `node-source-${index}`,
           title: node.detail?.source || node.label,
           url,
-          domain,
+          domain: safeHostname(url),
           tier: node.detail?.source_tier ?? "B",
           source_type: node.detail?.source_type ?? "media",
           excerpt: node.detail?.body?.slice(0, 240),
@@ -139,18 +207,34 @@ export async function POST(req: NextRequest) {
 
     if (validSources.length < 2) {
       validSources.push({
-        id: "guardian-article",
-        title: news.title,
-        url: news.url,
-        domain: new URL(news.url).hostname,
+        id: "primary-article",
+        title: primaryTitle,
+        url: primaryUrl,
+        domain: safeHostname(primaryUrl),
         tier: "B",
         source_type: "media",
-        excerpt: news.summary ?? "",
+        excerpt: primaryExcerpt.slice(0, 240),
       });
     }
 
-    const payload = {
-      news_id: newsId,
+    if (validSources.length < 2 && !newsId && generatedArticleId) {
+      const { data: genRow } = await admin.from("generated_articles").select("sources").eq("id", generatedArticleId).maybeSingle();
+      for (const u of urlsFromGeneratedSources(genRow?.sources)) {
+        if (validSources.some((s) => s.url === u)) continue;
+        validSources.push({
+          id: `gen-src-${validSources.length}`,
+          title: u,
+          url: u,
+          domain: safeHostname(u),
+          tier: "B",
+          source_type: "research",
+          excerpt: "",
+        });
+        if (validSources.length >= 2) break;
+      }
+    }
+
+    const analysisInsertBase = {
       nodes: normalizedNodes,
       edges: normalizedEdges,
       sources: validSources,
@@ -159,10 +243,25 @@ export async function POST(req: NextRequest) {
       verdict: normalizeVerdict(analysis.verdict),
     };
 
-    const { data: inserted, error } = await admin.from("oracle_analyses").insert(payload).select("*").single();
+    const insertRes = newsId
+      ? await admin
+          .from("oracle_analyses")
+          .insert({ ...analysisInsertBase, news_id: newsId, generated_article_id: null })
+          .select("*")
+          .single()
+      : await admin
+          .from("oracle_analyses")
+          .insert({
+            ...analysisInsertBase,
+            news_id: null,
+            generated_article_id: generatedArticleId as string,
+          })
+          .select("*")
+          .single();
+
+    const { data: inserted, error } = insertRes;
     if (error) throw error;
 
-    // Best-effort source registry writes for broader source tracking.
     if (validSources.length) {
       const { data: sourceRows } = await admin
         .from("source_documents")

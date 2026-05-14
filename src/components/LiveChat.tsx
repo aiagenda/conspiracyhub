@@ -28,12 +28,17 @@ function timeAgo(d: string) {
 }
 
 interface Props {
-  articleId: string;
+  /** Feed article (news_items id) */
+  articleId?: string;
+  /** AI investigation report (generated_articles id) */
+  generatedArticleId?: string;
   articleTitle: string;
   onClose: () => void;
 }
 
-export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
+export default function LiveChat({ articleId, generatedArticleId, articleTitle, onClose }: Props) {
+  const linkId = generatedArticleId ?? articleId;
+  const isGenerated = Boolean(generatedArticleId);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -69,7 +74,16 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
           return;
         }
 
-        const res = await fetchWithSupabaseAuth(`/api/threads?article_id=${encodeURIComponent(articleId)}`, {
+        if (!linkId) {
+          if (!signal.aborted) setLoading(false);
+          return;
+        }
+
+        const threadListUrl = isGenerated
+          ? `/api/threads?generated_article_id=${encodeURIComponent(linkId)}`
+          : `/api/threads?article_id=${encodeURIComponent(linkId)}`;
+
+        const res = await fetchWithSupabaseAuth(threadListUrl, {
           signal,
         });
         const d = (await res.json()) as { threads?: { id: string }[]; error?: string };
@@ -108,7 +122,9 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
               content: `Live discussion: ${articleTitle}`,
               category: "theory",
               author_name: displayName,
-              linked_article_id: articleId,
+              ...(isGenerated
+                ? { linked_generated_article_id: generatedArticleId }
+                : { linked_article_id: articleId }),
             }),
           });
           const cd = (await cr.json()) as { thread?: { id: string }; error?: string };
@@ -169,7 +185,7 @@ export default function LiveChat({ articleId, articleTitle, onClose }: Props) {
     return () => {
       ac.abort();
     };
-  }, [articleId, articleTitle]);
+  }, [linkId, articleTitle, isGenerated, articleId, generatedArticleId]);
 
   useEffect(() => {
     const el = messagesScrollRef.current;

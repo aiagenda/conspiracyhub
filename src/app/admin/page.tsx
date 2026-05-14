@@ -1199,7 +1199,10 @@ export default function AdminPage() {
                             {p.view_count}
                           </td>
                           <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
-                            <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>View ↗</a>
+                            <div className="flex flex-wrap gap-2">
+                              <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>View ↗</a>
+                              <a href={`/board/${p.id}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
+                            </div>
                           </td>
                         </tr>
                       ))}

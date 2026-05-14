@@ -96,11 +96,23 @@ export async function GET(req: NextRequest) {
     }
 
     const articleId = searchParams.get("article_id") ?? searchParams.get("news_id");
+    const generatedArticleId = searchParams.get("generated_article_id");
     if (articleId && isUuid(articleId)) {
       const { data: threads, error } = await admin
         .from("threads")
         .select("*")
         .eq("linked_article_id", articleId)
+        .neq("status", "removed")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) return NextResponse.json({ error: error.message, threads: [] }, { status: 500 });
+      return NextResponse.json({ threads: threads ?? [] });
+    }
+    if (generatedArticleId && isUuid(generatedArticleId)) {
+      const { data: threads, error } = await admin
+        .from("threads")
+        .select("*")
+        .eq("linked_generated_article_id", generatedArticleId)
         .neq("status", "removed")
         .order("created_at", { ascending: false })
         .limit(20);
@@ -135,23 +147,60 @@ export async function POST(req: NextRequest) {
     const userFp = fp(req);
 
     if (action === "create_thread") {
-      const { title, content, category, author_name, location, tags, linked_article_id, article_id } = body;
+      const {
+        title,
+        content,
+        category,
+        author_name,
+        location,
+        tags,
+        linked_article_id,
+        linked_generated_article_id,
+        article_id,
+      } = body;
       if (!title?.trim() || !content?.trim()) {
         return NextResponse.json({ error: "title and content required" }, { status: 400 });
       }
 
-      const linkRaw = linked_article_id ?? article_id;
-      const linkId = typeof linkRaw === "string" && isUuid(linkRaw) ? linkRaw : null;
+      const linkNewsRaw = linked_article_id ?? article_id;
+      const linkNewsId = typeof linkNewsRaw === "string" && isUuid(linkNewsRaw) ? linkNewsRaw : null;
+      const linkGenRaw = linked_generated_article_id;
+      const linkGenId = typeof linkGenRaw === "string" && isUuid(linkGenRaw) ? linkGenRaw : null;
 
-      if (linkId) {
-        const { data: newsRow } = await admin.from("news_items").select("id").eq("id", linkId).maybeSingle();
+      if (linkNewsId && linkGenId) {
+        return NextResponse.json({ error: "link only one of news article or generated article" }, { status: 400 });
+      }
+
+      if (linkNewsId) {
+        const { data: newsRow } = await admin.from("news_items").select("id").eq("id", linkNewsId).maybeSingle();
         if (!newsRow) {
           return NextResponse.json({ error: "article not found" }, { status: 404 });
         }
         const { data: existing } = await admin
           .from("threads")
           .select("*")
-          .eq("linked_article_id", linkId)
+          .eq("linked_article_id", linkNewsId)
+          .neq("status", "removed")
+          .maybeSingle();
+        if (existing) {
+          return NextResponse.json({ thread: existing, success: true, existing: true });
+        }
+      }
+
+      if (linkGenId) {
+        const { data: genRow } = await admin
+          .from("generated_articles")
+          .select("id")
+          .eq("id", linkGenId)
+          .eq("status", "published")
+          .maybeSingle();
+        if (!genRow) {
+          return NextResponse.json({ error: "generated article not found" }, { status: 404 });
+        }
+        const { data: existing } = await admin
+          .from("threads")
+          .select("*")
+          .eq("linked_generated_article_id", linkGenId)
           .neq("status", "removed")
           .maybeSingle();
         if (existing) {
@@ -169,7 +218,8 @@ export async function POST(req: NextRequest) {
           category: category ?? "sighting",
           location: location?.slice(0, 80) ?? null,
           tags: tags ?? [],
-          linked_article_id: linkId,
+          linked_article_id: linkNewsId,
+          linked_generated_article_id: linkGenId,
         })
         .select()
         .single();
@@ -184,7 +234,7 @@ export async function POST(req: NextRequest) {
         content: content.trim().slice(0, 2000),
       });
 
-      if (linkId) {
+      if (linkNewsId || linkGenId) {
         const row = buildArticleThreadStarterRow(title.trim());
         const { error: stErr } = await admin.from("thread_posts").insert({
           thread_id: thread.id,
@@ -204,8 +254,12 @@ export async function POST(req: NextRequest) {
       if (!thread_id || !isUuid(thread_id)) {
         return NextResponse.json({ error: "thread_id required" }, { status: 400 });
       }
-      const { data: th, error: thErr } = await admin.from("threads").select("id, linked_article_id, title").eq("id", thread_id).maybeSingle();
-      if (thErr || !th?.linked_article_id) {
+      const { data: th, error: thErr } = await admin
+        .from("threads")
+        .select("id, linked_article_id, linked_generated_article_id, title")
+        .eq("id", thread_id)
+        .maybeSingle();
+      if (thErr || (!th?.linked_article_id && !th?.linked_generated_article_id)) {
         return NextResponse.json({ error: "not_article_thread" }, { status: 400 });
       }
       const { count, error: cErr } = await admin

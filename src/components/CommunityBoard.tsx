@@ -21,6 +21,7 @@ interface Thread {
   oracle_analyzed: boolean; post_count: number;
   created_at: string; updated_at: string;
   linked_article_id?: string | null;
+  linked_generated_article_id?: string | null;
 }
 
 interface Post {
@@ -199,7 +200,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
       .then(async (d: { posts?: Post[] }) => {
         let list = d.posts ?? [];
         if (
-          thread.linked_article_id &&
+          (thread.linked_article_id || thread.linked_generated_article_id) &&
           !list.some((p) => p.author_fingerprint === ARTICLE_THREAD_STARTER_FP)
         ) {
           try {
@@ -224,7 +225,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
     return () => {
       cancelled = true;
     };
-  }, [thread.id, thread.linked_article_id]);
+  }, [thread.id, thread.linked_article_id, thread.linked_generated_article_id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -487,19 +488,23 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
 function NewThreadForm({
   onCreated,
   linkedArticleId,
+  linkedGeneratedArticleId,
   defaultTitle = "",
   defaultBody = "",
   defaultCategory,
 }: {
   onCreated: (t: Thread) => void;
   linkedArticleId?: string | null;
+  linkedGeneratedArticleId?: string | null;
   defaultTitle?: string;
   defaultBody?: string;
   defaultCategory?: string;
 }) {
   const [title, setTitle] = useState(defaultTitle);
   const [body, setBody] = useState(defaultBody);
-  const [category, setCategory] = useState<string>(defaultCategory ?? (linkedArticleId ? "theory" : "sighting"));
+  const [category, setCategory] = useState<string>(
+    defaultCategory ?? (linkedArticleId || linkedGeneratedArticleId ? "theory" : "sighting"),
+  );
   const [name, setName] = useState("Anonymous");
   const [location, setLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -526,6 +531,7 @@ function NewThreadForm({
           author_name: name,
           location,
           ...(linkedArticleId ? { linked_article_id: linkedArticleId } : {}),
+          ...(linkedGeneratedArticleId ? { linked_generated_article_id: linkedGeneratedArticleId } : {}),
         }),
       });
       const d = await res.json() as { error?: string; thread?: Thread };
@@ -544,11 +550,11 @@ function NewThreadForm({
     <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
       <div style={{ padding: "12px 14px", borderBottom: "1px solid #1a3320", background: "#050c07" }}>
         <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>
-          {linkedArticleId ? "◈ START ARTICLE DISCUSSION" : "◈ SUBMIT INTELLIGENCE"}
+          {linkedArticleId || linkedGeneratedArticleId ? "◈ START ARTICLE DISCUSSION" : "◈ SUBMIT INTELLIGENCE"}
         </div>
         <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, marginTop: 3 }}>
-          {linkedArticleId
-            ? "This thread is linked to a news item. One discussion per article."
+          {linkedArticleId || linkedGeneratedArticleId
+            ? "This thread is linked to an investigation. One discussion thread per article."
             : "Report a sighting, share a document, or start an investigation"}
         </div>
       </div>
@@ -606,7 +612,12 @@ function NewThreadForm({
 export default function CommunityBoard() {
   const searchParams = useSearchParams();
   const articleParam = searchParams.get("article");
+  const generatedParam = searchParams.get("generated_article");
   const articleFromUrl = articleParam && isArticleUuid(articleParam) ? articleParam : null;
+  const generatedFromUrl =
+    !articleFromUrl && generatedParam && isArticleUuid(generatedParam) ? generatedParam : null;
+  const articleBundleId = articleFromUrl ?? generatedFromUrl;
+  const articleBundleKind = articleFromUrl ? ("news" as const) : generatedFromUrl ? ("generated" as const) : null;
 
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -618,6 +629,7 @@ export default function CommunityBoard() {
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [articleTitle, setArticleTitle] = useState<string | null>(null);
+  const [articleSlug, setArticleSlug] = useState<string | null>(null);
   const [articleThreads, setArticleThreads] = useState<Thread[]>([]);
   const [articleBundleLoading, setArticleBundleLoading] = useState(false);
 
@@ -633,20 +645,39 @@ export default function CommunityBoard() {
     void fetchThreadList().then(d => setThreads(d.threads ?? []));
   }, [fetchThreadList]);
 
-  const loadArticleBundle = useCallback(async (id: string) => {
+  const loadArticleBundle = useCallback(async (id: string, kind: "news" | "generated") => {
     setArticleBundleLoading(true);
     try {
-      const [threadsJson, newsRow] = await Promise.all([
-        fetchWithSupabaseAuth(`/api/threads?article_id=${encodeURIComponent(id)}`).then((r) =>
-          r.json() as Promise<{ threads?: Thread[] }>
-        ),
-        getSupabaseBrowserClient().from("news_items").select("title").eq("id", id).maybeSingle(),
-      ]);
-      setArticleThreads(threadsJson.threads ?? []);
-      setArticleTitle(typeof newsRow.data?.title === "string" ? newsRow.data.title : "News item");
+      const threadsUrl =
+        kind === "news"
+          ? `/api/threads?article_id=${encodeURIComponent(id)}`
+          : `/api/threads?generated_article_id=${encodeURIComponent(id)}`;
+      if (kind === "news") {
+        const [threadsJson, newsRow] = await Promise.all([
+          fetchWithSupabaseAuth(threadsUrl).then((r) => r.json() as Promise<{ threads?: Thread[] }>),
+          getSupabaseBrowserClient().from("news_items").select("title").eq("id", id).maybeSingle(),
+        ]);
+        setArticleThreads(threadsJson.threads ?? []);
+        setArticleTitle(typeof newsRow.data?.title === "string" ? newsRow.data.title : "News item");
+        setArticleSlug(null);
+      } else {
+        const [threadsJson, genRow] = await Promise.all([
+          fetchWithSupabaseAuth(threadsUrl).then((r) => r.json() as Promise<{ threads?: Thread[] }>),
+          getSupabaseBrowserClient()
+            .from("generated_articles")
+            .select("title,slug")
+            .eq("id", id)
+            .eq("status", "published")
+            .maybeSingle(),
+        ]);
+        setArticleThreads(threadsJson.threads ?? []);
+        setArticleTitle(typeof genRow.data?.title === "string" ? genRow.data.title : "Investigation report");
+        setArticleSlug(typeof genRow.data?.slug === "string" ? genRow.data.slug : null);
+      }
     } catch {
       setArticleThreads([]);
-      setArticleTitle("News item");
+      setArticleTitle(kind === "news" ? "News item" : "Investigation report");
+      setArticleSlug(null);
     } finally {
       setArticleBundleLoading(false);
     }
@@ -668,13 +699,14 @@ export default function CommunityBoard() {
 
   useEffect(() => {
     if (!authReady || !signedIn) return;
-    if (articleFromUrl) {
+    if (articleBundleId && articleBundleKind) {
       setLoading(false);
       setShowNew(false);
-      void loadArticleBundle(articleFromUrl);
+      void loadArticleBundle(articleBundleId, articleBundleKind);
       return;
     }
     setArticleTitle(null);
+    setArticleSlug(null);
     setArticleThreads([]);
     let cancelled = false;
     void fetchThreadList()
@@ -690,18 +722,20 @@ export default function CommunityBoard() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, signedIn, articleFromUrl, fetchThreadList, loadArticleBundle]);
+  }, [authReady, signedIn, articleBundleId, articleBundleKind, fetchThreadList, loadArticleBundle]);
 
   const discussionSeedTitle = articleTitle
     ? `Discussion: ${articleTitle}`.slice(0, 120)
     : "";
   const discussionSeedBody = articleTitle
-    ? `Thread about this feed item:\n"${articleTitle.slice(0, 400)}"\n\nWhat stands out? Sources, skepticism, or connections?`
+    ? articleBundleKind === "generated"
+      ? `Thread about this investigation report:\n"${articleTitle.slice(0, 400)}"\n\nWhat stands out? Sources, skepticism, or connections?`
+      : `Thread about this feed item:\n"${articleTitle.slice(0, 400)}"\n\nWhat stands out? Sources, skepticism, or connections?`
     : "";
 
   function onLeaveThreadDetail() {
     setSelectedThread(null);
-    if (articleFromUrl) void loadArticleBundle(articleFromUrl);
+    if (articleBundleId && articleBundleKind) void loadArticleBundle(articleBundleId, articleBundleKind);
     else refreshThreads();
   }
 
@@ -752,7 +786,7 @@ export default function CommunityBoard() {
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>COMMUNITY INTELLIGENCE</div>
           <div style={{ marginLeft: "auto" }}>
-            {!articleFromUrl && (
+            {!articleBundleId && (
               <button onClick={() => setShowNew(s => !s)}
                 style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
                 {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
@@ -770,21 +804,27 @@ export default function CommunityBoard() {
             <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>REPORT SIGHTINGS · SHARE DOCUMENTS · INVOKE ORACLE AI · INVESTIGATE TOGETHER</div>
           </div>
 
-          {showNew && !articleFromUrl && (
+          {showNew && !articleBundleId && (
             <div style={{ marginBottom: "1.5rem" }}>
               <NewThreadForm onCreated={t => { setShowNew(false); setSelectedThread(t); refreshThreads(); }} />
             </div>
           )}
 
-          {articleFromUrl && !selectedThread && (
+          {articleBundleId && !selectedThread && (
             <div style={{ marginBottom: "1.25rem", border: "1px solid #1a3320", borderRadius: 4, padding: "14px 16px", background: "#080c09" }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
                 <Link href="/community" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
                   ← ALL THREADS
                 </Link>
-                <Link href={`/article/${articleFromUrl}`} style={{ fontSize: 10, color: "#00bb66", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
-                  OPEN ARTICLE ↗
-                </Link>
+                {articleFromUrl ? (
+                  <Link href={`/article/${articleFromUrl}`} style={{ fontSize: 10, color: "#00bb66", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
+                    OPEN ARTICLE ↗
+                  </Link>
+                ) : articleSlug ? (
+                  <Link href={`/blog/${articleSlug}`} style={{ fontSize: 10, color: "#00bb66", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
+                    OPEN REPORT ↗
+                  </Link>
+                ) : null}
               </div>
               <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8 }}>ARTICLE DISCUSSION</div>
               {articleBundleLoading ? (
@@ -817,13 +857,14 @@ export default function CommunityBoard() {
                     </div>
                   ) : (
                     <NewThreadForm
-                      linkedArticleId={articleFromUrl}
+                      linkedArticleId={articleFromUrl ?? undefined}
+                      linkedGeneratedArticleId={generatedFromUrl ?? undefined}
                       defaultTitle={discussionSeedTitle}
                       defaultBody={discussionSeedBody}
                       defaultCategory="theory"
                       onCreated={t => {
                         setSelectedThread(t);
-                        void loadArticleBundle(articleFromUrl);
+                        if (articleBundleId && articleBundleKind) void loadArticleBundle(articleBundleId, articleBundleKind);
                       }}
                     />
                   )}
@@ -836,7 +877,7 @@ export default function CommunityBoard() {
             <div style={{ height: "calc(100vh - 200px)", border: "1px solid #1a3320", borderRadius: 4, overflow: "hidden", background: "#090f0b" }}>
               <ThreadDetail thread={selectedThread} onBack={onLeaveThreadDetail} />
             </div>
-          ) : !articleFromUrl ? (
+          ) : !articleBundleId ? (
             <>
               {/* Filters */}
               <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", justifyContent: "space-between" }}>
