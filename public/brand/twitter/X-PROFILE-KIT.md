@@ -1,13 +1,13 @@
 # The Theorist — X (Twitter) profil kit
 
-Kész assetek ebben a mappában:
+Kész assetek ebben a mappában (**v2 — finomított**: precízebb embléma / tipográfia, kevesebb vizuális zaj, prémiumabb OSINT-editorial hang).
 
 | Fájl | Ajánlott használat |
 |------|---------------------|
-| `twitter-profile-the-theorist.png` | Profilkép (négyzet; X körbe vágja). Feltöltés előtt opcionálisan 400×400 vagy 512×512 px-re méretezhető. |
-| `twitter-banner-the-theorist.png` | Fejléc / banner. X ajánlott **1500×500** px; ha a generált kép más arányú, a feltöltő UI-ban igazítsd, vagy méretezd szerkesztőben 1500×500-ra. |
+| `twitter-profile-the-theorist.png` | Profilkép (négyzet; X körbe vágja). Opcionálisan **400×400** vagy **512×512** px export (Squoosh / Photopea) a legélesebb megjelenéshez. |
+| `twitter-banner-the-theorist.png` | Fejléc / banner. Célformátum: **1500×500** px @72dpi; ha a fájl nem pont ilyen, exportáld vagy vágd X feltöltőben. |
 
-**Biztonsági zóna:** a banneren tarts távolságot a szélektől és a profilkép takarásától (bal alsó ív) — a generált kép úgy készült, hogy a szöveg ne essen a tipikus takarás alá.
+**Biztonsági zóna:** a banneren tarts távolságot a szélektől és a profilkép takarásától (bal alsó ív). A v2 kép prompt szándékosan nagy margót kért a szövegnek.
 
 ---
 
@@ -135,4 +135,4 @@ Tájékoztatás; forrásokat közlünk — a következtetés a tiéd.
 
 ---
 
-*Generált képek: AI assetek; finomhangolás Photopea / Figma / X crop szerint.*
+*Generált képek (v2): AI assetek — igényesebb kompozíció; végső pixel-perfect finomhangolás Photopea / Figma / X crop + opcionális élesítés szerint.*
