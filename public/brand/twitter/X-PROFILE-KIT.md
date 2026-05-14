@@ -1,11 +1,11 @@
 # The Theorist — X (Twitter) profil kit
 
-Kész assetek ebben a mappában (**v2** profilkép; **v4** banner: grafika **bal**, szöveg + **the-theorist.com** **jobb**, export **1500×500** px).
+Kész assetek ebben a mappában (**v2** profilkép; **v4** banner: programozott **1500×500**, bal **vizuális** / jobb **szöveg + the-theorist.com** — újraépíthető: `python3 scripts/render_twitter_banner.py`).
 
 | Fájl | Ajánlott használat |
 |------|---------------------|
 | `twitter-profile-the-theorist.png` | Profilkép (négyzet; X körbe vágja). Opcionálisan **400×400** vagy **512×512** px export (Squoosh / Photopea) a legélesebb megjelenéshez. |
-| `twitter-banner-the-theorist.png` | Fejléc / banner **1500×500** px. Bal oldalon vizuál / hálózat, jobb oldalon a márka + webcím. |
+| `twitter-banner-the-theorist.png` | Fejléc / banner **1500×500** px. Bal oldal: rács + hex + gráf motívum; jobbra: cím, alcím, webcím, vékony aláhúzás + micro tagline. |
 
 **Biztonsági zóna:** X a profilkép miatt bal alul takar — tarts fontos szöveget jobbra / felülre a sávban.
 
@@ -135,4 +135,4 @@ Tájékoztatás; forrásokat közlünk — a következtetés a tiéd.
 
 ---
 
-*Banner v4: bal vizuál / jobb szöveg + URL; 1500×500 export. Profilkép v2.*
+*Banner v4: `scripts/render_twitter_banner.py` (Pillow) — bal/jobb elrendezés, natív 1500×500. Profilkép továbbra is AI asset (v2).*
