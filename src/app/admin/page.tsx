@@ -466,7 +466,7 @@ export default function AdminPage() {
     const label = scope === "feed" ? "minden feed cikk (news_items)" : "minden publikált /blog riport";
     if (
       !confirm(
-        `Oracle RESET ALL — ${label}\n\nÚj Oracle futtatás az összes sorra, batch-ekben (sok perc–óra, OpenAI + Brave). Folytatod?`,
+        `Oracle RESET ALL — ${label}\n\nEz TÖRLI az összes meglévő Oracle elemzést ehhez a hatókörhöz.\nA board-ok üresek lesznek — új elemzést majd manuálisan kell indítani.\n\nNEM futtat automatikusan új elemzést. Folytatod?`,
       )
     ) {
       return;
@@ -476,7 +476,7 @@ export default function AdminPage() {
       return;
     }
     setErr("");
-    setBulkOracleBusy(scope === "feed" ? "feed" : "analysis");
+    setBulkOracleBusy(scope);
     try {
       const {
         data: { session },
@@ -485,60 +485,22 @@ export default function AdminPage() {
         setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
         return;
       }
-      type BulkJson = {
-        error?: string;
-        message?: string;
-        nextOffset?: number;
-        total?: number;
-        succeeded?: number;
-        failed?: number;
-        done?: boolean;
-        batchSize?: number;
-        errors?: { id: string; error: string }[];
-      };
-      let offset = 0;
-      const errLines: string[] = [];
-      let guard = 0;
-      for (;;) {
-        guard += 1;
-        if (guard > 5000) {
-          setErr("Bulk Oracle stopped: safety limit (too many batches).");
-          return;
+      const res = await fetch("/api/admin/oracle-rerun-bulk", {
+        method: "POST",
+        headers: {
+          ...JSON_HEADERS,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ scope }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string; message?: string; deleted?: number };
+      if (!res.ok) {
+        if (res.status === 403 && d.error === "admin_only") {
+          setErr("Forbidden: set is_admin = true on your user in user_profiles (Supabase SQL).");
+        } else {
+          setErr([d.message, d.error].filter(Boolean).join(" — ") || res.statusText);
         }
-        const res = await fetch("/api/admin/oracle-rerun-bulk", {
-          method: "POST",
-          headers: {
-            ...JSON_HEADERS,
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ scope, offset, limit: 5 }),
-        });
-        const d = (await res.json().catch(() => ({}))) as BulkJson;
-        if (!res.ok) {
-          if (res.status === 403 && d.error === "admin_only") {
-            setErr("Forbidden: set is_admin = true on your user in user_profiles (Supabase SQL).");
-          } else {
-            setErr([d.message, d.error].filter(Boolean).join(" — ") || res.statusText);
-          }
-          return;
-        }
-        const total = d.total ?? 0;
-        const next = typeof d.nextOffset === "number" ? d.nextOffset : offset;
-        setBulkOracleBusy(
-          scope === "feed"
-            ? `Oracle bulk · feed ${Math.min(next, total)}/${total}`
-            : `Oracle bulk · analysis ${Math.min(next, total)}/${total}`,
-        );
-        if (Array.isArray(d.errors) && d.errors.length > 0) {
-          for (const e of d.errors.slice(0, 3)) {
-            errLines.push(`${e.id.slice(0, 8)}… ${e.error}`);
-          }
-        }
-        if (d.done === true) break;
-        offset = next;
-      }
-      if (errLines.length > 0) {
-        setErr(`Some batches had failures (first errors):\n${errLines.slice(0, 12).join("\n")}`);
+        return;
       }
       await loadArticles(articlePage, articleScoreFilter);
       await loadBlogPosts(blogPage);
@@ -1519,11 +1481,12 @@ export default function AdminPage() {
                 Feed maintenance
               </div>
               <p className="mt-3 text-[12px] leading-relaxed" style={{ color: muted }}>
-                <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · feed</strong> újrafuttatja az Oracle pipeline-ot{" "}
-                <strong style={{ color: "var(--foreground)" }}>minden</strong>{" "}
-                <code className="text-[var(--green-dim)]">news_items</code> soron (batch-ekben,{" "}
-                <code className="text-[var(--green-dim)]">/api/admin/oracle-rerun-bulk</code>
-                ). Ugyanaz a jogosultság mint az egyes <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> gomboknál.
+                <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · feed</strong>{" "}
+                <strong style={{ color: "#ff8844" }}>törli</strong> az összes meglévő Oracle elemzést (
+                <code className="text-[var(--green-dim)]">oracle_analyses</code>) minden feed cikkhez.
+                A board-ok üresek lesznek — új elemzést majd manuálisan indíthatsz a board oldalon.{" "}
+                <strong style={{ color: "var(--foreground)" }}>Nem futtat</strong> automatikusan új Oracle-t.
+                A soronkénti <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> gombokkal egyenként lehet újrafuttatni.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
@@ -1533,7 +1496,7 @@ export default function AdminPage() {
                   className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                   style={{ borderColor: "#5a5020", color: "#e8c060", background: "rgba(232,192,96,0.06)" }}
                 >
-                  {bulkOracleBusy.startsWith("Oracle bulk · feed") ? bulkOracleBusy : bulkOracleBusy === "feed" ? "Starting…" : "Oracle RESET ALL · feed"}
+                  {bulkOracleBusy === "feed" ? "Törlés…" : "Oracle RESET ALL · feed"}
                 </button>
               </div>
             </div>
@@ -1660,11 +1623,12 @@ export default function AdminPage() {
                 <p className="mt-3 text-[12px] leading-relaxed" style={{ color: muted }}>
                   Sanitize strips non-whitelisted source URLs in every stored report (titles stay). Delete all removes every published /blog post (votes and Oracle rows for those reports follow DB cascades).
                   <span className="mt-2 block">
-                    <strong style={{ color: "var(--foreground)" }}>Oracle ↻</strong> runs a fresh graph via{" "}
-                    <code className="text-[var(--green-dim)]">/api/admin/oracle-rerun</code>
-                    ; <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · analysis</strong> loops{" "}
-                    <code className="text-[var(--green-dim)]">/api/admin/oracle-rerun-bulk</code> over every published report. Both require you to be signed in and{" "}
-                    <code className="text-[var(--green-dim)]">is_admin = true</code> on your row in <code className="text-[var(--green-dim)]">user_profiles</code>.
+                    <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> (soronként) — egy riport elemzését törli és azonnal újrafuttatja.{" "}
+                    <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · analysis</strong> csak{" "}
+                    <strong style={{ color: "#ff8844" }}>törli</strong> az összes Oracle elemzést a published riportoknál — a board-ok üresek lesznek, automatikusan{" "}
+                    <strong style={{ color: "var(--foreground)" }}>nem</strong> fut le új elemzés.
+                    Mindkettő: bejelentkezve kell lenni,{" "}
+                    <code className="text-[var(--green-dim)]">is_admin = true</code> (<code className="text-[var(--green-dim)]">user_profiles</code>).
                   </span>
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -1693,11 +1657,7 @@ export default function AdminPage() {
                     className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#5a5020", color: "#e8c060", background: "rgba(232,192,96,0.06)" }}
                   >
-                    {bulkOracleBusy.startsWith("Oracle bulk · analysis")
-                      ? bulkOracleBusy
-                      : bulkOracleBusy === "analysis"
-                        ? "Starting…"
-                        : "Oracle RESET ALL · analysis"}
+                    {bulkOracleBusy === "analysis" ? "Törlés…" : "Oracle RESET ALL · analysis"}
                   </button>
                 </div>
               </div>
