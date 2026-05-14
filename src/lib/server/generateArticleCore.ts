@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { callOpenAIJSON } from "@/lib/openai";
 import { sanitizeSources } from "@/lib/generatedArticleSourceUrls";
 import { applyAllowlistToArticleSources, createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
+import { enrichSourcesWithRealUrls } from "@/lib/searchSourceUrl";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -302,7 +303,10 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
         excerpt: article.excerpt,
         category: article.category,
         tags: article.tags ?? [],
-        sources: sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow)),
+        sources: await (async () => {
+          const filtered = sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow));
+          return enrichSourcesWithRealUrls(filtered, process.env.BRAVE_SEARCH_API_KEY);
+        })(),
         mode,
         status: "published",
         published_at: new Date().toISOString(),
