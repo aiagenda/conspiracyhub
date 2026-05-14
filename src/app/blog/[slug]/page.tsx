@@ -92,7 +92,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: "2rem", fontSize: 10, color: "#3a5040" }}>
             <Link href="/" style={{ color: "#5a8068", textDecoration: "none" }}>FEED</Link>
             <span>/</span>
-            <Link href="/blog" style={{ color: "#5a8068", textDecoration: "none" }}>ANALYSIS</Link>
+            <Link href="/blog" style={{ color: "#c94dff", textDecoration: "none" }}>ANALYSIS</Link>
             <span>/</span>
             <span style={{ color: col }}>{article.category.toUpperCase()}</span>
           </div>

@@ -24,7 +24,7 @@ const NAV_LINKS = [
   { href: "/uap", label: "UAP FILES", color: "#8aa6ff" },
   { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", blink: true },
   { href: "/community", label: "COMMUNITY", color: "#00bb66" },
-  { href: "/blog", label: "ANALYSIS", color: "#00bb66" },
+  { href: "/blog", label: "ANALYSIS", color: "#c94dff" },
   { href: "/search", label: "SEARCH", color: "#5a8068" },
   { href: "/guide", label: "GUIDE", color: "#5a8068" },
 ];
