@@ -718,7 +718,7 @@ export default function AdminPage() {
   }
 
   const navBtn =
-    "w-full rounded-md border border-transparent px-3 py-2.5 text-left text-[13px] transition-colors hover:border-[#1a2a22] hover:bg-[#0f1510]";
+    "w-full rounded-md border border-transparent px-4 py-3.5 text-left text-[13px] transition-colors hover:border-[#1a2a22] hover:bg-[#0f1510]";
 
   return (
     <div
@@ -937,7 +937,7 @@ export default function AdminPage() {
                   <thead>
                     <tr style={{ background: "#0a100c" }}>
                       {["Email", "Plan", "Status", "Period end", "Stripe sub", "Registered", "Last login", "Actions"].map((h) => (
-                        <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
+                        <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -947,41 +947,41 @@ export default function AdminPage() {
                     )}
                     {users.map((u) => (
                       <tr key={u.id} className="hover:bg-[#0f1510]">
-                        <td className="max-w-[180px] truncate border-b px-3 py-2.5 font-mono text-[11px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>{u.email}</td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                        <td className="max-w-[180px] truncate border-b px-4 py-4 font-mono text-[11px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>{u.email}</td>
+                        <td className="whitespace-nowrap border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <span className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider" style={{
                             border: `1px solid ${u.plan === "pro" ? "var(--green-dark)" : "#1a2a22"}`,
                             color: u.plan === "pro" ? "var(--green)" : muted,
                             background: u.plan === "pro" ? "rgba(0,187,102,0.10)" : "transparent",
                           }}>{u.plan}</span>
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: u.subscription_status === "active" ? "var(--green)" : u.subscription_status === "canceled" ? "#ff8888" : muted }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: u.subscription_status === "active" ? "var(--green)" : u.subscription_status === "canceled" ? "#ff8888" : muted }}>
                           {u.subscription_status ?? "—"}
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
                           {u.subscription_current_period_end ? new Date(u.subscription_current_period_end).toLocaleDateString("en-GB") : "—"}
                         </td>
-                        <td className="border-b px-3 py-2.5 font-mono text-[10px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="border-b px-4 py-4 font-mono text-[10px]" style={{ borderColor: "#111816", color: muted }}>
                           {u.stripe_subscription_id ? (
                             <a href={`https://dashboard.stripe.com/subscriptions/${u.stripe_subscription_id}`} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: "var(--green-dim)" }}>
                               {u.stripe_subscription_id.slice(0, 14)}…
                             </a>
                           ) : "—"}
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
                           {new Date(u.created_at).toLocaleDateString("en-GB")}
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
                           {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("en-GB") : "—"}
                         </td>
-                        <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                        <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <div className="flex gap-1.5">
                             {u.plan === "free" ? (
                               <button
                                 type="button"
                                 disabled={userBusy === u.id}
                                 onClick={() => void changeUserPlan(u.id, "pro")}
-                                className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                                 style={{ borderColor: "var(--green-dark)", color: "var(--green)" }}
                               >→ PRO</button>
                             ) : (
@@ -989,7 +989,7 @@ export default function AdminPage() {
                                 type="button"
                                 disabled={userBusy === u.id}
                                 onClick={() => void changeUserPlan(u.id, "free")}
-                                className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                                 style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
                               >→ Free</button>
                             )}
@@ -998,7 +998,7 @@ export default function AdminPage() {
                                 href={`https://dashboard.stripe.com/customers/${u.stripe_customer_id}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline"
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline"
                                 style={{ borderColor: "#1a2a22", color: muted }}
                               >Stripe ↗</a>
                             )}
@@ -1091,7 +1091,7 @@ export default function AdminPage() {
                         <div className="mt-3 flex flex-wrap gap-2">
                           <button
                             type="button"
-                            className="rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                            className="rounded border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
                             style={{ borderColor: "#1a2a22", color: "var(--green)" }}
                             onClick={() =>
                               void navigator.clipboard
@@ -1104,7 +1104,7 @@ export default function AdminPage() {
                           {analyticsClientIp ? (
                             <button
                               type="button"
-                              className="rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                              className="rounded border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
                               style={{ borderColor: "#1a2a22", color: "var(--green)" }}
                               onClick={() =>
                                 void navigator.clipboard
@@ -1142,10 +1142,10 @@ export default function AdminPage() {
                       <tbody>
                         {stats.charts.topPaths.map((p) => (
                           <tr key={p.path} className="hover:bg-[#0f1510]">
-                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                            <td className="max-w-[1px] truncate border-b px-4 py-4 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
                               {p.path}
                             </td>
-                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
+                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
                               {p.count}
                             </td>
                           </tr>
@@ -1179,13 +1179,13 @@ export default function AdminPage() {
                       <tbody>
                         {stats.charts.topRoutes.map((r) => (
                           <tr key={r.route} className="hover:bg-[#0f1510]">
-                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                            <td className="max-w-[1px] truncate border-b px-4 py-4 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
                               {r.route}
                             </td>
-                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
+                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
                               {r.total}
                             </td>
-                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: r.errors > 0 ? "#ff6666" : muted }}>
+                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: r.errors > 0 ? "#ff6666" : muted }}>
                               {r.errors}
                             </td>
                           </tr>
@@ -1217,19 +1217,19 @@ export default function AdminPage() {
                       <tbody>
                         {stats.contact.recent.map((r) => (
                           <tr key={r.id} className="hover:bg-[#0f1510]">
-                            <td className="whitespace-nowrap border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                            <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
                               {new Date(r.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
                             </td>
-                            <td className="max-w-[140px] truncate border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                            <td className="max-w-[140px] truncate border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
                               {r.name}
                             </td>
-                            <td className="border-b px-4 py-2.5 text-[12px] uppercase" style={{ borderColor: "#111816", color: muted }}>
+                            <td className="border-b px-4 py-4 text-[12px] uppercase" style={{ borderColor: "#111816", color: muted }}>
                               {r.category}
                             </td>
-                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                            <td className="max-w-[1px] truncate border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
                               {r.subject}
                             </td>
-                            <td className="border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: r.read ? muted : "var(--green)" }}>
+                            <td className="border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: r.read ? muted : "var(--green)" }}>
                               {r.read ? "yes" : "no"}
                             </td>
                           </tr>
@@ -1276,7 +1276,7 @@ export default function AdminPage() {
                   <thead>
                     <tr style={{ background: "#0a100c" }}>
                       {["Title", "Author", "Category", "Posts", "Credibility", "Oracle", "Date", "Actions"].map((h) => (
-                        <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
+                        <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1286,37 +1286,37 @@ export default function AdminPage() {
                     )}
                     {threads.map((t) => (
                       <tr key={t.id} className="hover:bg-[#0f1510]">
-                        <td className="max-w-[200px] border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                        <td className="max-w-[200px] border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <a href={`/community?thread=${t.id}`} target="_blank" rel="noreferrer" className="text-[12px] no-underline hover:underline line-clamp-1" style={{ color: "var(--foreground)" }}>
                             {t.title}
                           </a>
                         </td>
-                        <td className="max-w-[100px] truncate border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>{t.author_name}</td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{t.category}</td>
-                        <td className="border-b px-3 py-2.5 text-center text-[12px] tabular-nums" style={{ borderColor: "#111816", color: "var(--foreground)" }}>{t.post_count ?? 0}</td>
-                        <td className="border-b px-3 py-2.5 text-center text-[12px] tabular-nums" style={{ borderColor: "#111816", color: t.credibility_score && t.credibility_score >= 60 ? "var(--green)" : muted }}>
+                        <td className="max-w-[100px] truncate border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>{t.author_name}</td>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{t.category}</td>
+                        <td className="border-b px-4 py-4 text-center text-[12px] tabular-nums" style={{ borderColor: "#111816", color: "var(--foreground)" }}>{t.post_count ?? 0}</td>
+                        <td className="border-b px-4 py-4 text-center text-[12px] tabular-nums" style={{ borderColor: "#111816", color: t.credibility_score && t.credibility_score >= 60 ? "var(--green)" : muted }}>
                           {t.credibility_score != null ? `${t.credibility_score}%` : "—"}
                         </td>
-                        <td className="border-b px-3 py-2.5 text-center text-[11px]" style={{ borderColor: "#111816", color: t.oracle_analyzed ? "var(--green)" : muted }}>
+                        <td className="border-b px-4 py-4 text-center text-[11px]" style={{ borderColor: "#111816", color: t.oracle_analyzed ? "var(--green)" : muted }}>
                           {t.oracle_analyzed ? "✓" : "—"}
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                           {new Date(t.created_at).toLocaleDateString("en-GB")}
                         </td>
-                        <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                        <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <div className="flex gap-1.5">
                             <button
                               type="button"
                               disabled={threadBusy === t.id}
                               onClick={() => void removeThread(t.id, false)}
-                              className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#4a2a1a", color: "#ffaa66" }}
                             >Hide</button>
                             <button
                               type="button"
                               disabled={threadBusy === t.id}
                               onClick={() => void removeThread(t.id, true)}
-                              className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
                             >Delete</button>
                           </div>
@@ -1388,7 +1388,7 @@ export default function AdminPage() {
                   <thead>
                     <tr style={{ background: "#0a100c" }}>
                       {["Title", "Section", "Score", "Readers", "Oracle", "Source", "Date", "Actions"].map((h) => (
-                        <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
+                        <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1398,19 +1398,19 @@ export default function AdminPage() {
                     )}
                     {articles.map((a) => (
                       <tr key={a.id} className="hover:bg-[#0f1510]">
-                        <td className="max-w-[280px] border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                        <td className="max-w-[280px] border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <a href={`/article/${a.id}`} target="_blank" rel="noreferrer" className="text-[12px] no-underline hover:underline line-clamp-2" style={{ color: "var(--foreground)" }}>
                             {a.title}
                           </a>
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{a.section}</td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-center" style={{ borderColor: "#111816" }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{a.section}</td>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-center" style={{ borderColor: "#111816" }}>
                           <span className="font-raj text-[13px] font-bold" style={{ color: a.score >= 75 ? "#ff6666" : a.score >= 50 ? "#ffaa00" : "var(--green)" }}>
                             {a.score}%
                           </span>
                         </td>
                         <td
-                          className="whitespace-nowrap border-b px-3 py-2.5 text-center"
+                          className="whitespace-nowrap border-b px-4 py-4 text-center"
                           style={{ borderColor: "#111816" }}
                           title={
                             typeof a.view_count === "number" && a.view_count > (a.unique_viewers ?? 0)
@@ -1429,23 +1429,23 @@ export default function AdminPage() {
                               </span>
                             )}
                         </td>
-                        <td className="border-b px-3 py-2.5 text-center text-[11px]" style={{ borderColor: "#111816", color: a.has_oracle ? "var(--green)" : muted }}>
+                        <td className="border-b px-4 py-4 text-center text-[11px]" style={{ borderColor: "#111816", color: a.has_oracle ? "var(--green)" : muted }}>
                           {a.has_oracle ? "✓" : "—"}
                         </td>
-                        <td className="max-w-[100px] truncate border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="max-w-[100px] truncate border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                           {a.source ?? "—"}
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                           {new Date(a.date).toLocaleDateString("en-GB")}
                         </td>
-                        <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                        <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <div className="flex gap-1.5">
-                            <a href={`/board/${a.id}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
+                            <a href={`/board/${a.id}`} target="_blank" rel="noreferrer" className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
                             <button
                               type="button"
                               disabled={articleBusy === a.id}
                               onClick={() => void deleteArticle(a.id, a.title)}
-                              className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
                             >Delete</button>
                           </div>
@@ -1474,19 +1474,19 @@ export default function AdminPage() {
                 when repeat visits exist. Same exclusions as Traffic. Apply migration{" "}
                 <code className="text-[var(--green-dim)]">20260514210000</code> for the readers column; older DBs only show totals.
               </p>
-              <div className="rounded-lg border p-4" style={{ background: "rgba(255,100,0,0.04)", borderColor: "#4a3010" }}>
-                <div className="font-raj text-[11px] font-bold uppercase tracking-wider" style={{ color: "#ffaa66" }}>
+              <div className="rounded-lg border p-5 sm:p-6" style={{ background: "rgba(255,100,0,0.04)", borderColor: "#4a3010" }}>
+                <div className="font-raj text-[12px] font-bold uppercase tracking-wider" style={{ color: "#ffaa66" }}>
                   Blog maintenance
                 </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: muted }}>
+                <p className="mt-3 text-[12px] leading-relaxed" style={{ color: muted }}>
                   Sanitize strips non-whitelisted source URLs in every stored report (titles stay). Delete all removes every published /blog post (votes and Oracle rows for those reports follow DB cascades).
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-5 flex flex-wrap gap-3">
                   <button
                     type="button"
                     disabled={blogAdminBusy !== ""}
                     onClick={() => void sanitizeAllReportSources()}
-                    className="rounded border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#1a3320", color: "var(--green-dim)" }}
                   >
                     {blogAdminBusy === "sanitize" ? "Sanitizing…" : "Sanitize all source URLs"}
@@ -1495,7 +1495,7 @@ export default function AdminPage() {
                     type="button"
                     disabled={blogAdminBusy !== ""}
                     onClick={() => void deleteAllPublishedReports()}
-                    className="rounded border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
                   >
                     {blogAdminBusy === "delete_all" ? "Deleting…" : "Delete all published reports"}
@@ -1508,7 +1508,7 @@ export default function AdminPage() {
                     <thead>
                       <tr style={{ background: "#0a100c" }}>
                         {["Title", "Category", "Published", "Readers", "Open", "Actions"].map((h) => (
-                          <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
+                          <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1518,15 +1518,15 @@ export default function AdminPage() {
                       )}
                       {blogPosts.map((p) => (
                         <tr key={p.id} className="hover:bg-[#0f1510]">
-                          <td className="max-w-[320px] border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                          <td className="max-w-[320px] border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             <span className="text-[12px] line-clamp-2" style={{ color: "var(--foreground)" }}>{p.title}</span>
                           </td>
-                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{p.category}</td>
-                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                          <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{p.category}</td>
+                          <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                             {new Date(p.published_at).toLocaleDateString("en-GB")}
                           </td>
                           <td
-                            className="whitespace-nowrap border-b px-3 py-2.5 text-center"
+                            className="whitespace-nowrap border-b px-4 py-4 text-center"
                             style={{ borderColor: "#111816" }}
                             title={
                               p.view_count > p.unique_viewers
@@ -1543,18 +1543,18 @@ export default function AdminPage() {
                               </span>
                             )}
                           </td>
-                          <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                          <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             <div className="flex flex-wrap gap-2">
-                              <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>View ↗</a>
-                              <a href={`/board/${p.id}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
+                              <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>View ↗</a>
+                              <a href={`/board/${p.id}`} target="_blank" rel="noreferrer" className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
                             </div>
                           </td>
-                          <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                          <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             <button
                               type="button"
                               disabled={blogAdminBusy !== ""}
                               onClick={() => void deleteBlogPost(p.id, p.title)}
-                              className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
                             >
                               {blogAdminBusy === p.id ? "…" : "Delete"}
@@ -1591,7 +1591,7 @@ export default function AdminPage() {
                 Refresh jobs
               </button>
             </div>
-            <div className="rounded-xl p-4 text-[12px] leading-relaxed sm:p-5" style={{ background: cardBg, border: "1px solid #24322c", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)", color: muted }}>
+            <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)", color: muted }}>
               <strong style={{ color: "var(--foreground)" }}>Main news</strong> and <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> jobs only — they pull raw rows into <code className="text-[var(--green-dim)]">news_items</code> /{" "}
               <code className="text-[var(--green-dim)]">uap_sightings</code>. Not the same as the investigation article writers below.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
@@ -1630,7 +1630,7 @@ export default function AdminPage() {
                 Refresh jobs
               </button>
             </div>
-            <div className="rounded-xl p-4 text-[12px] leading-relaxed sm:p-5" style={{ background: cardBg, border: "1px solid #24322c", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)", color: muted }}>
+            <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)", color: muted }}>
               These jobs call OpenAI and publish long-form reports to <code className="text-[var(--green-dim)]">/blog/&lt;slug&gt;</code>. They are{" "}
               <strong style={{ color: "var(--foreground)" }}>not</strong> the Guardian/GNews/Reddit ingest or the NUFORC scrape — schedule them separately if you want different cadence.
             </div>
@@ -1675,22 +1675,22 @@ export default function AdminPage() {
                   <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
                     <thead>
                       <tr style={{ background: "#0a100c" }}>
-                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                        <th className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
                           Status
                         </th>
-                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                        <th className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
                           Date
                         </th>
-                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                        <th className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
                           Name
                         </th>
-                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                        <th className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
                           Email
                         </th>
-                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                        <th className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
                           Cat
                         </th>
-                        <th className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
+                        <th className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>
                           Subject
                         </th>
                       </tr>
@@ -1720,26 +1720,26 @@ export default function AdminPage() {
                             background: selectedMsg?.id === m.id ? "rgba(0,187,102,0.06)" : undefined,
                           }}
                         >
-                          <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                          <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             {!m.read ? (
                               <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--green)" }} title="Unread" />
                             ) : (
                               <span className="text-[11px]" style={{ color: muted }}>—</span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                          <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
                             {new Date(m.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
                           </td>
-                          <td className="max-w-[120px] truncate border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                          <td className="max-w-[120px] truncate border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
                             {m.name}
                           </td>
-                          <td className="max-w-[180px] truncate border-b px-3 py-2.5 font-mono text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                          <td className="max-w-[180px] truncate border-b px-4 py-4 font-mono text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                             {m.email}
                           </td>
-                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>
+                          <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>
                             {m.category}
                           </td>
-                          <td className="max-w-[1px] truncate border-b px-3 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                          <td className="max-w-[1px] truncate border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
                             {m.subject}
                           </td>
                         </tr>
@@ -1776,7 +1776,7 @@ export default function AdminPage() {
 
               <div
                 ref={detailRef}
-                className="min-h-[280px] rounded-lg p-5 lg:min-h-[360px]"
+                className="min-h-[280px] rounded-lg p-6 lg:min-h-[360px]"
                 style={{ background: cardBg, border }}
               >
                 {selectedMsg ? (
@@ -1797,7 +1797,7 @@ export default function AdminPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedMsg(null)}
-                        className="flex-shrink-0 rounded border px-2 py-1 text-[11px]"
+                        className="flex-shrink-0 rounded border px-3 py-2 text-[11px]"
                         style={{ borderColor: "#1a2a22", color: muted }}
                         aria-label="Close detail"
                       >
@@ -1805,7 +1805,7 @@ export default function AdminPage() {
                       </button>
                     </div>
                     <pre
-                      className="mb-4 max-h-[min(50vh,420px)] overflow-auto whitespace-pre-wrap rounded-md border p-4 text-[13px] leading-relaxed"
+                      className="mb-4 max-h-[min(50vh,420px)] overflow-auto whitespace-pre-wrap rounded-md border p-5 text-[13px] leading-relaxed"
                       style={{ borderColor: "#1a2a22", background: "#050805", color: "var(--foreground)" }}
                     >
                       {selectedMsg.message}
