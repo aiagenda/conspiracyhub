@@ -2,7 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const revalidate = 3600;
+/** Always query fresh list — avoids stale “no articles” ISR after new posts are published. */
+export const dynamic = "force-dynamic";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 

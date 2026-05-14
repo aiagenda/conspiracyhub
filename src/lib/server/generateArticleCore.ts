@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 import { callOpenAIJSON } from "@/lib/openai";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
@@ -277,6 +278,13 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
       .single();
 
     if (error) return { status: 500, payload: { error: error.message } };
+
+    try {
+      revalidatePath("/blog");
+      revalidatePath(`/blog/${finalSlug}`);
+    } catch {
+      /* revalidatePath only valid during a Next.js request; ignore if ever called elsewhere */
+    }
 
     return {
       status: 200,
