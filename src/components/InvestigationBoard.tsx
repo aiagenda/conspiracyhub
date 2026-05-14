@@ -479,6 +479,37 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
               <div style={{ fontFamily: FONT, fontSize: 11, color: c.text }}>{d.source}</div>
             </div>
           )}
+
+          {/* Brave-enriched search results — visible on ALL node types */}
+          {d.brave_sources && d.brave_sources.length > 0 && (
+            <div style={{ paddingTop: 14, borderTop: "1px solid #1a3320" }}>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#4ab8e0", letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>
+                ⬡ Web Intelligence · {d.brave_sources.length} Sources
+              </div>
+              {(d.brave_sources as { title: string; url: string; description: string }[]).map((src, i) => {
+                let domain = "";
+                try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                return (
+                  <a
+                    key={i}
+                    href={src.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "block", marginBottom: 8, padding: "9px 11px", border: "1px solid rgba(74,184,224,0.2)", borderRadius: 4, background: "rgba(74,184,224,0.03)", textDecoration: "none" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                      <span style={{ color: "#4ab8e0", fontSize: 10, flexShrink: 0 }}>↗</span>
+                      <span style={{ fontFamily: FONT, fontSize: 11, color: "#7ad4f0", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{src.title}</span>
+                    </div>
+                    {src.description ? (
+                      <div style={{ fontFamily: FONT, fontSize: 10, color: "#5a8a9a", lineHeight: 1.5, marginBottom: 3, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{src.description}</div>
+                    ) : null}
+                    {domain ? <div style={{ fontFamily: FONT, fontSize: 9, color: "#3a6878", letterSpacing: 1 }}>{domain}</div> : null}
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -792,44 +823,44 @@ function DetailPanel({
           </>
         ) : null}
 
-        {(Boolean(d.brave_sources?.length) || Boolean(d.theory_sources?.length)) ? (
+        {/* Brave Web Intelligence — all node types */}
+        {d.brave_sources && (d.brave_sources as { title: string; url: string; description: string }[]).length > 0 ? (
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 10, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Theory sources & citations</div>
-            {d.brave_sources && d.brave_sources.length > 0 ? (
-              (d.brave_sources as { title: string; url: string; description: string }[]).slice(0, 8).map((src, i) => {
-                let domain = "";
-                try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
-                return (
-                  <a
-                    key={`bsrc-${i}`}
-                    href={src.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: "block", marginBottom: 7, padding: "7px 10px", border: "1px solid rgba(0,187,102,0.25)", borderRadius: 4, background: "rgba(0,187,102,0.04)", textDecoration: "none" }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
-                      <span style={{ color: "#00ff88", fontSize: 10, flexShrink: 0 }}>↗</span>
-                      <span style={{ fontFamily: FONT, fontSize: 11, color: "#00cc77", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{src.title}</span>
-                    </div>
-                    {src.description ? (
-                      <div style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", lineHeight: 1.5, marginBottom: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{src.description}</div>
-                    ) : null}
-                    {domain ? <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{domain}</div> : null}
-                  </a>
-                );
-              })
-            ) : (
-              (d.theory_sources as string[]).slice(0, 12).map((item: string, i: number) => (
-                <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, color: "#bdb0c8", fontSize: 11, marginBottom: 6, wordBreak: "break-word" }}>
-                  <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
-                  <span style={{ flex: 1 }}>
-                    {isLikelyUrl(item) ? (
-                      <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none" }}>{item}</a>
-                    ) : item}
-                  </span>
-                </div>
-              ))
-            )}
+            <div style={{ fontFamily: FONT, fontSize: 10, color: "#4ab8e0", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>
+              ⬡ Web Intelligence · {(d.brave_sources as { title: string; url: string; description: string }[]).length} sources
+            </div>
+            {(d.brave_sources as { title: string; url: string; description: string }[]).slice(0, 8).map((src, i) => {
+              let domain = "";
+              try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+              return (
+                <a
+                  key={`bsrc-${i}`}
+                  href={src.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "block", marginBottom: 7, padding: "7px 10px", border: "1px solid rgba(74,184,224,0.22)", borderRadius: 4, background: "rgba(74,184,224,0.03)", textDecoration: "none" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                    <span style={{ color: "#4ab8e0", fontSize: 10, flexShrink: 0 }}>↗</span>
+                    <span style={{ fontFamily: FONT, fontSize: 11, color: "#7ad4f0", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{src.title}</span>
+                  </div>
+                  {src.description ? (
+                    <div style={{ fontFamily: FONT, fontSize: 10, color: "#5a8a9a", lineHeight: 1.5, marginBottom: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{src.description}</div>
+                  ) : null}
+                  {domain ? <div style={{ fontFamily: FONT, fontSize: 9, color: "#3a6878", letterSpacing: 1 }}>{domain}</div> : null}
+                </a>
+              );
+            })}
+          </div>
+        ) : (d.theory_sources && (d.theory_sources as string[]).length > 0) ? (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 10, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Theory citations</div>
+            {(d.theory_sources as string[]).filter((s: string) => isLikelyUrl(s)).slice(0, 12).map((item: string, i: number) => (
+              <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, color: "#bdb0c8", fontSize: 11, marginBottom: 6, wordBreak: "break-word" }}>
+                <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
+                <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none", flex: 1 }}>{item}</a>
+              </div>
+            ))}
           </div>
         ) : null}
 

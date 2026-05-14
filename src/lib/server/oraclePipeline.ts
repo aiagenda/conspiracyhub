@@ -39,6 +39,32 @@ function clampDbSourceType(st: unknown): "official" | "media" | "research" | "ar
   return "media";
 }
 
+/**
+ * Build a Brave search query tailored to the node type.
+ * Prioritises investigative angles: profile, connections, evidence, timeline.
+ */
+function buildBraveQuery(type: string, nodeTitle: string, topic: string): string {
+  const t = nodeTitle.slice(0, 50);
+  const ctx = topic.slice(0, 40);
+  switch (type) {
+    case "person":
+      return `"${t}" ${ctx} investigation connections profile background`;
+    case "company":
+      return `"${t}" ${ctx} corporate fraud scandal investigation exposed`;
+    case "event":
+      return `"${t}" ${ctx} evidence timeline what really happened`;
+    case "theory":
+      return `"${t}" ${ctx} conspiracy evidence proof claims`;
+    case "foia":
+      return `"${t}" ${ctx} declassified document FOIA leaked`;
+    case "patent":
+      return `"${t}" ${ctx} patent secret technology hidden`;
+    case "article":
+    default:
+      return `"${t}" ${ctx} investigation report`;
+  }
+}
+
 function clampDbTier(tier: unknown): "A" | "B" | "C" {
   const t = String(tier ?? "B").toUpperCase().trim();
   return t === "A" || t === "B" || t === "C" ? t : "B";
@@ -191,13 +217,12 @@ export async function runOraclePipelineInsert(
       },
     }));
 
-    const topicKeywords = primaryTitle.slice(0, 60);
+    const topicKeywords = primaryTitle.slice(0, 55);
     await Promise.all(
       normalizedNodes.map(async (node) => {
-        if (node.type !== "theory") return;
-        const theoryName = node.detail?.title || node.label;
-        const query = `${theoryName} ${topicKeywords}`;
-        const braveResults = await searchBrave(query, 6);
+        const nodeTitle = node.detail?.title || node.label;
+        const query = buildBraveQuery(node.type, nodeTitle, topicKeywords);
+        const braveResults = await searchBrave(query, 8);
         if (!braveResults.length) return;
         const existingSources: string[] = Array.isArray(node.detail?.theory_sources)
           ? (node.detail.theory_sources as string[])
@@ -209,7 +234,7 @@ export async function runOraclePipelineInsert(
           .map((r) => ({ title: r.title, url: r.url, description: r.description }));
         node.detail = {
           ...node.detail,
-          theory_sources: [...existingSources, ...newUrls],
+          theory_sources: node.type === "theory" ? [...existingSources, ...newUrls] : existingSources,
           brave_sources: braveStructured,
         };
       }),

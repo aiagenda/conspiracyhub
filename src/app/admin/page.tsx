@@ -218,6 +218,7 @@ export default function AdminPage() {
   const [articleSummary, setArticleSummary] = useState<{ totalArticles: number; highThreat: number; oracleAnalyses: number } | null>(null);
   const [articleBusy, setArticleBusy] = useState<string>("");
   const [rescoreBusyId, setRescoreBusyId] = useState<string>("");
+  const [braveBusyId, setBraveBusyId] = useState<string>("");
   const [articleScoreFilter, setArticleScoreFilter] = useState(0);
 
   const [blogPosts, setBlogPosts] = useState<AdminBlogPost[]>([]);
@@ -430,6 +431,43 @@ export default function AdminPage() {
       await loadArticles(articlePage, articleScoreFilter);
     } finally {
       setRescoreBusyId("");
+    }
+  }
+
+  async function adminBraveRefresh(opts: { newsId?: string; generatedArticleId?: string }) {
+    if (!isSupabaseBrowserConfigured()) {
+      setErr("Supabase browser client is not configured.");
+      return;
+    }
+    const busyId = opts.newsId ?? opts.generatedArticleId ?? "";
+    setBraveBusyId(busyId);
+    setErr("");
+    try {
+      const {
+        data: { session },
+      } = await getSupabaseBrowserClient().auth.getSession();
+      if (!session?.access_token) {
+        setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
+        return;
+      }
+      const res = await fetch("/api/admin/oracle-brave-refresh", {
+        method: "POST",
+        headers: { ...JSON_HEADERS, Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(opts),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string; message?: string; enriched?: number; total?: number };
+      if (!res.ok) {
+        if (res.status === 403 && d.error === "admin_only") {
+          setErr("Forbidden: set is_admin = true on your user in user_profiles.");
+        } else if (res.status === 404) {
+          setErr("No Oracle analysis yet for this item — run Oracle ↻ first, then Brave ↺.");
+        } else {
+          setErr([d.message, d.error].filter(Boolean).join(" — ") || res.statusText);
+        }
+        return;
+      }
+    } finally {
+      setBraveBusyId("");
     }
   }
 
@@ -1615,7 +1653,7 @@ export default function AdminPage() {
                             <a href={`/board/${a.id}`} target="_blank" rel="noreferrer" className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
                             <button
                               type="button"
-                              disabled={rescoreBusyId !== "" || articleBusy === a.id || bulkOracleBusy !== ""}
+                              disabled={rescoreBusyId !== "" || articleBusy === a.id || bulkOracleBusy !== "" || braveBusyId !== ""}
                               onClick={() => void adminRescore(a.id)}
                               className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#203040", color: "#6ab0e0" }}
@@ -1625,7 +1663,17 @@ export default function AdminPage() {
                             </button>
                             <button
                               type="button"
-                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || rescoreBusyId !== ""}
+                              disabled={braveBusyId !== "" || articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || rescoreBusyId !== ""}
+                              onClick={() => void adminBraveRefresh({ newsId: a.id })}
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              style={{ borderColor: "#1a3040", color: "#4ab8e0" }}
+                              title="Brave ↺ — frissíti a linkeket minden board node-ra (OpenAI nélkül, Brave Search API)"
+                            >
+                              {braveBusyId === a.id ? "…" : "Brave ↺"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || rescoreBusyId !== "" || braveBusyId !== ""}
                               onClick={() => void adminOracleRerun({ newsId: a.id })}
                               className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#3a4020", color: "#ccaa44" }}
@@ -1777,7 +1825,17 @@ export default function AdminPage() {
                             <div className="flex flex-wrap gap-1.5">
                               <button
                                 type="button"
-                                disabled={blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                                disabled={braveBusyId !== "" || blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                                onClick={() => void adminBraveRefresh({ generatedArticleId: p.id })}
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                style={{ borderColor: "#1a3040", color: "#4ab8e0" }}
+                                title="Brave ↺ — frissíti a linkeket minden board node-ra (OpenAI nélkül)"
+                              >
+                                {braveBusyId === p.id ? "…" : "Brave ↺"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || braveBusyId !== ""}
                                 onClick={() => void adminOracleRerun({ generatedArticleId: p.id })}
                                 className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                                 style={{ borderColor: "#3a4020", color: "#ccaa44" }}
