@@ -537,176 +537,162 @@ export default function AdminPage() {
     const last = job.last_run;
     const statusColor =
       !last ? muted : last.status === "success" ? "var(--green)" : last.status === "running" ? "#ffaa66" : "#ff8888";
+    const cronHuman = humanizeCronUtc(job.schedule_cron);
+    const lastRunShort = last
+      ? new Date(last.started_at).toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+    const durationShort = last?.duration_ms != null ? `${Math.round(last.duration_ms / 1000)}s` : "—";
 
     return (
       <div
         key={job.id}
-        className="overflow-hidden rounded-[10px]"
+        className="rounded-lg border px-3 py-2 sm:px-3.5 sm:py-2.5"
         style={{
-          background: "linear-gradient(165deg, rgba(0, 255, 136, 0.06) 0%, transparent 42%), #080c09",
-          border: "1px solid #2a3830",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
+          background: "#080c09",
+          borderColor: "#2a3830",
+          boxShadow: "inset 3px 0 0 rgba(0, 187, 102, 0.35)",
         }}
       >
-        <div
-          aria-hidden
-          style={{
-            height: 3,
-            background: "linear-gradient(90deg, transparent 0%, rgba(0, 255, 136, 0.45) 35%, rgba(0, 187, 102, 0.25) 65%, transparent 100%)",
-          }}
-        />
-        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b pb-4" style={{ borderColor: "#1a2620" }}>
-            <div className="min-w-0 flex-1">
-              <div className="font-raj text-[17px] font-bold leading-tight tracking-wide text-[var(--foreground)]">{job.name}</div>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2 font-mono text-[11px] leading-relaxed" style={{ color: muted }}>
-                <span className="inline-block rounded-md px-3 py-2 leading-normal" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid #1a2620" }}>
-                  {job.job_key}
-                </span>
-                <span className="opacity-50">·</span>
-                <span className="inline-block rounded-md px-3 py-2 leading-normal" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid #1a2620" }}>
-                  {job.target}
-                </span>
-              </div>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="font-raj text-[13px] font-bold leading-snug tracking-wide text-[var(--foreground)]">{job.name}</div>
+            <div
+              className="mt-0.5 truncate font-mono text-[10px] leading-tight"
+              style={{ color: muted }}
+              title={`${job.job_key} · ${job.target}`}
+            >
+              {job.job_key} · {job.target}
             </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             <span
-              className="shrink-0 rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-widest"
+              className="rounded px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
               style={{
                 border: job.enabled ? "1px solid rgba(0,187,102,0.45)" : "1px solid #1a2620",
                 color: job.enabled ? "var(--green)" : muted,
-                background: job.enabled ? "rgba(0,187,102,0.12)" : "rgba(0,0,0,0.2)",
-                boxShadow: job.enabled ? "0 0 20px rgba(0,255,136,0.08)" : "none",
+                background: job.enabled ? "rgba(0,187,102,0.1)" : "rgba(0,0,0,0.25)",
               }}
             >
-              {job.enabled ? "Enabled" : "Disabled"}
+              {job.enabled ? "On" : "Off"}
+            </span>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => void updateScraper(job, { enabled: !job.enabled })}
+              className="rounded border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+              style={{ borderColor: "#2a3830", color: muted }}
+            >
+              {job.enabled ? "Disable" : "Enable"}
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => void runScraperNow(job)}
+              className="rounded border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-[background,box-shadow] disabled:opacity-50"
+              style={{
+                borderColor: "var(--green-dark)",
+                color: "var(--green)",
+                background: "rgba(0,187,102,0.12)",
+                boxShadow: "inset 0 1px 0 rgba(0,255,136,0.1)",
+              }}
+            >
+              {running ? "Running" : "Run now"}
+            </button>
+            {job.target === "uap_scraper" && (
+              <button
+                type="button"
+                disabled={running}
+                onClick={() => {
+                  const current = Number(job.config?.max_new ?? 70) || 70;
+                  const raw = prompt("UAP max_new (1-120):", String(current));
+                  if (!raw) return;
+                  const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
+                  void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
+                }}
+                className="rounded border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+                style={{ borderColor: "#2a3830", color: muted }}
+              >
+                max_new
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-2"
+          style={{ borderColor: "#1a2620" }}
+        >
+          <div className="flex min-w-[min(100%,12rem)] max-w-full flex-1 flex-wrap items-center gap-2">
+            <input
+              key={`${job.id}-${job.schedule_cron}`}
+              defaultValue={job.schedule_cron}
+              onBlur={(e) => {
+                const next = e.currentTarget.value.trim();
+                if (next && next !== job.schedule_cron) {
+                  void updateScraper(job, { schedule_cron: next });
+                }
+              }}
+              className="box-border h-8 min-w-0 flex-1 rounded border px-2 py-1 font-mono text-[12px] leading-none outline-none transition-[border-color,box-shadow] focus:border-[rgba(0,187,102,0.5)] focus:shadow-[0_0_0_1px_rgba(0,187,102,0.2)] sm:max-w-[220px]"
+              style={{ borderColor: "#24322c", background: "#050805", color: "var(--foreground)" }}
+              aria-label={`Cron schedule (UTC) for ${job.name}`}
+              title={cronHuman}
+            />
+            <span
+              className="hidden max-w-[min(14rem,28vw)] truncate text-[10px] leading-tight sm:inline"
+              style={{ color: "var(--green-dim)" }}
+              title={cronHuman}
+            >
+              {cronHuman}
             </span>
           </div>
-
-          <div className="mb-5 rounded-lg p-5 sm:p-6" style={{ background: "#0a100c", border: "1px solid #1a2620" }}>
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--green-dim)" }}>
-              Cron (UTC)
-            </div>
-            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-              <div className="min-w-0 flex-1 sm:min-w-[220px]">
-                <input
-                  key={`${job.id}-${job.schedule_cron}`}
-                  defaultValue={job.schedule_cron}
-                  onBlur={(e) => {
-                    const next = e.currentTarget.value.trim();
-                    if (next && next !== job.schedule_cron) {
-                      void updateScraper(job, { schedule_cron: next });
-                    }
-                  }}
-                  className="box-border w-full min-h-[48px] rounded-md border px-4 py-3.5 font-mono text-[13px] leading-normal outline-none transition-[border-color,box-shadow] focus:border-[rgba(0,187,102,0.5)] focus:shadow-[0_0_0_1px_rgba(0,187,102,0.25)]"
-                  style={{ borderColor: "#24322c", background: "#050805", color: "var(--foreground)" }}
-                  aria-label={`Cron schedule for ${job.name}`}
-                />
-                <div className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--green-dim)" }}>
-                  {humanizeCronUtc(job.schedule_cron)}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <button
-                  type="button"
-                  disabled={running}
-                  onClick={() => void updateScraper(job, { enabled: !job.enabled })}
-                  className="rounded-md border px-4 py-3 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#0f1812] disabled:opacity-50"
-                  style={{ borderColor: "#2a3830", color: muted }}
-                >
-                  {job.enabled ? "Disable" : "Enable"}
-                </button>
-                <button
-                  type="button"
-                  disabled={running}
-                  onClick={() => void runScraperNow(job)}
-                  className="rounded-md border px-4 py-3 text-[11px] font-semibold uppercase tracking-wider transition-[background,box-shadow] disabled:opacity-50"
-                  style={{
-                    borderColor: "var(--green-dark)",
-                    color: "var(--green)",
-                    background: "rgba(0,187,102,0.1)",
-                    boxShadow: "inset 0 1px 0 rgba(0,255,136,0.12)",
-                  }}
-                >
-                  {running ? "Running…" : "Run now"}
-                </button>
-                {job.target === "uap_scraper" && (
-                  <button
-                    type="button"
-                    disabled={running}
-                    onClick={() => {
-                      const current = Number(job.config?.max_new ?? 70) || 70;
-                      const raw = prompt("UAP max_new (1-120):", String(current));
-                      if (!raw) return;
-                      const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
-                      void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
-                    }}
-                    className="rounded-md border px-4 py-3 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#0f1812] disabled:opacity-50"
-                    style={{ borderColor: "#2a3830", color: muted }}
-                  >
-                    Set max_new
-                  </button>
-                )}
-              </div>
-            </div>
+          <div
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-0 font-mono text-[10px] tabular-nums sm:ml-auto"
+            style={{ color: muted }}
+          >
+            <span title={last ? new Date(last.started_at).toLocaleString("en-GB") : undefined}>
+              <span className="mr-1 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+                Last
+              </span>
+              <span style={{ color: "var(--foreground)" }}>{lastRunShort}</span>
+            </span>
+            <span className="font-semibold uppercase" style={{ color: statusColor }}>
+              {last?.status ?? "n/a"}
+            </span>
+            <span title="Duration">{durationShort}</span>
           </div>
-
-          <div className="rounded-lg px-5 py-4 sm:px-6 sm:py-5" style={{ background: "#060a08", border: "1px solid #1a221c" }}>
-            <div className="grid grid-cols-1 gap-4 text-[12px] sm:grid-cols-3 sm:gap-6">
-              <div>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
-                  Last run
-                </div>
-                <div className="font-mono text-[13px]" style={{ color: "var(--foreground)" }}>
-                  {last ? new Date(last.started_at).toLocaleString("en-GB") : "—"}
-                </div>
-              </div>
-              <div>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
-                  Status
-                </div>
-                <div className="font-mono text-[13px] font-semibold uppercase" style={{ color: statusColor }}>
-                  {last?.status ?? "n/a"}
-                </div>
-              </div>
-              <div>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
-                  Duration
-                </div>
-                <div className="font-mono text-[13px]" style={{ color: "var(--foreground)" }}>
-                  {last?.duration_ms != null ? `${Math.round(last.duration_ms / 1000)}s` : "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {last?.error_text && (
-            <div
-              className="mt-4 rounded-lg border px-5 py-4 text-[12px] leading-relaxed"
-              style={{ borderColor: "#4a1a1a", color: "#ff9b9b", background: "rgba(255,51,51,0.08)" }}
-            >
-              {last.error_text}
-            </div>
-          )}
-          {job.target === "article_writer" && last?.status === "success" && last.result?.article && (
-            <div
-              className="mt-4 rounded-lg border px-5 py-4 text-[12px] sm:py-5"
-              style={{ borderColor: "#1a3320", background: "rgba(0,187,102,0.06)" }}
-            >
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--green-dim)" }}>
-                Last article
-              </div>
-              <a
-                href={last.result.article.url ?? `/blog/${last.result.article.slug ?? ""}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block font-raj text-[13px] font-semibold leading-snug underline decoration-[rgba(0,255,136,0.35)] underline-offset-2 transition-colors hover:text-[#7dffbc]"
-                style={{ color: "var(--green)" }}
-              >
-                {last.result.article.title ?? last.result.article.slug ?? "View article"}
-              </a>
-            </div>
-          )}
         </div>
+
+        {last?.error_text ? (
+          <div
+            className="mt-1.5 line-clamp-2 rounded border px-2 py-1 text-[10px] leading-snug"
+            style={{ borderColor: "#4a1a1a", color: "#ff9b9b", background: "rgba(255,51,51,0.06)" }}
+            title={last.error_text}
+          >
+            {last.error_text}
+          </div>
+        ) : null}
+        {job.target === "article_writer" && last?.status === "success" && last.result?.article ? (
+          <div className="mt-1.5 truncate border-t pt-1.5 text-[10px]" style={{ borderColor: "#1a2620" }}>
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "var(--green-dim)" }}>
+              Last article
+            </span>
+            <a
+              href={last.result.article.url ?? `/blog/${last.result.article.slug ?? ""}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-raj font-semibold no-underline underline-offset-2 transition-colors hover:underline"
+              style={{ color: "var(--green)" }}
+              title={last.result.article.title ?? last.result.article.slug ?? ""}
+            >
+              {last.result.article.title ?? last.result.article.slug ?? "View article"}
+            </a>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1600,7 +1586,7 @@ export default function AdminPage() {
                 <code className="text-[var(--green-dim)]">OPENAI_API_KEY</code> for news scoring.
               </span>
             </div>
-            <div className="space-y-5">
+            <div className="space-y-2">
               {feedScraperJobs.map(scraperJobCard)}
               {scrapers.length === 0 && (
                 <div className="rounded-lg px-4 py-8 text-center text-[13px]" style={{ background: cardBg, border, color: muted }}>
@@ -1634,7 +1620,7 @@ export default function AdminPage() {
               These jobs call OpenAI and publish long-form reports to <code className="text-[var(--green-dim)]">/blog/&lt;slug&gt;</code>. They are{" "}
               <strong style={{ color: "var(--foreground)" }}>not</strong> the Guardian/GNews/Reddit ingest or the NUFORC scrape — schedule them separately if you want different cadence.
             </div>
-            <div className="space-y-5">
+            <div className="space-y-2">
               {writerScraperJobs.map(scraperJobCard)}
               {scrapers.length > 0 && writerScraperJobs.length === 0 && (
                 <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
