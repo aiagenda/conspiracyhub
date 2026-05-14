@@ -718,7 +718,7 @@ export default function AdminPage() {
   }
 
   const navBtn =
-    "w-full rounded-md border border-transparent px-4 py-3.5 text-left text-[13px] transition-colors hover:border-[#1a2a22] hover:bg-[#0f1510]";
+    "w-full rounded-md border border-transparent px-3.5 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wide transition-colors hover:border-[#1a3320] hover:bg-[#0a130d]";
 
   return (
     <div
@@ -793,7 +793,7 @@ export default function AdminPage() {
       </header>
 
       <div
-        className="flex w-full flex-1 flex-col gap-0 lg:flex-row"
+        className="flex w-full flex-1 flex-col gap-y-6 lg:flex-row lg:gap-0"
         style={{
           maxWidth: PAGE_CONTENT_MAX + 280,
           marginInline: "auto",
@@ -804,7 +804,7 @@ export default function AdminPage() {
       >
         {/* Sidebar — desktop */}
         <aside
-          className="mb-6 flex w-full flex-shrink-0 flex-row flex-wrap gap-2 border-b pb-4 lg:mb-0 lg:w-[220px] lg:flex-col lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6"
+          className="flex w-full flex-shrink-0 flex-row flex-wrap gap-1.5 border-b pb-5 lg:w-[220px] lg:flex-col lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6 lg:pt-2"
           style={{ borderColor: "#1a2a22" }}
         >
           <p className="hidden w-full text-[10px] uppercase tracking-widest lg:block" style={{ color: muted }}>
@@ -853,7 +853,7 @@ export default function AdminPage() {
         </aside>
 
         {/* Main column */}
-        <main className="min-w-0 flex-1 space-y-8">
+        <main className="min-w-0 flex-1 space-y-10 lg:pl-10">
           {err && (
             <div
               className="rounded-lg border px-4 py-3 text-[13px]"
@@ -865,7 +865,7 @@ export default function AdminPage() {
 
           {/* Overview */}
           <section id="overview">
-            <h2 className="font-raj mb-4 text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+            <h2 className="font-raj mb-5 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
               Overview
             </h2>
             {stats && (
@@ -884,9 +884,9 @@ export default function AdminPage() {
           </section>
 
           {/* ── SUBSCRIBERS ── */}
-          <section id="subscribers" className="space-y-4">
+          <section id="subscribers" className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 ◈ Subscribers
               </h2>
               <div className="flex flex-wrap gap-2">
@@ -1021,7 +1021,7 @@ export default function AdminPage() {
 
           {/* ── TRAFFIC ── */}
           <section id="traffic" className="space-y-6">
-            <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+            <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
               Traffic &amp; API
             </h2>
             {stats && (
@@ -1243,9 +1243,9 @@ export default function AdminPage() {
           </section>
 
           {/* ── COMMUNITY ── */}
-          <section id="community" className="space-y-4">
+          <section id="community" className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 Community threads
               </h2>
               <button type="button" onClick={() => void loadThreads(threadPage)} className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ borderColor: "#1a2a22", color: muted }}>
@@ -1337,9 +1337,9 @@ export default function AdminPage() {
           </section>
 
           {/* ── CONTENT ── */}
-          <section id="content" className="space-y-4">
+          <section id="content" className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 Content — Articles
               </h2>
               <div className="flex flex-wrap gap-2 items-center">
@@ -1577,9 +1577,9 @@ export default function AdminPage() {
           </section>
 
           {/* ── FEED SCRAPERS (ingest) — separate from investigation writers ── */}
-          <section id="scrapers-feed" className="space-y-4">
+          <section id="scrapers-feed" className="space-y-5">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 Feed scrapers & ingest
               </h2>
               <button
@@ -1618,7 +1618,7 @@ export default function AdminPage() {
           {/* ── INVESTIGATION ARTICLE WRITERS (OpenAI → /blog) ── */}
           <section id="scrapers-writers" className="mt-10 space-y-4">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 Investigation article writers
               </h2>
               <button
@@ -1647,7 +1647,7 @@ export default function AdminPage() {
           {/* Inbox */}
           <section id="contact">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 Inbox
               </h2>
               <div className="flex gap-2">
@@ -1840,7 +1840,7 @@ export default function AdminPage() {
 
           {/* Reference / docs */}
           <section id="reference">
-            <h2 className="font-raj mb-3 text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+            <h2 className="font-raj mb-5 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
               Data &amp; compliance
             </h2>
             <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
