@@ -19,6 +19,11 @@ function fingerprint(req: NextRequest): string {
   return createHash("sha256").update(ip + ua).digest("hex").slice(0, 16);
 }
 
+function normId(v: unknown): string {
+  if (v == null) return "";
+  return String(v).trim();
+}
+
 async function readerReactionStats(
   admin: ReturnType<typeof getAdmin>,
   opts: { article_id?: string | null; generated_article_id?: string | null },
@@ -38,18 +43,70 @@ function parseMyReaderReaction(myVotes: { vote_type: string; value: number }[] |
   return 0;
 }
 
+/** reader_reaction: avoid PostgREST upsert quirks on partial unique indexes — update or insert. */
+async function putReaderReaction(
+  admin: ReturnType<typeof getAdmin>,
+  opts: {
+    fingerprint: string;
+    article_id: string | null;
+    generated_article_id: string | null;
+    value: -1 | 1;
+  },
+): Promise<{ error: { message: string } | null }> {
+  const { fingerprint: fp, article_id, generated_article_id, value } = opts;
+  const hasArticle = Boolean(article_id);
+
+  let sel = admin
+    .from("votes")
+    .select("id")
+    .eq("vote_type", READER_REACTION_VOTE_TYPE)
+    .eq("fingerprint", fp)
+    .limit(1);
+  if (hasArticle) {
+    sel = sel.eq("article_id", article_id!).is("generated_article_id", null).is("thread_id", null);
+  } else {
+    sel = sel.eq("generated_article_id", generated_article_id!).is("article_id", null).is("thread_id", null);
+  }
+
+  const { data: rows, error: selErr } = await sel;
+  if (selErr) return { error: selErr };
+
+  const existingId = rows?.[0]?.id as string | undefined;
+
+  if (existingId) {
+    const { error: updErr } = await admin.from("votes").update({ value }).eq("id", existingId);
+    return { error: updErr };
+  }
+
+  const { error: insErr } = await admin.from("votes").insert({
+    article_id: hasArticle ? article_id : null,
+    generated_article_id: hasArticle ? null : generated_article_id,
+    thread_id: null,
+    fingerprint: fp,
+    vote_type: READER_REACTION_VOTE_TYPE,
+    value,
+  });
+  return { error: insErr };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const admin = getAdmin();
     const body = await req.json();
-    const { article_id, generated_article_id, thread_id, vote_type, value = 1 } = body;
+    const vote_type = body.vote_type;
+    const valueRaw = body.value;
+
+    const article_id = normId(body.article_id);
+    const generated_article_id = normId(body.generated_article_id);
+    const thread_id = normId(body.thread_id);
+
     if (!vote_type) return NextResponse.json({ error: "vote_type required" }, { status: 400 });
     const fp = fingerprint(req);
     const vt = String(vote_type);
 
-    const hasArticle = Boolean(article_id);
-    const hasGenerated = Boolean(generated_article_id);
-    const hasThread = Boolean(thread_id);
+    const hasArticle = article_id.length > 0;
+    const hasGenerated = generated_article_id.length > 0;
+    const hasThread = thread_id.length > 0;
     const targets = [hasArticle, hasGenerated, hasThread].filter(Boolean).length;
     if (targets !== 1) {
       return NextResponse.json(
@@ -65,9 +122,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const reactionNum = typeof valueRaw === "number" && Number.isFinite(valueRaw) ? valueRaw : Number(valueRaw);
+
     if (vt === READER_REACTION_VOTE_TYPE) {
-      const n = typeof value === "number" ? value : Number(value);
-      if (!Number.isFinite(n) || (n !== -1 && n !== 0 && n !== 1)) {
+      if (!Number.isFinite(reactionNum) || (reactionNum !== -1 && reactionNum !== 0 && reactionNum !== 1)) {
         return NextResponse.json({ error: "reader_reaction requires value -1, 0, or 1" }, { status: 400 });
       }
     }
@@ -76,10 +134,10 @@ export async function POST(req: NextRequest) {
     let reader_reaction = { score: 0, up: 0, down: 0 };
     let my_reader_reaction: -1 | 0 | 1 = 0;
 
-    if (vt === READER_REACTION_VOTE_TYPE && Number(value) === 0) {
+    if (vt === READER_REACTION_VOTE_TYPE && reactionNum === 0) {
       let del = admin.from("votes").delete().eq("fingerprint", fp).eq("vote_type", READER_REACTION_VOTE_TYPE);
       if (hasArticle) del = del.eq("article_id", article_id);
-      else del = del.eq("generated_article_id", generated_article_id!);
+      else del = del.eq("generated_article_id", generated_article_id);
       const { error: delErr } = await del;
       if (delErr) return NextResponse.json({ error: delErr.message }, { status: 400 });
 
@@ -91,7 +149,7 @@ export async function POST(req: NextRequest) {
         const { data: agg } = await admin
           .from("generated_article_votes")
           .select("*")
-          .eq("generated_article_id", generated_article_id!);
+          .eq("generated_article_id", generated_article_id);
         aggregates = agg ?? [];
         reader_reaction = await readerReactionStats(admin, { generated_article_id });
       }
@@ -106,13 +164,61 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (vt === READER_REACTION_VOTE_TYPE) {
+      const v = reactionNum as -1 | 1;
+      const { error: putErr } = await putReaderReaction(admin, {
+        fingerprint: fp,
+        article_id: hasArticle ? article_id : null,
+        generated_article_id: hasGenerated ? generated_article_id : null,
+        value: v,
+      });
+      if (putErr) return NextResponse.json({ error: putErr.message }, { status: 400 });
+
+      if (hasArticle) {
+        const { data: agg } = await admin.from("article_votes").select("*").eq("article_id", article_id);
+        aggregates = agg ?? [];
+        reader_reaction = await readerReactionStats(admin, { article_id });
+        const { data: myVotesAfter } = await admin
+          .from("votes")
+          .select("vote_type,value")
+          .eq("article_id", article_id)
+          .eq("fingerprint", fp);
+        my_reader_reaction = parseMyReaderReaction(myVotesAfter ?? []);
+      } else {
+        const { data: agg } = await admin
+          .from("generated_article_votes")
+          .select("*")
+          .eq("generated_article_id", generated_article_id);
+        aggregates = agg ?? [];
+        reader_reaction = await readerReactionStats(admin, { generated_article_id });
+        const { data: myVotesAfter } = await admin
+          .from("votes")
+          .select("vote_type,value")
+          .eq("generated_article_id", generated_article_id)
+          .eq("fingerprint", fp);
+        my_reader_reaction = parseMyReaderReaction(myVotesAfter ?? []);
+      }
+
+      return NextResponse.json({
+        voted: true,
+        fingerprint: fp,
+        aggregates,
+        reader_reaction,
+        my_reader_reaction,
+      });
+    }
+
+    const numericValue =
+      typeof valueRaw === "number" && Number.isFinite(valueRaw) ? valueRaw : Number(valueRaw);
+    const rowValue = Number.isFinite(numericValue) ? numericValue : 1;
+
     const rowPayload = {
       article_id: hasArticle ? article_id : null,
       generated_article_id: hasGenerated ? generated_article_id : null,
       thread_id: hasThread ? thread_id : null,
       fingerprint: fp,
       vote_type: vt,
-      value: typeof value === "number" ? value : 1,
+      value: rowValue,
     };
 
     const onConflict = hasArticle
@@ -121,9 +227,11 @@ export async function POST(req: NextRequest) {
         ? "generated_article_id,fingerprint,vote_type"
         : "thread_id,fingerprint,vote_type";
 
-    const { data: upserted, error } = await admin.from("votes").upsert(rowPayload, { onConflict }).select().single();
+    const { data: upsertRows, error } = await admin.from("votes").upsert(rowPayload, { onConflict }).select("id");
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    const upserted = upsertRows?.[0];
 
     if (hasArticle) {
       const { data: agg } = await admin.from("article_votes").select("*").eq("article_id", article_id);
@@ -139,13 +247,13 @@ export async function POST(req: NextRequest) {
       const { data: agg } = await admin
         .from("generated_article_votes")
         .select("*")
-        .eq("generated_article_id", generated_article_id!);
+        .eq("generated_article_id", generated_article_id);
       aggregates = agg ?? [];
       reader_reaction = await readerReactionStats(admin, { generated_article_id });
       const { data: myVotesAfter } = await admin
         .from("votes")
         .select("vote_type,value")
-        .eq("generated_article_id", generated_article_id!)
+        .eq("generated_article_id", generated_article_id)
         .eq("fingerprint", fp);
       my_reader_reaction = parseMyReaderReaction(myVotesAfter ?? []);
     }
@@ -167,8 +275,8 @@ export async function GET(req: NextRequest) {
   try {
     const admin = getAdmin();
     const { searchParams } = new URL(req.url);
-    const article_id = searchParams.get("article_id");
-    const generated_article_id = searchParams.get("generated_article_id");
+    const article_id = normId(searchParams.get("article_id"));
+    const generated_article_id = normId(searchParams.get("generated_article_id"));
     if (!article_id && !generated_article_id) {
       return NextResponse.json({ error: "article_id or generated_article_id required" }, { status: 400 });
     }
@@ -199,11 +307,11 @@ export async function GET(req: NextRequest) {
     const { data: agg } = await admin
       .from("generated_article_votes")
       .select("*")
-      .eq("generated_article_id", generated_article_id!);
+      .eq("generated_article_id", generated_article_id);
     const { data: myVotes } = await admin
       .from("votes")
       .select("vote_type,value")
-      .eq("generated_article_id", generated_article_id!)
+      .eq("generated_article_id", generated_article_id)
       .eq("fingerprint", fp);
     const reader_reaction = await readerReactionStats(admin, { generated_article_id });
     const my_reader_reaction = parseMyReaderReaction(myVotes ?? []);
