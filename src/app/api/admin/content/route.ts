@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { pageViewCountsByPaths } from "@/lib/adminPageViewCounts";
 
 function admin() {
   return createClient(
@@ -36,9 +37,13 @@ export async function GET(req: NextRequest) {
       : { data: [] };
     const analysedSet = new Set((analysed ?? []).map((a) => a.news_id));
 
+    const paths = ids.map((id) => `/article/${id}`);
+    const viewCounts = await pageViewCountsByPaths(db, paths);
+
     const articles = (data ?? []).map((a) => ({
       ...a,
       has_oracle: analysedSet.has(a.id),
+      view_count: viewCounts[`/article/${a.id}`] ?? 0,
     }));
 
     // Summary

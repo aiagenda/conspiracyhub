@@ -60,6 +60,17 @@ interface AdminArticle {
   date: string;
   source: string | null;
   has_oracle: boolean;
+  view_count?: number;
+}
+
+interface AdminBlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  published_at: string;
+  category: string;
+  status: string;
+  view_count: number;
 }
 
 interface Message {
@@ -201,6 +212,10 @@ export default function AdminPage() {
   const [articleBusy, setArticleBusy] = useState<string>("");
   const [articleScoreFilter, setArticleScoreFilter] = useState(0);
 
+  const [blogPosts, setBlogPosts] = useState<AdminBlogPost[]>([]);
+  const [blogTotal, setBlogTotal] = useState(0);
+  const [blogPage, setBlogPage] = useState(1);
+
   const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
   const [analyticsClientIp, setAnalyticsClientIp] = useState<string | null>(null);
   const [analyticsSuppress, setAnalyticsSuppress] = useState(false);
@@ -269,6 +284,15 @@ export default function AdminPage() {
     if (d.summary) setArticleSummary(d.summary);
   }, []);
 
+  const loadBlogPosts = useCallback(async (page = 1) => {
+    const res = await fetch(`/api/admin/generated-articles?page=${page}`);
+    if (!res.ok) return;
+    const d = await res.json() as { posts?: AdminBlogPost[]; total?: number };
+    setBlogPosts(d.posts ?? []);
+    setBlogTotal(d.total ?? 0);
+    setBlogPage(page);
+  }, []);
+
   useEffect(() => {
     loadStats();
     loadMessages();
@@ -276,7 +300,8 @@ export default function AdminPage() {
     loadUsers();
     loadThreads();
     loadArticles();
-  }, [loadStats, loadMessages, loadScrapers, loadUsers, loadThreads, loadArticles]);
+    void loadBlogPosts(1);
+  }, [loadStats, loadMessages, loadScrapers, loadUsers, loadThreads, loadArticles, loadBlogPosts]);
 
   useEffect(() => {
     try {
@@ -1077,14 +1102,14 @@ export default function AdminPage() {
                 <table className="w-full min-w-[700px] border-collapse text-left text-[13px]">
                   <thead>
                     <tr style={{ background: "#0a100c" }}>
-                      {["Title", "Section", "Score", "Oracle", "Source", "Date", "Actions"].map((h) => (
+                      {["Title", "Section", "Score", "Views", "Oracle", "Source", "Date", "Actions"].map((h) => (
                         <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {articles.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No articles found.</td></tr>
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No articles found.</td></tr>
                     )}
                     {articles.map((a) => (
                       <tr key={a.id} className="hover:bg-[#0f1510]">
@@ -1097,6 +1122,11 @@ export default function AdminPage() {
                         <td className="whitespace-nowrap border-b px-3 py-2.5 text-center" style={{ borderColor: "#111816" }}>
                           <span className="font-raj text-[13px] font-bold" style={{ color: a.score >= 75 ? "#ff6666" : a.score >= 50 ? "#ffaa00" : "var(--green)" }}>
                             {a.score}%
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-center" style={{ borderColor: "#111816" }}>
+                          <span className="font-raj text-[13px] font-bold tabular-nums" style={{ color: muted }}>
+                            {a.view_count ?? 0}
                           </span>
                         </td>
                         <td className="border-b px-3 py-2.5 text-center text-[11px]" style={{ borderColor: "#111816", color: a.has_oracle ? "var(--green)" : muted }}>
@@ -1132,6 +1162,58 @@ export default function AdminPage() {
                   <button type="button" disabled={articlePage * 40 >= articleTotal} onClick={() => void loadArticles(articlePage + 1, articleScoreFilter)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
                 </div>
               )}
+            </div>
+
+            <div className="mt-8 space-y-3">
+              <h3 className="font-raj text-xs font-bold uppercase tracking-[0.12em]" style={{ color: muted }}>
+                Analysis articles (blog)
+              </h3>
+              <p className="text-[11px] leading-relaxed" style={{ color: muted }}>
+                Views = <code className="text-[var(--green-dim)]">/blog/&lt;slug&gt;</code> page loads (same fingerprint exclusions as Traffic). Run migration{" "}
+                <code className="text-[var(--green-dim)]">20260514140000</code> if counts stay 0.
+              </p>
+              <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
+                    <thead>
+                      <tr style={{ background: "#0a100c" }}>
+                        {["Title", "Category", "Published", "Views", "Open"].map((h) => (
+                          <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {blogPosts.length === 0 && (
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
+                      )}
+                      {blogPosts.map((p) => (
+                        <tr key={p.id} className="hover:bg-[#0f1510]">
+                          <td className="max-w-[320px] border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                            <span className="text-[12px] line-clamp-2" style={{ color: "var(--foreground)" }}>{p.title}</span>
+                          </td>
+                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{p.category}</td>
+                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
+                            {new Date(p.published_at).toLocaleDateString("en-GB")}
+                          </td>
+                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-center font-raj text-[13px] font-bold tabular-nums" style={{ borderColor: "#111816", color: muted }}>
+                            {p.view_count}
+                          </td>
+                          <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                            <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>View ↗</a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {blogTotal > 30 && (
+                  <div className="flex items-center gap-3 border-t px-4 py-3" style={{ borderColor: "#1a2a22" }}>
+                    <button type="button" disabled={blogPage <= 1} onClick={() => void loadBlogPosts(blogPage - 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>← Prev</button>
+                    <span className="text-[12px]" style={{ color: muted }}>Page {blogPage} · {blogTotal} total</span>
+                    <button type="button" disabled={blogPage * 30 >= blogTotal} onClick={() => void loadBlogPosts(blogPage + 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
