@@ -49,12 +49,13 @@ export default function GuidePage() {
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1 }}>
 
-        {/* NAV */}
-        <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
+        {/* NAV — same hierarchy as article readers: Analysis list + Feed */}
+        <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12, flexWrap: "wrap" }}>
+          <Link href="/blog" style={{ fontSize: 10, color: "#c94dff", textDecoration: "none", letterSpacing: 2, border: "1px solid rgba(201, 77, 255, 0.55)", padding: "4px 10px", borderRadius: 3, fontFamily: RAJ, fontWeight: 700 }}>← ANALYSIS</Link>
           <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3, fontFamily: RAJ, fontWeight: 700 }}>← FEED</Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
+          <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
           <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
+          <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
           <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>PLATFORM GUIDE</div>
         </div>
 
@@ -66,23 +67,56 @@ export default function GuidePage() {
             <h1 style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: "#00ff88", letterSpacing: 2, margin: "0 0 8px", textShadow: "0 0 20px rgba(0,255,136,0.2)" }}>
               Platform Guide
             </h1>
-            <p style={{ fontSize: 12, color: "#5a8068", margin: 0 }}>Quick reference for every feature on The Theorist.</p>
+            <p style={{ fontSize: 12, color: "#5a8068", margin: 0 }}>Quick reference for every feature on The Theorist — aligned with the live UI (nav, article headers, board).</p>
           </div>
+
+          {/* SITE MAP */}
+          <Section icon="☰" title={"Site map & naming"} color="#5a8068">
+            <Note>The top nav (desktop and mobile menu) is the source of truth for labels and URLs.</Note>
+            <Sub>Main navigation</Sub>
+            <Row label="FEED" color="#00ff88">Home <code style={{ color: "#3a5040" }}>/</code> — priority-scored news stream.</Row>
+            <Row label="UAP FILES" color="#8aa6ff">Dedicated UAP database <code style={{ color: "#3a5040" }}>/uap</code>.</Row>
+            <Row label="OUTBREAKS" color="#ff3333">Health alerts <code style={{ color: "#3a5040" }}>/outbreaks</code>.</Row>
+            <Row label="COMMUNITY" color="#00bb66">OSINT board <code style={{ color: "#3a5040" }}>/community</code>.</Row>
+            <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
+            <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
+            <Row label="GUIDE" color="#5a8068">This page <code style={{ color: "#3a5040" }}>/guide</code>.</Row>
+            <Sub>Do not confuse</Sub>
+            <Row label="ANALYSIS" color="#c94dff">Product area: the <code style={{ color: "#3a5040" }}>/blog</code> report list and each report at <code style={{ color: "#3a5040" }}>/blog/[slug]</code>.</Row>
+            <Row label="ORACLE" color="#00ff88">The GPT-4o investigation engine: graph + verdicts + cached analysis. Invoked from the Investigation Board (and explicitly on UAP with ◈ RUN ORACLE ANALYSIS ▶).</Row>
+            <Row label="BOARD" color="#00bb66">Investigation Board at <code style={{ color: "#3a5040" }}>/board/[id]</code> — same <code style={{ color: "#3a5040" }}>id</code> as the feed article or generated report.</Row>
+            <Sub>Feed and report readers</Sub>
+            <Note>Feed article reader: <code style={{ color: "#3a5040" }}>/article/[id]</code>. Report reader: <code style={{ color: "#3a5040" }}>/blog/[slug]</code>. Both use the same top pattern: <strong style={{ color: "#c8e8d0" }}>← ANALYSIS</strong> (back to <code style={{ color: "#3a5040" }}>/blog</code>), <strong style={{ color: "#c8e8d0" }}>← FEED</strong> (home), and <strong style={{ color: "#c8e8d0" }}>◈ BOARD ▶</strong> on the right for <code style={{ color: "#3a5040" }}>/board/[id]</code>. The floating dock uses ◈ OPEN INVESTIGATION BOARD ▶.</Note>
+          </Section>
 
           {/* FEED */}
           <Section icon="◈" title="Main Feed" color="#00ff88">
-            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a threat score (0–100). Only articles scoring 55+ are shown.</Note>
+            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority / threat score (0–100). Only articles scoring 55+ are shown.</Note>
             <Sub>News card</Sub>
             <Row label="THREAT: 82" color="#ff3333">AI risk score. 80+ = red, 60–79 = yellow, 55–59 = green. Reflects likelihood of hidden connections or suppressed information.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
-            <Row label="◈ ANALYZE" color="#00ff88">Opens the Investigation Board + Oracle analysis. GPT-4o maps connections, actors, documents and theories.</Row>
+            <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board or live chat; Oracle runs in the board context when needed.</Row>
             <Sub>Status bar</Sub>
             <Note>Green dots = active data source. Yellow = degraded/idle. Red = error. DARPA: ████ is intentionally redacted — symbolises partially classified defence data.</Note>
           </Section>
 
+          {/* ANALYSIS / BLOG */}
+          <Section icon="▤" title={"Analysis — Investigation Reports"} color="#c94dff">
+            <Note><code style={{ color: "#3a5040" }}>/blog</code> lists published deep-dive reports (stored as generated articles). Each row links to <code style={{ color: "#3a5040" }}>/blog/[slug]</code> for the full read experience.</Note>
+            <Sub>Board link</Sub>
+            <Row label="SAME ID" color="#00bb66">A report&apos;s Investigation Board uses the same id in <code style={{ color: "#3a5040" }}>/board/[id]</code> as the underlying generated article — consistent with the ◈ BOARD ▶ control on the report page.</Row>
+            <Sub>Top bar</Sub>
+            <Note>Report pages mirror feed readers: ← ANALYSIS → list, ← FEED → home, BOARD on the right; ↗ REPORT may point to the current slug where the layout provides it.</Note>
+          </Section>
+
           {/* INVESTIGATION BOARD */}
           <Section icon="⬡" title="Investigation Board" color="#00bb66">
-            <Note>Interactive graph generated per article. The centre node is the article; surrounding nodes are AI-discovered actors, documents, companies and patents.</Note>
+            <Note>Interactive graph generated per article or report. The centre node is the story; surrounding nodes are AI-discovered actors, documents, companies and patents.</Note>
+            <Sub>Getting here</Sub>
+            <Row label="FROM FEED" color="#5a8068">Article reader → ◈ BOARD ▶ or dock ◈ OPEN INVESTIGATION BOARD ▶ → <code style={{ color: "#3a5040" }}>/board/[newsId]</code>.</Row>
+            <Row label="FROM REPORT" color="#5a8068">Report reader → same BOARD controls → <code style={{ color: "#3a5040" }}>/board/[id]</code>. Back link on the board shows ← REPORT to return to the blog slug.</Row>
+            <Sub>Oracle on the board</Sub>
+            <Note>For feed-sourced news, if no cached Oracle JSON exists, the board requests a new analysis after you sign in (subject to plan limits). If a cache hit exists, it loads immediately — free users can read cached runs; triggering fresh runs may require PRO where enforced.</Note>
             <Sub>Node colours</Sub>
             <Row label="GREEN" color="#00ff88">Article (centre), confirmed sources.</Row>
             <Row label="RED" color="#ff3333">FOIA document or high-threat connection.</Row>
@@ -92,11 +126,14 @@ export default function GuidePage() {
             <Row label="PAN" color="#5a8068">Click + drag background to pan.</Row>
             <Row label="ZOOM" color="#5a8068">Mouse wheel / touchpad pinch.</Row>
             <Row label="CLICK NODE" color="#5a8068">Opens the right detail panel — source tier, URL, threat score, key claims, counter-evidence, timeline and actors.</Row>
+            <Sub>Back</Sub>
+            <Row label="← ARTICLE" color="#5a8068">Shown when the board was opened from a feed item — returns to the article reader.</Row>
+            <Row label="← REPORT" color="#5a8068">Shown for generated reports — returns to the matching <code style={{ color: "#3a5040" }}>/blog/[slug]</code> page.</Row>
           </Section>
 
           {/* ORACLE */}
           <Section icon="◎" title="Oracle — AI Investigator" color="#00ff88">
-            <Note>GPT-4o cross-references the article with the CIA FOIA index, USPTO database and known actors. Click ◈ ORACLE ANALYSIS ▶ to run. Results are cached — free users can view existing analyses; PRO users can trigger new ones.</Note>
+            <Note>GPT-4o cross-references the story with the CIA FOIA index, USPTO database and known actors. On the <strong style={{ color: "#c8e8d0" }}>Investigation Board</strong>, analysis is loaded automatically when missing (after sign-in). On <strong style={{ color: "#c8e8d0" }}>UAP incident</strong> pages, use ◈ RUN ORACLE ANALYSIS ▶ to run explicitly. Results are cached — free users can view existing analyses where access allows; PRO unlocks fresh triggers where gated.</Note>
             <Sub>Verdicts</Sub>
             <Row label="TRUE" color="#00ff88">Well-supported by primary sources.</Row>
             <Row label="PARTIALLY TRUE" color="#00bb66">Some details disputed or incomplete.</Row>
@@ -132,14 +169,14 @@ export default function GuidePage() {
           </Section>
 
           {/* SEARCH */}
-          <Section icon="⌕" title="Search & URL Analyzer" color="#5a8068">
+          <Section icon="⌕" title={"Search & URL Analyzer"} color="#5a8068">
             <Note>/search uses full-text search across all articles, Oracle analyses and FOIA documents.</Note>
             <Sub>Search tips</Sub>
             <Row label="KEYWORD" color="#5a8068">Searches article summaries and Oracle text.</Row>
             <Row label="ORGANISATION" color="#5a8068">CIA, DARPA, Lockheed — returns related articles and boards.</Row>
             <Row label="EVENT" color="#5a8068">Roswell, Nimitz — returns UAP incidents and linked articles.</Row>
             <Sub>URL Analyzer (PRO)</Sub>
-            <Note>Paste any https:// link into the Analyze URL tab. Supports: X/Twitter, Reddit, Bluesky, YouTube (oEmbed), and standard news sites. Short links (t.co, redd.it) are resolved first. Login-only pages may return limited content.</Note>
+            <Note>Paste any https:// link into the ◈ ANALYZE URL tab (second tab on /search). Supports: X/Twitter, Reddit, Bluesky, YouTube (oEmbed), and standard news sites. Short links (t.co, redd.it) are resolved first. Login-only pages may return limited content.</Note>
             <Sub>Reference Index</Sub>
             <Note>Curated A–Z list of official declassified portals: CIA Reading Room, FBI Vault, NARA, NSA FOIA, DARPA, etc. Filter by agency or letter. Links open the primary government source — PDFs are not hosted here.</Note>
           </Section>
@@ -156,13 +193,13 @@ export default function GuidePage() {
             <Sub>Oracle in threads</Sub>
             <Note>Type @oracle in any post to trigger AI analysis. Oracle reads all posts, cross-references known data, evaluates credibility and posts a structured report with theories, sources and next steps.</Note>
             <Note>Free users: 3 @oracle triggers/day per device. PRO: unlimited.</Note>
-            <Sub>Voting & reactions</Sub>
+            <Sub>Voting and reactions</Sub>
             <Row label="↑ / ↓" color="#5a8068">Up/down vote any post. One vote per browser.</Row>
             <Row label="↩ REPLY" color="#5a8068">Threaded replies, indented under parent.</Row>
           </Section>
 
           {/* SHARING */}
-          <Section icon="↗" title="Share & Export" color="#5a8068">
+          <Section icon="↗" title={"Share & Export"} color="#5a8068">
             <Note>Every Investigation Board has a ◈ SHARE ▼ button top-right with these options:</Note>
             <Row label="𝕏 X" color="#c8e8d0">Pre-filled post with Oracle conclusion and hashtags.</Row>
             <Row label="f FACEBOOK" color="#4080ff">Facebook Sharer with board URL.</Row>
@@ -181,7 +218,7 @@ export default function GuidePage() {
 
           {/* FOOTER */}
           <div style={{ padding: "14px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", fontSize: 10, color: "#3a5040", lineHeight: 1.8 }}>
-            <span style={{ color: "#5a8068" }}>◈ VERSION</span>{" "}<span style={{ color: "#00ff88" }}>1.1</span>
+            <span style={{ color: "#5a8068" }}>◈ VERSION</span>{" "}<span style={{ color: "#00ff88" }}>1.2</span>
             {"  ·  "}
             <span style={{ color: "#5a8068" }}>SOURCES</span>{" "}<span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · AARO · WHO</span>
             {"  ·  "}

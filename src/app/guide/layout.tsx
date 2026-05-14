@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Investigation Guide",
-  description: "Learn how to use The Theorist's AI tools to investigate conspiracy theories, cross-reference UAP incidents, and decode classified documents.",
+  description:
+    "How to use The Theorist: FEED, ANALYSIS reports (/blog), Investigation Board, Oracle AI, UAP files, outbreaks, community, and search.",
   openGraph: {
     title: "Investigation Guide | The Theorist",
-    description: "Learn how to use The Theorist's AI tools to investigate conspiracy theories and decode classified documents.",
+    description:
+      "Platform guide — navigation, feed vs analysis reports, Investigation Board, Oracle, and research tools.",
   },
 };
 
