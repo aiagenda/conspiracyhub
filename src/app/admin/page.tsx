@@ -559,16 +559,18 @@ export default function AdminPage() {
           <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b pb-4" style={{ borderColor: "#1a2620" }}>
             <div className="min-w-0 flex-1">
               <div className="font-raj text-[17px] font-bold leading-tight tracking-wide text-[var(--foreground)]">{job.name}</div>
-              <div className="mt-1.5 font-mono text-[11px] leading-relaxed" style={{ color: muted }}>
-                <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid #1a2620" }}>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2 font-mono text-[11px] leading-relaxed" style={{ color: muted }}>
+                <span className="inline-block rounded-md px-3 py-2 leading-normal" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid #1a2620" }}>
                   {job.job_key}
                 </span>
-                <span className="mx-2 opacity-50">·</span>
-                <span>{job.target}</span>
+                <span className="opacity-50">·</span>
+                <span className="inline-block rounded-md px-3 py-2 leading-normal" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid #1a2620" }}>
+                  {job.target}
+                </span>
               </div>
             </div>
             <span
-              className="shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest"
+              className="shrink-0 rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-widest"
               style={{
                 border: job.enabled ? "1px solid rgba(0,187,102,0.45)" : "1px solid #1a2620",
                 color: job.enabled ? "var(--green)" : muted,
@@ -580,8 +582,8 @@ export default function AdminPage() {
             </span>
           </div>
 
-          <div className="mb-5 rounded-lg p-4" style={{ background: "#0a100c", border: "1px solid #1a2620" }}>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--green-dim)" }}>
+          <div className="mb-5 rounded-lg p-5 sm:p-6" style={{ background: "#0a100c", border: "1px solid #1a2620" }}>
+            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--green-dim)" }}>
               Cron (UTC)
             </div>
             <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
@@ -595,11 +597,11 @@ export default function AdminPage() {
                       void updateScraper(job, { schedule_cron: next });
                     }
                   }}
-                  className="w-full rounded-md border px-3 py-2.5 font-mono text-[13px] leading-snug outline-none transition-[border-color,box-shadow] focus:border-[rgba(0,187,102,0.5)] focus:shadow-[0_0_0_1px_rgba(0,187,102,0.25)]"
+                  className="box-border w-full min-h-[48px] rounded-md border px-4 py-3.5 font-mono text-[13px] leading-normal outline-none transition-[border-color,box-shadow] focus:border-[rgba(0,187,102,0.5)] focus:shadow-[0_0_0_1px_rgba(0,187,102,0.25)]"
                   style={{ borderColor: "#24322c", background: "#050805", color: "var(--foreground)" }}
                   aria-label={`Cron schedule for ${job.name}`}
                 />
-                <div className="mt-2 text-[11px] leading-snug" style={{ color: "var(--green-dim)" }}>
+                <div className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--green-dim)" }}>
                   {humanizeCronUtc(job.schedule_cron)}
                 </div>
               </div>
@@ -608,7 +610,7 @@ export default function AdminPage() {
                   type="button"
                   disabled={running}
                   onClick={() => void updateScraper(job, { enabled: !job.enabled })}
-                  className="rounded-md border px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+                  className="rounded-md border px-4 py-3 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#0f1812] disabled:opacity-50"
                   style={{ borderColor: "#2a3830", color: muted }}
                 >
                   {job.enabled ? "Disable" : "Enable"}
@@ -617,7 +619,7 @@ export default function AdminPage() {
                   type="button"
                   disabled={running}
                   onClick={() => void runScraperNow(job)}
-                  className="rounded-md border px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-[background,box-shadow] disabled:opacity-50"
+                  className="rounded-md border px-4 py-3 text-[11px] font-semibold uppercase tracking-wider transition-[background,box-shadow] disabled:opacity-50"
                   style={{
                     borderColor: "var(--green-dark)",
                     color: "var(--green)",
@@ -638,7 +640,7 @@ export default function AdminPage() {
                       const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
                       void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
                     }}
-                    className="rounded-md border px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+                    className="rounded-md border px-4 py-3 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#0f1812] disabled:opacity-50"
                     style={{ borderColor: "#2a3830", color: muted }}
                   >
                     Set max_new
@@ -648,10 +650,10 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="rounded-lg px-4 py-3.5 sm:px-5" style={{ background: "#060a08", border: "1px solid #1a221c" }}>
-            <div className="grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-3 sm:gap-4">
+          <div className="rounded-lg px-5 py-4 sm:px-6 sm:py-5" style={{ background: "#060a08", border: "1px solid #1a221c" }}>
+            <div className="grid grid-cols-1 gap-4 text-[12px] sm:grid-cols-3 sm:gap-6">
               <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
                   Last run
                 </div>
                 <div className="font-mono text-[13px]" style={{ color: "var(--foreground)" }}>
@@ -659,7 +661,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
                   Status
                 </div>
                 <div className="font-mono text-[13px] font-semibold uppercase" style={{ color: statusColor }}>
@@ -667,7 +669,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
                   Duration
                 </div>
                 <div className="font-mono text-[13px]" style={{ color: "var(--foreground)" }}>
@@ -679,7 +681,7 @@ export default function AdminPage() {
 
           {last?.error_text && (
             <div
-              className="mt-4 rounded-lg border px-4 py-3 text-[12px] leading-relaxed"
+              className="mt-4 rounded-lg border px-5 py-4 text-[12px] leading-relaxed"
               style={{ borderColor: "#4a1a1a", color: "#ff9b9b", background: "rgba(255,51,51,0.08)" }}
             >
               {last.error_text}
@@ -687,10 +689,10 @@ export default function AdminPage() {
           )}
           {job.target === "article_writer" && last?.status === "success" && last.result?.article && (
             <div
-              className="mt-4 rounded-lg border px-4 py-3 text-[12px]"
+              className="mt-4 rounded-lg border px-5 py-4 text-[12px] sm:py-5"
               style={{ borderColor: "#1a3320", background: "rgba(0,187,102,0.06)" }}
             >
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--green-dim)" }}>
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--green-dim)" }}>
                 Last article
               </div>
               <a
