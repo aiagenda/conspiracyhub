@@ -14,6 +14,12 @@ function parsePublishedAt(raw: string): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
+/** For prioritising newest items when many are missing from DB (avoids RSS noise eating the cap). */
+function publishedAtMs(raw: string): number {
+  const t = new Date(raw).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 interface Article {
   guardian_id: string;
   title: string;
@@ -278,9 +284,20 @@ export async function runScraper(openAiKey: string) {
     /* table missing handled below */
   }
 
-  // Cap at 60 new articles per run to stay within function timeout
-  const fresh = all.filter((a) => a.guardian_id && !existing.has(a.guardian_id)).slice(0, 60);
-  console.log(`[scraper] ${fresh.length} new articles to score`);
+  const minScore = Math.max(
+    0,
+    Math.min(100, parseInt(process.env.SCRAPER_MIN_SCORE ?? "55", 10) || 55),
+  );
+  const scoringCap = Math.min(
+    200,
+    Math.max(40, parseInt(process.env.SCRAPER_SCORING_CAP ?? "120", 10) || 120),
+  );
+
+  const missing = all.filter((a) => a.guardian_id && !existing.has(a.guardian_id));
+  // Newest first so a recently deleted Guardian headline is not starved by older RSS-only rows
+  missing.sort((a, b) => publishedAtMs(b.date) - publishedAtMs(a.date));
+  const fresh = missing.slice(0, scoringCap);
+  console.log(`[scraper] ${fresh.length} new articles to score (cap=${scoringCap}, minScore=${minScore}, missing=${missing.length})`);
 
   if (!fresh.length) {
     return { inserted: 0, skipped: all.length, total_fetched: all.length, timestamp: new Date().toISOString() };
@@ -309,7 +326,7 @@ export async function runScraper(openAiKey: string) {
 
       const toInsert = batch
         .map((a, j) => ({ ...a, score: scoreMap[j]?.score ?? 0, angle: scoreMap[j]?.angle ?? "" }))
-        .filter((a) => a.score >= 55);
+        .filter((a) => a.score >= minScore);
 
       if (toInsert.length) {
         const rows = toInsert.map((a) => ({
@@ -356,6 +373,9 @@ export async function runScraper(openAiKey: string) {
     inserted,
     skipped: all.length - fresh.length,
     total_fetched: all.length,
+    missing_from_db: missing.length,
+    scored_this_run: fresh.length,
+    min_score: minScore,
     sources: { guardian: guardian.length, gnews: gnews.length, reddit: reddit.length, rss: rssResults.flat().length },
     timestamp: new Date().toISOString(),
   };
