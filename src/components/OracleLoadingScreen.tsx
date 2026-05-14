@@ -28,7 +28,7 @@ const GRAPH_NODES = [
   { x: 84, y: 134, r: 14, color: "#c94dff", label: "THEORY", delay: 4700 },
 ];
 
-export default function OracleLoadingScreen() {
+export default function OracleLoadingScreen({ statusLine }: { statusLine?: string } = {}) {
   const [elapsed, setElapsed] = useState(0);
   const [visibleLogs, setVisibleLogs] = useState<number[]>([]);
   const [visibleNodes, setVisibleNodes] = useState<number[]>([]);
@@ -132,6 +132,9 @@ export default function OracleLoadingScreen() {
               {glitch ? "0R4CLE" : "ORACLE"}
             </div>
             <div style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#5a8068", letterSpacing: 3, textTransform: "uppercase", marginTop: 2 }}>INVESTIGATION ENGINE</div>
+            {statusLine ? (
+              <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", marginTop: 10, lineHeight: 1.5, maxWidth: 360 }}>{statusLine}</div>
+            ) : null}
           </div>
 
           <div

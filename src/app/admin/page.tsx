@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 import { humanizeCronUtc } from "@/lib/cronHuman";
 import { ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY } from "@/lib/analyticsExclude";
+import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -75,6 +76,7 @@ interface AdminBlogPost {
   status: string;
   view_count: number;
   unique_viewers: number;
+  has_oracle?: boolean;
 }
 
 interface Message {
@@ -221,6 +223,10 @@ export default function AdminPage() {
   const [blogPage, setBlogPage] = useState(1);
   /** `delete_all` | `sanitize` | generated article id */
   const [blogAdminBusy, setBlogAdminBusy] = useState<string>("");
+  /** `news:<id>` | `gen:<id>` while Oracle re-run in flight */
+  const [oracleRerunBusyKey, setOracleRerunBusyKey] = useState<string>("");
+  /** Non-empty label while Oracle RESET ALL (bulk) is running */
+  const [bulkOracleBusy, setBulkOracleBusy] = useState<string>("");
 
   const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
   const [analyticsClientIp, setAnalyticsClientIp] = useState<string | null>(null);
@@ -410,6 +416,135 @@ export default function AdminPage() {
       await loadStats();
     } finally {
       setBlogAdminBusy("");
+    }
+  }
+
+  async function adminOracleRerun(opts: { newsId?: string; generatedArticleId?: string }) {
+    if (bulkOracleBusy !== "") return;
+    if (!isSupabaseBrowserConfigured()) {
+      setErr("Supabase browser client is not configured.");
+      return;
+    }
+    const busyKey = opts.newsId ? `news:${opts.newsId}` : `gen:${opts.generatedArticleId}`;
+    if (!confirm("Run a fresh Oracle analysis? (~30–90s, new saved graph). Admin + signed-in session required.")) return;
+    setOracleRerunBusyKey(busyKey);
+    setErr("");
+    try {
+      const {
+        data: { session },
+      } = await getSupabaseBrowserClient().auth.getSession();
+      if (!session?.access_token) {
+        setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
+        return;
+      }
+      const res = await fetch("/api/admin/oracle-rerun", {
+        method: "POST",
+        headers: {
+          ...JSON_HEADERS,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(opts),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (!res.ok) {
+        if (res.status === 403 && d.error === "admin_only") {
+          setErr("Forbidden: set is_admin = true on your user in user_profiles (Supabase SQL).");
+        } else {
+          setErr([d.message, d.error].filter(Boolean).join(" — ") || res.statusText);
+        }
+        return;
+      }
+      if (opts.newsId) await loadArticles(articlePage, articleScoreFilter);
+      else await loadBlogPosts(blogPage);
+      await loadStats();
+    } finally {
+      setOracleRerunBusyKey("");
+    }
+  }
+
+  async function oracleBulkResetAll(scope: "feed" | "analysis") {
+    const label = scope === "feed" ? "minden feed cikk (news_items)" : "minden publikált /blog riport";
+    if (
+      !confirm(
+        `Oracle RESET ALL — ${label}\n\nÚj Oracle futtatás az összes sorra, batch-ekben (sok perc–óra, OpenAI + Brave). Folytatod?`,
+      )
+    ) {
+      return;
+    }
+    if (!isSupabaseBrowserConfigured()) {
+      setErr("Supabase browser client is not configured.");
+      return;
+    }
+    setErr("");
+    setBulkOracleBusy(scope === "feed" ? "feed" : "analysis");
+    try {
+      const {
+        data: { session },
+      } = await getSupabaseBrowserClient().auth.getSession();
+      if (!session?.access_token) {
+        setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
+        return;
+      }
+      type BulkJson = {
+        error?: string;
+        message?: string;
+        nextOffset?: number;
+        total?: number;
+        succeeded?: number;
+        failed?: number;
+        done?: boolean;
+        batchSize?: number;
+        errors?: { id: string; error: string }[];
+      };
+      let offset = 0;
+      const errLines: string[] = [];
+      let guard = 0;
+      for (;;) {
+        guard += 1;
+        if (guard > 5000) {
+          setErr("Bulk Oracle stopped: safety limit (too many batches).");
+          return;
+        }
+        const res = await fetch("/api/admin/oracle-rerun-bulk", {
+          method: "POST",
+          headers: {
+            ...JSON_HEADERS,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ scope, offset, limit: 5 }),
+        });
+        const d = (await res.json().catch(() => ({}))) as BulkJson;
+        if (!res.ok) {
+          if (res.status === 403 && d.error === "admin_only") {
+            setErr("Forbidden: set is_admin = true on your user in user_profiles (Supabase SQL).");
+          } else {
+            setErr([d.message, d.error].filter(Boolean).join(" — ") || res.statusText);
+          }
+          return;
+        }
+        const total = d.total ?? 0;
+        const next = typeof d.nextOffset === "number" ? d.nextOffset : offset;
+        setBulkOracleBusy(
+          scope === "feed"
+            ? `Oracle bulk · feed ${Math.min(next, total)}/${total}`
+            : `Oracle bulk · analysis ${Math.min(next, total)}/${total}`,
+        );
+        if (Array.isArray(d.errors) && d.errors.length > 0) {
+          for (const e of d.errors.slice(0, 3)) {
+            errLines.push(`${e.id.slice(0, 8)}… ${e.error}`);
+          }
+        }
+        if (d.done === true) break;
+        offset = next;
+      }
+      if (errLines.length > 0) {
+        setErr(`Some batches had failures (first errors):\n${errLines.slice(0, 12).join("\n")}`);
+      }
+      await loadArticles(articlePage, articleScoreFilter);
+      await loadBlogPosts(blogPage);
+      await loadStats();
+    } finally {
+      setBulkOracleBusy("");
     }
   }
 
@@ -1344,6 +1479,17 @@ export default function AdminPage() {
               </div>
             </div>
 
+            <div
+              className="rounded-md border px-3 py-2.5 text-[11px] leading-snug"
+              style={{ borderColor: "var(--green-dark)", background: "rgba(0,187,102,0.07)", color: muted }}
+            >
+              <strong style={{ color: "var(--green)" }}>Oracle ↻</strong> — Oldalsáv: <strong style={{ color: "var(--foreground)" }}>Content</strong> → görgess le. A{" "}
+              <strong style={{ color: "var(--foreground)" }}>Feed article list</strong> és a{" "}
+              <strong style={{ color: "var(--foreground)" }}>Published reports</strong> táblázat minden sorában az utolsó oszlop (
+              <strong style={{ color: "var(--foreground)" }}>Actions</strong>): <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> a Board és a Delete mellett.
+              Be kell jelentkezned; a profilodban <code className="text-[var(--green-dim)]">is_admin = true</code> (Supabase).
+            </div>
+
             {articleSummary && (
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
@@ -1368,7 +1514,42 @@ export default function AdminPage() {
               ); opt-out lives under Traffic.
             </p>
 
-            <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
+            <div className="rounded-lg border p-5 sm:p-6" style={{ background: "rgba(255,100,0,0.04)", borderColor: "#4a3010" }}>
+              <div className="font-raj text-[12px] font-bold uppercase tracking-wider" style={{ color: "#ffaa66" }}>
+                Feed maintenance
+              </div>
+              <p className="mt-3 text-[12px] leading-relaxed" style={{ color: muted }}>
+                <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · feed</strong> újrafuttatja az Oracle pipeline-ot{" "}
+                <strong style={{ color: "var(--foreground)" }}>minden</strong>{" "}
+                <code className="text-[var(--green-dim)]">news_items</code> soron (batch-ekben,{" "}
+                <code className="text-[var(--green-dim)]">/api/admin/oracle-rerun-bulk</code>
+                ). Ugyanaz a jogosultság mint az egyes <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> gomboknál.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={bulkOracleBusy !== "" || blogAdminBusy !== "" || oracleRerunBusyKey !== ""}
+                  onClick={() => void oracleBulkResetAll("feed")}
+                  className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                  style={{ borderColor: "#5a5020", color: "#e8c060", background: "rgba(232,192,96,0.06)" }}
+                >
+                  {bulkOracleBusy.startsWith("Oracle bulk · feed") ? bulkOracleBusy : bulkOracleBusy === "feed" ? "Starting…" : "Oracle RESET ALL · feed"}
+                </button>
+              </div>
+            </div>
+
+            <details open className="group mt-4 overflow-hidden rounded-lg border" style={{ background: cardBg, border }}>
+              <summary
+                className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-raj text-[12px] font-bold uppercase tracking-[0.12em] outline-none [&::-webkit-details-marker]:hidden"
+                style={{ color: "var(--foreground)", background: "#0a100c" }}
+              >
+                <span>Feed article list</span>
+                <span className="text-[10px] font-normal normal-case tracking-normal" style={{ color: muted }}>
+                  {articleTotal} rows · Oracle ↻ az Actions oszlopban · fejlécre kattintva összecsukható
+                </span>
+              </summary>
+              <div className="border-t" style={{ borderColor: "#1a2a22" }}>
+            <div className="overflow-hidden" style={{ background: cardBg }}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px] border-collapse text-left text-[13px]">
                   <thead>
@@ -1425,11 +1606,21 @@ export default function AdminPage() {
                           {new Date(a.date).toLocaleDateString("en-GB")}
                         </td>
                         <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
-                          <div className="flex gap-1.5">
+                          <div className="flex flex-wrap gap-1.5">
                             <a href={`/board/${a.id}`} target="_blank" rel="noreferrer" className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
                             <button
                               type="button"
-                              disabled={articleBusy === a.id}
+                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                              onClick={() => void adminOracleRerun({ newsId: a.id })}
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              style={{ borderColor: "#3a4020", color: "#ccaa44" }}
+                              title="Admin only: new Oracle analysis row"
+                            >
+                              {oracleRerunBusyKey === `news:${a.id}` ? "…" : "Oracle ↻"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
                               onClick={() => void deleteArticle(a.id, a.title)}
                               className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
@@ -1449,6 +1640,8 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+              </div>
+            </details>
 
             <div className="mt-8 space-y-3">
               <h3 className="font-raj text-xs font-bold uppercase tracking-[0.12em]" style={{ color: muted }}>
@@ -1466,11 +1659,18 @@ export default function AdminPage() {
                 </div>
                 <p className="mt-3 text-[12px] leading-relaxed" style={{ color: muted }}>
                   Sanitize strips non-whitelisted source URLs in every stored report (titles stay). Delete all removes every published /blog post (votes and Oracle rows for those reports follow DB cascades).
+                  <span className="mt-2 block">
+                    <strong style={{ color: "var(--foreground)" }}>Oracle ↻</strong> runs a fresh graph via{" "}
+                    <code className="text-[var(--green-dim)]">/api/admin/oracle-rerun</code>
+                    ; <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · analysis</strong> loops{" "}
+                    <code className="text-[var(--green-dim)]">/api/admin/oracle-rerun-bulk</code> over every published report. Both require you to be signed in and{" "}
+                    <code className="text-[var(--green-dim)]">is_admin = true</code> on your row in <code className="text-[var(--green-dim)]">user_profiles</code>.
+                  </span>
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    disabled={blogAdminBusy !== ""}
+                    disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
                     onClick={() => void sanitizeAllReportSources()}
                     className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#1a3320", color: "var(--green-dim)" }}
@@ -1479,16 +1679,39 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={blogAdminBusy !== ""}
+                    disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
                     onClick={() => void deleteAllPublishedReports()}
                     className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
                   >
                     {blogAdminBusy === "delete_all" ? "Deleting…" : "Delete all published reports"}
                   </button>
+                  <button
+                    type="button"
+                    disabled={blogAdminBusy !== "" || bulkOracleBusy !== "" || oracleRerunBusyKey !== ""}
+                    onClick={() => void oracleBulkResetAll("analysis")}
+                    className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    style={{ borderColor: "#5a5020", color: "#e8c060", background: "rgba(232,192,96,0.06)" }}
+                  >
+                    {bulkOracleBusy.startsWith("Oracle bulk · analysis")
+                      ? bulkOracleBusy
+                      : bulkOracleBusy === "analysis"
+                        ? "Starting…"
+                        : "Oracle RESET ALL · analysis"}
+                  </button>
                 </div>
               </div>
-              <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
+              <details open className="group overflow-hidden rounded-lg border" style={{ background: cardBg, border }}>
+                <summary
+                  className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-raj text-[12px] font-bold uppercase tracking-[0.12em] outline-none [&::-webkit-details-marker]:hidden"
+                  style={{ color: "var(--foreground)", background: "#0a100c" }}
+                >
+                  <span>Published reports table</span>
+                  <span className="text-[10px] font-normal normal-case tracking-normal" style={{ color: muted }}>
+                    {blogTotal} posts · Oracle ↻ az Actions oszlopban · fejlécre kattintva összecsukható
+                  </span>
+                </summary>
+                <div className="border-t" style={{ borderColor: "#1a2a22" }}>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
                     <thead>
@@ -1506,6 +1729,9 @@ export default function AdminPage() {
                         <tr key={p.id} className="hover:bg-[#0f1510]">
                           <td className="max-w-[320px] border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             <span className="text-[12px] line-clamp-2" style={{ color: "var(--foreground)" }}>{p.title}</span>
+                            {p.has_oracle ? (
+                              <span className="mt-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide" style={{ background: "rgba(0,187,102,0.12)", color: "var(--green)" }}>Oracle</span>
+                            ) : null}
                           </td>
                           <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{p.category}</td>
                           <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
@@ -1536,15 +1762,27 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
-                            <button
-                              type="button"
-                              disabled={blogAdminBusy !== ""}
-                              onClick={() => void deleteBlogPost(p.id, p.title)}
-                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
-                              style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
-                            >
-                              {blogAdminBusy === p.id ? "…" : "Delete"}
-                            </button>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                disabled={blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                                onClick={() => void adminOracleRerun({ generatedArticleId: p.id })}
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                style={{ borderColor: "#3a4020", color: "#ccaa44" }}
+                                title="Admin only: new Oracle analysis"
+                              >
+                                {oracleRerunBusyKey === `gen:${p.id}` ? "…" : "Oracle ↻"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                                onClick={() => void deleteBlogPost(p.id, p.title)}
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
+                              >
+                                {blogAdminBusy === p.id ? "…" : "Delete"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1558,7 +1796,8 @@ export default function AdminPage() {
                     <button type="button" disabled={blogPage * 30 >= blogTotal} onClick={() => void loadBlogPosts(blogPage + 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
                   </div>
                 )}
-              </div>
+                </div>
+              </details>
             </div>
           </section>
 

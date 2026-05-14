@@ -22,6 +22,8 @@ export interface NodeDetail {
   open_questions?: string[];
   /** Citations / URLs mentioned for this conspiracy hypothesis (theory nodes). */
   theory_sources?: string[];
+  /** Web search enrichment (Brave); stored when Oracle re-runs with search. */
+  brave_sources?: Array<{ title: string; url: string; description: string }>;
 }
 
 export interface Node {

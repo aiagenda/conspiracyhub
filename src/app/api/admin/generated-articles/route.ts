@@ -32,12 +32,21 @@ export async function GET(req: NextRequest) {
     const paths = rows.map((p) => `/blog/${p.slug}`);
     const viewStats = await pageViewStatsByPaths(db, paths);
 
+    const ids = rows.map((p) => p.id);
+    const { data: oracleRows } = ids.length
+      ? await db.from("oracle_analyses").select("generated_article_id").in("generated_article_id", ids)
+      : { data: [] as { generated_article_id: string | null }[] };
+    const oracleGenIds = new Set(
+      (oracleRows ?? []).map((r) => r.generated_article_id).filter((id): id is string => Boolean(id)),
+    );
+
     const posts = rows.map((p) => {
       const s = viewStats[`/blog/${p.slug}`] ?? { totalLoads: 0, uniqueReaders: 0 };
       return {
         ...p,
         view_count: s.totalLoads,
         unique_viewers: s.uniqueReaders,
+        has_oracle: oracleGenIds.has(p.id),
       };
     });
 

@@ -33,8 +33,11 @@ Return a JSON object with these fields:
 2. edges — connections between nodes:
    - from, to (node ids), color (hex), strength (0-1)
    - label: specific relationship description, max 22 characters (NOT generic "connection")
-   - IMPORTANT: include edges between non-center nodes too when a real relationship exists
-     e.g. if a person donated to another person, or a patent was filed by a company — connect them directly
+   - RULE — model REAL relationships, not radial spokes:
+     * If two people share a real relationship (funding, employment, family, collaboration), draw a direct PERSON→PERSON edge.
+     * If a person filed/owns/controls an org or patent, draw PERSON→ORG or PERSON→PATENT — NOT ARTICLE→PERSON.
+     * Edges from the center ARTICLE node should only appear for nodes that have NO direct relationship to any other non-center node.
+     * Avoid hub-and-spoke layouts where everything connects solely to the center article. Prefer lateral connections.
    - Color guide: #ff3333 = direct evidence, #ffaa00 = indirect link, #00bb66 = counter-signal, #5a8068 = cross-reference
 
 3. theories — between 1 and 5 REAL conspiracy theories that genuinely exist or circulate around this topic:

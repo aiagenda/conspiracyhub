@@ -514,7 +514,7 @@ function DetailPanel({
         right: 0,
         top: 0,
         bottom: 0,
-        width: 300,
+        width: 360,
         background: "#06110a",
         borderLeft: `1px solid ${c.border}`,
         display: "flex",
@@ -525,7 +525,7 @@ function DetailPanel({
     >
       <div
         style={{
-          padding: "12px 14px",
+          padding: "14px 16px",
           borderBottom: "1px solid #1a3320",
           background: "#050c07",
           display: "flex",
@@ -534,15 +534,15 @@ function DetailPanel({
         }}
       >
         <div>
-          <div style={{ fontFamily: FONT, fontSize: 9, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
-          <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: c.text, letterSpacing: 1, marginTop: 2 }}>{node.label}</div>
+          <div style={{ fontFamily: FONT, fontSize: 10, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
+          <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: c.text, letterSpacing: 1, marginTop: 3 }}>{node.label}</div>
         </div>
-        <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 10, padding: "4px 8px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
+        <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 11, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
           ✕
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
         {node.type === "theory" ? (
           <div style={{ marginBottom: 12 }}>
             {/* Theory header badge */}
@@ -553,7 +553,7 @@ function DetailPanel({
             </div>
 
             {/* Full explanation */}
-            <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.8, marginBottom: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 12, color: "#c8e8d0", lineHeight: 1.85, marginBottom: 14 }}>
               {d.body}
             </div>
 
@@ -608,30 +608,67 @@ function DetailPanel({
               </div>
             ) : null}
 
-            {/* Sources with clickable links */}
-            {d.theory_sources && d.theory_sources.length > 0 ? (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Sources & documentation</div>
-                {d.theory_sources.map((item: string, i: number) => (
-                  <div key={i} style={{ marginBottom: 6 }}>
-                    {isLikelyUrl(item) ? (
+            {/* Sources — Brave-enriched cards or fallback plain URLs */}
+            {(Boolean(d.brave_sources?.length) || Boolean(d.theory_sources?.length)) ? (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: FONT, fontSize: 10, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Sources & documentation</div>
+                {d.brave_sources && d.brave_sources.length > 0 ? (
+                  // Rich Brave-enriched cards
+                  (d.brave_sources as { title: string; url: string; description: string }[]).map((src, i) => {
+                    let domain = "";
+                    try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                    return (
                       <a
+                        key={i}
+                        href={src.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "block",
+                          marginBottom: 7,
+                          padding: "7px 10px",
+                          border: "1px solid rgba(0,187,102,0.25)",
+                          borderRadius: 4,
+                          background: "rgba(0,187,102,0.04)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                          <span style={{ color: "#00ff88", fontSize: 10, flexShrink: 0 }}>↗</span>
+                          <span style={{ fontFamily: FONT, fontSize: 11, color: "#00cc77", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                            {src.title}
+                          </span>
+                        </div>
+                        {src.description ? (
+                          <div style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", lineHeight: 1.5, marginBottom: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {src.description}
+                          </div>
+                        ) : null}
+                        {domain ? (
+                          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{domain}</div>
+                        ) : null}
+                      </a>
+                    );
+                  })
+                ) : (
+                  // Fallback: plain URL list
+                  (d.theory_sources as string[]).filter((s: string) => isLikelyUrl(s)).map((item: string, i: number) => {
+                    let domain = "";
+                    try { domain = new URL(item.trim()).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                    return (
+                      <a
+                        key={i}
                         href={item.trim()}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ display: "flex", gap: 7, color: "#00bb66", fontSize: 10, textDecoration: "none", lineHeight: 1.5, wordBreak: "break-all", padding: "5px 8px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)" }}
+                        style={{ display: "flex", gap: 7, color: "#00bb66", fontSize: 11, textDecoration: "none", lineHeight: 1.5, wordBreak: "break-all", padding: "6px 8px", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, background: "rgba(0,187,102,0.04)", marginBottom: 6 }}
                       >
                         <span style={{ flexShrink: 0, color: "#00ff88" }}>↗</span>
-                        <span>{item}</span>
+                        <span>{domain || item}</span>
                       </a>
-                    ) : (
-                      <div style={{ display: "flex", gap: 7, color: "#5a8068", fontSize: 10, marginBottom: 2 }}>
-                        <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
-                        <span>{item}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  })
+                )}
               </div>
             ) : null}
 
@@ -755,23 +792,44 @@ function DetailPanel({
           </>
         ) : null}
 
-        {d.theory_sources && d.theory_sources.length > 0 ? (
+        {(Boolean(d.brave_sources?.length) || Boolean(d.theory_sources?.length)) ? (
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Theory sources & citations</div>
-            {d.theory_sources.slice(0, 12).map((item, i) => (
-              <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, color: "#bdb0c8", fontSize: 10, marginBottom: 6, wordBreak: "break-word" }}>
-                <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
-                <span style={{ flex: 1 }}>
-                  {isLikelyUrl(item) ? (
-                    <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none" }}>
-                      {item}
-                    </a>
-                  ) : (
-                    item
-                  )}
-                </span>
-              </div>
-            ))}
+            <div style={{ fontFamily: FONT, fontSize: 10, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Theory sources & citations</div>
+            {d.brave_sources && d.brave_sources.length > 0 ? (
+              (d.brave_sources as { title: string; url: string; description: string }[]).slice(0, 8).map((src, i) => {
+                let domain = "";
+                try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                return (
+                  <a
+                    key={`bsrc-${i}`}
+                    href={src.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "block", marginBottom: 7, padding: "7px 10px", border: "1px solid rgba(0,187,102,0.25)", borderRadius: 4, background: "rgba(0,187,102,0.04)", textDecoration: "none" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                      <span style={{ color: "#00ff88", fontSize: 10, flexShrink: 0 }}>↗</span>
+                      <span style={{ fontFamily: FONT, fontSize: 11, color: "#00cc77", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{src.title}</span>
+                    </div>
+                    {src.description ? (
+                      <div style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", lineHeight: 1.5, marginBottom: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{src.description}</div>
+                    ) : null}
+                    {domain ? <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{domain}</div> : null}
+                  </a>
+                );
+              })
+            ) : (
+              (d.theory_sources as string[]).slice(0, 12).map((item: string, i: number) => (
+                <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, color: "#bdb0c8", fontSize: 11, marginBottom: 6, wordBreak: "break-word" }}>
+                  <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
+                  <span style={{ flex: 1 }}>
+                    {isLikelyUrl(item) ? (
+                      <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none" }}>{item}</a>
+                    ) : item}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         ) : null}
 
@@ -1326,7 +1384,7 @@ export default function InvestigationBoard({
           style={{
             position: "absolute",
             top: 12,
-            right: internalSelected ? 316 : 12,
+            right: internalSelected ? 372 : 12,
             zIndex: 20,
             display: "flex",
             gap: 6,
@@ -1502,7 +1560,7 @@ export default function InvestigationBoard({
           className="ib-main-svg"
           ref={svgRef}
           viewBox="0 0 1000 640"
-          style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
+          style={{ width: internalSelected ? "calc(100% - 360px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
           preserveAspectRatio="xMidYMid meet"
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
@@ -1568,7 +1626,7 @@ export default function InvestigationBoard({
             style={{
               position: "absolute",
               bottom: 16,
-              right: 312,
+              right: 376,
               zIndex: 20,
               display: "flex",
               flexDirection: "row",

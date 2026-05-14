@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import InvestigationBoard from "@/components/InvestigationBoard";
 import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
@@ -494,66 +494,66 @@ export default function BoardScreen({
   const [loading, setLoading] = useState(!initialAnalysis);
   const [accessBlock, setAccessBlock] = useState<BoardAccessBlock | null>(null);
 
-  useEffect(() => {
-    if (analysis) return;
-    (async () => {
+  const fetchOracle = useCallback(async () => {
+    try {
+      setAccessBlock(null);
+      setLoading(true);
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setAccessBlock({ kind: "sign_in" });
+        return;
+      }
+      const res = await fetch("/api/oracle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(
+          oracleMode === "generated" ? { generatedArticleId: news.id } : { newsId: news.id },
+        ),
+      });
+      let payload: { error?: string; message?: string } = {};
       try {
-        setAccessBlock(null);
-        setLoading(true);
-        const supabase = getSupabaseBrowserClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session?.access_token) {
+        payload = (await res.json()) as { error?: string; message?: string };
+      } catch {
+        payload = {};
+      }
+      if (!res.ok) {
+        if (res.status === 403 && payload.error === "upgrade_required") {
+          setAccessBlock({ kind: "pro_required" });
+          return;
+        }
+        if (res.status === 401) {
           setAccessBlock({ kind: "sign_in" });
           return;
         }
-        const res = await fetch("/api/oracle", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(
-            oracleMode === "generated"
-              ? { generatedArticleId: news.id }
-              : { newsId: news.id },
-          ),
-        });
-        let payload: { error?: string; message?: string } = {};
-        try {
-          payload = (await res.json()) as { error?: string; message?: string };
-        } catch {
-          payload = {};
-        }
-        if (!res.ok) {
-          if (res.status === 403 && payload.error === "upgrade_required") {
-            setAccessBlock({ kind: "pro_required" });
-            return;
-          }
-          if (res.status === 401) {
-            setAccessBlock({ kind: "sign_in" });
-            return;
-          }
-          const detail = [payload.message, payload.error].filter(Boolean).join(" — ");
-          setAccessBlock({
-            kind: "error",
-            message: detail || `Oracle request failed (${res.status}).`,
-          });
-          return;
-        }
-        setAnalysis(payload as OracleAnalysis);
-        setSelected((payload as OracleAnalysis).nodes?.[0] ?? MOCK_NODES[0]);
-      } catch (e) {
+        const detail = [payload.message, payload.error].filter(Boolean).join(" — ");
         setAccessBlock({
           kind: "error",
-          message: e instanceof Error ? e.message : "Unknown error",
+          message: detail || `Oracle request failed (${res.status}).`,
         });
-      } finally {
-        setLoading(false);
+        return;
       }
-    })();
-  }, [analysis, news.id, oracleMode]);
+      setAnalysis(payload as OracleAnalysis);
+      setSelected((payload as OracleAnalysis).nodes?.[0] ?? MOCK_NODES[0]);
+    } catch (e) {
+      setAccessBlock({
+        kind: "error",
+        message: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [news.id, oracleMode]);
+
+  useEffect(() => {
+    if (analysis) return;
+    void fetchOracle();
+  }, [analysis, fetchOracle]);
 
   if (loading) {
     return <OracleLoadingScreen />;

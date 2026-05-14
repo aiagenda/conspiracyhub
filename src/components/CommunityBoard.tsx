@@ -472,8 +472,8 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
             </button>
             <button onClick={() => void submit()} disabled={(!reply.trim() && !mainGif) || posting}
               style={{ padding: "6px 14px", background: "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer", opacity: ((!reply.trim() && !mainGif) || posting) ? 0.4 : 1 }}>
-              {posting ? "..." : "POST ▶"}
-            </button>
+            {posting ? "..." : "POST ▶"}
+          </button>
           </div>
         </div>
         {gifPickerFor === "main" && (
@@ -787,10 +787,10 @@ export default function CommunityBoard() {
           <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>COMMUNITY INTELLIGENCE</div>
           <div style={{ marginLeft: "auto" }}>
             {!articleBundleId && (
-              <button onClick={() => setShowNew(s => !s)}
-                style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
-                {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
-              </button>
+            <button onClick={() => setShowNew(s => !s)}
+              style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
+              {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
+            </button>
             )}
           </div>
         </div>
