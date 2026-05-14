@@ -28,6 +28,7 @@ Rules:
 - Minimum 1 theory, maximum 5.
 - English only. Do not invent theory names.
 - Never return "theories": [].
+- If the user message contains "--- ALLOWED_SOURCE_URLS", every string in each theory's "sources" array must be copied verbatim from that list or omitted — never another URL.
 
 Return ONLY the JSON object, no markdown.`;
 

@@ -4,6 +4,7 @@ import { callOpenAIJSON } from "@/lib/openai";
 import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
+import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
     let primaryTitle: string;
     let primaryUrl: string;
     let primaryExcerpt: string;
+    let generatedArticleSources: unknown = undefined;
 
     if (newsId) {
       const { data: news, error } = await admin.from("news_items").select("*").eq("id", newsId).single();
@@ -135,27 +137,37 @@ export async function POST(req: NextRequest) {
         .trim()
         .slice(0, 2500);
       articleLine = `Investigation report: ${primaryTitle}\nSummary: ${primaryExcerpt}\nBody preview:\n${bodyPreview}\nURL: ${primaryUrl}`;
+      generatedArticleSources = gen.sources;
     }
+
+    const oracleSeeds = newsId
+      ? mergeUrlSeeds([primaryUrl], extractHttpsUrlsFromText(`${primaryExcerpt}\n${primaryUrl}`))
+      : mergeUrlSeeds([primaryUrl], urlsFromGeneratedSources(generatedArticleSources), extractHttpsUrlsFromText(articleLine));
+
+    const oracleAllow = createSourceUrlAllowlist(oracleSeeds);
+    const oracleUserMessage = articleLine + oracleAllow.promptBlock;
 
     const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
-      user: articleLine,
+      user: oracleUserMessage,
       maxTokens: 8192,
       maxAttempts: 4,
     });
 
-    const analysis = await ensureOracleTheoriesAtLeastOne(analysisRaw, articleLine, {
+    const analysisMerged = await ensureOracleTheoriesAtLeastOne(analysisRaw, oracleUserMessage, {
       apiKey: process.env.OPENAI_API_KEY!,
     });
 
-    const theoriesSanitized = (analysis.theories ?? []).map((t) => ({
+    const analysisAfterAllowlist = oracleAllow.applyToOracleAnalysis(analysisMerged);
+
+    const theoriesSanitized = (analysisAfterAllowlist.theories ?? []).map((t) => ({
       ...t,
       sources: sanitizeOracleTheoryUrlStrings(t.sources),
     }));
 
     const genericLabels = new Set(["connection", "link", "contextual relationship"]);
-    const normalizedEdges: Edge[] = (analysis.edges ?? []).map((edge) => ({
+    const normalizedEdges: Edge[] = (analysisAfterAllowlist.edges ?? []).map((edge) => ({
       ...edge,
       label:
         edge.label && !genericLabels.has(edge.label.trim().toLowerCase())
@@ -164,7 +176,7 @@ export async function POST(req: NextRequest) {
       confidence: typeof edge.confidence === "number" ? edge.confidence : Math.round((edge.strength ?? 0.5) * 100),
     }));
 
-    const normalizedNodes: Node[] = (analysis.nodes ?? []).map((node) => ({
+    const normalizedNodes: Node[] = (analysisAfterAllowlist.nodes ?? []).map((node) => ({
       ...node,
       detail: {
         ...node.detail,
@@ -228,7 +240,7 @@ export async function POST(req: NextRequest) {
       })
       .filter(Boolean) as OracleSource[];
 
-    const providedSources = (Array.isArray(analysis.sources) ? analysis.sources : [])
+    const providedSources = (Array.isArray(analysisAfterAllowlist.sources) ? analysisAfterAllowlist.sources : [])
       .map((source) => ({
         ...source,
         url: sanitizeOracleHttpUrl((source as OracleSource).url),
@@ -275,8 +287,8 @@ export async function POST(req: NextRequest) {
       edges: normalizedEdges,
       sources: validSources,
       theories: theoriesSanitized,
-      conclusion: analysis.conclusion,
-      verdict: normalizeVerdict(analysis.verdict),
+      conclusion: analysisAfterAllowlist.conclusion,
+      verdict: normalizeVerdict(analysisAfterAllowlist.verdict),
     };
 
     const insertRes = newsId

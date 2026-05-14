@@ -4,6 +4,7 @@ import { callOpenAIJSON } from "@/lib/openai";
 import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
+import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
@@ -41,25 +42,31 @@ export async function POST(req: NextRequest) {
 
     const articleLine = `Article: ${news.title}\nSummary: ${news.summary}\nURL: ${news.url}`;
 
+    const oracleSeeds = mergeUrlSeeds([news.url], extractHttpsUrlsFromText(`${news.summary ?? ""}\n${news.url}`));
+    const oracleAllow = createSourceUrlAllowlist(oracleSeeds);
+    const oracleUserMessage = articleLine + oracleAllow.promptBlock;
+
     const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
-      user: articleLine,
+      user: oracleUserMessage,
       maxTokens: 4500,
     });
 
-    const analysis = await ensureOracleTheoriesAtLeastOne(analysisRaw, articleLine, {
+    const analysisMerged = await ensureOracleTheoriesAtLeastOne(analysisRaw, oracleUserMessage, {
       apiKey: process.env.OPENAI_API_KEY!,
       maxTokens: 3500,
     });
 
-    const theoriesSanitized = (analysis.theories ?? []).map((t) => ({
+    const analysisAfterAllowlist = oracleAllow.applyToOracleAnalysis(analysisMerged);
+
+    const theoriesSanitized = (analysisAfterAllowlist.theories ?? []).map((t) => ({
       ...t,
       sources: sanitizeOracleTheoryUrlStrings(t.sources),
     }));
 
     const genericLabels = new Set(["connection", "link", "contextual relationship"]);
-    const normalizedEdges: Edge[] = (analysis.edges ?? []).map((edge) => ({
+    const normalizedEdges: Edge[] = (analysisAfterAllowlist.edges ?? []).map((edge) => ({
       ...edge,
       label:
         edge.label && !genericLabels.has(edge.label.trim().toLowerCase())
@@ -68,7 +75,7 @@ export async function POST(req: NextRequest) {
       confidence: typeof edge.confidence === "number" ? edge.confidence : Math.round((edge.strength ?? 0.5) * 100),
     }));
 
-    const normalizedNodes: Node[] = (analysis.nodes ?? []).map((node) => ({
+    const normalizedNodes: Node[] = (analysisAfterAllowlist.nodes ?? []).map((node) => ({
       ...node,
       detail: {
         ...node.detail,
@@ -138,7 +145,7 @@ export async function POST(req: NextRequest) {
       })
       .filter(Boolean) as OracleSource[];
 
-    const providedSources = (Array.isArray(analysis.sources) ? analysis.sources : [])
+    const providedSources = (Array.isArray(analysisAfterAllowlist.sources) ? analysisAfterAllowlist.sources : [])
       .map((source) => ({
         ...source,
         url: sanitizeOracleHttpUrl((source as OracleSource).url),
@@ -168,8 +175,8 @@ export async function POST(req: NextRequest) {
       edges: normalizedEdges,
       sources: validSources,
       theories: theoriesSanitized,
-      conclusion: analysis.conclusion,
-      verdict: normalizeVerdict(analysis.verdict),
+      conclusion: analysisAfterAllowlist.conclusion,
+      verdict: normalizeVerdict(analysisAfterAllowlist.verdict),
     };
 
     const { data: inserted, error } = await admin.from("oracle_analyses").insert(payload).select("*").single();

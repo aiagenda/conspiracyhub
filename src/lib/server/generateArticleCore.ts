@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { callOpenAIJSON } from "@/lib/openai";
 import { sanitizeSources } from "@/lib/generatedArticleSourceUrls";
+import { applyAllowlistToArticleSources, createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -33,6 +34,7 @@ Write in English. Be factual, reference real documents and events. Your articles
 - End with open questions that invite readers to investigate further
 
 CRITICAL SOURCE RULES — read carefully:
+The user message may include "--- ALLOWED_SOURCE_URLS". When present, each sources[].url MUST be copied verbatim from that list or be "" — never any other URL.
 You MUST only include sources with URLs that you are CERTAIN exist. If you are not 100% sure the exact URL is real and reachable, set "url" to "" (empty string) — never invent or guess a URL.
 Only use URLs from these trusted domains (top-level only, exact paths must be real):
   cia.gov/readingroom, archives.gov, federalregister.gov, congress.gov/bill, congress.gov/congressional-record,
@@ -73,6 +75,7 @@ export async function runGenerateArticleCore(mode: string): Promise<GenerateArti
 
   try {
     const admin = getAdmin();
+    let primaryCitationUrls: string[] = [];
     let prompt = "";
 
     if (mode === "news_jacking") {
@@ -89,6 +92,7 @@ export async function runGenerateArticleCore(mode: string): Promise<GenerateArti
       }
 
       const top = topNews[0];
+      primaryCitationUrls = mergeUrlSeeds([top.url], []);
       prompt = `Write a deep-dive investigative analysis article about this news story from a conspiracy theory angle.
 
 News title: "${top.title}"
@@ -121,6 +125,7 @@ Related article: ${top.url}`;
       }
 
       const pick = sightings[Math.floor(Math.random() * sightings.length)];
+      primaryCitationUrls = mergeUrlSeeds([pick.source_url], []);
       const dateStr = pick.event_date
         ? new Date(pick.event_date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
         : "unknown date";
@@ -168,6 +173,7 @@ Internal links: reference "${SITE_URL}/uap" for the UAP files page.`;
         score: number;
         section: string;
       } | null;
+      primaryCitationUrls = mergeUrlSeeds(news?.url ? [news.url] : [], []);
       const theories = Array.isArray(pick.theories) ? pick.theories.slice(0, 3) : [];
       const theoryNames = theories.map((t: { name?: string }) => t.name ?? "").filter(Boolean).join(", ");
 
@@ -202,6 +208,7 @@ Internal links: reference "${SITE_URL}/board" for the AI investigation board, "$
       }
 
       const pick = docs[Math.floor(Math.random() * docs.length)];
+      primaryCitationUrls = mergeUrlSeeds([pick.canonical_url], []);
 
       prompt = `Write a deep-dive investigative article about this declassified government document or program.
 
@@ -239,6 +246,7 @@ Include the official source URL prominently. Internal links: reference "${SITE_U
         "Operation Mockingbird: the CIA's media infiltration program",
       ];
       const topic = EVERGREEN_TOPICS[Math.floor(Math.random() * EVERGREEN_TOPICS.length)];
+      primaryCitationUrls = [];
       prompt = `Write a comprehensive, SEO-optimized deep-dive article about: "${topic}"
 
 Requirements:
@@ -250,6 +258,11 @@ Requirements:
 
 Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" for investigation tools.`;
     }
+
+    const articleAllow = createSourceUrlAllowlist(
+      mergeUrlSeeds(primaryCitationUrls, extractHttpsUrlsFromText(prompt)),
+    );
+    const userPrompt = prompt + articleAllow.promptBlock;
 
     const article = await callOpenAIJSON<{
       title: string;
@@ -265,7 +278,7 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
     }>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: ARTICLE_SYSTEM,
-      user: prompt,
+      user: userPrompt,
       maxTokens: 3000,
       model: "gpt-4o",
     });
@@ -285,7 +298,7 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
         excerpt: article.excerpt,
         category: article.category,
         tags: article.tags ?? [],
-        sources: sanitizeSources(article.sources),
+        sources: sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow)),
         mode,
         status: "published",
         published_at: new Date().toISOString(),

@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
+import { sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
+import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
 import { fetchUrlContent } from "@/lib/urlContent";
 import type { OracleAnalysis } from "@/types";
@@ -46,24 +48,35 @@ export async function POST(req: NextRequest) {
 
     const articleLine = `Source URL: ${urlStr}\nContent extraction: ${article.source}\nTitle: ${article.title}\n\nContent:\n${article.text}`;
 
+    const oracleSeeds = mergeUrlSeeds([urlStr], extractHttpsUrlsFromText(articleLine));
+    const oracleAllow = createSourceUrlAllowlist(oracleSeeds);
+    const oracleUserMessage = articleLine + oracleAllow.promptBlock;
+
     const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: SYSTEM_ORACLE,
-      user: articleLine,
+      user: oracleUserMessage,
       maxTokens: 8192,
       maxAttempts: 4,
     });
 
-    const analysis = await ensureOracleTheoriesAtLeastOne(analysisRaw, articleLine, {
+    const analysisMerged = await ensureOracleTheoriesAtLeastOne(analysisRaw, oracleUserMessage, {
       apiKey: process.env.OPENAI_API_KEY!,
     });
+
+    const analysis = oracleAllow.applyToOracleAnalysis(analysisMerged);
+
+    const theoriesOut = (analysis.theories ?? []).map((t) => ({
+      ...t,
+      sources: sanitizeOracleTheoryUrlStrings(t.sources),
+    }));
 
     const payload = {
       source_url: urlStr,
       title: article.title,
       nodes: analysis.nodes ?? [],
       edges: analysis.edges ?? [],
-      theories: analysis.theories ?? [],
+      theories: theoriesOut,
       sources: analysis.sources ?? [],
       conclusion: analysis.conclusion ?? "",
       verdict: normalizeVerdict(analysis.verdict ?? "QUESTIONABLE"),
