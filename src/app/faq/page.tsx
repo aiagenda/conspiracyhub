@@ -38,7 +38,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does community voting work?",
-    a: "On every Investigation Board you can vote on the AI threat score and on which theory you find most credible. Votes are anonymous, deduplicated per browser fingerprint, and shown as a live community consensus alongside the AI score.",
+    a: "On each article and investigation report page you can vote on the AI threat score, pick the most credible Oracle theory (after an analysis exists), and mark if you witnessed something similar. Votes are anonymous, deduplicated per browser fingerprint, and shown as a live community consensus alongside the AI score. The Investigation Board is for exploring the graph and sources.",
   },
   {
     q: "What do I get with PRO?",

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
+import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
 import { normalizeVerdict } from "@/lib/verdict";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
@@ -148,6 +149,11 @@ export async function POST(req: NextRequest) {
       apiKey: process.env.OPENAI_API_KEY!,
     });
 
+    const theoriesSanitized = (analysis.theories ?? []).map((t) => ({
+      ...t,
+      sources: sanitizeOracleTheoryUrlStrings(t.sources),
+    }));
+
     const genericLabels = new Set(["connection", "link", "contextual relationship"]);
     const normalizedEdges: Edge[] = (analysis.edges ?? []).map((edge) => ({
       ...edge,
@@ -162,7 +168,10 @@ export async function POST(req: NextRequest) {
       ...node,
       detail: {
         ...node.detail,
-        source_url: node.detail?.source_url,
+        source_url: (() => {
+          const u = sanitizeOracleHttpUrl(node.detail?.source_url);
+          return u || undefined;
+        })(),
         source_tier: clampDbTier(node.detail?.source_tier),
         source_type: clampDbSourceType(node.detail?.source_type ?? "media"),
         why_it_matters:
@@ -219,7 +228,13 @@ export async function POST(req: NextRequest) {
       })
       .filter(Boolean) as OracleSource[];
 
-    const providedSources = Array.isArray(analysis.sources) ? analysis.sources : [];
+    const providedSources = (Array.isArray(analysis.sources) ? analysis.sources : [])
+      .map((source) => ({
+        ...source,
+        url: sanitizeOracleHttpUrl((source as OracleSource).url),
+      }))
+      .filter((source) => source.url && /^https?:\/\//i.test(source.url)) as OracleSource[];
+
     const mergedSources = [...providedSources, ...inferredSourcesFromNodes].filter(
       (source, idx, arr) => source?.url && arr.findIndex((s) => s.url === source.url) === idx,
     );
@@ -240,12 +255,13 @@ export async function POST(req: NextRequest) {
     if (validSources.length < 2 && !newsId && generatedArticleId) {
       const { data: genRow } = await admin.from("generated_articles").select("sources").eq("id", generatedArticleId).maybeSingle();
       for (const u of urlsFromGeneratedSources(genRow?.sources)) {
-        if (validSources.some((s) => s.url === u)) continue;
+        const clean = sanitizeOracleHttpUrl(u);
+        if (!clean || validSources.some((s) => s.url === clean)) continue;
         validSources.push({
           id: `gen-src-${validSources.length}`,
-          title: u,
-          url: u,
-          domain: safeHostname(u),
+          title: clean,
+          url: clean,
+          domain: safeHostname(clean),
           tier: "B",
           source_type: "research",
           excerpt: "",
@@ -258,7 +274,7 @@ export async function POST(req: NextRequest) {
       nodes: normalizedNodes,
       edges: normalizedEdges,
       sources: validSources,
-      theories: analysis.theories,
+      theories: theoriesSanitized,
       conclusion: analysis.conclusion,
       verdict: normalizeVerdict(analysis.verdict),
     };

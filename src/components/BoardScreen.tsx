@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import InvestigationBoard from "@/components/InvestigationBoard";
-import VotePanel from "@/components/VotePanel";
 import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -596,16 +595,6 @@ export default function BoardScreen({
           backLabel={backLabel}
         />
       </div>
-      {analysis && (
-        <div className="board-vote-wrap" style={{ flexShrink: 0, padding: "0 1rem 1rem", maxWidth: 400, marginLeft: "auto", width: "100%" }}>
-          <VotePanel
-            articleId={oracleMode === "news" ? news.id : undefined}
-            generatedArticleId={oracleMode === "generated" ? news.id : undefined}
-            aiScore={news.score ?? 0}
-            theories={analysis.theories?.slice(0, 3) ?? []}
-          />
-        </div>
-      )}
     </div>
   );
 }

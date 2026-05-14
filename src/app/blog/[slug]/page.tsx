@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import GeneratedArticleReader from "@/components/GeneratedArticleReader";
+import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
 export const revalidate = 86400;
@@ -119,6 +120,16 @@ export default async function BlogArticlePage({
     mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
   };
 
+  const { data: oracleAnalysis } = await admin
+    .from("oracle_analyses")
+    .select("theories")
+    .eq("generated_article_id", article.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const voteTheories = voteTheoriesFromOracleJson(oracleAnalysis?.theories);
+
   const sources = Array.isArray(article.sources) ? article.sources : [];
 
   return (
@@ -130,6 +141,7 @@ export default async function BlogArticlePage({
         markdown={article.content}
         sources={sources}
         initialChatOpen={initialChatOpen}
+        voteTheories={voteTheories}
       />
     </>
   );

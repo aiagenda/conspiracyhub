@@ -18,8 +18,10 @@ interface Props {
 }
 
 export default function VotePanel({ articleId, generatedArticleId, aiScore, theories = [] }: Props) {
-  const targetId = articleId ?? generatedArticleId;
-  const isGenerated = Boolean(generatedArticleId);
+  const aid = (articleId ?? "").toString().trim();
+  const gid = (generatedArticleId ?? "").toString().trim();
+  const isGenerated = aid.length === 0 && gid.length > 0;
+  const targetId = aid.length > 0 ? aid : gid;
   const [votes, setVotes] = useState<VoteData[]>([]);
   const [myVotes, setMyVotes] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,10 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
   const [confirmed, setConfirmed] = useState<string | null>(null); // tracks which type just got confirmed
 
   useEffect(() => {
-    if (!targetId) return;
+    if (!targetId) {
+      setLoading(false);
+      return;
+    }
     const q = isGenerated
       ? `generated_article_id=${encodeURIComponent(targetId)}`
       : `article_id=${encodeURIComponent(targetId)}`;
@@ -54,14 +59,16 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           isGenerated
-            ? { generated_article_id: generatedArticleId, vote_type, value }
-            : { article_id: articleId, vote_type, value },
+            ? { generated_article_id: targetId, vote_type, value }
+            : { article_id: targetId, vote_type, value },
         ),
       });
       const d = await res.json();
-      if (d.aggregates) setVotes(d.aggregates);
-      setMyVotes(p => ({ ...p, [vote_type]: value }));
-      if (vote_type === "witnessed") setWitnessed(true);
+      if (res.ok && d.aggregates) setVotes(d.aggregates);
+      if (res.ok) {
+        setMyVotes((p) => ({ ...p, [vote_type]: value }));
+        if (vote_type === "witnessed") setWitnessed(true);
+      }
       // Flash confirmation for 1.4s
       setConfirmed(vote_type);
       setTimeout(() => setConfirmed(null), 1400);
@@ -77,6 +84,8 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
   const witnessAgg = getAgg("witnessed");
   const communityScore = conspAgg ? conspAgg.avg_value : null;
   const totalVoters = conspAgg ? conspAgg.vote_count : 0;
+
+  if (!targetId) return null;
 
   return (
     <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>

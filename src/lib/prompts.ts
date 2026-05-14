@@ -15,7 +15,7 @@ Return a JSON object with these fields:
      * title (full name)
      * body (2-3 sentences explaining relevance)
      * source (citation text, e.g. "USPTO Patent #10,966,620")
-     * source_url (real absolute URL — USPTO, CIA FOIA, gov site, news, etc.)
+     * source_url: HTTPS URL to the **specific** page (article, briefing book, FOIA document, patent page, etc.). The path MUST identify that page — never only a site homepage (e.g. not https://nsarchive.gwu.edu/ alone, not https://www.cia.gov/ with no path). If you cannot give a real deep link you are sure exists, use "" and explain in "source" how to find the material (e.g. "NSA Briefing Book title — search nsarchive.gwu.edu postings").
      * source_tier ("A" = official/primary, "B" = major media/research, "C" = context only)
      * source_type ("official" | "media" | "research" | "archive" | "testimony")
      * excerpt (MANDATORY): 1-3 sentences — a direct quote or the most specific factual claim from the source with attribution (patent claim language, FOIA line, headline + key sentence, testimony quote). If no verbatim quote, use the most specific attributed factual claim.
@@ -46,12 +46,12 @@ Return a JSON object with these fields:
    - full_explanation: a thorough paragraph (5-8 sentences) explaining the full theory narrative, the key actors involved, what allegedly happened or is happening, and why believers find it credible
    - evidence: array of 3-5 specific evidence points people cite for this theory (real events, documents, quotes)
    - counter_evidence: array of 2-3 mainstream explanations that debunk or complicate the theory
-   - sources: array of 2-5 REAL URLs where this theory is documented or discussed (Wikipedia, academic papers, news articles, declassified documents, FOIA archives) — only include URLs you are confident exist
+   - sources: array of 2-5 REAL **page-level** https URLs where this theory is documented (Wikipedia article, specific news URL, document page). Each URL must have a path, query, or hash beyond the domain root — same rule as source_url. Only include URLs you are confident exist; omit rather than using a homepage alone.
    - key_people: array of real names associated with this theory
    - probability: realistic plausibility score 0-100 (most theories should be 5-35%, well-documented ones up to 60%)
    - timeline: array of {date, event} showing how the theory developed (2-5 items)
 
-4. sources — all cited sources with: id, title, url (absolute), domain, tier, source_type, excerpt
+4. sources — all cited sources with: id, title, url (absolute, **page-level** deep link — same rules as source_url), domain, tier, source_type, excerpt
 
 5. conclusion — 2-3 sentence analytical summary
 
@@ -59,9 +59,9 @@ Return a JSON object with these fields:
 
 CRITICAL RULES:
 - excerpt is required on every node so readers can verify claims against the cited material.
-- Every source_url must be a real, working absolute URL (https://...)
-- Theory sources must be real URLs (Wikipedia articles, declassified docs, academic papers, reputable news)
-- Do NOT invent URLs — if unsure, omit the URL rather than making one up
+- Every non-empty source_url must be a real, working absolute URL (https://...) that deep-links to the cited material — never a bare organization homepage.
+- Theory "sources" strings must likewise be specific page URLs, not domain roots only.
+- Do NOT invent URLs — if unsure, use "" for source_url (or omit that theory URL) rather than making one up or using only https://domain/
 - Do NOT add a theory just to reach a target count — quality over quantity
 - The "theories" array must contain at least one object with a non-empty "name" — never return "theories": []
 - Return ONLY valid JSON, no other text`;

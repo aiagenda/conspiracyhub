@@ -3,9 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import LiveChat from "@/components/LiveChat";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import VotePanel from "@/components/VotePanel";
 import Link from "next/link";
 import Image from "next/image";
 import type { NewsItem } from "@/types";
+import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { markArticleRead } from "@/lib/readArticles";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -246,10 +248,12 @@ export default function ArticleReader({
   item,
   body,
   initialChatOpen = false,
+  voteTheories = [],
 }: {
   item: NewsItem;
   body: string;
   initialChatOpen?: boolean;
+  voteTheories?: VoteTheoryChip[];
 }) {
   const [highlights, setHighlights]     = useState<Highlight[]>([]);
   const [hlTotal, setHlTotal]           = useState(0);
@@ -688,6 +692,8 @@ export default function ArticleReader({
 
             {/* POLYMARKET — after legend (matches desktop layout bundle) */}
             <PolymarketWidget query={item.title} context={buildArticlePolymarketContext(item, body, highlights)} />
+
+            <VotePanel articleId={item.id} aiScore={item.score} theories={voteTheories} />
 
             {/* Flags list */}
             {highlights.length > 0 && (

@@ -6,8 +6,10 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import LiveChat from "@/components/LiveChat";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import VotePanel from "@/components/VotePanel";
 import { markArticleRead } from "@/lib/readArticles";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -38,12 +40,14 @@ export default function GeneratedArticleReader({
   markdown,
   sources = [],
   initialChatOpen = false,
+  voteTheories = [],
 }: {
   item: NewsItem;
   slug: string;
   markdown: string;
   sources?: SourceRow[];
   initialChatOpen?: boolean;
+  voteTheories?: VoteTheoryChip[];
 }) {
   const [chatOpen, setChatOpen] = useState(initialChatOpen);
 
@@ -471,9 +475,10 @@ export default function GeneratedArticleReader({
             >
               <div style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ SIGNALS</div>
               <div style={{ fontSize: 10, color: "#5a8068", lineHeight: 1.55 }}>
-                Open the Investigation Board to run Oracle graph analysis, vote on theories, and explore evidence nodes for this report.
+                Community votes and theory picks are in the panel below. Open the Investigation Board for the Oracle graph and evidence nodes.
               </div>
             </div>
+            <VotePanel generatedArticleId={item.id} aiScore={item.score} theories={voteTheories} />
             <PolymarketWidget query={item.title} context={buildPolymarketContext(item, markdown)} />
           </div>
 

@@ -9,8 +9,8 @@ import {
 const FONT = "var(--font-share-tech-mono), monospace";
 
 type Props = {
-  articleId?: string;
-  generatedArticleId?: string;
+  articleId?: string | number;
+  generatedArticleId?: string | number;
   initial?: ReaderReactionStats;
   /** When true, vote clicks do not bubble (use inside `<Link>`). */
   insideLink?: boolean;
@@ -26,13 +26,29 @@ export default function ReaderReactionVote({
   const [my, setMy] = useState<-1 | 0 | 1>(0);
   const [pending, setPending] = useState(false);
 
-  const q =
-    articleId != null && articleId !== ""
-      ? `article_id=${encodeURIComponent(articleId)}`
-      : `generated_article_id=${encodeURIComponent(generatedArticleId!)}`;
+  const aid =
+    typeof articleId === "string"
+      ? articleId.trim()
+      : articleId != null && String(articleId).trim() !== ""
+        ? String(articleId).trim()
+        : "";
+  const gid =
+    typeof generatedArticleId === "string"
+      ? generatedArticleId.trim()
+      : generatedArticleId != null && String(generatedArticleId).trim() !== ""
+        ? String(generatedArticleId).trim()
+        : "";
+  /** Prefer feed article id when both are mistakenly passed. */
+  const useArticle = aid.length > 0;
+  const useGenerated = !useArticle && gid.length > 0;
+
+  const q = useArticle
+    ? `article_id=${encodeURIComponent(aid)}`
+    : `generated_article_id=${encodeURIComponent(gid)}`;
 
   useEffect(() => {
     let cancelled = false;
+    if (!useArticle && !useGenerated) return;
     fetch(`/api/vote?${q}`)
       .then((r) => r.json())
       .then((d) => {
@@ -45,7 +61,7 @@ export default function ReaderReactionVote({
     return () => {
       cancelled = true;
     };
-  }, [q]);
+  }, [q, useArticle, useGenerated]);
 
   const syncFromJson = useCallback((d: { reader_reaction?: ReaderReactionStats; my_reader_reaction?: number }) => {
     if (d.reader_reaction) setStats(d.reader_reaction);
@@ -55,16 +71,16 @@ export default function ReaderReactionVote({
 
   const post = useCallback(
     async (value: -1 | 0 | 1) => {
-      if (!articleId && !generatedArticleId) return;
+      if (!useArticle && !useGenerated) return;
       setPending(true);
       try {
         const res = await fetch("/api/vote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            articleId
-              ? { article_id: articleId, vote_type: READER_REACTION_VOTE_TYPE, value }
-              : { generated_article_id: generatedArticleId, vote_type: READER_REACTION_VOTE_TYPE, value },
+            useArticle
+              ? { article_id: aid, vote_type: READER_REACTION_VOTE_TYPE, value }
+              : { generated_article_id: gid, vote_type: READER_REACTION_VOTE_TYPE, value },
           ),
         });
         const d = await res.json();
@@ -73,7 +89,7 @@ export default function ReaderReactionVote({
         setPending(false);
       }
     },
-    [articleId, generatedArticleId, syncFromJson],
+    [aid, gid, useArticle, useGenerated, syncFromJson],
   );
 
   const onUp = useCallback(
@@ -107,7 +123,7 @@ export default function ReaderReactionVote({
       type="button"
       aria-label={aria}
       onClick={onClick}
-      disabled={pending}
+      disabled={pending || (!useArticle && !useGenerated)}
       style={{
         border: `1px solid ${active ? "#00bb66" : "#1a3320"}`,
         background: active ? "rgba(0,187,102,0.15)" : "transparent",

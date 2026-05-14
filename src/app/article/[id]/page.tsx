@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
+import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
@@ -175,6 +176,16 @@ export default async function ArticlePage({
     ? await fetchGuardianBody(news.guardian_id ?? "")
     : await fetchGenericBody(news.url ?? "");
 
+  const { data: oracleAnalysis } = await admin
+    .from("oracle_analyses")
+    .select("theories")
+    .eq("news_id", id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const voteTheories = voteTheoriesFromOracleJson(oracleAnalysis?.theories);
+
   const item: NewsItem = {
     id: news.id,
     guardian_id: news.guardian_id,
@@ -216,7 +227,7 @@ export default async function ArticlePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ArticleReader item={item} body={body || fallbackBody} initialChatOpen={initialChatOpen} />
+      <ArticleReader item={item} body={body || fallbackBody} initialChatOpen={initialChatOpen} voteTheories={voteTheories} />
     </>
   );
 }

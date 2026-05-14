@@ -19,7 +19,7 @@ Each theory object must include:
 - full_explanation: string
 - evidence: array of strings (specific points people cite)
 - counter_evidence: array of strings (mainstream pushback)
-- sources: array of https URLs you are confident exist (omit rather than invent)
+- sources: array of https URLs you are confident exist; each must be a **specific** page (non-empty path, query, or hash), not only the domain root — omit entries rather than using a homepage
 - key_people: array of strings
 - probability: number 0-100
 - timeline: array of { "date": string, "event": string }
