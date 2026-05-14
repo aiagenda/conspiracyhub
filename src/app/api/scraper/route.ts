@@ -20,6 +20,16 @@ function publishedAtMs(raw: string): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+function dedupeArticlesByGuardianId(articles: Article[]): Article[] {
+  const m = new Map<string, Article>();
+  for (const a of articles) {
+    if (!a.guardian_id) continue;
+    const prev = m.get(a.guardian_id);
+    if (!prev || publishedAtMs(a.date) >= publishedAtMs(prev.date)) m.set(a.guardian_id, a);
+  }
+  return [...m.values()];
+}
+
 interface Article {
   guardian_id: string;
   title: string;
@@ -80,43 +90,92 @@ async function fetchRSS(feedUrl: string, sourceId: string, section: string): Pro
 
 async function fetchGuardian(): Promise<Article[]> {
   const sections = [
-    "technology", "science", "world", "politics", "environment",
-    "society", "uk", "us-news", "global-development",
+    "technology",
+    "science",
+    "world",
+    "politics",
+    "environment",
+    "society",
+    "uk",
+    "uk-news",
+    "us-news",
+    "global-development",
+    "media",
+    "law",
+    "business",
   ];
   const results: Article[] = [];
   const key = process.env.GUARDIAN_API_KEY;
   if (!key) return results;
+  const pageSize = 12;
+  const fields = "headline,trailText,thumbnail,webUrl,webPublicationDate";
+
+  const mapResult = (a: unknown, sectionLabel: string) => {
+    const row = a as {
+      id?: string;
+      webTitle?: string;
+      webUrl?: string;
+      webPublicationDate?: string;
+      fields?: { trailText?: string; thumbnail?: string };
+    };
+    const f = row.fields;
+    if (!row.id || !row.webUrl) return;
+    results.push({
+      guardian_id: String(row.id),
+      title: String(row.webTitle ?? ""),
+      summary: f?.trailText ?? "",
+      url: String(row.webUrl),
+      image: f?.thumbnail ?? null,
+      date: String(row.webPublicationDate ?? new Date().toISOString()),
+      section: sectionLabel,
+      source: "guardian",
+    });
+  };
+
   for (const section of sections) {
     try {
-      const url = `https://content.guardianapis.com/search?section=${section}&show-fields=headline,trailText,thumbnail,webUrl,webPublicationDate&page-size=10&api-key=${key}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(6000), cache: "no-store" });
+      const url = `https://content.guardianapis.com/search?section=${encodeURIComponent(section)}&show-fields=${fields}&page-size=${pageSize}&order-by=newest&api-key=${key}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000), cache: "no-store" });
       if (!res.ok) continue;
       const data = await res.json();
-      for (const a of data?.response?.results ?? []) {
-        const row = a as {
-          id?: string;
-          webTitle?: string;
-          webUrl?: string;
-          webPublicationDate?: string;
-          fields?: { trailText?: string; thumbnail?: string };
-        };
-        const fields = row.fields;
-        results.push({
-          guardian_id: String(row.id ?? ""),
-          title: String(row.webTitle ?? ""),
-          summary: fields?.trailText ?? "",
-          url: String(row.webUrl ?? ""),
-          image: fields?.thumbnail ?? null,
-          date: String(row.webPublicationDate ?? new Date().toISOString()),
-          section: String(section),
-          source: "guardian",
-        });
-      }
+      for (const a of data?.response?.results ?? []) mapResult(a, section);
     } catch {
       /* skip section */
     }
   }
-  return results;
+
+  // Cross-section newest (picks up stories that sit outside our section list, e.g. UK legal / Maxwell)
+  try {
+    const from = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const url = `https://content.guardianapis.com/search?order-by=newest&from-date=${from}&page-size=40&show-fields=${fields}&api-key=${key}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000), cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      for (const a of data?.response?.results ?? []) mapResult(a, "latest");
+    }
+  } catch {
+    /* non-fatal */
+  }
+
+  // Optional: comma-separated free-text searches (e.g. "Ghislaine Maxwell,Epstein" on Vercel)
+  const extra = (process.env.GUARDIAN_EXTRA_SEARCH_QUERIES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  for (const q of extra) {
+    try {
+      const url = `https://content.guardianapis.com/search?q=${encodeURIComponent(q)}&order-by=newest&page-size=15&show-fields=${fields}&api-key=${key}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000), cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const a of data?.response?.results ?? []) mapResult(a, `search:${q.slice(0, 24)}`);
+    } catch {
+      /* skip */
+    }
+  }
+
+  return dedupeArticlesByGuardianId(results);
 }
 
 async function fetchGoogleNews(): Promise<Article[]> {
@@ -267,12 +326,12 @@ export async function runScraper(openAiKey: string) {
     fetchReddit(),
   ]);
 
-  const all = [
+  const all = dedupeArticlesByGuardianId([
     ...guardian,
     ...gnews,
     ...reddit,
     ...rssResults.flat(),
-  ];
+  ]);
   console.log(`[scraper] Fetched ${all.length} total articles from ${3 + RSS_SOURCES.length} sources`);
 
   // ── 3. Dedup against existing DB ─────────────────────────────────────────
