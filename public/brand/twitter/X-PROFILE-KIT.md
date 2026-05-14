@@ -5,9 +5,9 @@ Kész assetek ebben a mappában (**v2 — finomított**: precízebb embléma / t
 | Fájl | Ajánlott használat |
 |------|---------------------|
 | `twitter-profile-the-theorist.png` | Profilkép (négyzet; X körbe vágja). Opcionálisan **400×400** vagy **512×512** px export (Squoosh / Photopea) a legélesebb megjelenéshez. |
-| `twitter-banner-the-theorist.png` | Fejléc / banner. Célformátum: **1500×500** px @72dpi; ha a fájl nem pont ilyen, exportáld vagy vágd X feltöltőben. |
+| `twitter-banner-the-theorist.png` | Fejléc / banner **1500×250** px (a szokásos 1500×500 fele magasságban). Szélességre skálázva, középre vágva — ugyanaz a vizuális hang, keskenyebb sáv. |
 
-**Biztonsági zóna:** a banneren tarts távolságot a szélektől és a profilkép takarásától (bal alsó ív). A v2 kép prompt szándékosan nagy margót kért a szövegnek.
+**Biztonsági zóna:** keskeny sáv miatt a szöveg gyorsan levágódhat X cropban — ha kell, tölts fel 1500×500 háttérnek ugyanezt PNG-t középre igazítva, vagy generálj új vágást.
 
 ---
 
