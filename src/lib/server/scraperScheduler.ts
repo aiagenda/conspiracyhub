@@ -14,6 +14,23 @@ export type ScraperJob = {
 
 type RunStatus = "running" | "success" | "failed" | "skipped";
 
+/**
+ * Base URL when this server calls its own HTTP routes (e.g. /api/generate-article).
+ * On Vercel, localhost is wrong — use VERCEL_URL or set NEXT_PUBLIC_SITE_URL / CRON_SELF_URL.
+ */
+export function cronSelfBaseUrl(): string {
+  const custom = process.env.CRON_SELF_URL?.trim() || process.env.INTERNAL_APP_URL?.trim();
+  if (custom) return custom.replace(/\/$/, "");
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (site) return site.replace(/\/$/, "");
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) {
+    const host = vercel.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    return `https://${host}`;
+  }
+  return "http://localhost:3000";
+}
+
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
@@ -107,7 +124,7 @@ async function runUapScraper(config: Record<string, unknown> | null): Promise<{ 
 
 async function runArticleWriter(config: Record<string, unknown> | null): Promise<{ ok: boolean; status: number; payload: unknown }> {
   const mode = (config?.mode as string) ?? "news_jacking";
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const baseUrl = cronSelfBaseUrl();
   try {
     const res = await fetch(`${baseUrl}/api/generate-article`, {
       method: "POST",
@@ -118,10 +135,15 @@ async function runArticleWriter(config: Record<string, unknown> | null): Promise
       body: JSON.stringify({ mode }),
       signal: AbortSignal.timeout(90_000),
     });
-    const payload = await res.json();
+    const payload = await res.json().catch(() => ({ error: "invalid_json_response" }));
     return { ok: res.ok, status: res.status, payload };
   } catch (e) {
-    return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
+    const msg = e instanceof Error ? e.message : String(e);
+    const hint =
+      /fetch failed|ECONNREFUSED|ENOTFOUND|certificate|SSL/i.test(msg)
+        ? ` — tried ${baseUrl}/api/generate-article (set CRON_SELF_URL or NEXT_PUBLIC_SITE_URL on Vercel if this URL is wrong)`
+        : "";
+    return { ok: false, status: 500, payload: { error: msg + hint } };
   }
 }
 
