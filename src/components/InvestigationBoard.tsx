@@ -261,8 +261,8 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
   const isTheory = node.type === "theory";
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(3,8,6,0.95)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 680, maxHeight: "88vh", overflowY: "auto", background: "#080f09", border: `1px solid ${c.border}`, borderRadius: 4 }}>
+    <div className="ib-node-modal-backdrop" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(3,8,6,0.95)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
+      <div className="ib-node-modal-panel modal-panel" onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 680, maxHeight: "88vh", overflowY: "auto", background: "#080f09", border: `1px solid ${c.border}`, borderRadius: 4 }}>
 
         {/* Header */}
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #1a3320", background: "#050c07", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 1 }}>
@@ -507,6 +507,7 @@ function DetailPanel({
   return (
     <>
     <div
+      className="ib-detail-panel"
       style={{
         position: "absolute",
         right: 0,
@@ -1290,7 +1291,7 @@ export default function InvestigationBoard({
           <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2 }}>VERDICT</span>
           <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#00ff88" }}>{formatVerdictShort(verdict)}</span>
           {conclusion ? (
-            <span style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", flex: 1, minWidth: 220, lineHeight: 1.55 }}>{conclusion}</span>
+            <span style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", flex: 1, minWidth: 0, lineHeight: 1.55 }}>{conclusion}</span>
           ) : null}
         </div>
       ) : null}
@@ -1496,6 +1497,7 @@ export default function InvestigationBoard({
         </div>
 
         <svg
+          className="ib-main-svg"
           ref={svgRef}
           viewBox="0 0 1000 640"
           style={{ width: internalSelected ? "calc(100% - 300px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}

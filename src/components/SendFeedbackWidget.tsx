@@ -190,7 +190,7 @@ export default function SendFeedbackWidget() {
                 <div style={{ fontSize: 10, color: "#3a5040", wordBreak: "break-all" }}>
                   Page: <span style={{ color: "#5a8068" }}>{pathname || "/"}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="feedback-form-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
                     <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, display: "block", marginBottom: 4 }}>NAME <span style={{ color: "#3a5040" }}>(optional)</span></label>
                     <input

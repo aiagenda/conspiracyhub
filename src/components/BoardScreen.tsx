@@ -597,7 +597,7 @@ export default function BoardScreen({
         />
       </div>
       {analysis && (
-        <div style={{ flexShrink: 0, padding: "0 1rem 1rem", maxWidth: 400, marginLeft: "auto", width: "100%" }}>
+        <div className="board-vote-wrap" style={{ flexShrink: 0, padding: "0 1rem 1rem", maxWidth: 400, marginLeft: "auto", width: "100%" }}>
           <VotePanel
             articleId={oracleMode === "news" ? news.id : undefined}
             generatedArticleId={oracleMode === "generated" ? news.id : undefined}

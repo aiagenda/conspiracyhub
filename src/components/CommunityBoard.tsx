@@ -94,7 +94,7 @@ function GifPicker({ onSelect, onClose }: { onSelect: (url: string) => void; onC
       {loading && <div style={{ textAlign: "center", color: "#3a5040", fontSize: 9, letterSpacing: 2, padding: "8px 0" }}>SEARCHING...</div>}
       {!loading && gifs.length === 0 && q.trim() && <div style={{ textAlign: "center", color: "#3a5040", fontSize: 9, padding: "8px 0" }}>No results</div>}
       {!q.trim() && <div style={{ textAlign: "center", color: "#3a5040", fontSize: 9, padding: "8px 0" }}>Type to search Tenor GIFs</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+      <div className="community-gif-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
         {gifs.map(gif => (
           <button key={gif.id} onClick={() => onSelect(gif.url)}
             style={{ padding: 0, border: "1px solid #1a3320", borderRadius: 3, cursor: "pointer", overflow: "hidden", background: "#090f0b", transition: "border-color 0.15s" }}
@@ -583,7 +583,7 @@ function NewThreadForm({
             onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#00bb66"; }}
             onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#1a3320"; }} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="community-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
             <label style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, display: "block", marginBottom: 4 }}>YOUR NAME</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Anonymous" style={inp} />

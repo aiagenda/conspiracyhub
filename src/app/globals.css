@@ -47,6 +47,14 @@ body {
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 @keyframes fadeSlideIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* Feed article (ar) + generated blog (gar) — shared bottom dock / top bar / column stack */
+@keyframes genBannerGlow { 0%,100%{box-shadow:0 0 16px rgba(0,255,136,0.12)} 50%{box-shadow:0 0 28px rgba(0,255,136,0.28)} }
+@keyframes genBannerDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+.gar-dock-short, .ar-dock-short { display: none; }
+.gar-nav-short, .ar-nav-short { display: none; }
+.gar-nav-long, .ar-nav-long { display: inline; }
 @keyframes slideInRight { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
 @keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
 
@@ -300,6 +308,225 @@ body {
     letter-spacing: 1.5px !important;
     line-height: 1.5 !important;
   }
+
+  /* Feed article reader (ar) + generated blog (gar) — shared dock / topbar / stack */
+  .gar-root, .ar-root {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  .gar-root.gar-chat-open, .ar-root.ar-chat-open {
+    padding-bottom: 0;
+  }
+  .gar-dock, .ar-dock {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    border-top: 1px solid rgba(0, 187, 102, 0.45) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 255, 136, 0.2) inset !important;
+    background: rgba(6, 14, 9, 0.92) !important;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    animation: none !important;
+  }
+  .gar-dock-oracle, .ar-dock-oracle {
+    display: none !important;
+  }
+  .gar-dock a, .gar-dock button, .ar-dock a, .ar-dock button {
+    flex: 1 !important;
+    min-width: 0 !important;
+    text-align: center !important;
+    padding: 14px 6px !important;
+    font-size: 10px !important;
+    letter-spacing: 1.5px !important;
+    border-left: 1px solid rgba(26, 51, 32, 0.9) !important;
+  }
+  .gar-dock a:first-of-type, .ar-dock a:first-of-type {
+    border-left: none !important;
+  }
+  .gar-dock-long, .ar-dock-long { display: none !important; }
+  .gar-dock-short, .ar-dock-short { display: inline !important; }
+
+  .gar-topbar, .ar-topbar {
+    height: auto !important;
+    min-height: 48px;
+    flex-wrap: wrap !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    row-gap: 8px !important;
+    align-items: center !important;
+    background: linear-gradient(180deg, #050c07 0%, #060f0a 100%) !important;
+    border-bottom-color: rgba(0, 187, 102, 0.2) !important;
+  }
+  .gar-topbar-brand, .ar-topbar-brand {
+    order: -1;
+    width: 100%;
+    text-align: center;
+    font-size: 13px !important;
+    letter-spacing: 3px !important;
+    padding-bottom: 8px;
+    margin: 0 -4px 2px;
+    border-bottom: 1px solid rgba(26, 51, 32, 0.85);
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.18);
+  }
+  .gar-divider, .ar-divider { display: none !important; }
+  .gar-topbar-start, .ar-topbar-start {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .gar-topbar-actions, .ar-topbar-actions {
+    width: 100% !important;
+    margin-left: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .gar-topbar-actions a, .ar-topbar-actions a {
+    text-align: center !important;
+    padding: 10px 8px !important;
+    font-size: 10px !important;
+    letter-spacing: 1.5px !important;
+    border-radius: 4px !important;
+  }
+
+  .gar-main-grid, .ar-main-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.35rem !important;
+    max-width: none !important;
+    padding-left: max(12px, env(safe-area-inset-left)) !important;
+    padding-right: max(12px, env(safe-area-inset-right)) !important;
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .gar-col-article, .ar-col-article { order: 1; width: 100%; min-width: 0; }
+  .gar-col-side, .ar-col-side { order: 2; width: 100%; }
+  .gar-col-chat, .ar-col-chat {
+    order: 3;
+    position: relative !important;
+    top: auto !important;
+    width: 100% !important;
+    height: min(72vh, 560px) !important;
+    min-height: 300px !important;
+    border-radius: 6px !important;
+  }
+  .gar-root.gar-chat-open .gar-col-chat, .ar-root.ar-chat-open .ar-col-chat {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 200 !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  .gar-root.gar-chat-open .gar-dock, .ar-root.ar-chat-open .ar-dock {
+    display: none !important;
+  }
+
+  .gar-article-title, .ar-article-title {
+    font-size: clamp(1.2rem, 5.5vw, 1.65rem) !important;
+    line-height: 1.22 !important;
+    letter-spacing: 0.5px !important;
+  }
+  .gar-hero-img, .ar-hero-img {
+    height: min(220px, 42vw) !important;
+    border-radius: 6px !important;
+  }
+  .gar-root .blog-content h2 { font-size: 17px !important; margin-top: 1.5rem !important; }
+  .gar-root .blog-content h3 { font-size: 14px !important; }
+  .gar-root .blog-content p,
+  .gar-root .blog-content li { font-size: 14px !important; line-height: 1.75 !important; }
+  .ar-root .ar-article-body p { font-size: 14px !important; line-height: 1.75 !important; }
+
+  .gar-nav-long, .ar-nav-long { display: none !important; }
+  .gar-nav-short, .ar-nav-short { display: inline !important; }
+
+  /* UAP tracker main split + people grid */
+  .uap-main-split {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.25rem !important;
+  }
+  .uap-people-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Generic loaders (Oracle board, etc.) */
+  .anim-loader-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+    padding-top: 1rem !important;
+    padding-bottom: 2rem !important;
+  }
+  .anim-loader-grid > div:last-child svg {
+    width: min(248px, 88vw) !important;
+    height: auto !important;
+    max-width: 100%;
+  }
+
+  /* InvestigationBoard node detail modal */
+  .ib-node-modal-backdrop {
+    padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)) !important;
+    align-items: flex-end !important;
+  }
+  .ib-node-modal-panel {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: min(92dvh, 100vh) !important;
+    border-radius: 8px 8px 0 0 !important;
+  }
+
+  /* InvestigationBoard side panel + graph */
+  .ib-detail-panel {
+    width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 12vh !important;
+    bottom: 0 !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(26, 51, 32, 0.85) !important;
+    border-radius: 10px 10px 0 0 !important;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45) !important;
+  }
+  .ib-main-svg {
+    width: 100% !important;
+  }
+
+  .board-vote-wrap {
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    padding-left: max(12px, env(safe-area-inset-left)) !important;
+    padding-right: max(12px, env(safe-area-inset-right)) !important;
+  }
+
+  /* Community GIF picker */
+  .community-gif-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .community-two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Contact + feedback form rows */
+  .contact-two-col,
+  .feedback-form-two-col {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Feed “back to top” — clear feedback + dock */
+  .feed-scroll-top {
+    bottom: calc(118px + env(safe-area-inset-bottom, 0px)) !important;
+    right: max(12px, env(safe-area-inset-right, 0px)) !important;
+  }
+
   .ob-stat-row > div {
     flex: 1 1 calc(50% - 6px) !important;
     min-width: 0 !important;

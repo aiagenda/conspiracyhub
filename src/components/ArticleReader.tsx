@@ -160,7 +160,8 @@ function HighlightedWord({ segment, allHighlights }: { segment: AnnotatedSegment
           transform: "translateX(-50%)",
           zIndex: 100,
           display: "block",
-          width: 260,
+          width: "min(92vw, 260px)",
+          maxWidth: "calc(100vw - 24px)",
           background: "#090f0b",
           border: `1px solid ${c.border}`,
           borderRadius: 4,
@@ -301,30 +302,82 @@ export default function ArticleReader({
 
   const highCount = highlights.filter(h => h.severity === "high").length;
 
+  const rootClass = `ar-root${chatOpen ? " ar-chat-open" : ""}`;
+
   return (
-    <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
+    <div className={rootClass} style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
-      {/* FLOATING ORACLE BANNER - always visible */}
-      <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 50, display: "flex", alignItems: "center", gap: 0, background: "#090f0b", border: "1px solid #00bb66", borderRadius: 4, overflow: "hidden", boxShadow: "0 0 24px rgba(0,255,136,0.15)", animation: "bannerGlow 2.5s ease-in-out infinite" }}>
-        <style>{`
-          @keyframes bannerGlow { 0%,100%{box-shadow:0 0 16px rgba(0,255,136,0.12)} 50%{box-shadow:0 0 28px rgba(0,255,136,0.28)} }
-          @keyframes bannerDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
-        `}</style>
-        <div style={{ background: "rgba(0,255,136,0.08)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00ff88", display: "inline-block", animation: "bannerDot 1.2s ease-in-out infinite" }} />
+      {/* FLOATING ORACLE BANNER */}
+      <div
+        className="ar-dock"
+        style={{
+          position: "fixed",
+          bottom: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 50,
+          display: "flex",
+          alignItems: "stretch",
+          gap: 0,
+          background: "#090f0b",
+          border: "1px solid #00bb66",
+          borderRadius: 4,
+          overflow: "hidden",
+          boxShadow: "0 0 24px rgba(0,255,136,0.15)",
+          animation: "genBannerGlow 2.5s ease-in-out infinite",
+        }}
+      >
+        <div
+          className="ar-dock-oracle"
+          style={{ background: "rgba(0,255,136,0.08)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "#00ff88",
+              display: "inline-block",
+              animation: "genBannerDot 1.2s ease-in-out infinite",
+            }}
+          />
           <span style={{ fontFamily: "var(--font-share-tech-mono), monospace", fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>ORACLE ANALYSIS READY</span>
         </div>
-        <a href={`/board/${item.id}`}
-          style={{ display: "block", padding: "10px 16px", background: "rgba(0,255,136,0.12)", borderLeft: "1px solid #00bb66", fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, color: "#00ff88", textDecoration: "none", textTransform: "uppercase", transition: "background 0.15s" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.22)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.12)"; }}>
-          ◈ OPEN INVESTIGATION BOARD ▶
+        <a
+          href={`/board/${item.id}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 16px",
+            background: "rgba(0,255,136,0.12)",
+            borderLeft: "1px solid #00bb66",
+            fontFamily: "var(--font-raj), sans-serif",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 2,
+            color: "#00ff88",
+            textDecoration: "none",
+            textTransform: "uppercase",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.22)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.12)";
+          }}
+        >
+          <span className="ar-dock-long">◈ OPEN INVESTIGATION BOARD ▶</span>
+          <span className="ar-dock-short">◈ BOARD</span>
         </a>
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
           style={{
-            display: "block",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             padding: "10px 14px",
             background: chatOpen ? "rgba(0,187,102,0.2)" : "rgba(0,187,102,0.06)",
             borderLeft: "1px solid #1a3320",
@@ -339,14 +392,38 @@ export default function ArticleReader({
             cursor: "pointer",
           }}
         >
-          {chatOpen ? "✕ CLOSE" : "◈ LIVE CHAT"}
+          {chatOpen ? (
+            "✕ CLOSE"
+          ) : (
+            <>
+              <span className="ar-dock-long">◈ LIVE CHAT</span>
+              <span className="ar-dock-short">CHAT</span>
+            </>
+          )}
         </button>
         <button
+          type="button"
           onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
-          style={{ padding: "10px 12px", background: "transparent", border: "none", borderLeft: "1px solid #1a3320", color: "#5a8068", fontFamily: "var(--font-share-tech-mono), monospace", fontSize: 10, cursor: "pointer", letterSpacing: 1, transition: "color 0.15s" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#00ff88"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#5a8068"; }}
-          title="Scroll to analysis">
+          style={{
+            padding: "10px 12px",
+            background: "transparent",
+            border: "none",
+            borderLeft: "1px solid #1a3320",
+            color: "#5a8068",
+            fontFamily: "var(--font-share-tech-mono), monospace",
+            fontSize: 10,
+            cursor: "pointer",
+            letterSpacing: 1,
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+          }}
+          title="Scroll to analysis"
+        >
           ↓
         </button>
       </div>
@@ -354,25 +431,47 @@ export default function ArticleReader({
       <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* TOP NAV */}
-        <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
-          <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
-            ← FEED
-          </Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <Link href={`/board/${item.id}`}
-              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, border: "1px solid #00bb66", color: "#00ff88", textDecoration: "none" }}>
-              ◈ INVESTIGATION BOARD ▶
+        <div
+          className="ar-topbar"
+          style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}
+        >
+          <div className="ar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href="/blog"
+              style={{ fontSize: 10, color: "#c94dff", textDecoration: "none", letterSpacing: 2, border: "1px solid rgba(201,77,255,0.45)", padding: "4px 10px", borderRadius: 3 }}
+            >
+              ANALYSIS
             </Link>
-            <a href={item.url} target="_blank" rel="noreferrer"
-              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", textDecoration: "none" }}>
+            <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
+              ← FEED
+            </Link>
+          </div>
+          <div className="ar-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="ar-topbar-brand" style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>
+            THE THEORIST
+          </div>
+          <div className="ar-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="ar-topbar-actions" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <Link
+              href={`/board/${item.id}`}
+              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, border: "1px solid #00bb66", color: "#00ff88", textDecoration: "none" }}
+            >
+              <span className="ar-nav-long">◈ BOARD ▶</span>
+              <span className="ar-nav-short">BOARD</span>
+            </Link>
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", textDecoration: "none" }}
+            >
               ↗ ORIGINAL
             </a>
           </div>
         </div>
 
         <div
+          className="ar-main-grid article-grid"
           style={{
             ...pageContentShellStyle({
               padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem",
@@ -387,7 +486,7 @@ export default function ArticleReader({
         >
 
           {/* MAIN ARTICLE */}
-          <div>
+          <div className="ar-col-article">
             {/* Article header */}
             <div style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
@@ -402,7 +501,7 @@ export default function ArticleReader({
                   </span>
                 )}
               </div>
-              <h1 style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}>{item.title}</h1>
+              <h1 className="ar-article-title" style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}>{item.title}</h1>
               {item.angle && (
                 <div style={{ padding: "8px 12px", borderLeft: "2px solid #1a3320", fontSize: 14, color: "#5a8068", lineHeight: 1.65 }}>
                   <span style={{ color: "#00bb66" }}>▸ </span>{item.angle}
@@ -412,7 +511,7 @@ export default function ArticleReader({
 
             {/* Hero image */}
             {item.image && (
-              <div style={{ position: "relative", height: 320, marginBottom: "1.5rem", borderRadius: 4, overflow: "hidden" }}>
+              <div className="ar-hero-img" style={{ position: "relative", height: 320, marginBottom: "1.5rem", borderRadius: 4, overflow: "hidden" }}>
                 <Image src={item.image} alt="" fill unoptimized style={{ objectFit: "cover", filter: "saturate(0.4) brightness(0.65)" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, #050c07)" }} />
               </div>
@@ -422,7 +521,7 @@ export default function ArticleReader({
             {hlLoading && (
               <div style={{ marginBottom: "1rem", border: "1px solid #1a3320", borderRadius: 3, background: "#090f0b", overflow: "hidden" }}>
                 <div style={{ padding: "8px 12px", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", display: "inline-block", animation: "bannerDot 0.9s step-end infinite" }} />
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", display: "inline-block", animation: "genBannerDot 0.9s step-end infinite" }} />
                   <span style={{ fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>SCANNING ARTICLE FOR CONSPIRACY SIGNALS...</span>
                 </div>
                 <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -444,7 +543,7 @@ export default function ArticleReader({
 
             {/* Article body with highlights */}
             {body && (
-              <div style={{ marginBottom: "1.5rem" }}>
+              <div className="ar-article-body" style={{ marginBottom: "1.5rem" }}>
                 <ArticleText text={body} highlights={displayHighlights} />
               </div>
             )}
@@ -557,7 +656,7 @@ export default function ArticleReader({
           </div>
 
           {/* SIDEBAR: Highlight legend + list */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="ar-col-side" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
             {/* Legend */}
             <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
@@ -667,7 +766,7 @@ export default function ArticleReader({
 
             {hlLoading && (
               <div style={{ border: "1px solid #1a3320", borderRadius: 4, padding: "12px", background: "#090f0b", textAlign: "center" }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", margin: "0 auto 8px", animation: "bannerDot 0.9s step-end infinite" }} />
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", margin: "0 auto 8px", animation: "genBannerDot 0.9s step-end infinite" }} />
                 <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>SCANNING SIGNALS...</div>
               </div>
             )}
@@ -675,6 +774,7 @@ export default function ArticleReader({
 
           {chatOpen && (
             <div
+              className="ar-col-chat"
               style={{
                 position: "sticky",
                 top: 56,

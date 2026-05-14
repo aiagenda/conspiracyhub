@@ -58,7 +58,7 @@ export default function AnimatedLoader({
         .al-log   { animation: al-fadein 0.3s ease forwards; }
       `}</style>
 
-      <div style={{ maxWidth: 1520, width: "100%", padding: "0 clamp(1rem, 3vw, 2rem)", display: "grid", gridTemplateColumns: "1fr minmax(260px, 320px)", gap: "3rem", alignItems: "center" }}>
+      <div className="anim-loader-grid" style={{ maxWidth: 1520, width: "100%", padding: "0 clamp(1rem, 3vw, 2rem)", display: "grid", gridTemplateColumns: "1fr minmax(260px, 320px)", gap: "3rem", alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, color: dim, letterSpacing: 5, marginBottom: 6, textTransform: "uppercase" }}>
             ■ CLASSIFIED INTELLIGENCE SYSTEM ■

@@ -544,6 +544,7 @@ export default function FeedScreen({
 
       <button
         type="button"
+        className="feed-scroll-top"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         style={{
           position: "fixed",

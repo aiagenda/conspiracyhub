@@ -884,7 +884,7 @@ export default function UAPTracker() {
           </div>
 
           {/* TABS + CONTENT */}
-          <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(360px,420px)",gap:"clamp(1rem,2.5vw,1.75rem)"}}>
+          <div className="uap-main-split two-col-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(360px,420px)",gap:"clamp(1rem,2.5vw,1.75rem)"}}>
 
             {/* LEFT */}
             <div>
@@ -980,7 +980,7 @@ export default function UAPTracker() {
 
               {/* PEOPLE TAB */}
               {tab==="people"&&(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                <div className="uap-people-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {data.people.map(p=>(
                     <div key={p.id} style={{border:"1px solid #1a3320",borderRadius:4,padding:"11px 13px",background:"#090f0b"}}>
                       <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#00ff88",marginBottom:2}}>{p.name}</div>
