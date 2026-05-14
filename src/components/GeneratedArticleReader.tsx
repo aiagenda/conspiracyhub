@@ -197,21 +197,21 @@ export default function GeneratedArticleReader({
         >
           <div className="gar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Link
-              href={`/board/${item.id}`}
+              href="/blog"
               prefetch={false}
               style={{
                 fontSize: 10,
-                color: "#00ff88",
+                color: "#c94dff",
                 textDecoration: "none",
                 letterSpacing: 2,
-                border: "1px solid #00bb66",
+                border: "1px solid rgba(201, 77, 255, 0.55)",
                 padding: "4px 10px",
                 borderRadius: 3,
                 fontFamily: RAJ,
                 fontWeight: 700,
               }}
             >
-              ← ORACLE
+              ← ANALYSIS
             </Link>
             <Link
               href="/"
