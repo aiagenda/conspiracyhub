@@ -213,7 +213,14 @@ export default function LiveChat({ articleId, generatedArticleId, articleTitle, 
           const newMsg = payload.new as ChatMessage;
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
+            // INSERT often arrives before fetch returns — remove matching optimistic row so the bubble doesn't flash twice
+            const withoutMatchingTmp = prev.filter((m) => {
+              if (!String(m.id).startsWith("tmp-")) return true;
+              const sameAuthor = m.author_name === newMsg.author_name;
+              const sameBody = m.content === newMsg.content && (m.gif_url ?? null) === (newMsg.gif_url ?? null);
+              return !(sameAuthor && sameBody);
+            });
+            return [...withoutMatchingTmp, newMsg];
           });
         }
       )
@@ -480,6 +487,7 @@ export default function LiveChat({ articleId, generatedArticleId, articleTitle, 
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
+                if ((e.nativeEvent as KeyboardEvent).isComposing) return;
                 e.preventDefault();
                 void send();
               }
