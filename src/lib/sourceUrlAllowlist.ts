@@ -1,4 +1,5 @@
 import type { OracleAnalysis } from "@/types";
+import { trustedArticleSourceUrl } from "@/lib/generatedArticleSourceUrls";
 import { sanitizeOracleHttpUrl } from "@/lib/oracleSourceUrls";
 
 const HTTPS_IN_TEXT =
@@ -69,7 +70,12 @@ export type SourceUrlAllowlist = {
   applyToOracleAnalysis: (analysis: OracleAnalysis) => OracleAnalysis;
 };
 
-export function createSourceUrlAllowlist(seedUrls: string[]): SourceUrlAllowlist {
+export type SourceUrlAllowlistPromptStyle = "oracle" | "article";
+
+export function createSourceUrlAllowlist(
+  seedUrls: string[],
+  promptStyle: SourceUrlAllowlistPromptStyle = "oracle",
+): SourceUrlAllowlist {
   const merged = mergeUrlSeeds(seedUrls);
   const keys = new Set<string>();
   const resolve = new Map<string, string>();
@@ -82,16 +88,24 @@ export function createSourceUrlAllowlist(seedUrls: string[]): SourceUrlAllowlist
   const isActive = keys.size > 0;
 
   const promptBlock = isActive
-    ? [
-        "",
-        "--- ALLOWED_SOURCE_URLS (mandatory)",
-        "You may use ONLY the following exact HTTPS URLs for any web citation:",
-        "* node.detail.source_url",
-        '* theory "sources" array entries',
-        '* top-level "sources" array item "url"',
-        "Copy a URL verbatim from the list below, or use an empty string \"\" if none fits (never invent, guess, or use a different host/path).",
-        ...merged.slice(0, 35).map((u) => `- ${u}`),
-      ].join("\n")
+    ? promptStyle === "article"
+      ? [
+          "",
+          "--- ALLOWED_SOURCE_URLS (seed story)",
+          "These URLs come from the seed story or prompt context. When your source entry refers to that exact article or page, copy its url verbatim from the list below.",
+          "You SHOULD also include additional sources[] rows with full https URLs on trusted domains from the system message (e.g. cia.gov reading room, congress.gov, archives.gov) when they support your claims — each must be a specific page path you are confident exists, not a bare homepage.",
+          ...merged.slice(0, 35).map((u) => `- ${u}`),
+        ].join("\n")
+      : [
+          "",
+          "--- ALLOWED_SOURCE_URLS (mandatory)",
+          "You may use ONLY the following exact HTTPS URLs for any web citation:",
+          "* node.detail.source_url",
+          '* theory "sources" array entries',
+          '* top-level "sources" array item "url"',
+          "Copy a URL verbatim from the list below, or use an empty string \"\" if none fits (never invent, guess, or use a different host/path).",
+          ...merged.slice(0, 35).map((u) => `- ${u}`),
+        ].join("\n")
     : "";
 
   function sanitizeToAllowlisted(url: unknown): string {
@@ -138,13 +152,19 @@ export function createSourceUrlAllowlist(seedUrls: string[]): SourceUrlAllowlist
   return { promptBlock, isActive, sanitizeToAllowlisted, applyToOracleAnalysis };
 }
 
-/** Restrict generated article `sources[].url` to allowlist when active; caller still runs `sanitizeSources`. */
+/**
+ * When the seed allowlist is active, URLs must still match either a seed URL or a
+ * trusted outlet / government domain (same set as `sanitizeSources`) so FOIA and
+ * Congress links are not stripped just because they were not in the news excerpt.
+ */
 export function applyAllowlistToArticleSources<T extends { url?: string }>(
   rows: T[],
   allow: SourceUrlAllowlist,
 ): T[] {
-  return rows.map((row) => ({
-    ...row,
-    url: allow.sanitizeToAllowlisted(row.url),
-  }));
+  return rows.map((row) => {
+    const raw = typeof row.url === "string" ? row.url.trim() : String(row?.url ?? "").trim();
+    const seeded = allow.sanitizeToAllowlisted(row.url);
+    const trusted = allow.isActive && !seeded ? trustedArticleSourceUrl(raw) : "";
+    return { ...row, url: seeded || trusted };
+  });
 }

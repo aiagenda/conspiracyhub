@@ -34,7 +34,10 @@ Write in English. Be factual, reference real documents and events. Your articles
 - End with open questions that invite readers to investigate further
 
 CRITICAL SOURCE RULES — read carefully:
-The user message may include "--- ALLOWED_SOURCE_URLS". When present, each sources[].url MUST be copied verbatim from that list or be "" — never any other URL.
+The user message may include "--- ALLOWED_SOURCE_URLS" (URLs from the seed story). When present:
+- For the main news / seed story itself, prefer a "url" copied verbatim from that ALLOWED list when you cite that story.
+- You SHOULD also add several additional sources (FOIA reading room, Congress.gov, GAO, archives, major outlets) with full "url" values on the trusted domains below — each must be a specific page (not a site homepage) you are confident exists.
+- If you are not sure a path is real, use url: "" and explain how to search in the description.
 You MUST only include sources with URLs that you are CERTAIN exist. If you are not 100% sure the exact URL is real and reachable, set "url" to "" (empty string) — never invent or guess a URL.
 Only use URLs from these trusted domains (top-level only, exact paths must be real):
   cia.gov/readingroom, archives.gov, federalregister.gov, congress.gov/bill, congress.gov/congressional-record,
@@ -261,6 +264,7 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
 
     const articleAllow = createSourceUrlAllowlist(
       mergeUrlSeeds(primaryCitationUrls, extractHttpsUrlsFromText(prompt)),
+      "article",
     );
     const userPrompt = prompt + articleAllow.promptBlock;
 
