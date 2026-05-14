@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-/** Always query fresh list — avoids stale “no articles” ISR after new posts are published. */
-export const dynamic = "force-dynamic";
+/** Fresh list within a minute; new posts also trigger revalidatePath from generateArticleCore. */
+export const revalidate = 60;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -42,14 +42,18 @@ export default async function BlogPage() {
 
   let articles: Article[] = [];
   if (url && key) {
-    const admin = createClient(url, key);
-    const { data } = await admin
-      .from("generated_articles")
-      .select("id, title, slug, excerpt, category, tags, focus_keyword, published_at, meta_description")
-      .eq("status", "published")
-      .order("published_at", { ascending: false })
-      .limit(50);
-    articles = (data ?? []) as Article[];
+    try {
+      const admin = createClient(url, key);
+      const { data, error } = await admin
+        .from("generated_articles")
+        .select("id, title, slug, excerpt, category, tags, focus_keyword, published_at, meta_description")
+        .eq("status", "published")
+        .order("published_at", { ascending: false })
+        .limit(50);
+      if (!error && data) articles = data as Article[];
+    } catch {
+      articles = [];
+    }
   }
 
   const FONT = "'Share Tech Mono', monospace";
@@ -57,6 +61,20 @@ export default async function BlogPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
+      <style>{`
+        .blog-card {
+          border: 1px solid #1a3320;
+          border-radius: 4px;
+          padding: 16px 18px;
+          background: #090f0b;
+          transition: border-color 0.15s, background 0.15s;
+          cursor: pointer;
+        }
+        .blog-card:hover {
+          border-color: rgba(0, 255, 136, 0.45);
+          background: rgba(0, 255, 136, 0.06);
+        }
+      `}</style>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "2rem 1.25rem 4rem" }}>
 
         <div style={{ marginBottom: "2rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
@@ -77,9 +95,7 @@ export default async function BlogPage() {
             const col = CAT_COL[a.category] ?? "#5a8068";
             return (
               <Link key={a.id} href={`/blog/${a.slug}`} style={{ textDecoration: "none" }}>
-                <div style={{ border: "1px solid #1a3320", borderRadius: 4, padding: "16px 18px", background: "#090f0b", transition: "all 0.15s", cursor: "pointer" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = col; (e.currentTarget as HTMLDivElement).style.background = `${col}08`; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLDivElement).style.background = "#090f0b"; }}>
+                <div className="blog-card">
                   <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
                     <span style={{ fontSize: 9, color: col, border: `1px solid ${col}`, padding: "1px 7px", borderRadius: 2, letterSpacing: 1, textTransform: "uppercase" }}>{a.category}</span>
                     <span style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>{timeAgo(a.published_at)}</span>
