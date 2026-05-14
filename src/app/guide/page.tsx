@@ -49,9 +49,8 @@ export default function GuidePage() {
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1 }}>
 
-        {/* NAV — same hierarchy as article readers: Analysis list + Feed */}
+        {/* NAV — doc page: one exit to feed (article readers keep ← ANALYSIS + ← FEED) */}
         <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/blog" style={{ fontSize: 10, color: "#c94dff", textDecoration: "none", letterSpacing: 2, border: "1px solid rgba(201, 77, 255, 0.55)", padding: "4px 10px", borderRadius: 3, fontFamily: RAJ, fontWeight: 700 }}>← ANALYSIS</Link>
           <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3, fontFamily: RAJ, fontWeight: 700 }}>← FEED</Link>
           <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
           <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
@@ -86,7 +85,7 @@ export default function GuidePage() {
             <Row label="ORACLE" color="#00ff88">The GPT-4o investigation engine: graph + verdicts + cached analysis. Invoked from the Investigation Board (and explicitly on UAP with ◈ RUN ORACLE ANALYSIS ▶).</Row>
             <Row label="BOARD" color="#00bb66">Investigation Board at <code style={{ color: "#3a5040" }}>/board/[id]</code> — same <code style={{ color: "#3a5040" }}>id</code> as the feed article or generated report.</Row>
             <Sub>Feed and report readers</Sub>
-            <Note>Feed article reader: <code style={{ color: "#3a5040" }}>/article/[id]</code>. Report reader: <code style={{ color: "#3a5040" }}>/blog/[slug]</code>. Both use the same top pattern: <strong style={{ color: "#c8e8d0" }}>← ANALYSIS</strong> (back to <code style={{ color: "#3a5040" }}>/blog</code>), <strong style={{ color: "#c8e8d0" }}>← FEED</strong> (home), and <strong style={{ color: "#c8e8d0" }}>◈ BOARD ▶</strong> on the right for <code style={{ color: "#3a5040" }}>/board/[id]</code>. The floating dock uses ◈ OPEN INVESTIGATION BOARD ▶.</Note>
+            <Note>This <code style={{ color: "#3a5040" }}>/guide</code> page keeps a minimal header: only <strong style={{ color: "#c8e8d0" }}>← FEED</strong> (home). Feed article reader <code style={{ color: "#3a5040" }}>/article/[id]</code> and report reader <code style={{ color: "#3a5040" }}>/blog/[slug]</code> use both <strong style={{ color: "#c8e8d0" }}>← ANALYSIS</strong> (to <code style={{ color: "#3a5040" }}>/blog</code>) and <strong style={{ color: "#c8e8d0" }}>← FEED</strong>, plus <strong style={{ color: "#c8e8d0" }}>◈ BOARD ▶</strong> on the right for <code style={{ color: "#3a5040" }}>/board/[id]</code>. The floating dock uses ◈ OPEN INVESTIGATION BOARD ▶.</Note>
           </Section>
 
           {/* FEED */}
