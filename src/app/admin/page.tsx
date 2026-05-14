@@ -202,6 +202,7 @@ export default function AdminPage() {
   const [articleScoreFilter, setArticleScoreFilter] = useState(0);
 
   const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
+  const [analyticsClientIp, setAnalyticsClientIp] = useState<string | null>(null);
   const [analyticsSuppress, setAnalyticsSuppress] = useState(false);
 
   const loadStats = useCallback(async () => {
@@ -285,8 +286,10 @@ export default function AdminPage() {
     }
     void fetch("/api/track/viewer-id")
       .then((r) => r.json())
-      .then((d: { fingerprint?: string }) => {
+      .then((d: { fingerprint?: string; client_ip?: string }) => {
         if (typeof d.fingerprint === "string") setAnalyticsViewerId(d.fingerprint);
+        if (typeof d.client_ip === "string" && d.client_ip !== "unknown") setAnalyticsClientIp(d.client_ip);
+        else setAnalyticsClientIp(null);
       })
       .catch(() => {});
   }, []);
@@ -780,6 +783,41 @@ export default function AdminPage() {
                       ) : null}
                       <p className="mt-2 text-[11px] leading-relaxed" style={{ color: muted }}>
                         Env <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_IPS</code> (comma-separated, same IP the edge sees) excludes that traffic from inserts and from these aggregates everywhere.
+                      </p>
+                      {analyticsViewerId ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                            style={{ borderColor: "#1a2a22", color: "var(--green)" }}
+                            onClick={() =>
+                              void navigator.clipboard
+                                .writeText(`ANALYTICS_EXCLUDE_FINGERPRINTS=${analyticsViewerId}`)
+                                .catch(() => {})
+                            }
+                          >
+                            Copy exclude-fingerprint line
+                          </button>
+                          {analyticsClientIp ? (
+                            <button
+                              type="button"
+                              className="rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                              style={{ borderColor: "#1a2a22", color: "var(--green)" }}
+                              onClick={() =>
+                                void navigator.clipboard
+                                  .writeText(`ANALYTICS_EXCLUDE_IPS=${analyticsClientIp}`)
+                                  .catch(() => {})
+                              }
+                            >
+                              Copy exclude-IP line
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <p className="mt-3 text-[10px] leading-relaxed" style={{ color: muted }}>
+                        To wipe all page view rows: apply migration <code className="text-[var(--green-dim)]">20260514120000_reset_page_views</code>{" "}
+                        (<code className="text-[var(--green-dim)]">supabase db push</code> or run{" "}
+                        <code className="text-[var(--green-dim)]">truncate public.page_views restart identity</code> in the SQL editor), then refresh stats.
                       </p>
                     </div>
                   </div>

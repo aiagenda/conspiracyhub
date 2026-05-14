@@ -3,10 +3,15 @@ import type { NextRequest } from "next/server";
 
 const FP_LEN = 16;
 
+/** First hop IP string used for page_views fingerprint (matches edge / Vercel). */
+export function pageViewClientIpFromRequest(req: NextRequest): string {
+  const forwarded = req.headers.get("x-forwarded-for") ?? "";
+  return forwarded.split(",")[0].trim() || "unknown";
+}
+
 /** Same fingerprint as legacy /api/track (first x-forwarded-for hop, else "unknown"). */
 export function pageViewFingerprintFromRequest(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for") ?? "";
-  const ip = forwarded.split(",")[0].trim() || "unknown";
+  const ip = pageViewClientIpFromRequest(req);
   return createHash("sha256").update(ip).digest("hex").slice(0, FP_LEN);
 }
 
