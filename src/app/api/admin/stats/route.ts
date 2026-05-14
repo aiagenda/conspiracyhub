@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { analyticsExcludedFingerprints } from "@/lib/analyticsExclude";
 
 function admin() {
   return createClient(
@@ -8,9 +9,19 @@ function admin() {
   );
 }
 
+/** Page views: apply fingerprint exclusion after .select() (Supabase builder typing). */
+function withExcludedFingerprints<T extends { not: (c: string, op: string, v: string) => T }>(
+  q: T,
+  excludedFp: string[],
+): T {
+  if (excludedFp.length === 0) return q;
+  return q.not("fingerprint", "in", `(${excludedFp.join(",")})`);
+}
+
 /** Open access for now — re-enable ADMIN_SECRET check before production hardening. */
 export async function GET() {
   const db = admin();
+  const excludedFp = analyticsExcludedFingerprints();
   const now = Date.now();
   const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const since7d  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
@@ -31,10 +42,19 @@ export async function GET() {
     totalOracleAnalyses,
     totalThreads,
   ] = await Promise.all([
-    // Page views
-    db.from("page_views").select("*", { count: "exact", head: true }).gte("created_at", since24h),
-    db.from("page_views").select("*", { count: "exact", head: true }).gte("created_at", since7d),
-    db.from("page_views").select("*", { count: "exact", head: true }).gte("created_at", since30d),
+    // Page views (excluding configured fingerprints)
+    withExcludedFingerprints(
+      db.from("page_views").select("*", { count: "exact", head: true }),
+      excludedFp,
+    ).gte("created_at", since24h),
+    withExcludedFingerprints(
+      db.from("page_views").select("*", { count: "exact", head: true }),
+      excludedFp,
+    ).gte("created_at", since7d),
+    withExcludedFingerprints(
+      db.from("page_views").select("*", { count: "exact", head: true }),
+      excludedFp,
+    ).gte("created_at", since30d),
     // API logs (24h)
     db.from("api_request_logs").select("status_code, duration_ms").gte("created_at", since24h),
     // Unread contact messages
@@ -42,11 +62,15 @@ export async function GET() {
     // Total articles
     db.from("news_items").select("*", { count: "exact", head: true }),
     // Top 10 paths (7d)
-    db.from("page_views").select("path").gte("created_at", since7d).limit(2000),
+    withExcludedFingerprints(db.from("page_views").select("path"), excludedFp)
+      .gte("created_at", since7d)
+      .limit(2000),
     // Top 10 API routes (24h)
     db.from("api_request_logs").select("route, status_code").gte("created_at", since24h).limit(2000),
     // Hourly view counts (last 24h, raw rows)
-    db.from("page_views").select("created_at").gte("created_at", since24h).limit(5000),
+    withExcludedFingerprints(db.from("page_views").select("created_at"), excludedFp)
+      .gte("created_at", since24h)
+      .limit(5000),
     // Recent contact messages (last 20)
     db.from("contact_messages")
       .select("id, name, email, category, subject, created_at, read")

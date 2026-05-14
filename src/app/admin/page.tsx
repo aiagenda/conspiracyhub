@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 import { humanizeCronUtc } from "@/lib/cronHuman";
+import { ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY } from "@/lib/analyticsExclude";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -200,6 +201,9 @@ export default function AdminPage() {
   const [articleBusy, setArticleBusy] = useState<string>("");
   const [articleScoreFilter, setArticleScoreFilter] = useState(0);
 
+  const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
+  const [analyticsSuppress, setAnalyticsSuppress] = useState(false);
+
   const loadStats = useCallback(async () => {
     setLoading(true);
     setErr("");
@@ -272,6 +276,30 @@ export default function AdminPage() {
     loadThreads();
     loadArticles();
   }, [loadStats, loadMessages, loadScrapers, loadUsers, loadThreads, loadArticles]);
+
+  useEffect(() => {
+    try {
+      setAnalyticsSuppress(typeof window !== "undefined" && localStorage.getItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY) === "1");
+    } catch {
+      /* */
+    }
+    void fetch("/api/track/viewer-id")
+      .then((r) => r.json())
+      .then((d: { fingerprint?: string }) => {
+        if (typeof d.fingerprint === "string") setAnalyticsViewerId(d.fingerprint);
+      })
+      .catch(() => {});
+  }, []);
+
+  function setAnalyticsSuppressBrowser(next: boolean) {
+    try {
+      if (next) localStorage.setItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY, "1");
+      else localStorage.removeItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY);
+    } catch {
+      /* */
+    }
+    setAnalyticsSuppress(next);
+  }
 
   async function changeUserPlan(id: string, plan: "free" | "pro") {
     if (!confirm(`Set user plan to ${plan.toUpperCase()}?`)) return;
@@ -723,6 +751,37 @@ export default function AdminPage() {
                           : "—"}
                       </strong>
                     </p>
+                    <div className="border-t pt-3" style={{ borderColor: "#1a2a22" }}>
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                        Exclude your traffic
+                      </p>
+                      <label className="flex cursor-pointer items-start gap-2 text-[13px] leading-relaxed" style={{ color: muted }}>
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={analyticsSuppress}
+                          onChange={(e) => setAnalyticsSuppressBrowser(e.target.checked)}
+                        />
+                        <span>Do not send page views from this browser (local only).</span>
+                      </label>
+                      {analyticsViewerId ? (
+                        <p className="mt-2 break-all font-mono text-[11px] leading-snug" style={{ color: muted }}>
+                          Viewer id — add to server env{" "}
+                          <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_FINGERPRINTS</code> to drop past rows from stats:{" "}
+                          <span style={{ color: "var(--foreground)" }}>{analyticsViewerId}</span>{" "}
+                          <button
+                            type="button"
+                            className="text-[var(--green)] underline decoration-dotted underline-offset-2"
+                            onClick={() => void navigator.clipboard.writeText(analyticsViewerId).catch(() => {})}
+                          >
+                            Copy
+                          </button>
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: muted }}>
+                        Env <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_IPS</code> (comma-separated, same IP the edge sees) excludes that traffic from inserts and from these aggregates everywhere.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1401,7 +1460,7 @@ export default function AdminPage() {
                   Tables in use
                 </p>
                 <ul className="list-inside list-disc space-y-1">
-                  <li><code className="text-[var(--green-dim)]">page_views</code> — anonymous path + fingerprint</li>
+                  <li><code className="text-[var(--green-dim)]">page_views</code> — path + IP-derived fingerprint; omit via env or browser opt-out in Traffic</li>
                   <li><code className="text-[var(--green-dim)]">api_request_logs</code> — optional per-route metrics</li>
                   <li><code className="text-[var(--green-dim)]">contact_messages</code> — form submissions</li>
                   <li><code className="text-[var(--green-dim)]">news_items</code> — feed index count</li>

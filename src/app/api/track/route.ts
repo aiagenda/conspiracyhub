@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createHash } from "crypto";
+import {
+  analyticsExcludedFingerprints,
+  pageViewFingerprintFromRequest,
+} from "@/lib/analyticsExclude";
 
 function anon() {
   return createClient(
@@ -11,10 +14,12 @@ function anon() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { path } = await req.json() as { path: string };
-    const forwarded = req.headers.get("x-forwarded-for") ?? "";
-    const ip = forwarded.split(",")[0].trim() || "unknown";
-    const fingerprint = createHash("sha256").update(ip).digest("hex").slice(0, 16);
+    const { path } = (await req.json()) as { path: string };
+    const fingerprint = pageViewFingerprintFromRequest(req);
+    const excluded = analyticsExcludedFingerprints();
+    if (excluded.includes(fingerprint)) {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
 
     await anon().from("page_views").insert({
       path: (path ?? "/").slice(0, 200),
