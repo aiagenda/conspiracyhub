@@ -96,8 +96,9 @@ export default function GeneratedArticleReader({
           />
           <span style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>ORACLE ANALYSIS READY</span>
         </div>
-        <a
+        <Link
           href={`/board/${item.id}`}
+          prefetch={false}
           style={{
             display: "flex",
             alignItems: "center",
@@ -123,7 +124,7 @@ export default function GeneratedArticleReader({
         >
           <span className="gar-dock-long">◈ OPEN INVESTIGATION BOARD ▶</span>
           <span className="gar-dock-short">◈ BOARD</span>
-        </a>
+        </Link>
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
@@ -195,6 +196,23 @@ export default function GeneratedArticleReader({
           }}
         >
           <div className="gar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href={`/board/${item.id}`}
+              prefetch={false}
+              style={{
+                fontSize: 10,
+                color: "#00ff88",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #00bb66",
+                padding: "4px 10px",
+                borderRadius: 3,
+                fontFamily: RAJ,
+                fontWeight: 700,
+              }}
+            >
+              ← ORACLE
+            </Link>
             <Link
               href="/"
               style={{

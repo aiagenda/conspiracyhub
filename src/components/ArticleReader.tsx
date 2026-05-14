@@ -347,8 +347,9 @@ export default function ArticleReader({
           />
           <span style={{ fontFamily: "var(--font-share-tech-mono), monospace", fontSize: 10, color: "#00bb66", letterSpacing: 2 }}>ORACLE ANALYSIS READY</span>
         </div>
-        <a
+        <Link
           href={`/board/${item.id}`}
+          prefetch={false}
           style={{
             display: "flex",
             alignItems: "center",
@@ -374,7 +375,7 @@ export default function ArticleReader({
         >
           <span className="ar-dock-long">◈ OPEN INVESTIGATION BOARD ▶</span>
           <span className="ar-dock-short">◈ BOARD</span>
-        </a>
+        </Link>
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
@@ -440,6 +441,23 @@ export default function ArticleReader({
           style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}
         >
           <div className="ar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href={`/board/${item.id}`}
+              prefetch={false}
+              style={{
+                fontSize: 10,
+                color: "#00ff88",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #00bb66",
+                padding: "4px 10px",
+                borderRadius: 3,
+                fontFamily: RAJ,
+                fontWeight: 700,
+              }}
+            >
+              ← ORACLE
+            </Link>
             <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
               ← FEED
             </Link>

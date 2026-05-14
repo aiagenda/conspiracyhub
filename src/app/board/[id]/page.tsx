@@ -26,7 +26,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       <BoardScreen
         news={news as NewsItem}
         initialAnalysis={(cached as OracleAnalysis | null) ?? null}
-        backHref={`/article/${id}`}
+        backHref={`/article/${id}?return=board`}
         backLabel="← ARTICLE"
         oracleMode="news"
       />
@@ -74,7 +74,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
     <BoardScreen
       news={mapped}
       initialAnalysis={(cachedGen as OracleAnalysis | null) ?? null}
-      backHref={`/blog/${slug}`}
+      backHref={`/blog/${slug}?return=board`}
       backLabel="← REPORT"
       oracleMode="generated"
     />

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import Link from "next/link";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import { combinePolymarketQuery } from "@/lib/polymarketQuery";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
@@ -1225,8 +1226,9 @@ export default function InvestigationBoard({
       <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 14 }}>
         {backHref && (
           <>
-            <a
+            <Link
               href={backHref}
+              prefetch={false}
               style={{
                 fontSize: 10,
                 color: "#00ff88",
@@ -1241,7 +1243,7 @@ export default function InvestigationBoard({
               }}
             >
               {backLabel}
-            </a>
+            </Link>
             <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
           </>
         )}
