@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
+import { fetchRedditArticleBody } from "@/lib/server/redditPostBody";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
@@ -86,37 +87,9 @@ async function fetchGuardianBody(guardianId: string): Promise<string> {
   }
 }
 
-/** Fetch Reddit post selftext via the public JSON API. */
-async function fetchRedditBody(articleUrl: string): Promise<string> {
-  try {
-    // Convert web URL to JSON API: .../comments/abc123/... → .../abc123.json
-    const match = articleUrl.match(/\/comments\/([a-z0-9]+)/i);
-    if (!match) return "";
-    const jsonUrl = `https://www.reddit.com/comments/${match[1]}.json?limit=1`;
-    const res = await fetch(jsonUrl, {
-      headers: { "User-Agent": "TheTheorist/1.0 (+https://conspiracyhub.vercel.app)" },
-      signal: AbortSignal.timeout(7000),
-      cache: "no-store",
-    });
-    if (!res.ok) return "";
-    const data = await res.json() as Array<{ data: { children: Array<{ data: { selftext?: string; title?: string } }> } }>;
-    const post = data?.[0]?.data?.children?.[0]?.data;
-    const text = (post?.selftext ?? "").trim();
-    if (text === "[deleted]" || text === "[removed]" || text.length < 30) return "";
-    return text.slice(0, 8000);
-  } catch {
-    return "";
-  }
-}
-
-/** Fetch + extract readable text from any article URL (for non-Guardian sources). */
+/** Fetch + extract readable text from any article URL (for non-Guardian, non-Reddit sources). */
 async function fetchGenericBody(articleUrl: string): Promise<string> {
   if (!articleUrl?.startsWith("http")) return "";
-
-  // Reddit: use JSON API (site is JS-only, HTML scraping returns nothing)
-  if (/reddit\.com\/r\//.test(articleUrl)) {
-    return fetchRedditBody(articleUrl);
-  }
 
   try {
     const res = await fetch(articleUrl, {
@@ -140,8 +113,7 @@ async function fetchGenericBody(articleUrl: string): Promise<string> {
       stripped.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
     const raw = contentMatch ? contentMatch[1] : stripped;
     const text = htmlToText(raw).slice(0, 8000);
-    // Discard if extraction returned garbage (too short or no spaces)
-    if (text.length < 80 || text.split(" ").length < 15) return "";
+    if (text.length < 60 || text.split(/\s+/).length < 12) return "";
     return text;
   } catch {
     return "";
@@ -172,9 +144,20 @@ export default async function ArticlePage({
   // Guardian articles have IDs like "world/2026/may/11/title" (contain "/").
   // All other sources (reddit, gnews, rss) have IDs like "reddit-abc123".
   const isGuardian = (news.guardian_id ?? "").includes("/");
-  const body = isGuardian
-    ? await fetchGuardianBody(news.guardian_id ?? "")
-    : await fetchGenericBody(news.url ?? "");
+  const articleUrl = news.url ?? "";
+  const isReddit = /reddit\.com\/r\//.test(articleUrl);
+
+  let redditThumbnail: string | null = null;
+  let body: string;
+  if (isGuardian) {
+    body = await fetchGuardianBody(news.guardian_id ?? "");
+  } else if (isReddit) {
+    const r = await fetchRedditArticleBody(articleUrl);
+    redditThumbnail = r.thumbnail;
+    body = r.text;
+  } else {
+    body = await fetchGenericBody(articleUrl);
+  }
 
   const { data: oracleAnalysis } = await admin
     .from("oracle_analyses")
@@ -192,7 +175,7 @@ export default async function ArticlePage({
     title: news.title,
     summary: omitIfHungarianScript(news.summary ?? ""),
     url: news.url,
-    image: news.image ?? null,
+    image: news.image ?? redditThumbnail ?? null,
     date: news.published_at,
     section: news.section,
     score: news.score ?? 0,
@@ -200,6 +183,14 @@ export default async function ArticlePage({
   };
 
   const fallbackBody = omitIfHungarianScript(news.summary ?? "");
+  const angleBody = omitIfHungarianScript(news.angle ?? "");
+  const bodyFromFetch = body.trim();
+  const fb = fallbackBody.trim();
+  const ang = angleBody.trim();
+  const readerBody = bodyFromFetch || fb || ang;
+  /** Avoid showing the same line twice (header angle + body) when angle is the only text we have. */
+  const itemForReader: NewsItem =
+    !bodyFromFetch && !fb && ang && readerBody === ang ? { ...item, angle: "" } : item;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -227,7 +218,7 @@ export default async function ArticlePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ArticleReader item={item} body={body || fallbackBody} initialChatOpen={initialChatOpen} voteTheories={voteTheories} />
+      <ArticleReader item={itemForReader} body={readerBody} initialChatOpen={initialChatOpen} voteTheories={voteTheories} />
     </>
   );
 }
