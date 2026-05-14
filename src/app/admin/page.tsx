@@ -57,6 +57,7 @@ interface AdminArticle {
   title: string;
   url: string;
   score: number;
+  angle?: string;
   section: string;
   date: string;
   source: string | null;
@@ -216,6 +217,7 @@ export default function AdminPage() {
   const [articlePage, setArticlePage] = useState(1);
   const [articleSummary, setArticleSummary] = useState<{ totalArticles: number; highThreat: number; oracleAnalyses: number } | null>(null);
   const [articleBusy, setArticleBusy] = useState<string>("");
+  const [rescoreBusyId, setRescoreBusyId] = useState<string>("");
   const [articleScoreFilter, setArticleScoreFilter] = useState(0);
 
   const [blogPosts, setBlogPosts] = useState<AdminBlogPost[]>([]);
@@ -393,6 +395,41 @@ export default function AdminPage() {
       await loadStats();
     } finally {
       setArticleBusy("");
+    }
+  }
+
+  async function adminRescore(id: string) {
+    if (!isSupabaseBrowserConfigured()) {
+      setErr("Supabase browser client is not configured.");
+      return;
+    }
+    setRescoreBusyId(id);
+    setErr("");
+    try {
+      const {
+        data: { session },
+      } = await getSupabaseBrowserClient().auth.getSession();
+      if (!session?.access_token) {
+        setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
+        return;
+      }
+      const res = await fetch("/api/admin/rescore", {
+        method: "POST",
+        headers: { ...JSON_HEADERS, Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ newsId: id }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string; message?: string; score?: number; angle?: string };
+      if (!res.ok) {
+        if (res.status === 403 && d.error === "admin_only") {
+          setErr("Forbidden: set is_admin = true on your user in user_profiles.");
+        } else {
+          setErr([d.message, d.error].filter(Boolean).join(" — ") || res.statusText);
+        }
+        return;
+      }
+      await loadArticles(articlePage, articleScoreFilter);
+    } finally {
+      setRescoreBusyId("");
     }
   }
 
@@ -1569,21 +1606,36 @@ export default function AdminPage() {
                           {new Date(a.date).toLocaleDateString("en-GB")}
                         </td>
                         <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
+                          {a.angle && (
+                            <div className="mb-1.5 max-w-[220px] text-[10px] leading-snug italic" style={{ color: muted }} title={a.angle}>
+                              {a.angle.length > 60 ? `${a.angle.slice(0, 60)}…` : a.angle}
+                            </div>
+                          )}
                           <div className="flex flex-wrap gap-1.5">
                             <a href={`/board/${a.id}`} target="_blank" rel="noreferrer" className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
                             <button
                               type="button"
-                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                              disabled={rescoreBusyId !== "" || articleBusy === a.id || bulkOracleBusy !== ""}
+                              onClick={() => void adminRescore(a.id)}
+                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              style={{ borderColor: "#203040", color: "#6ab0e0" }}
+                              title="Re-score: friss AI pontozás (score + angle frissítés)"
+                            >
+                              {rescoreBusyId === a.id ? "…" : "Re-score ↺"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || rescoreBusyId !== ""}
                               onClick={() => void adminOracleRerun({ newsId: a.id })}
                               className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#3a4020", color: "#ccaa44" }}
-                              title="Admin only: new Oracle analysis row"
+                              title="Admin only: Oracle reset + újrafuttatás (törli a meglévőt, új elemzést generál)"
                             >
                               {oracleRerunBusyKey === `news:${a.id}` ? "…" : "Oracle ↻"}
                             </button>
                             <button
                               type="button"
-                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
+                              disabled={articleBusy === a.id || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || rescoreBusyId !== ""}
                               onClick={() => void deleteArticle(a.id, a.title)}
                               className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
                               style={{ borderColor: "#4a1a1a", color: "#ff8888" }}

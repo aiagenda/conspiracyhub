@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
 
     let q = db
       .from("news_items")
-      .select("id, title, url, score, section, date, source", { count: "exact" })
-      .order("date", { ascending: false })
+      .select("id, title, url, score, angle, section, published_at, source", { count: "exact" })
+      .order("published_at", { ascending: false })
       .range(from, from + limit - 1);
 
     if (minScore > 0) q = q.gte("score", minScore);
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       const s = viewStats[`/article/${a.id}`] ?? { totalLoads: 0, uniqueReaders: 0 };
       return {
         ...a,
+        date: a.published_at,  // alias for frontend compatibility
         has_oracle: analysedSet.has(a.id),
         view_count: s.totalLoads,
         unique_viewers: s.uniqueReaders,
