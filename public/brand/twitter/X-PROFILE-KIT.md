@@ -5,7 +5,7 @@ Kész assetek ebben a mappában (**v2** profilkép; **v3** banner: újragenerál
 | Fájl | Ajánlott használat |
 |------|---------------------|
 | `twitter-profile-the-theorist.png` | Profilkép (négyzet; X körbe vágja). Opcionálisan **400×400** vagy **512×512** px export (Squoosh / Photopea) a legélesebb megjelenéshez. |
-| `twitter-banner-the-theorist.png` | Fejléc / banner **1500×500** px. AI újragenerált kép + pontos pixel export; a kompozícióban szerepel a webcím (**the-theorist.com**). |
+| `twitter-banner-the-theorist.png` | Fejléc / banner **1500×500** px. AI újragenerált + export; rajta a webcím. **Vízszintesen tükrözve:** vizuál balra, szöveg jobbra. |
 
 **Biztonsági zóna:** X a profilkép miatt bal alul takar — tarts fontos szöveget jobbra / felülre a sávban.
 
