@@ -206,8 +206,8 @@ async function fetchGoogleNews(): Promise<Article[]> {
     try {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en&num=5`;
       const res = await fetch(url, {
-        headers: { "User-Agent": "TheTheorist/1.0" },
-        signal: AbortSignal.timeout(5000),
+        headers: { "User-Agent": "TheTheorist/1.0 (+https://conspiracyhub.vercel.app)" },
+        signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) continue;
       const xml = await res.text();
@@ -359,7 +359,16 @@ export async function runScraper(openAiKey: string) {
   console.log(`[scraper] ${fresh.length} new articles to score (cap=${scoringCap}, minScore=${minScore}, missing=${missing.length})`);
 
   if (!fresh.length) {
-    return { inserted: 0, skipped: all.length, total_fetched: all.length, timestamp: new Date().toISOString() };
+    return {
+      inserted: 0,
+      skipped: all.length,
+      total_fetched: all.length,
+      sources: { guardian: guardian.length, gnews: gnews.length, reddit: reddit.length, rss: rssResults.flat().length },
+      missing_from_db: missing.length,
+      scored_this_run: 0,
+      min_score: minScore,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   // ── 4. Score in batches of 20 ─────────────────────────────────────────────

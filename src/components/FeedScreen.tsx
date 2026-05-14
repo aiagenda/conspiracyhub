@@ -200,22 +200,22 @@ export default function FeedScreen({
           style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}
         >
           {([
-            { label: "INGEST", key: "ingest" },
-            { label: "GUARDIAN", key: "guardian_api" },
-            { label: "GNEWS", key: "gnews" },
-            { label: "REDDIT", key: "reddit" },
-            { label: "RSS", key: "rss" },
-            { label: "SCRAPER", key: "scraper" },
-            { label: "GPT-4o", key: "oracle" },
-            { label: "UAP", key: "uap" },
-            { label: "COMMUNITY", key: "community" },
-          ] as const).map(({ label, key }) => {
+            { label: "INGEST", key: "ingest", tip: "Newest article in DB (any source), not last crawl." },
+            { label: "GUARDIAN", key: "guardian_api", tip: "Newest Guardian-sourced row in DB by published_at." },
+            { label: "GNEWS", key: "gnews", tip: "Newest Google News (RSS) row in DB — stays old if nothing new scores ≥ min." },
+            { label: "REDDIT", key: "reddit", tip: "Newest Reddit-sourced row in DB by published_at." },
+            { label: "RSS", key: "rss", tip: "Newest non-Guardian / non-GNews / non-Reddit feed row in DB." },
+            { label: "SCRAPER", key: "scraper", tip: "Last news scraper job finished or started (scheduler)." },
+            { label: "GPT-4o", key: "oracle", tip: "Latest oracle analysis created_at." },
+            { label: "UAP", key: "uap", tip: "Latest UAP sighting ingested." },
+            { label: "COMMUNITY", key: "community", tip: "Latest community thread." },
+          ] as const).map(({ label, key, tip }) => {
             const status = health ? health[key] : null;
             const age = formatHealthAge(health?.last_at?.[key]);
             const col = !status ? "#3a5040" : status === "online" ? "#00ff88" : status === "degraded" || status === "idle" ? "#ffaa00" : "#ff3333";
             const pulse = status === "online";
             return (
-              <span key={label} style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+              <span key={label} style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }} title={tip}>
                 <span className={pulse ? "animate-pulse-dot" : ""} style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: col }} />
                 <span style={{ color: status === "error" ? "#ff8888" : "#5a8068" }}>
                   {label}

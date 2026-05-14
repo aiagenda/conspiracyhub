@@ -94,7 +94,8 @@ interface ScraperRun {
   duration_ms: number | null;
   http_status: number | null;
   error_text: string | null;
-  result: { success?: boolean; article?: { title?: string; url?: string; slug?: string } } | null;
+  /** news_scraper: runScraper() payload; article_writer: { article, success } */
+  result: Record<string, unknown> | null;
 }
 
 interface ScraperJob {
@@ -195,6 +196,8 @@ export default function AdminPage() {
   const detailRef = useRef<HTMLDivElement>(null);
   const [scrapers, setScrapers] = useState<ScraperJob[]>([]);
   const [scraperBusy, setScraperBusy] = useState<string>("");
+  /** Short summary after manual news ingest (Guardian + GNews + Reddit + RSS). */
+  const [newsIngestHint, setNewsIngestHint] = useState<string | null>(null);
 
   // Subscribers
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -675,6 +678,11 @@ export default function AdminPage() {
     [scrapers],
   );
 
+  const mainNewsIngestJob = useMemo(() => {
+    const news = scrapers.filter((j) => j.target === "news_scraper");
+    return news.find((j) => j.job_key === "news_main") ?? news[0] ?? null;
+  }, [scrapers]);
+
   async function updateScraper(job: ScraperJob, patch: Partial<Pick<ScraperJob, "enabled" | "schedule_cron" | "config">>) {
     setScraperBusy(job.id);
     try {
@@ -691,12 +699,50 @@ export default function AdminPage() {
 
   async function runScraperNow(job: ScraperJob) {
     setScraperBusy(job.id);
+    if (job.target === "news_scraper") setNewsIngestHint(null);
     try {
-      await fetch("/api/admin/scrapers", {
+      const res = await fetch("/api/admin/scrapers", {
         method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "run", id: job.id }),
       });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        result?: { skipped?: boolean; reason?: string; ok?: boolean; payload?: Record<string, unknown> };
+      };
+      if (job.target === "news_scraper") {
+        if (!res.ok) {
+          setNewsIngestHint(`HTTP ${res.status}: ${data.error ?? "request failed"}`);
+        } else {
+        const r = data.result;
+        if (data.error) {
+          setNewsIngestHint(`Error: ${data.error}`);
+        } else if (r?.skipped) {
+          setNewsIngestHint(`Skipped: ${r.reason ?? "unknown"}`);
+        } else if (r?.ok === false) {
+          const err = (r.payload as { error?: string } | undefined)?.error;
+          setNewsIngestHint(err ? `Failed: ${err}` : "Run failed (see job error below).");
+        } else if (r?.payload && typeof r.payload === "object") {
+          const p = r.payload;
+          const src = p.sources as Record<string, number> | undefined;
+          const parts: string[] = [];
+          parts.push(`inserted ${String(p.inserted ?? "?")}`);
+          parts.push(`fetched ${String(p.total_fetched ?? "?")}`);
+          if (typeof p.missing_from_db === "number") parts.push(`new vs DB ${p.missing_from_db}`);
+          if (typeof p.scored_this_run === "number") parts.push(`scored ${p.scored_this_run}`);
+          if (src && typeof src === "object") {
+            parts.push(
+              `pulls G${src.guardian ?? 0} · GN${src.gnews ?? 0} · R${src.reddit ?? 0} · RSS${src.rss ?? 0}`,
+            );
+          }
+          if (typeof p.min_score === "number") parts.push(`min score ${p.min_score}`);
+          setNewsIngestHint(parts.join(" · "));
+        } else {
+          setNewsIngestHint("Done (no payload details).");
+        }
+        }
+      }
       await loadScrapers();
       await loadStats();
     } finally {
@@ -848,21 +894,50 @@ export default function AdminPage() {
             {last.error_text}
           </div>
         ) : null}
-        {job.target === "article_writer" && last?.status === "success" && last.result?.article ? (
-          <div className="mt-1.5 truncate border-t pt-1.5 text-[10px]" style={{ borderColor: "#1a2620" }}>
-            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "var(--green-dim)" }}>
-              Last article
+        {job.target === "article_writer" && last?.status === "success" ? (() => {
+          const art = (last.result as { article?: { title?: string; url?: string; slug?: string } } | null)?.article;
+          if (!art) return null;
+          return (
+            <div className="mt-1.5 truncate border-t pt-1.5 text-[10px]" style={{ borderColor: "#1a2620" }}>
+              <span className="mr-1.5 uppercase tracking-wider" style={{ color: "var(--green-dim)" }}>
+                Last article
+              </span>
+              <a
+                href={art.url ?? `/blog/${art.slug ?? ""}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-raj font-semibold no-underline underline-offset-2 transition-colors hover:underline"
+                style={{ color: "var(--green)" }}
+                title={art.title ?? art.slug ?? ""}
+              >
+                {art.title ?? art.slug ?? "View article"}
+              </a>
+            </div>
+          );
+        })() : null}
+        {job.target === "news_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "inserted" in last.result ? (
+          <div
+            className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
+            style={{ borderColor: "#1a2620", color: "var(--green-dim)" }}
+            title={JSON.stringify(last.result)}
+          >
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+              Last run
             </span>
-            <a
-              href={last.result.article.url ?? `/blog/${last.result.article.slug ?? ""}`}
-              target="_blank"
-              rel="noreferrer"
-              className="font-raj font-semibold no-underline underline-offset-2 transition-colors hover:underline"
-              style={{ color: "var(--green)" }}
-              title={last.result.article.title ?? last.result.article.slug ?? ""}
-            >
-              {last.result.article.title ?? last.result.article.slug ?? "View article"}
-            </a>
+            {(() => {
+              const r = last.result as {
+                inserted?: number;
+                total_fetched?: number;
+                missing_from_db?: number;
+                sources?: { guardian?: number; gnews?: number; reddit?: number; rss?: number };
+              };
+              const s = r.sources;
+              const bits = [`in ${r.inserted ?? 0}`, `fetched ${r.total_fetched ?? "?"}`];
+              if (typeof r.missing_from_db === "number") bits.push(`queue ${r.missing_from_db}`);
+              if (s)
+                bits.push(`G${s.guardian ?? 0}/GN${s.gnews ?? 0}/R${s.reddit ?? 0}/RSS${s.rss ?? 0}`);
+              return bits.join(" · ");
+            })()}
           </div>
         ) : null}
       </div>
@@ -1877,18 +1952,55 @@ export default function AdminPage() {
               <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
                 Feed scrapers & ingest
               </h2>
-              <button
-                type="button"
-                onClick={() => void loadScrapers()}
-                className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
-                style={{ borderColor: "#1a2a22", color: muted }}
-              >
-                Refresh jobs
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {mainNewsIngestJob ? (
+                  <button
+                    type="button"
+                    disabled={scraperBusy === mainNewsIngestJob.id}
+                    onClick={() => void runScraperNow(mainNewsIngestJob)}
+                    className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-[background,box-shadow] disabled:opacity-50"
+                    style={{
+                      borderColor: "var(--green-dark)",
+                      color: "var(--green)",
+                      background: "rgba(0,187,102,0.14)",
+                      boxShadow: "inset 0 1px 0 rgba(0,255,136,0.12)",
+                    }}
+                    title="Same as “Run now” on Main news — one pipeline for all sources below."
+                  >
+                    {scraperBusy === mainNewsIngestJob.id ? "Ingest…" : "Full news ingest"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void loadScrapers()}
+                  className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ borderColor: "#1a2a22", color: muted }}
+                >
+                  Refresh jobs
+                </button>
+              </div>
             </div>
+            {newsIngestHint ? (
+              <div
+                className="rounded-lg border px-3 py-2 font-mono text-[11px] leading-snug"
+                style={{ borderColor: "#2a3830", background: "#0a100c", color: "var(--foreground)" }}
+              >
+                <span className="mr-2 uppercase tracking-wider" style={{ color: muted }}>
+                  Last manual ingest
+                </span>
+                {newsIngestHint}
+              </div>
+            ) : null}
             <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)", color: muted }}>
-              <strong style={{ color: "var(--foreground)" }}>Main news</strong> and <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> jobs only — they pull raw rows into <code className="text-[var(--green-dim)]">news_items</code> /{" "}
-              <code className="text-[var(--green-dim)]">uap_sightings</code>. Not the same as the investigation article writers below.
+              <strong style={{ color: "var(--foreground)" }}>Main news</strong> is one job:{" "}
+              <strong style={{ color: "var(--foreground)" }}>Guardian API</strong>,{" "}
+              <strong style={{ color: "var(--foreground)" }}>Google News (RSS)</strong>,{" "}
+              <strong style={{ color: "var(--foreground)" }}>Reddit</strong>, and{" "}
+              <strong style={{ color: "var(--foreground)" }}>investigative RSS</strong> feeds — then GPT scores headlines; only rows ≥{" "}
+              <code className="text-[var(--green-dim)]">SCRAPER_MIN_SCORE</code> (default 55) are stored. On the public feed,{" "}
+              <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
+              <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
+              <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> is a separate job (sightings table). Not the same as the investigation article writers below.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
                 Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
