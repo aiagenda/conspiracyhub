@@ -209,6 +209,101 @@ body {
   .vote-grid {
     grid-template-columns: 1fr !important;
   }
+
+  /* Floats above mobile bottom docks (generated article, etc.) */
+  .send-feedback-fab {
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    right: max(10px, env(safe-area-inset-right, 0px)) !important;
+    z-index: 55 !important;
+    padding: 8px 11px !important;
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+    line-height: 1.25;
+    max-width: min(132px, 40vw);
+    text-align: center;
+    border-radius: 4px !important;
+  }
+
+  /* Outbreak tracker — loading + main (inline grids use 240–320px min columns) */
+  .ob-load-shell {
+    grid-template-columns: 1fr !important;
+    justify-items: stretch !important;
+    padding-top: 1.25rem !important;
+    padding-bottom: 2rem !important;
+    gap: 1.5rem !important;
+  }
+  .ob-load-shell > div:first-child {
+    justify-self: stretch !important;
+    width: 100% !important;
+  }
+  .ob-load-shell .ob-load-radar-wrap {
+    justify-self: center !important;
+  }
+  .ob-load-shell .ob-load-radar-wrap svg {
+    width: min(248px, 86vw) !important;
+    height: auto !important;
+    max-width: 100%;
+  }
+  .ob-load-shell .ob-load-legend {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px 14px !important;
+  }
+
+  .ob-tracker-main {
+    grid-template-columns: 1fr !important;
+    gap: 1.1rem !important;
+  }
+  .ob-tracker-nav {
+    height: auto !important;
+    min-height: 48px;
+    flex-wrap: wrap !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    align-items: center !important;
+    background: linear-gradient(180deg, #050c07 0%, #060f0a 100%) !important;
+    border-bottom-color: rgba(0, 187, 102, 0.18) !important;
+  }
+  .ob-tracker-nav .ob-nav-time {
+    width: 100%;
+    margin-left: 0 !important;
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+    text-align: right;
+    color: #3a5040 !important;
+    opacity: 0.95;
+  }
+  .ob-card-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .ob-filter-row {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    gap: 8px !important;
+  }
+  .ob-filter-row::-webkit-scrollbar {
+    display: none;
+  }
+  .ob-filter-row button {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+  .ob-page-headline {
+    font-size: clamp(1.15rem, 5.5vw, 1.5rem) !important;
+    letter-spacing: 1.5px !important;
+  }
+  .ob-page-tagline {
+    font-size: 9px !important;
+    letter-spacing: 1.5px !important;
+    line-height: 1.5 !important;
+  }
+  .ob-stat-row > div {
+    flex: 1 1 calc(50% - 6px) !important;
+    min-width: 0 !important;
+  }
 }
 
 @media (max-width: 480px) {

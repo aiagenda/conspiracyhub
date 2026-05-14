@@ -70,6 +70,7 @@ export default function SendFeedbackWidget() {
     <>
       <button
         type="button"
+        className="send-feedback-fab"
         onClick={() => {
           reset();
           setOpen(true);

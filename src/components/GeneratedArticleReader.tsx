@@ -51,11 +51,165 @@ export default function GeneratedArticleReader({
     markArticleRead(item.id);
   }, [item.id]);
 
+  const rootClass = `gar-root${chatOpen ? " gar-chat-open" : ""}`;
+
   return (
-    <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
+    <div className={rootClass} style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
+      <style>{`
+        @keyframes genBannerGlow { 0%,100%{box-shadow:0 0 16px rgba(0,255,136,0.12)} 50%{box-shadow:0 0 28px rgba(0,255,136,0.28)} }
+        @keyframes genBannerDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+        .gar-dock-short { display: none; }
+        .gar-nav-short { display: none; }
+        .gar-nav-long { display: inline; }
+
+        @media (max-width: 768px) {
+          .gar-root {
+            padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+          }
+          .gar-root.gar-chat-open {
+            padding-bottom: 0;
+          }
+
+          .gar-dock {
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            transform: none !important;
+            border-radius: 0 !important;
+            border-left: none !important;
+            border-right: none !important;
+            border-bottom: none !important;
+            border-top: 1px solid rgba(0, 187, 102, 0.45) !important;
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+            box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 255, 136, 0.2) inset !important;
+            background: rgba(6, 14, 9, 0.92) !important;
+            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
+            animation: none !important;
+          }
+          .gar-dock-oracle {
+            display: none !important;
+          }
+          .gar-dock a,
+          .gar-dock button {
+            flex: 1 !important;
+            min-width: 0 !important;
+            text-align: center !important;
+            padding: 14px 6px !important;
+            font-size: 10px !important;
+            letter-spacing: 1.5px !important;
+            border-left: 1px solid rgba(26, 51, 32, 0.9) !important;
+          }
+          .gar-dock a:first-of-type {
+            border-left: none !important;
+          }
+          .gar-dock-long { display: none !important; }
+          .gar-dock-short { display: inline !important; }
+
+          .gar-topbar {
+            height: auto !important;
+            min-height: 48px;
+            flex-wrap: wrap !important;
+            padding: 10px 12px !important;
+            gap: 10px !important;
+            row-gap: 8px !important;
+            align-items: center !important;
+            background: linear-gradient(180deg, #050c07 0%, #060f0a 100%) !important;
+            border-bottom-color: rgba(0, 187, 102, 0.2) !important;
+          }
+          .gar-topbar-brand {
+            order: -1;
+            width: 100%;
+            text-align: center;
+            font-size: 13px !important;
+            letter-spacing: 3px !important;
+            padding-bottom: 8px;
+            margin: 0 -4px 2px;
+            border-bottom: 1px solid rgba(26, 51, 32, 0.85);
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.18);
+          }
+          .gar-divider { display: none !important; }
+          .gar-topbar-start {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex: 1;
+            min-width: 0;
+          }
+          .gar-topbar-actions {
+            width: 100% !important;
+            margin-left: 0 !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+          .gar-topbar-actions a {
+            text-align: center !important;
+            padding: 10px 8px !important;
+            font-size: 10px !important;
+            letter-spacing: 1.5px !important;
+            border-radius: 4px !important;
+          }
+
+          .gar-main-grid {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1.35rem !important;
+            max-width: none !important;
+            padding-left: max(12px, env(safe-area-inset-left)) !important;
+            padding-right: max(12px, env(safe-area-inset-right)) !important;
+            padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+          }
+          .gar-col-article { order: 1; width: 100%; min-width: 0; }
+          .gar-col-side { order: 2; width: 100%; }
+          .gar-col-chat {
+            order: 3;
+            position: relative !important;
+            top: auto !important;
+            width: 100% !important;
+            height: min(72vh, 560px) !important;
+            min-height: 300px !important;
+            border-radius: 6px !important;
+          }
+
+          .gar-root.gar-chat-open .gar-col-chat {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 200 !important;
+            height: 100% !important;
+            min-height: 100% !important;
+            max-height: none !important;
+            border-radius: 0 !important;
+            border: none !important;
+          }
+          .gar-root.gar-chat-open .gar-dock {
+            display: none !important;
+          }
+
+          .gar-article-title {
+            font-size: clamp(1.2rem, 5.5vw, 1.65rem) !important;
+            line-height: 1.22 !important;
+            letter-spacing: 0.5px !important;
+          }
+          .gar-hero-img {
+            height: min(220px, 42vw) !important;
+            border-radius: 6px !important;
+          }
+          .gar-root .blog-content h2 { font-size: 17px !important; margin-top: 1.5rem !important; }
+          .gar-root .blog-content h3 { font-size: 14px !important; }
+          .gar-root .blog-content p,
+          .gar-root .blog-content li { font-size: 14px !important; line-height: 1.75 !important; }
+
+          .gar-nav-long { display: none !important; }
+          .gar-nav-short { display: inline !important; }
+        }
+      `}</style>
+
       <div className="scanline" />
 
       <div
+        className="gar-dock"
         style={{
           position: "fixed",
           bottom: 20,
@@ -63,7 +217,7 @@ export default function GeneratedArticleReader({
           transform: "translateX(-50%)",
           zIndex: 50,
           display: "flex",
-          alignItems: "center",
+          alignItems: "stretch",
           gap: 0,
           background: "#090f0b",
           border: "1px solid #00bb66",
@@ -73,11 +227,10 @@ export default function GeneratedArticleReader({
           animation: "genBannerGlow 2.5s ease-in-out infinite",
         }}
       >
-        <style>{`
-          @keyframes genBannerGlow { 0%,100%{box-shadow:0 0 16px rgba(0,255,136,0.12)} 50%{box-shadow:0 0 28px rgba(0,255,136,0.28)} }
-          @keyframes genBannerDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
-        `}</style>
-        <div style={{ background: "rgba(0,255,136,0.08)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+        <div
+          className="gar-dock-oracle"
+          style={{ background: "rgba(0,255,136,0.08)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}
+        >
           <span
             style={{
               width: 7,
@@ -93,7 +246,9 @@ export default function GeneratedArticleReader({
         <a
           href={`/board/${item.id}`}
           style={{
-            display: "block",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             padding: "10px 16px",
             background: "rgba(0,255,136,0.12)",
             borderLeft: "1px solid #00bb66",
@@ -113,13 +268,16 @@ export default function GeneratedArticleReader({
             (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,255,136,0.12)";
           }}
         >
-          ◈ OPEN INVESTIGATION BOARD ▶
+          <span className="gar-dock-long">◈ OPEN INVESTIGATION BOARD ▶</span>
+          <span className="gar-dock-short">◈ BOARD</span>
         </a>
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
           style={{
-            display: "block",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             padding: "10px 14px",
             background: chatOpen ? "rgba(0,187,102,0.2)" : "rgba(0,187,102,0.06)",
             borderLeft: "1px solid #1a3320",
@@ -134,7 +292,14 @@ export default function GeneratedArticleReader({
             cursor: "pointer",
           }}
         >
-          {chatOpen ? "✕ CLOSE" : "◈ LIVE CHAT"}
+          {chatOpen ? (
+            "✕ CLOSE"
+          ) : (
+            <>
+              <span className="gar-dock-long">◈ LIVE CHAT</span>
+              <span className="gar-dock-short">CHAT</span>
+            </>
+          )}
         </button>
         <button
           type="button"
@@ -165,6 +330,7 @@ export default function GeneratedArticleReader({
 
       <div style={{ position: "relative", zIndex: 1 }}>
         <div
+          className="gar-topbar"
           style={{
             height: 44,
             background: "#050c07",
@@ -175,7 +341,7 @@ export default function GeneratedArticleReader({
             gap: 12,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="gar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Link
               href="/blog"
               style={{
@@ -205,9 +371,12 @@ export default function GeneratedArticleReader({
               FEED
             </Link>
           </div>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <div className="gar-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="gar-topbar-brand" style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>
+            THE THEORIST
+          </div>
+          <div className="gar-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="gar-topbar-actions" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <Link
               href={`/board/${item.id}`}
               style={{
@@ -223,7 +392,8 @@ export default function GeneratedArticleReader({
                 textDecoration: "none",
               }}
             >
-              ◈ INVESTIGATION BOARD ▶
+              <span className="gar-nav-long">◈ BOARD ▶</span>
+              <span className="gar-nav-short">BOARD</span>
             </Link>
             <Link
               href={`/blog/${slug}`}
@@ -246,6 +416,7 @@ export default function GeneratedArticleReader({
         </div>
 
         <div
+          className="gar-main-grid"
           style={{
             ...pageContentShellStyle({
               padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem",
@@ -258,7 +429,7 @@ export default function GeneratedArticleReader({
             gap: "clamp(1.25rem, 3vw, 2.5rem)",
           }}
         >
-          <div>
+          <div className="gar-col-article">
             <div style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
                 <Link
@@ -293,7 +464,10 @@ export default function GeneratedArticleReader({
                   {item.score}% THREAT
                 </span>
               </div>
-              <h1 style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}>
+              <h1
+                className="gar-article-title"
+                style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 12px" }}
+              >
                 {item.title}
               </h1>
               {item.angle ? (
@@ -305,7 +479,10 @@ export default function GeneratedArticleReader({
             </div>
 
             {item.image ? (
-              <div style={{ position: "relative", height: 320, marginBottom: "1.5rem", borderRadius: 4, overflow: "hidden" }}>
+              <div
+                className="gar-hero-img"
+                style={{ position: "relative", height: 320, marginBottom: "1.5rem", borderRadius: 4, overflow: "hidden" }}
+              >
                 <Image src={item.image} alt="" fill unoptimized style={{ objectFit: "cover", filter: "saturate(0.4) brightness(0.65)" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, #050c07)" }} />
               </div>
@@ -447,8 +624,16 @@ export default function GeneratedArticleReader({
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", padding: "10px 12px" }}>
+          <div className="gar-col-side" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div
+              style={{
+                border: "1px solid rgba(0, 187, 102, 0.25)",
+                borderRadius: 6,
+                background: "linear-gradient(145deg, rgba(9,15,11,0.98) 0%, rgba(5,12,7,0.95) 100%)",
+                padding: "12px 14px",
+                boxShadow: "0 0 0 1px rgba(0,255,136,0.04)",
+              }}
+            >
               <div style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ SIGNALS</div>
               <div style={{ fontSize: 10, color: "#5a8068", lineHeight: 1.55 }}>
                 Open the Investigation Board to run Oracle graph analysis, vote on theories, and explore evidence nodes for this report.
@@ -459,6 +644,7 @@ export default function GeneratedArticleReader({
 
           {chatOpen ? (
             <div
+              className="gar-col-chat"
               style={{
                 position: "sticky",
                 top: 56,

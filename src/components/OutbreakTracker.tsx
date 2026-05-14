@@ -94,6 +94,7 @@ function OutbreakLoadingScreen() {
       `}</style>
 
       <div
+        className="ob-load-shell"
         style={{
           maxWidth: 1520,
           width: "100%",
@@ -151,7 +152,7 @@ function OutbreakLoadingScreen() {
         </div>
 
         {/* RIGHT: animated radar */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, justifySelf: "start" }}>
+        <div className="ob-load-radar-wrap" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, justifySelf: "start" }}>
           <svg width="260" height="260" viewBox="0 0 320 320">
             <defs>
               <radialGradient id="obGrad" cx="50%" cy="50%" r="50%">
@@ -185,7 +186,7 @@ function OutbreakLoadingScreen() {
             <text x="160" y="168" textAnchor="middle" fill="#00ff88" opacity="0.4" style={{fontFamily:FONT,fontSize:9,letterSpacing:2}}>SCANNING</text>
           </svg>
 
-          <div style={{display:"flex",gap:12,fontSize:9,color:"#3a5040",letterSpacing:1}}>
+          <div className="ob-load-legend" style={{display:"flex",gap:12,fontSize:9,color:"#3a5040",letterSpacing:1}}>
             {[["#ff3333","CRITICAL"],["#ff6633","HIGH"],["#ffaa00","MEDIUM"],["#00bb66","LOW"]].map(([col,label]) => (
               <span key={label} style={{display:"flex",alignItems:"center",gap:4}}>
                 <span style={{width:7,height:7,borderRadius:"50%",background:col,display:"inline-block"}}/>
@@ -759,13 +760,13 @@ export default function OutbreakTracker() {
       <div style={{position:"relative",zIndex:1}}>
 
         {/* NAV */}
-        <div style={{height:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"0 16px",gap:12}}>
+        <div className="ob-tracker-nav" style={{height:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"0 16px",gap:12}}>
           <Link href="/" style={{fontSize:10,color:"#5a8068",textDecoration:"none",letterSpacing:2,border:"1px solid #1a3320",padding:"4px 10px",borderRadius:3}}>← FEED</Link>
           <div style={{width:1,height:20,background:"#1a3320"}}/>
           <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2}}>THE THEORIST</div>
           <div style={{width:1,height:20,background:"#1a3320"}}/>
           <div style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:2}}>OUTBREAK TRACKER</div>
-          <div style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
+          <div className="ob-nav-time" style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
             WHO · GNEWS · {data?`Updated ${new Date(data.generated_at).toLocaleTimeString()}`:""}
           </div>
         </div>
@@ -775,13 +776,13 @@ export default function OutbreakTracker() {
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
             <div style={{fontFamily:RAJ,fontSize:11,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ AI-POWERED GLOBAL DISEASE SURVEILLANCE ■</div>
-            <h1 style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>Outbreak Tracker</h1>
-            <div style={{fontSize:11,color:"#3a5040",letterSpacing:2}}>WHO FEED · LOCAL NEWS EARLY SIGNALS · CONSPIRACY PATTERN DETECTION · USPTO PATENTS</div>
+            <h1 className="ob-page-headline" style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>Outbreak Tracker</h1>
+            <div className="ob-page-tagline" style={{fontSize:11,color:"#3a5040",letterSpacing:2}}>WHO FEED · LOCAL NEWS EARLY SIGNALS · CONSPIRACY PATTERN DETECTION · USPTO PATENTS</div>
           </div>
 
           {/* STATS */}
           {data&&(
-            <div style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
+            <div className="ob-stat-row" style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
               {[
                 {label:"ACTIVE OUTBREAKS",value:outbreaks.length,col:"#00ff88"},
                 {label:"HIGH/CRITICAL",value:outbreaks.filter(o=>o.risk_level==="HIGH"||o.risk_level==="CRITICAL").length,col:"#ff3333"},
@@ -797,7 +798,7 @@ export default function OutbreakTracker() {
           )}
 
           {/* FILTERS */}
-          <div style={{display:"flex",gap:6,marginBottom:"1rem"}}>
+          <div className="ob-filter-row" style={{display:"flex",gap:6,marginBottom:"1rem"}}>
             {[
               {key:"all",label:"ALL OUTBREAKS"},
               {key:"conspiracy",label:"⚠ CONSPIRACY FLAGS"},
@@ -838,6 +839,7 @@ export default function OutbreakTracker() {
           {/* MAIN GRID */}
           {data&&(
             <div
+              className="ob-tracker-main"
               style={{
                 display: "grid",
                 gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 320px)",
@@ -847,7 +849,7 @@ export default function OutbreakTracker() {
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
                 <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={setSelected} />
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                   {visible.map(o=>(
                     <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
                   ))}
