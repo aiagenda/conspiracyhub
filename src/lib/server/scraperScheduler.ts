@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { runScraper } from "@/app/api/scraper/route";
 import { runUapScrape } from "@/app/api/uap-sightings/route";
+import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 
 export type ScraperJob = {
   id: string;
@@ -13,23 +14,6 @@ export type ScraperJob = {
 };
 
 type RunStatus = "running" | "success" | "failed" | "skipped";
-
-/**
- * Base URL when this server calls its own HTTP routes (e.g. /api/generate-article).
- * On Vercel, localhost is wrong — use VERCEL_URL or set NEXT_PUBLIC_SITE_URL / CRON_SELF_URL.
- */
-export function cronSelfBaseUrl(): string {
-  const custom = process.env.CRON_SELF_URL?.trim() || process.env.INTERNAL_APP_URL?.trim();
-  if (custom) return custom.replace(/\/$/, "");
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (site) return site.replace(/\/$/, "");
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) {
-    const host = vercel.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-    return `https://${host}`;
-  }
-  return "http://localhost:3000";
-}
 
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -124,27 +108,14 @@ async function runUapScraper(config: Record<string, unknown> | null): Promise<{ 
 
 async function runArticleWriter(config: Record<string, unknown> | null): Promise<{ ok: boolean; status: number; payload: unknown }> {
   const mode = (config?.mode as string) ?? "news_jacking";
-  const baseUrl = cronSelfBaseUrl();
-  try {
-    const res = await fetch(`${baseUrl}/api/generate-article`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.CRON_SECRET ?? ""}`,
-      },
-      body: JSON.stringify({ mode }),
-      signal: AbortSignal.timeout(90_000),
-    });
-    const payload = await res.json().catch(() => ({ error: "invalid_json_response" }));
-    return { ok: res.ok, status: res.status, payload };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const hint =
-      /fetch failed|ECONNREFUSED|ENOTFOUND|certificate|SSL/i.test(msg)
-        ? ` — tried ${baseUrl}/api/generate-article (set CRON_SELF_URL or NEXT_PUBLIC_SITE_URL on Vercel if this URL is wrong)`
-        : "";
-    return { ok: false, status: 500, payload: { error: msg + hint } };
-  }
+  const { status, payload } = await runGenerateArticleCore(mode);
+  const ok =
+    status >= 200 &&
+    status < 300 &&
+    typeof payload === "object" &&
+    payload !== null &&
+    (payload as { success?: boolean }).success === true;
+  return { ok, status, payload };
 }
 
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
