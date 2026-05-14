@@ -1,3 +1,5 @@
+import type { ReaderReactionStats } from "@/lib/readerReactionVote";
+
 export type NodeType = "article" | "patent" | "foia" | "company" | "event" | "person" | "theory";
 
 export interface NodeDetail {
@@ -53,6 +55,8 @@ export interface NewsItem {
   section: string;
   score: number;
   angle: string;
+  /** Server-fetched Reddit-style reader reaction totals for this news item. */
+  reader_reaction?: ReaderReactionStats;
   /** Ingest origin: guardian, gnews:…, reddit:…, etc. */
   source?: string;
   nodes?: Node[];

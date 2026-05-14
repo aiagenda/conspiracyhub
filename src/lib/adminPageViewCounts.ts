@@ -1,13 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyticsExcludedFingerprints } from "@/lib/analyticsExclude";
 
-type RpcRow = { path: string; view_count: number | string };
+type RpcRow = { path: string; view_count: number | string; unique_viewers?: number | string };
 
-/** Per-path totals from page_views (RPC); respects ANALYTICS_EXCLUDE_* fingerprints. */
-export async function pageViewCountsByPaths(
+export type PathPageViewStats = { totalLoads: number; uniqueReaders: number };
+
+/** Per-path hits + distinct fingerprints from page_views (RPC); respects ANALYTICS_EXCLUDE_* fingerprints. */
+export async function pageViewStatsByPaths(
   db: SupabaseClient,
   paths: string[],
-): Promise<Record<string, number>> {
+): Promise<Record<string, PathPageViewStats>> {
   if (paths.length === 0) return {};
   const exclude = analyticsExcludedFingerprints();
   const { data, error } = await db.rpc("admin_page_view_counts", {
@@ -18,9 +20,13 @@ export async function pageViewCountsByPaths(
     console.warn("[admin_page_view_counts]", error.message);
     return {};
   }
-  const out: Record<string, number> = {};
+  const out: Record<string, PathPageViewStats> = {};
   for (const row of (data ?? []) as RpcRow[]) {
-    out[row.path] = Number(row.view_count);
+    const totalLoads = Number(row.view_count);
+    const uniqueReaders = Number(
+      row.unique_viewers !== undefined && row.unique_viewers !== null ? row.unique_viewers : row.view_count,
+    );
+    out[row.path] = { totalLoads, uniqueReaders };
   }
   return out;
 }

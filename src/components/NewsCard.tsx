@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import ReaderReactionVote from "@/components/ReaderReactionVote";
 import type { NewsItem } from "@/types";
 
 function scoreColor(s: number) {
@@ -119,7 +120,18 @@ export default function NewsCard({
         </div>
       </a>
 
-      <div style={{ padding: "16px 18px", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "row", flex: 1, minHeight: 0 }}>
+        <ReaderReactionVote articleId={item.id} initial={item.reader_reaction} />
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: "16px 18px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
 
         <a href={`/article/${item.id}`} style={{ textDecoration: "none" }}>
           <h3
@@ -236,6 +248,7 @@ export default function NewsCard({
           >
             ◈ LIVE CHAT
           </Link>
+        </div>
         </div>
       </div>
     </div>

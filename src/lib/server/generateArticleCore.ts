@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { callOpenAIJSON } from "@/lib/openai";
+import { sanitizeSources } from "@/lib/generatedArticleSourceUrls";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -31,6 +32,17 @@ Write in English. Be factual, reference real documents and events. Your articles
 - Analyze conspiracy theories critically — what evidence exists, what is speculation
 - End with open questions that invite readers to investigate further
 
+CRITICAL SOURCE RULES — read carefully:
+You MUST only include sources with URLs that you are CERTAIN exist. If you are not 100% sure the exact URL is real and reachable, set "url" to "" (empty string) — never invent or guess a URL.
+Only use URLs from these trusted domains (top-level only, exact paths must be real):
+  cia.gov/readingroom, archives.gov, federalregister.gov, congress.gov/bill, congress.gov/congressional-record,
+  govinfo.gov, gao.gov, dni.gov, defense.gov, darpa.mil, fda.gov, cdc.gov, pubmed.ncbi.nlm.nih.gov,
+  patents.google.com, aaro.mil, nsarchive.gwu.edu, nytimes.com, theguardian.com, reuters.com,
+  apnews.com, bbc.com, bbc.co.uk, washingtonpost.com, politico.com, wired.com, theintercept.com,
+  propublica.org, documentcloud.org, fas.org, aclu.org
+If you want to cite a source but cannot provide a verified real URL, use url: "" and explain in the description where readers can find it (e.g. "Search: CIA FOIA reading room, MKULTRA documents").
+Never fabricate document IDs, bill numbers, article slugs, or path segments.
+
 Return ONLY valid JSON (no markdown outside the JSON):
 {
   "title": "SEO-optimized title (60 chars max)",
@@ -43,7 +55,11 @@ Return ONLY valid JSON (no markdown outside the JSON):
   "category": "uap|biotech|surveillance|finance|politics|technology",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
   "sources": [
-    {"title": "Source name", "url": "https://...", "description": "Why cited"}
+    {
+      "title": "Exact document or article title",
+      "url": "https://real-verified-url-or-empty-string",
+      "description": "What it contains and why it is relevant; if url is empty, how to find it"
+    }
   ]
 }`;
 
@@ -269,7 +285,7 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
         excerpt: article.excerpt,
         category: article.category,
         tags: article.tags ?? [],
-        sources: article.sources ?? [],
+        sources: sanitizeSources(article.sources),
         mode,
         status: "published",
         published_at: new Date().toISOString(),

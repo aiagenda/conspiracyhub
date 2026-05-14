@@ -422,7 +422,7 @@ export default function ArticleReader({
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
           }}
-          title="Scroll to analysis"
+          title="Scroll to signals & dock"
         >
           ↓
         </button>
@@ -436,12 +436,6 @@ export default function ArticleReader({
           style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}
         >
           <div className="ar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Link
-              href="/blog"
-              style={{ fontSize: 10, color: "#c94dff", textDecoration: "none", letterSpacing: 2, border: "1px solid rgba(201,77,255,0.45)", padding: "4px 10px", borderRadius: 3 }}
-            >
-              ANALYSIS
-            </Link>
             <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>
               ← FEED
             </Link>

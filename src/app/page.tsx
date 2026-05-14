@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import FeedScreen, { type FeedPagination } from "@/components/FeedScreen";
+import { loadReaderReactionsForNewsIds } from "@/lib/readerReactionVote";
 import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
@@ -93,6 +94,9 @@ export default async function Home({
 
   const { data } = await q.range(from, to);
 
+  const rowIds = (data ?? []).map((row) => row.id as string);
+  const reactions = await loadReaderReactionsForNewsIds(supabase, rowIds);
+
   const items: NewsItem[] =
     (data ?? []).map((row) => ({
       id: row.id,
@@ -105,6 +109,7 @@ export default async function Home({
       section: row.section,
       score: row.score ?? 0,
       angle: omitIfHungarianScript(row.angle ?? ""),
+      reader_reaction: reactions[row.id as string],
     })) ?? [];
 
   const feedPagination: FeedPagination | undefined =

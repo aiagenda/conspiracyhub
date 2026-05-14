@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
 import Link from "next/link";
+import BlogListRow from "@/components/BlogListRow";
+import { loadReaderReactionsForGeneratedIds } from "@/lib/readerReactionVote";
 import { pageContentShellStyle } from "@/lib/pageShell";
 
 /** Fresh list within a minute; new posts also trigger revalidatePath from generateArticleCore. */
@@ -30,19 +32,12 @@ const CAT_COL: Record<string,string> = {
   finance:"#ffaa00", politics:"#ff6633", technology:"#00bb66",
 };
 
-function timeAgo(d: string) {
-  const diff = Date.now() - new Date(d).getTime();
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return "just now";
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 export default async function BlogPage() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
 
   let articles: Article[] = [];
+  let reactionById: Awaited<ReturnType<typeof loadReaderReactionsForGeneratedIds>> = {};
   if (url && key) {
     try {
       const admin = createClient(url, key);
@@ -52,9 +47,18 @@ export default async function BlogPage() {
         .eq("status", "published")
         .order("published_at", { ascending: false })
         .limit(50);
-      if (!error && data) articles = data as Article[];
+      if (!error && data) {
+        articles = data as Article[];
+        if (articles.length > 0) {
+          reactionById = await loadReaderReactionsForGeneratedIds(
+            admin,
+            articles.map((a) => a.id),
+          );
+        }
+      }
     } catch {
       articles = [];
+      reactionById = {};
     }
   }
 
@@ -65,15 +69,7 @@ export default async function BlogPage() {
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
       <style>{`
-        .blog-card {
-          border: 1px solid #1a3320;
-          border-radius: 4px;
-          padding: 16px 18px;
-          background: #090f0b;
-          transition: border-color 0.15s, background 0.15s;
-          cursor: pointer;
-        }
-        .blog-card:hover {
+        .blog-list-row:hover {
           border-color: rgba(0, 255, 136, 0.45);
           background: rgba(0, 255, 136, 0.06);
         }
@@ -129,25 +125,21 @@ export default async function BlogPage() {
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {articles.map(a => {
+            {articles.map((a) => {
               const col = CAT_COL[a.category] ?? "#5a8068";
               return (
-                <Link key={a.id} href={`/blog/${a.slug}`} style={{ textDecoration: "none" }}>
-                  <div className="blog-card">
-                    <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 9, color: col, border: `1px solid ${col}`, padding: "1px 7px", borderRadius: 2, letterSpacing: 1, textTransform: "uppercase" }}>{a.category}</span>
-                      <span style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>{timeAgo(a.published_at)}</span>
-                      <span style={{ fontSize: 9, color: "#2a4030", letterSpacing: 1, marginLeft: "auto" }}>◈ AI ANALYSIS</span>
-                    </div>
-                    <h2 style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 8px" }}>{a.title}</h2>
-                    <p style={{ fontFamily: FONT, fontSize: 12, color: "#5a8068", lineHeight: 1.65, margin: "0 0 10px" }}>{a.excerpt}</p>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {a.tags?.slice(0, 4).map(t => (
-                        <span key={t} style={{ fontSize: 8, color: "#2a4030", border: "1px solid #0d1a10", padding: "1px 6px", borderRadius: 2 }}>{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                </Link>
+                <BlogListRow
+                  key={a.id}
+                  slug={a.slug}
+                  generatedArticleId={a.id}
+                  initialReaction={reactionById[a.id]}
+                  category={a.category}
+                  categoryColor={col}
+                  publishedAt={a.published_at}
+                  title={a.title}
+                  excerpt={a.excerpt}
+                  tags={a.tags ?? []}
+                />
               );
             })}
           </div>

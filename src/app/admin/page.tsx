@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 import { humanizeCronUtc } from "@/lib/cronHuman";
 import { ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY } from "@/lib/analyticsExclude";
@@ -60,7 +60,10 @@ interface AdminArticle {
   date: string;
   source: string | null;
   has_oracle: boolean;
+  /** Total page loads (same path, incl. repeat visits). */
   view_count?: number;
+  /** Distinct viewers (fingerprint); best signal for “what people open”. */
+  unique_viewers?: number;
 }
 
 interface AdminBlogPost {
@@ -71,6 +74,7 @@ interface AdminBlogPost {
   category: string;
   status: string;
   view_count: number;
+  unique_viewers: number;
 }
 
 interface Message {
@@ -215,6 +219,8 @@ export default function AdminPage() {
   const [blogPosts, setBlogPosts] = useState<AdminBlogPost[]>([]);
   const [blogTotal, setBlogTotal] = useState(0);
   const [blogPage, setBlogPage] = useState(1);
+  /** `delete_all` | `sanitize` | generated article id */
+  const [blogAdminBusy, setBlogAdminBusy] = useState<string>("");
 
   const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
   const [analyticsClientIp, setAnalyticsClientIp] = useState<string | null>(null);
@@ -384,6 +390,85 @@ export default function AdminPage() {
     }
   }
 
+  async function deleteBlogPost(id: string, title: string) {
+    const short = title.length > 90 ? `${title.slice(0, 90)}…` : title;
+    if (!confirm(`Delete investigation report:\n“${short}”?`)) return;
+    setBlogAdminBusy(id);
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "DELETE",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ id }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      await loadBlogPosts(blogPage);
+      await loadStats();
+    } finally {
+      setBlogAdminBusy("");
+    }
+  }
+
+  async function deleteAllPublishedReports() {
+    if (
+      !confirm(
+        "Delete ALL published investigation reports on /blog? Cannot be undone. Linked votes and Oracle analyses for those reports are removed.",
+      )
+    ) {
+      return;
+    }
+    setBlogAdminBusy("delete_all");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "delete_all_published" }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string; deleted?: number };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      setBlogPage(1);
+      await loadBlogPosts(1);
+      await loadStats();
+    } finally {
+      setBlogAdminBusy("");
+    }
+  }
+
+  async function sanitizeAllReportSources() {
+    if (
+      !confirm(
+        "Strip non-whitelisted URLs from every generated article’s sources (titles & descriptions stay)? Safe to run more than once.",
+      )
+    ) {
+      return;
+    }
+    setBlogAdminBusy("sanitize");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "sanitize_all_sources" }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string; rowsTouched?: number };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      await loadBlogPosts(blogPage);
+    } finally {
+      setBlogAdminBusy("");
+    }
+  }
+
   async function markRead(id: string, read: boolean) {
     await fetch("/api/admin/messages", {
       method: "PATCH",
@@ -408,6 +493,15 @@ export default function AdminPage() {
   }
 
   const displayed = msgsTab === "unread" ? messages.filter((m) => !m.read) : messages;
+
+  const feedScraperJobs = useMemo(
+    () => scrapers.filter((j) => j.target === "news_scraper" || j.target === "uap_scraper"),
+    [scrapers],
+  );
+  const writerScraperJobs = useMemo(
+    () => scrapers.filter((j) => j.target === "article_writer"),
+    [scrapers],
+  );
 
   async function updateScraper(job: ScraperJob, patch: Partial<Pick<ScraperJob, "enabled" | "schedule_cron" | "config">>) {
     setScraperBusy(job.id);
@@ -436,6 +530,131 @@ export default function AdminPage() {
     } finally {
       setScraperBusy("");
     }
+  }
+
+  function scraperJobCard(job: ScraperJob) {
+    const running = scraperBusy === job.id;
+    const last = job.last_run;
+    return (
+      <div key={job.id} className="rounded-lg p-4" style={{ background: cardBg, border }}>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="font-raj text-base font-bold text-[var(--foreground)]">{job.name}</div>
+            <div className="text-[11px]" style={{ color: muted }}>
+              {job.job_key} · {job.target}
+            </div>
+          </div>
+          <span
+            className="rounded px-2 py-1 text-[10px] uppercase tracking-wider"
+            style={{
+              border: "1px solid #1a2a22",
+              color: job.enabled ? "var(--green)" : muted,
+              background: job.enabled ? "rgba(0,187,102,0.08)" : "transparent",
+            }}
+          >
+            {job.enabled ? "enabled" : "disabled"}
+          </span>
+        </div>
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-start">
+          <div className="min-w-0">
+            <input
+              key={`${job.id}-${job.schedule_cron}`}
+              defaultValue={job.schedule_cron}
+              onBlur={(e) => {
+                const next = e.currentTarget.value.trim();
+                if (next && next !== job.schedule_cron) {
+                  void updateScraper(job, { schedule_cron: next });
+                }
+              }}
+              className="w-full rounded border px-3 py-2 font-mono text-[12px]"
+              style={{ borderColor: "#1a2a22", background: "#050805", color: "var(--foreground)" }}
+              aria-label={`Cron schedule for ${job.name}`}
+            />
+            <div className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--green-dim)" }}>
+              {humanizeCronUtc(job.schedule_cron)}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => void updateScraper(job, { enabled: !job.enabled })}
+            className="rounded border px-3 py-2 text-[11px] uppercase tracking-wider disabled:opacity-50"
+            style={{ borderColor: "#1a2a22", color: muted }}
+          >
+            {job.enabled ? "Disable" : "Enable"}
+          </button>
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => void runScraperNow(job)}
+            className="rounded border px-3 py-2 text-[11px] uppercase tracking-wider disabled:opacity-50"
+            style={{ borderColor: "var(--green-dark)", color: "var(--green)" }}
+          >
+            {running ? "Running…" : "Run now"}
+          </button>
+          {job.target === "uap_scraper" && (
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => {
+                const current = Number(job.config?.max_new ?? 70) || 70;
+                const raw = prompt("UAP max_new (1-120):", String(current));
+                if (!raw) return;
+                const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
+                void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
+              }}
+              className="rounded border px-3 py-2 text-[11px] uppercase tracking-wider disabled:opacity-50"
+              style={{ borderColor: "#1a2a22", color: muted }}
+            >
+              Set max_new
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-2 text-[12px] sm:grid-cols-3">
+          <div style={{ color: muted }}>
+            Last run:{" "}
+            <span style={{ color: "var(--foreground)" }}>
+              {last ? new Date(last.started_at).toLocaleString("en-GB") : "never"}
+            </span>
+          </div>
+          <div style={{ color: muted }}>
+            Status:{" "}
+            <span
+              style={{
+                color:
+                  !last ? muted : last.status === "success" ? "var(--green)" : last.status === "running" ? "#ffaa66" : "#ff8888",
+              }}
+            >
+              {last?.status ?? "n/a"}
+            </span>
+          </div>
+          <div style={{ color: muted }}>
+            Duration:{" "}
+            <span style={{ color: "var(--foreground)" }}>
+              {last?.duration_ms != null ? `${Math.round(last.duration_ms / 1000)}s` : "n/a"}
+            </span>
+          </div>
+        </div>
+        {last?.error_text && (
+          <div className="mt-2 rounded border px-3 py-2 text-[11px]" style={{ borderColor: "#4a1a1a", color: "#ff9b9b", background: "rgba(255,51,51,0.08)" }}>
+            {last.error_text}
+          </div>
+        )}
+        {job.target === "article_writer" && last?.status === "success" && last.result?.article && (
+          <div className="mt-2 rounded border px-3 py-2 text-[11px]" style={{ borderColor: "#1a3320", background: "rgba(0,187,102,0.04)" }}>
+            <span style={{ color: muted }}>Last article: </span>
+            <a
+              href={last.result.article.url ?? `/blog/${last.result.article.slug ?? ""}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "var(--green)", textDecoration: "underline" }}
+            >
+              {last.result.article.title ?? last.result.article.slug ?? "View article"}
+            </a>
+          </div>
+        )}
+      </div>
+    );
   }
 
   function selectMessage(m: Message) {
@@ -503,6 +722,8 @@ export default function AdminPage() {
               void loadUsers(userPage, userPlanFilter);
               void loadThreads(threadPage);
               void loadArticles(articlePage, articleScoreFilter);
+              void loadBlogPosts(blogPage);
+              void loadScrapers();
             }}
             disabled={loading}
             className="rounded-md border px-4 py-2 text-[12px] font-semibold uppercase tracking-wide"
@@ -555,8 +776,11 @@ export default function AdminPage() {
             Inbox
             {stats?.contact?.unread ? <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(255,100,100,0.15)", color: "#ff8888" }}>{stats.contact.unread}</span> : null}
           </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers")}>
-            Scrapers
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-feed")}>
+            Feed scrapers
+          </button>
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-writers")}>
+            Investigation writers
           </button>
           <div className="mt-auto hidden w-full border-t pt-4 lg:block" style={{ borderColor: "#1a2a22" }}>
             <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: muted }}>
@@ -1097,12 +1321,19 @@ export default function AdminPage() {
               </div>
             )}
 
+            <p className="text-[11px] leading-relaxed" style={{ color: muted }}>
+              <strong style={{ color: "var(--foreground)" }}>Readers</strong> = approx. distinct visitors (fingerprint) on{" "}
+              <code className="text-[var(--green-dim)]">/article/&lt;id&gt;</code>. Parenthesised number is total loads when higher. Tracking runs from the site layout (
+              <code className="text-[var(--green-dim)]">/api/track</code>
+              ); opt-out lives under Traffic.
+            </p>
+
             <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px] border-collapse text-left text-[13px]">
                   <thead>
                     <tr style={{ background: "#0a100c" }}>
-                      {["Title", "Section", "Score", "Views", "Oracle", "Source", "Date", "Actions"].map((h) => (
+                      {["Title", "Section", "Score", "Readers", "Oracle", "Source", "Date", "Actions"].map((h) => (
                         <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                       ))}
                     </tr>
@@ -1124,10 +1355,25 @@ export default function AdminPage() {
                             {a.score}%
                           </span>
                         </td>
-                        <td className="whitespace-nowrap border-b px-3 py-2.5 text-center" style={{ borderColor: "#111816" }}>
-                          <span className="font-raj text-[13px] font-bold tabular-nums" style={{ color: muted }}>
-                            {a.view_count ?? 0}
+                        <td
+                          className="whitespace-nowrap border-b px-3 py-2.5 text-center"
+                          style={{ borderColor: "#111816" }}
+                          title={
+                            typeof a.view_count === "number" && a.view_count > (a.unique_viewers ?? 0)
+                              ? `Total page loads (incl. repeats): ${a.view_count}`
+                              : "Distinct viewers (browser fingerprint; excludes opted-out traffic)"
+                          }
+                        >
+                          <span className="font-raj text-[13px] font-bold tabular-nums" style={{ color: "var(--green)" }}>
+                            {a.unique_viewers ?? a.view_count ?? 0}
                           </span>
+                          {typeof a.view_count === "number" &&
+                            typeof a.unique_viewers === "number" &&
+                            a.view_count > a.unique_viewers && (
+                              <span className="ml-1 text-[10px] tabular-nums" style={{ color: muted }}>
+                                ({a.view_count})
+                              </span>
+                            )}
                         </td>
                         <td className="border-b px-3 py-2.5 text-center text-[11px]" style={{ borderColor: "#111816", color: a.has_oracle ? "var(--green)" : muted }}>
                           {a.has_oracle ? "✓" : "—"}
@@ -1169,22 +1415,52 @@ export default function AdminPage() {
                 Analysis articles (blog)
               </h3>
               <p className="text-[11px] leading-relaxed" style={{ color: muted }}>
-                Views = <code className="text-[var(--green-dim)]">/blog/&lt;slug&gt;</code> page loads (same fingerprint exclusions as Traffic). Run migration{" "}
-                <code className="text-[var(--green-dim)]">20260514140000</code> if counts stay 0.
+                <strong style={{ color: "var(--foreground)" }}>Readers</strong> = distinct fingerprints on{" "}
+                <code className="text-[var(--green-dim)]">/blog/&lt;slug&gt;</code> (who opened the page at least once). Number in parentheses is total loads
+                when repeat visits exist. Same exclusions as Traffic. Apply migration{" "}
+                <code className="text-[var(--green-dim)]">20260514210000</code> for the readers column; older DBs only show totals.
               </p>
+              <div className="rounded-lg border p-4" style={{ background: "rgba(255,100,0,0.04)", borderColor: "#4a3010" }}>
+                <div className="font-raj text-[11px] font-bold uppercase tracking-wider" style={{ color: "#ffaa66" }}>
+                  Blog maintenance
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: muted }}>
+                  Sanitize strips non-whitelisted source URLs in every stored report (titles stay). Delete all removes every published /blog post (votes and Oracle rows for those reports follow DB cascades).
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={blogAdminBusy !== ""}
+                    onClick={() => void sanitizeAllReportSources()}
+                    className="rounded border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    style={{ borderColor: "#1a3320", color: "var(--green-dim)" }}
+                  >
+                    {blogAdminBusy === "sanitize" ? "Sanitizing…" : "Sanitize all source URLs"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={blogAdminBusy !== ""}
+                    onClick={() => void deleteAllPublishedReports()}
+                    className="rounded border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
+                  >
+                    {blogAdminBusy === "delete_all" ? "Deleting…" : "Delete all published reports"}
+                  </button>
+                </div>
+              </div>
               <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
                     <thead>
                       <tr style={{ background: "#0a100c" }}>
-                        {["Title", "Category", "Published", "Views", "Open"].map((h) => (
+                        {["Title", "Category", "Published", "Readers", "Open", "Actions"].map((h) => (
                           <th key={h} className="border-b px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {blogPosts.length === 0 && (
-                        <tr><td colSpan={5} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
                       )}
                       {blogPosts.map((p) => (
                         <tr key={p.id} className="hover:bg-[#0f1510]">
@@ -1195,14 +1471,40 @@ export default function AdminPage() {
                           <td className="whitespace-nowrap border-b px-3 py-2.5 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                             {new Date(p.published_at).toLocaleDateString("en-GB")}
                           </td>
-                          <td className="whitespace-nowrap border-b px-3 py-2.5 text-center font-raj text-[13px] font-bold tabular-nums" style={{ borderColor: "#111816", color: muted }}>
-                            {p.view_count}
+                          <td
+                            className="whitespace-nowrap border-b px-3 py-2.5 text-center"
+                            style={{ borderColor: "#111816" }}
+                            title={
+                              p.view_count > p.unique_viewers
+                                ? `Total page loads (incl. repeats): ${p.view_count}`
+                                : "Distinct viewers (browser fingerprint; excludes opted-out traffic)"
+                            }
+                          >
+                            <span className="font-raj text-[13px] font-bold tabular-nums" style={{ color: "var(--green)" }}>
+                              {p.unique_viewers ?? p.view_count}
+                            </span>
+                            {p.view_count > p.unique_viewers && (
+                              <span className="ml-1 text-[10px] tabular-nums" style={{ color: muted }}>
+                                ({p.view_count})
+                              </span>
+                            )}
                           </td>
                           <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
                             <div className="flex flex-wrap gap-2">
                               <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>View ↗</a>
                               <a href={`/board/${p.id}`} target="_blank" rel="noreferrer" className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide no-underline" style={{ borderColor: "var(--green-dark)", color: "var(--green-dim)" }}>Board ↗</a>
                             </div>
+                          </td>
+                          <td className="border-b px-3 py-2.5" style={{ borderColor: "#111816" }}>
+                            <button
+                              type="button"
+                              disabled={blogAdminBusy !== ""}
+                              onClick={() => void deleteBlogPost(p.id, p.title)}
+                              className="rounded border px-2 py-1 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                              style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
+                            >
+                              {blogAdminBusy === p.id ? "…" : "Delete"}
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1220,11 +1522,11 @@ export default function AdminPage() {
             </div>
           </section>
 
-          {/* ── SCRAPERS ── */}
-          <section id="scrapers" className="space-y-4">
+          {/* ── FEED SCRAPERS (ingest) — separate from investigation writers ── */}
+          <section id="scrapers-feed" className="space-y-4">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
-                Scrapers
+                Feed scrapers & ingest
               </h2>
               <button
                 type="button"
@@ -1236,143 +1538,53 @@ export default function AdminPage() {
               </button>
             </div>
             <div className="rounded-lg p-3 text-[12px]" style={{ background: cardBg, border, color: muted }}>
-              Vercel cron pings <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> once daily (09:00 UTC on Hobby).
-              Each job’s cron should use the same minute and hour so both can run in that tick; use Run now anytime. Schedules are matched in{" "}
-              <strong style={{ color: "var(--foreground)" }}>UTC</strong>; under each field you’ll see a plain-English summary.
+              <strong style={{ color: "var(--foreground)" }}>Main news</strong> and <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> jobs only — they pull raw rows into <code className="text-[var(--green-dim)]">news_items</code> /{" "}
+              <code className="text-[var(--green-dim)]">uap_sightings</code>. Not the same as the investigation article writers below.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
-                Runs need <code style={{ color: "var(--green-dim)" }}>CRON_SECRET</code> (news) and{" "}
-                <code style={{ color: "var(--green-dim)" }}>SCRAPER_SECRET</code> (UAP) on Vercel, plus{" "}
-                <code style={{ color: "var(--green-dim)" }}>OPENAI_API_KEY</code> for news scoring.
+                Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
+                <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
+                <code className="text-[var(--green-dim)]">OPENAI_API_KEY</code> for news scoring.
               </span>
             </div>
             <div className="space-y-3">
-              {scrapers.map((job) => {
-                const running = scraperBusy === job.id;
-                const last = job.last_run;
-                return (
-                  <div key={job.id} className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="font-raj text-base font-bold text-[var(--foreground)]">{job.name}</div>
-                        <div className="text-[11px]" style={{ color: muted }}>
-                          {job.job_key} · {job.target}
-                        </div>
-                      </div>
-                      <span
-                        className="rounded px-2 py-1 text-[10px] uppercase tracking-wider"
-                        style={{
-                          border: "1px solid #1a2a22",
-                          color: job.enabled ? "var(--green)" : muted,
-                          background: job.enabled ? "rgba(0,187,102,0.08)" : "transparent",
-                        }}
-                      >
-                        {job.enabled ? "enabled" : "disabled"}
-                      </span>
-                    </div>
-                    <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-start">
-                      <div className="min-w-0">
-                        <input
-                          key={`${job.id}-${job.schedule_cron}`}
-                          defaultValue={job.schedule_cron}
-                          onBlur={(e) => {
-                            const next = e.currentTarget.value.trim();
-                            if (next && next !== job.schedule_cron) {
-                              void updateScraper(job, { schedule_cron: next });
-                            }
-                          }}
-                          className="w-full rounded border px-3 py-2 font-mono text-[12px]"
-                          style={{ borderColor: "#1a2a22", background: "#050805", color: "var(--foreground)" }}
-                          aria-label={`Cron schedule for ${job.name}`}
-                        />
-                        <div className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--green-dim)" }}>
-                          {humanizeCronUtc(job.schedule_cron)}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={running}
-                        onClick={() => void updateScraper(job, { enabled: !job.enabled })}
-                        className="rounded border px-3 py-2 text-[11px] uppercase tracking-wider disabled:opacity-50"
-                        style={{ borderColor: "#1a2a22", color: muted }}
-                      >
-                        {job.enabled ? "Disable" : "Enable"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={running}
-                        onClick={() => void runScraperNow(job)}
-                        className="rounded border px-3 py-2 text-[11px] uppercase tracking-wider disabled:opacity-50"
-                        style={{ borderColor: "var(--green-dark)", color: "var(--green)" }}
-                      >
-                        {running ? "Running…" : "Run now"}
-                      </button>
-                      {job.target === "uap_scraper" && (
-                        <button
-                          type="button"
-                          disabled={running}
-                          onClick={() => {
-                            const current = Number(job.config?.max_new ?? 70) || 70;
-                            const raw = prompt("UAP max_new (1-120):", String(current));
-                            if (!raw) return;
-                            const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
-                            void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
-                          }}
-                          className="rounded border px-3 py-2 text-[11px] uppercase tracking-wider disabled:opacity-50"
-                          style={{ borderColor: "#1a2a22", color: muted }}
-                        >
-                          Set max_new
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 text-[12px] sm:grid-cols-3">
-                      <div style={{ color: muted }}>
-                        Last run:{" "}
-                        <span style={{ color: "var(--foreground)" }}>
-                          {last ? new Date(last.started_at).toLocaleString("en-GB") : "never"}
-                        </span>
-                      </div>
-                      <div style={{ color: muted }}>
-                        Status:{" "}
-                        <span
-                          style={{
-                            color:
-                              !last ? muted : last.status === "success" ? "var(--green)" : last.status === "running" ? "#ffaa66" : "#ff8888",
-                          }}
-                        >
-                          {last?.status ?? "n/a"}
-                        </span>
-                      </div>
-                      <div style={{ color: muted }}>
-                        Duration:{" "}
-                        <span style={{ color: "var(--foreground)" }}>
-                          {last?.duration_ms != null ? `${Math.round(last.duration_ms / 1000)}s` : "n/a"}
-                        </span>
-                      </div>
-                    </div>
-                    {last?.error_text && (
-                      <div className="mt-2 rounded border px-3 py-2 text-[11px]" style={{ borderColor: "#4a1a1a", color: "#ff9b9b", background: "rgba(255,51,51,0.08)" }}>
-                        {last.error_text}
-                      </div>
-                    )}
-                    {job.target === "article_writer" && last?.status === "success" && last.result?.article && (
-                      <div className="mt-2 rounded border px-3 py-2 text-[11px]" style={{ borderColor: "#1a3320", background: "rgba(0,187,102,0.04)" }}>
-                        <span style={{ color: muted }}>Last article: </span>
-                        <a
-                          href={last.result.article.url ?? `/blog/${last.result.article.slug ?? ""}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ color: "var(--green)", textDecoration: "underline" }}
-                        >
-                          {last.result.article.title ?? last.result.article.slug ?? "View article"}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {feedScraperJobs.map(scraperJobCard)}
               {scrapers.length === 0 && (
                 <div className="rounded-lg px-4 py-8 text-center text-[13px]" style={{ background: cardBg, border, color: muted }}>
                   No scraper jobs found. Apply latest migration first.
+                </div>
+              )}
+              {scrapers.length > 0 && feedScraperJobs.length === 0 && (
+                <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
+                  No feed ingest jobs in this database snapshot.
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── INVESTIGATION ARTICLE WRITERS (OpenAI → /blog) ── */}
+          <section id="scrapers-writers" className="mt-10 space-y-4">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-raj text-sm font-bold uppercase tracking-[0.15em]" style={{ color: muted }}>
+                Investigation article writers
+              </h2>
+              <button
+                type="button"
+                onClick={() => void loadScrapers()}
+                className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                style={{ borderColor: "#1a2a22", color: muted }}
+              >
+                Refresh jobs
+              </button>
+            </div>
+            <div className="rounded-lg p-3 text-[12px]" style={{ background: cardBg, border, color: muted }}>
+              These jobs call OpenAI and publish long-form reports to <code className="text-[var(--green-dim)]">/blog/&lt;slug&gt;</code>. They are{" "}
+              <strong style={{ color: "var(--foreground)" }}>not</strong> the Guardian/GNews/Reddit ingest or the NUFORC scrape — schedule them separately if you want different cadence.
+            </div>
+            <div className="space-y-3">
+              {writerScraperJobs.map(scraperJobCard)}
+              {scrapers.length > 0 && writerScraperJobs.length === 0 && (
+                <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
+                  No article_writer jobs found.
                 </div>
               )}
             </div>

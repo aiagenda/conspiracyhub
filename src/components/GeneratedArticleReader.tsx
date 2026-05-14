@@ -192,20 +192,6 @@ export default function GeneratedArticleReader({
         >
           <div className="gar-topbar-start" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Link
-              href="/blog"
-              style={{
-                fontSize: 10,
-                color: "#c94dff",
-                textDecoration: "none",
-                letterSpacing: 2,
-                border: "1px solid rgba(201,77,255,0.45)",
-                padding: "4px 10px",
-                borderRadius: 3,
-              }}
-            >
-              ← ANALYSIS
-            </Link>
-            <Link
               href="/"
               style={{
                 fontSize: 10,
@@ -217,7 +203,7 @@ export default function GeneratedArticleReader({
                 borderRadius: 3,
               }}
             >
-              FEED
+              ← FEED
             </Link>
           </div>
           <div className="gar-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
@@ -281,19 +267,6 @@ export default function GeneratedArticleReader({
           <div className="gar-col-article">
             <div style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-                <Link
-                  href="/blog"
-                  style={{
-                    fontSize: 10,
-                    color: "#c94dff",
-                    letterSpacing: 2,
-                    textTransform: "uppercase",
-                    textDecoration: "none",
-                  }}
-                >
-                  ANALYSIS
-                </Link>
-                <span style={{ fontSize: 10, color: "#3a5040" }}>/</span>
                 <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
                   {item.section}
                 </span>
@@ -371,31 +344,44 @@ export default function GeneratedArticleReader({
                   ◈ Sources & References
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {sources.map((s, i) => (
-                    <a
-                      key={`${s.url}-${i}`}
-                      href={s.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        color: "#00bb66",
-                        fontSize: 11,
-                        textDecoration: "none",
-                        padding: "8px 10px",
-                        border: "1px solid #1a3320",
-                        borderRadius: 3,
-                        background: "#090f0b",
-                      }}
-                    >
-                      <span style={{ flexShrink: 0 }}>↗</span>
-                      <div>
-                        <div style={{ fontFamily: RAJ, fontWeight: 700, marginBottom: 2 }}>{s.title}</div>
-                        <div style={{ fontSize: 10, color: "#5a8068" }}>{s.description}</div>
+                  {sources.map((s, i) => {
+                    const hasUrl = typeof s.url === "string" && s.url.startsWith("http");
+                    const cardStyle = {
+                      display: "flex",
+                      gap: 10,
+                      fontSize: 11,
+                      textDecoration: "none",
+                      padding: "8px 10px",
+                      border: `1px solid ${hasUrl ? "#1a3320" : "#0d1a10"}`,
+                      borderRadius: 3,
+                      background: "#090f0b",
+                      color: hasUrl ? "#00bb66" : "#5a8068",
+                      cursor: hasUrl ? "pointer" : "default",
+                    } as React.CSSProperties;
+                    const inner = (
+                      <>
+                        <span style={{ flexShrink: 0 }}>{hasUrl ? "↗" : "◈"}</span>
+                        <div>
+                          <div style={{ fontFamily: RAJ, fontWeight: 700, marginBottom: 2, color: hasUrl ? "#00bb66" : "#8aaa96" }}>{s.title}</div>
+                          <div style={{ fontSize: 10, color: "#5a8068" }}>{s.description}</div>
+                          {!hasUrl && (
+                            <div style={{ fontSize: 9, color: "#3a5040", marginTop: 3, letterSpacing: 1 }}>
+                              NO VERIFIED URL — search manually
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                    return hasUrl ? (
+                      <a key={`src-${i}`} href={s.url} target="_blank" rel="noreferrer" style={cardStyle}>
+                        {inner}
+                      </a>
+                    ) : (
+                      <div key={`src-${i}`} style={cardStyle}>
+                        {inner}
                       </div>
-                    </a>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null}

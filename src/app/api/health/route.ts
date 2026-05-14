@@ -40,7 +40,8 @@ export async function GET() {
         ts: Date.now(),
       });
     }
-    const since4h = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+    /** Ingest / per-source “online” if at least one row in this window (matches typical cron cadence). */
+    const since12h = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
     const since1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     const [
@@ -61,12 +62,12 @@ export async function GET() {
       lastUapRow,
       lastThreadRow,
     ] = await Promise.all([
-      // Recent ingest: any article in last 4h? (column is published_at, not date)
-      db.from("news_items").select("id", { count: "exact", head: true }).gte("published_at", since4h),
-      db.from("news_items").select("id", { count: "exact", head: true }).eq("source", "guardian").gte("published_at", since4h),
-      db.from("news_items").select("id", { count: "exact", head: true }).ilike("source", "gnews%").gte("published_at", since4h),
-      db.from("news_items").select("id", { count: "exact", head: true }).ilike("source", "reddit:%").gte("published_at", since4h),
-      db.from("news_items").select("id", { count: "exact", head: true }).not("source", "in", "(guardian)").not("source", "ilike", "gnews%").not("source", "ilike", "reddit:%").gte("published_at", since4h),
+      // Recent ingest: any article in last 12h? (column is published_at, not date)
+      db.from("news_items").select("id", { count: "exact", head: true }).gte("published_at", since12h),
+      db.from("news_items").select("id", { count: "exact", head: true }).eq("source", "guardian").gte("published_at", since12h),
+      db.from("news_items").select("id", { count: "exact", head: true }).ilike("source", "gnews%").gte("published_at", since12h),
+      db.from("news_items").select("id", { count: "exact", head: true }).ilike("source", "reddit:%").gte("published_at", since12h),
+      db.from("news_items").select("id", { count: "exact", head: true }).not("source", "in", "(guardian)").not("source", "ilike", "gnews%").not("source", "ilike", "reddit:%").gte("published_at", since12h),
       // Scraper: last run status + timestamps for freshness
       db.from("scraper_runs")
         .select("status, started_at, finished_at")

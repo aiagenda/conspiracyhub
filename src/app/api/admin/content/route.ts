@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { pageViewCountsByPaths } from "@/lib/adminPageViewCounts";
+import { pageViewStatsByPaths } from "@/lib/adminPageViewCounts";
 
 function admin() {
   return createClient(
@@ -38,13 +38,17 @@ export async function GET(req: NextRequest) {
     const analysedSet = new Set((analysed ?? []).map((a) => a.news_id));
 
     const paths = ids.map((id) => `/article/${id}`);
-    const viewCounts = await pageViewCountsByPaths(db, paths);
+    const viewStats = await pageViewStatsByPaths(db, paths);
 
-    const articles = (data ?? []).map((a) => ({
-      ...a,
-      has_oracle: analysedSet.has(a.id),
-      view_count: viewCounts[`/article/${a.id}`] ?? 0,
-    }));
+    const articles = (data ?? []).map((a) => {
+      const s = viewStats[`/article/${a.id}`] ?? { totalLoads: 0, uniqueReaders: 0 };
+      return {
+        ...a,
+        has_oracle: analysedSet.has(a.id),
+        view_count: s.totalLoads,
+        unique_viewers: s.uniqueReaders,
+      };
+    });
 
     // Summary
     const { count: highThreat } = await db
