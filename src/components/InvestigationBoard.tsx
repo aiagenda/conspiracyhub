@@ -10,6 +10,56 @@ import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 const FONT = "'Share Tech Mono', monospace";
 const RAJ = "'Rajdhani', sans-serif";
 
+/** Excluded from PNG export (with data-share-ignore). */
+const EXPORT_IGNORE = "data-export-ignore";
+
+function shouldIgnoreInExport(el: Element): boolean {
+  return el.hasAttribute("data-share-ignore") || el.hasAttribute(EXPORT_IGNORE);
+}
+
+/** html2canvas misses SVG filters, low opacity text, and animations — normalize the clone. */
+function tuneBoardCloneForExport(doc: Document, root: HTMLElement) {
+  root.querySelectorAll("[filter]").forEach((el) => el.removeAttribute("filter"));
+  root.querySelectorAll("text").forEach((el) => {
+    el.setAttribute("opacity", "1");
+    const fs = el.getAttribute("font-size") || el.style.fontSize;
+    if (fs) {
+      const n = parseFloat(fs);
+      if (n > 0 && n < 12) el.setAttribute("font-size", String(Math.min(14, n + 1.5)));
+    }
+  });
+  root.querySelectorAll("ellipse").forEach((el) => {
+    const fill = el.getAttribute("fill");
+    if (fill?.includes("rgba")) el.setAttribute("opacity", "0.55");
+  });
+  root.querySelectorAll("line, path").forEach((el) => {
+    const o = el.getAttribute("stroke-opacity");
+    if (o && parseFloat(o) < 0.85) el.setAttribute("stroke-opacity", "0.9");
+  });
+  root.querySelectorAll("*").forEach((el) => {
+    if (el instanceof HTMLElement) {
+      el.style.animation = "none";
+      el.style.transition = "none";
+    }
+  });
+  const mainSvg = root.querySelector(".ib-main-svg");
+  if (mainSvg instanceof SVGElement) {
+    mainSvg.style.opacity = "1";
+    mainSvg.style.width = "100%";
+    mainSvg.style.height = "100%";
+  }
+  root.querySelectorAll("svg").forEach((svg) => {
+    if (!svg.classList.contains("ib-main-svg")) svg.style.opacity = "0.5";
+  });
+  const style = doc.createElement("style");
+  style.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Share+Tech+Mono&display=swap');
+    .ib-main-svg text { opacity: 1 !important; fill-opacity: 1 !important; }
+    .ib-main-svg rect[stroke] { stroke-opacity: 0.95 !important; }
+  `;
+  doc.head.appendChild(style);
+}
+
 const TYPE_LABELS: Record<string, string> = {
   article: "ARTICLE",
   patent: "PATENT",
@@ -540,6 +590,7 @@ function DetailPanel({
     <>
     <div
       className="ib-detail-panel"
+      data-export-ignore
       style={{
         position: "absolute",
         right: 0,
@@ -1063,14 +1114,21 @@ export default function InvestigationBoard({
 
   const downloadPng = useCallback(async (): Promise<string | null> => {
     if (!boardRef.current) return null;
+    setShareMenuOpen(false);
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      await document.fonts.ready;
+    }
     const html2canvas = (await import("html2canvas")).default;
     const canvas = await html2canvas(boardRef.current, {
       backgroundColor: "#050c07",
-      scale: 1.5,
+      scale: 3,
       useCORS: true,
       allowTaint: false,
       logging: false,
-      ignoreElements: (el) => el.hasAttribute("data-share-ignore"),
+      ignoreElements: shouldIgnoreInExport,
+      onclone: (clonedDoc, clonedEl) => {
+        tuneBoardCloneForExport(clonedDoc, clonedEl as HTMLElement);
+      },
     });
     return new Promise((resolve) => {
       canvas.toBlob(
@@ -1085,7 +1143,7 @@ export default function InvestigationBoard({
           resolve(url);
         },
         "image/png",
-        0.95
+        1
       );
     });
   }, []);
@@ -1409,7 +1467,7 @@ export default function InvestigationBoard({
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
         </svg>
-        <div style={{ position: "absolute", left: 0, right: 0, height: 2, top: scanLine, background: "rgba(0,255,136,0.04)", zIndex: 5 }} />
+        <div data-export-ignore style={{ position: "absolute", left: 0, right: 0, height: 2, top: scanLine, background: "rgba(0,255,136,0.04)", zIndex: 5 }} />
         <div
           data-share-ignore
           style={{
@@ -1540,7 +1598,7 @@ export default function InvestigationBoard({
         </div>
         {/* Zoom controls — bottom-left when no panel; with panel, grouped with stats (see cluster below) */}
         {!internalSelected ? (
-          <div style={{ position: "absolute", bottom: 16, left: 16, zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+          <div data-export-ignore style={{ position: "absolute", bottom: 16, left: 16, zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
             {[
               { label: "+", action: () => setTransform((t) => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
               { label: "−", action: () => setTransform((t) => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
@@ -1583,7 +1641,7 @@ export default function InvestigationBoard({
         ) : null}
 
         {/* Zoom level indicator */}
-        <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontSize: 9, color: "#2a4030", letterSpacing: 2, zIndex: 20, fontFamily: FONT }}>
+        <div data-export-ignore style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontSize: 9, color: "#2a4030", letterSpacing: 2, zIndex: 20, fontFamily: FONT }}>
           {Math.round(transform.scale * 100)}% · SCROLL TO ZOOM · DRAG TO PAN
         </div>
 
@@ -1654,6 +1712,7 @@ export default function InvestigationBoard({
 
         {internalSelected ? (
           <div
+            data-export-ignore
             style={{
               position: "absolute",
               bottom: 16,
@@ -1686,7 +1745,7 @@ export default function InvestigationBoard({
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+            <div data-export-ignore style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
               {[
                 { label: "+", action: () => setTransform((t) => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
                 { label: "−", action: () => setTransform((t) => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
@@ -1728,7 +1787,7 @@ export default function InvestigationBoard({
             </div>
           </div>
         ) : (
-          <div style={{ position: "absolute", bottom: 16, right: 16, display: "flex", gap: 12, zIndex: 20 }}>
+          <div data-export-ignore style={{ position: "absolute", bottom: 16, right: 16, display: "flex", gap: 12, zIndex: 20 }}>
             {[
               [String(nodes.length), "NODES"],
               [String(edges.length), "EDGES"],
@@ -1752,7 +1811,7 @@ export default function InvestigationBoard({
         )}
 
         {!internalSelected && (
-          <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", fontFamily: FONT, fontSize: 9, color: "#1a4a2a", letterSpacing: 2, textTransform: "uppercase", pointerEvents: "none" }}>
+          <div data-export-ignore style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", fontFamily: FONT, fontSize: 9, color: "#1a4a2a", letterSpacing: 2, textTransform: "uppercase", pointerEvents: "none" }}>
             ◈ click a node for details ◈
           </div>
         )}
