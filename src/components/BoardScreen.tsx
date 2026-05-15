@@ -242,6 +242,7 @@ function mergeOracleTheoriesIntoNodes(nodes: Node[], theories: OracleTheory[] | 
         timeline: realTimeline,
         actors: realKeyPeople,
         open_questions: [],
+        brave_sources: sanitizeBraveSources(t.brave_sources),
       },
     } satisfies Node;
   });

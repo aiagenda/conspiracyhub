@@ -218,6 +218,8 @@ export async function runOraclePipelineInsert(
     }));
 
     const topicKeywords = primaryTitle.slice(0, 55);
+
+    // ── Brave enrichment: gráf nodes[] ────────────────────────────────────
     await Promise.all(
       normalizedNodes.map(async (node) => {
         const nodeTitle = node.detail?.title || node.label;
@@ -237,6 +239,22 @@ export async function runOraclePipelineInsert(
           theory_sources: node.type === "theory" ? [...existingSources, ...newUrls] : existingSources,
           brave_sources: braveStructured,
         };
+      }),
+    );
+
+    // ── Brave enrichment: theories[] (conspiracy hypothesis nodes) ────────
+    await Promise.all(
+      theoriesSanitized.map(async (theory) => {
+        const query = buildBraveQuery("theory", theory.name, topicKeywords);
+        const braveResults = await searchBrave(query, 6);
+        if (!braveResults.length) return;
+        const existingUrls = new Set((theory.sources ?? []).filter((s) => /^https?:\/\//i.test(s)));
+        const braveStructured = braveResults
+          .filter((r) => !existingUrls.has(r.url))
+          .map((r) => ({ title: r.title, url: r.url, description: r.description }));
+        if (braveStructured.length) {
+          (theory as import("@/types").OracleTheory).brave_sources = braveStructured;
+        }
       }),
     );
 

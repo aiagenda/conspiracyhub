@@ -75,6 +75,8 @@ export interface OracleTheory {
   key_people?: string[];
   probability: number;
   timeline?: Array<{ date: string; event: string }>;
+  /** Brave web search results enriched per-theory; stored alongside nodes. */
+  brave_sources?: Array<{ title: string; url: string; description: string }>;
 }
 
 export interface OracleSource {
