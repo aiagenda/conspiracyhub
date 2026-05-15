@@ -64,12 +64,13 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
         ),
       });
       const d = await res.json();
-      if (res.ok && d.aggregates) setVotes(d.aggregates);
-      if (res.ok) {
-        setMyVotes((p) => ({ ...p, [vote_type]: value }));
-        if (vote_type === "witnessed") setWitnessed(true);
+      if (!res.ok) {
+        console.warn("[VotePanel]", d.error ?? res.statusText);
+        return;
       }
-      // Flash confirmation for 1.4s
+      if (d.aggregates) setVotes(d.aggregates);
+      setMyVotes((p) => ({ ...p, [vote_type]: value }));
+      if (vote_type === "witnessed") setWitnessed(true);
       setConfirmed(vote_type);
       setTimeout(() => setConfirmed(null), 1400);
     } catch {}

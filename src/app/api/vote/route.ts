@@ -43,29 +43,27 @@ function parseMyReaderReaction(myVotes: { vote_type: string; value: number }[] |
   return 0;
 }
 
-/** reader_reaction: avoid PostgREST upsert quirks on partial unique indexes — update or insert. */
-async function putReaderReaction(
+/** Avoid PostgREST upsert quirks on partial unique indexes — select then update or insert. */
+async function putVote(
   admin: ReturnType<typeof getAdmin>,
   opts: {
     fingerprint: string;
+    vote_type: string;
+    value: number;
     article_id: string | null;
     generated_article_id: string | null;
-    value: -1 | 1;
+    thread_id: string | null;
   },
-): Promise<{ error: { message: string } | null }> {
-  const { fingerprint: fp, article_id, generated_article_id, value } = opts;
-  const hasArticle = Boolean(article_id);
+): Promise<{ error: { message: string } | null; id?: string }> {
+  const { fingerprint: fp, vote_type, value, article_id, generated_article_id, thread_id } = opts;
 
-  let sel = admin
-    .from("votes")
-    .select("id")
-    .eq("vote_type", READER_REACTION_VOTE_TYPE)
-    .eq("fingerprint", fp)
-    .limit(1);
-  if (hasArticle) {
-    sel = sel.eq("article_id", article_id!).is("generated_article_id", null).is("thread_id", null);
-  } else {
-    sel = sel.eq("generated_article_id", generated_article_id!).is("article_id", null).is("thread_id", null);
+  let sel = admin.from("votes").select("id").eq("vote_type", vote_type).eq("fingerprint", fp).limit(1);
+  if (article_id) {
+    sel = sel.eq("article_id", article_id).is("generated_article_id", null).is("thread_id", null);
+  } else if (generated_article_id) {
+    sel = sel.eq("generated_article_id", generated_article_id).is("article_id", null).is("thread_id", null);
+  } else if (thread_id) {
+    sel = sel.eq("thread_id", thread_id).is("article_id", null).is("generated_article_id", null);
   }
 
   const { data: rows, error: selErr } = await sel;
@@ -75,18 +73,43 @@ async function putReaderReaction(
 
   if (existingId) {
     const { error: updErr } = await admin.from("votes").update({ value }).eq("id", existingId);
-    return { error: updErr };
+    return { error: updErr, id: existingId };
   }
 
-  const { error: insErr } = await admin.from("votes").insert({
-    article_id: hasArticle ? article_id : null,
-    generated_article_id: hasArticle ? null : generated_article_id,
-    thread_id: null,
-    fingerprint: fp,
+  const { data: inserted, error: insErr } = await admin
+    .from("votes")
+    .insert({
+      article_id,
+      generated_article_id,
+      thread_id,
+      fingerprint: fp,
+      vote_type,
+      value,
+    })
+    .select("id")
+    .single();
+
+  return { error: insErr, id: inserted?.id as string | undefined };
+}
+
+async function putReaderReaction(
+  admin: ReturnType<typeof getAdmin>,
+  opts: {
+    fingerprint: string;
+    article_id: string | null;
+    generated_article_id: string | null;
+    value: -1 | 1;
+  },
+): Promise<{ error: { message: string } | null }> {
+  const { error } = await putVote(admin, {
+    fingerprint: opts.fingerprint,
     vote_type: READER_REACTION_VOTE_TYPE,
-    value,
+    value: opts.value,
+    article_id: opts.article_id,
+    generated_article_id: opts.generated_article_id,
+    thread_id: null,
   });
-  return { error: insErr };
+  return { error };
 }
 
 export async function POST(req: NextRequest) {
@@ -212,26 +235,16 @@ export async function POST(req: NextRequest) {
       typeof valueRaw === "number" && Number.isFinite(valueRaw) ? valueRaw : Number(valueRaw);
     const rowValue = Number.isFinite(numericValue) ? numericValue : 1;
 
-    const rowPayload = {
-      article_id: hasArticle ? article_id : null,
-      generated_article_id: hasGenerated ? generated_article_id : null,
-      thread_id: hasThread ? thread_id : null,
+    const { error: putErr, id: voteRowId } = await putVote(admin, {
       fingerprint: fp,
       vote_type: vt,
       value: rowValue,
-    };
+      article_id: hasArticle ? article_id : null,
+      generated_article_id: hasGenerated ? generated_article_id : null,
+      thread_id: hasThread ? thread_id : null,
+    });
 
-    const onConflict = hasArticle
-      ? "article_id,fingerprint,vote_type"
-      : hasGenerated
-        ? "generated_article_id,fingerprint,vote_type"
-        : "thread_id,fingerprint,vote_type";
-
-    const { data: upsertRows, error } = await admin.from("votes").upsert(rowPayload, { onConflict }).select("id");
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-
-    const upserted = upsertRows?.[0];
+    if (putErr) return NextResponse.json({ error: putErr.message }, { status: 400 });
 
     if (hasArticle) {
       const { data: agg } = await admin.from("article_votes").select("*").eq("article_id", article_id);
@@ -264,7 +277,7 @@ export async function POST(req: NextRequest) {
       aggregates,
       reader_reaction,
       my_reader_reaction,
-      row: upserted,
+      row: voteRowId ? { id: voteRowId } : undefined,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
