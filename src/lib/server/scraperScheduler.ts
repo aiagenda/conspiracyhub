@@ -2,12 +2,13 @@ import { createClient } from "@supabase/supabase-js";
 import { runScraper } from "@/app/api/scraper/route";
 import { runUapScrape } from "@/app/api/uap-sightings/route";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
+import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 
 export type ScraperJob = {
   id: string;
   job_key: string;
   name: string;
-  target: "news_scraper" | "uap_scraper" | "article_writer";
+  target: "news_scraper" | "uap_scraper" | "article_writer" | "search_console";
   schedule_cron: string;
   enabled: boolean;
   config: Record<string, unknown> | null;
@@ -118,6 +119,15 @@ async function runArticleWriter(config: Record<string, unknown> | null): Promise
   return { ok, status, payload };
 }
 
+async function runSearchConsoleScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  try {
+    const payload = await runSearchConsoleSync();
+    return { ok: true, status: 200, payload };
+  } catch (e) {
+    return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
+  }
+}
+
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   const db = admin();
 
@@ -139,8 +149,10 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
       job.target === "news_scraper"
         ? await runNewsScraper()
         : job.target === "article_writer"
-        ? await runArticleWriter(job.config ?? {})
-        : await runUapScraper(job.config ?? {});
+          ? await runArticleWriter(job.config ?? {})
+          : job.target === "search_console"
+            ? await runSearchConsoleScraper()
+            : await runUapScraper(job.config ?? {});
 
     await finishRun(run.id, resp.ok ? "success" : "failed", {
       startedAt: run.started_at,

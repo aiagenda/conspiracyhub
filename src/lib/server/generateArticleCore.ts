@@ -115,6 +115,55 @@ The article should:
 
 Internal link opportunity: reference "${SITE_URL}/board" for the AI investigation board.
 Related article: ${top.url}`;
+    } else if (mode === "search_console") {
+      const { data: gscCache } = await admin
+        .from("search_console_cache")
+        .select("data")
+        .eq("id", "latest")
+        .maybeSingle();
+
+      const opportunities =
+        (gscCache?.data as { opportunities?: Array<{ query: string; impressions: number; clicks: number; position: number }> } | null)
+          ?.opportunities ?? [];
+
+      if (!opportunities.length) {
+        return { status: 404, payload: { error: "no_search_console_data — run /api/search-console first" } };
+      }
+
+      const { data: existingArticles } = await admin
+        .from("generated_articles")
+        .select("focus_keyword, title")
+        .eq("status", "published");
+
+      const existingKeywords = new Set(
+        (existingArticles ?? [])
+          .flatMap((a) => [a.focus_keyword?.toLowerCase(), ...a.title.toLowerCase().split(" ")])
+          .filter(Boolean),
+      );
+
+      const target =
+        opportunities.find(
+          (o) =>
+            !existingKeywords.has(o.query.toLowerCase()) &&
+            !o.query.split(" ").every((w: string) => existingKeywords.has(w)),
+        ) ?? opportunities[0];
+
+      prompt = `Write a comprehensive, SEO-optimized investigation article targeting this exact search query: "${target.query}"
+
+Search data: ${target.impressions} monthly impressions, position ${target.position}, ${target.clicks} clicks
+This means people ARE searching for this — write the definitive article on it.
+
+Requirements:
+1. The title must naturally contain "${target.query}" or a close variant
+2. Answer exactly what someone searching "${target.query}" wants to know
+3. Go deep — declassified documents, expert testimony, documented evidence
+4. Include conspiracy angles critically — what is proven vs speculated
+5. Reference real sources: CIA FOIA, Congressional records, Pentagon releases
+6. Internal link to "${SITE_URL}/uap" if UAP-related, "${SITE_URL}/board" for investigation tools
+
+Write the article that should rank #1 for "${target.query}".`;
+
+      primaryCitationUrls = [];
     } else if (mode === "uap_incident") {
       const { data: sightings } = await admin
         .from("uap_sightings")
