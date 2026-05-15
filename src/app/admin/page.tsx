@@ -707,7 +707,11 @@ export default function AdminPage() {
   const displayed = msgsTab === "unread" ? messages.filter((m) => !m.read) : messages;
 
   const feedScraperJobs = useMemo(
-    () => scrapers.filter((j) => j.target === "news_scraper" || j.target === "uap_scraper"),
+    () =>
+      scrapers.filter(
+        (j) =>
+          j.target === "news_scraper" || j.target === "uap_scraper" || j.target === "outbreak_scraper",
+      ),
     [scrapers],
   );
   const writerScraperJobs = useMemo(
@@ -748,7 +752,7 @@ export default function AdminPage() {
         error?: string;
         result?: { skipped?: boolean; reason?: string; ok?: boolean; payload?: Record<string, unknown> };
       };
-      if (job.target === "news_scraper") {
+      if (job.target === "news_scraper" || job.target === "outbreak_scraper") {
         if (!res.ok) {
           setNewsIngestHint(`HTTP ${res.status}: ${data.error ?? "request failed"}`);
         } else {
@@ -762,19 +766,25 @@ export default function AdminPage() {
           setNewsIngestHint(err ? `Failed: ${err}` : "Run failed (see job error below).");
         } else if (r?.payload && typeof r.payload === "object") {
           const p = r.payload;
-          const src = p.sources as Record<string, number> | undefined;
-          const parts: string[] = [];
-          parts.push(`inserted ${String(p.inserted ?? "?")}`);
-          parts.push(`fetched ${String(p.total_fetched ?? "?")}`);
-          if (typeof p.missing_from_db === "number") parts.push(`new vs DB ${p.missing_from_db}`);
-          if (typeof p.scored_this_run === "number") parts.push(`scored ${p.scored_this_run}`);
-          if (src && typeof src === "object") {
-            parts.push(
-              `pulls G${src.guardian ?? 0} · GN${src.gnews ?? 0} · R${src.reddit ?? 0} · RSS${src.rss ?? 0}`,
-            );
+          if (job.target === "outbreak_scraper") {
+            const count = Array.isArray(p.outbreaks) ? p.outbreaks.length : "?";
+            const cached = p.cached === true ? " (served from cache)" : "";
+            setNewsIngestHint(`outbreaks ${count}${cached} · generated ${String(p.generated_at ?? "?")}`);
+          } else {
+            const src = p.sources as Record<string, number> | undefined;
+            const parts: string[] = [];
+            parts.push(`inserted ${String(p.inserted ?? "?")}`);
+            parts.push(`fetched ${String(p.total_fetched ?? "?")}`);
+            if (typeof p.missing_from_db === "number") parts.push(`new vs DB ${p.missing_from_db}`);
+            if (typeof p.scored_this_run === "number") parts.push(`scored ${p.scored_this_run}`);
+            if (src && typeof src === "object") {
+              parts.push(
+                `pulls G${src.guardian ?? 0} · GN${src.gnews ?? 0} · R${src.reddit ?? 0} · RSS${src.rss ?? 0}`,
+              );
+            }
+            if (typeof p.min_score === "number") parts.push(`min score ${p.min_score}`);
+            setNewsIngestHint(parts.join(" · "));
           }
-          if (typeof p.min_score === "number") parts.push(`min score ${p.min_score}`);
-          setNewsIngestHint(parts.join(" · "));
         } else {
           setNewsIngestHint("Done (no payload details).");
         }
@@ -952,6 +962,22 @@ export default function AdminPage() {
             </div>
           );
         })() : null}
+        {job.target === "outbreak_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "outbreaks" in last.result ? (
+          <div
+            className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
+            style={{ borderColor: "#1a2620", color: "var(--green-dim)" }}
+            title={JSON.stringify(last.result)}
+          >
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+              Last run
+            </span>
+            {(() => {
+              const r = last.result as { outbreaks?: unknown[]; generated_at?: string; cached?: boolean };
+              const n = Array.isArray(r.outbreaks) ? r.outbreaks.length : 0;
+              return `${n} outbreaks · ${r.cached ? "cache hit" : "refreshed"} · ${r.generated_at ? new Date(r.generated_at).toLocaleString("en-GB") : "—"}`;
+            })()}
+          </div>
+        ) : null}
         {job.target === "news_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "inserted" in last.result ? (
           <div
             className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
@@ -2037,7 +2063,8 @@ export default function AdminPage() {
               <code className="text-[var(--green-dim)]">SCRAPER_MIN_SCORE</code> (default 55) are stored. On the public feed,{" "}
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
-              <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> is a separate job (sightings table). Not the same as the investigation article writers below.
+              <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> is a separate job (sightings table).{" "}
+              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
                 Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}

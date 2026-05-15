@@ -3,12 +3,13 @@ import { runScraper } from "@/app/api/scraper/route";
 import { runUapScrape } from "@/app/api/uap-sightings/route";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
+import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
 
 export type ScraperJob = {
   id: string;
   job_key: string;
   name: string;
-  target: "news_scraper" | "uap_scraper" | "article_writer" | "search_console";
+  target: "news_scraper" | "uap_scraper" | "article_writer" | "search_console" | "outbreak_scraper";
   schedule_cron: string;
   enabled: boolean;
   config: Record<string, unknown> | null;
@@ -128,6 +129,11 @@ async function runSearchConsoleScraper(): Promise<{ ok: boolean; status: number;
   }
 }
 
+async function runOutbreakScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const { ok, status, payload } = await runOutbreakRefresh({ skipCache: true });
+  return { ok, status, payload };
+}
+
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   const db = admin();
 
@@ -152,7 +158,9 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
           ? await runArticleWriter(job.config ?? {})
           : job.target === "search_console"
             ? await runSearchConsoleScraper()
-            : await runUapScraper(job.config ?? {});
+            : job.target === "outbreak_scraper"
+              ? await runOutbreakScraper()
+              : await runUapScraper(job.config ?? {});
 
     await finishRun(run.id, resp.ok ? "success" : "failed", {
       startedAt: run.started_at,
