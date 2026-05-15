@@ -22,6 +22,7 @@ interface Article {
   secondary_keywords: string[];
   sources: Array<{ title: string; url: string; description: string }>;
   published_at: string;
+  mode: string;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -142,6 +143,7 @@ export default async function BlogArticlePage({
         sources={sources}
         initialChatOpen={initialChatOpen}
         voteTheories={voteTheories}
+        mode={article.mode}
       />
     </>
   );

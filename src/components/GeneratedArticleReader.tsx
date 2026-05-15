@@ -42,6 +42,7 @@ export default function GeneratedArticleReader({
   sources = [],
   initialChatOpen = false,
   voteTheories = [],
+  mode,
 }: {
   item: NewsItem;
   slug: string;
@@ -49,7 +50,9 @@ export default function GeneratedArticleReader({
   sources?: SourceRow[];
   initialChatOpen?: boolean;
   voteTheories?: VoteTheoryChip[];
+  mode?: string;
 }) {
+  const isLore = mode === "lore_dossier";
   const liveChatEnabled = isLiveChatEnabled();
   const [chatOpen, setChatOpen] = useState(Boolean(initialChatOpen && liveChatEnabled));
 
@@ -326,6 +329,28 @@ export default function GeneratedArticleReader({
                 </div>
               ) : null}
             </div>
+
+            {isLore && (
+              <div
+                style={{
+                  margin: "0 0 1.75rem",
+                  padding: "12px 16px",
+                  borderRadius: 4,
+                  background: "rgba(201,77,255,0.06)",
+                  border: "1px solid rgba(201,77,255,0.25)",
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                }}
+              >
+                <span style={{ color: "#c94dff", fontFamily: RAJ, fontWeight: 700, fontSize: 11, letterSpacing: 2, flexShrink: 0, paddingTop: 1 }}>
+                  ◈ HYPOTHESIS DOSSIER
+                </span>
+                <span style={{ fontSize: 11, color: "#7a5090", lineHeight: 1.6 }}>
+                  Speculative analysis — not verified reporting. Sources are provided for context and further reading, not as proof. All claims are allegations unless independently corroborated.
+                </span>
+              </div>
+            )}
 
             {item.image ? (
               <div

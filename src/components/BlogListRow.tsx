@@ -25,6 +25,7 @@ export default function BlogListRow({
   title,
   excerpt,
   tags,
+  mode,
 }: {
   slug: string;
   generatedArticleId: string;
@@ -35,7 +36,9 @@ export default function BlogListRow({
   title: string;
   excerpt: string;
   tags: string[];
+  mode?: string;
 }) {
+  const isLore = mode === "lore_dossier";
   return (
     <div
       style={{
@@ -60,22 +63,29 @@ export default function BlogListRow({
           }}
           className="blog-card-inner"
         >
-          <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span
               style={{
                 fontSize: 9,
-                color: categoryColor,
-                border: `1px solid ${categoryColor}`,
+                color: isLore ? "#c94dff" : categoryColor,
+                border: `1px solid ${isLore ? "#c94dff" : categoryColor}`,
                 padding: "1px 7px",
                 borderRadius: 2,
                 letterSpacing: 1,
                 textTransform: "uppercase",
               }}
             >
-              {category}
+              {isLore ? "hypothesis" : category}
             </span>
+            {isLore && (
+              <span style={{ fontSize: 9, color: "#7a3a9a", border: "1px solid #3a1a4a", padding: "1px 7px", borderRadius: 2, letterSpacing: 1, textTransform: "uppercase" }}>
+                speculative
+              </span>
+            )}
             <span style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>{timeAgo(publishedAt)}</span>
-            <span style={{ fontSize: 9, color: "#2a4030", letterSpacing: 1, marginLeft: "auto" }}>◈ AI ANALYSIS</span>
+            <span style={{ fontSize: 9, color: isLore ? "#3a1a4a" : "#2a4030", letterSpacing: 1, marginLeft: "auto" }}>
+              {isLore ? "◈ DOSSIER" : "◈ AI ANALYSIS"}
+            </span>
           </div>
           <h2 style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.28, margin: "0 0 8px" }}>
             {title}

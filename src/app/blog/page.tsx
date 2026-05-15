@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 interface Article {
   id: string; title: string; slug: string; excerpt: string;
   category: string; tags: string[]; focus_keyword: string;
-  published_at: string; meta_description: string;
+  published_at: string; meta_description: string; mode: string;
 }
 
 const CAT_COL: Record<string,string> = {
@@ -43,7 +43,7 @@ export default async function BlogPage() {
       const admin = createClient(url, key);
       const { data, error } = await admin
         .from("generated_articles")
-        .select("id, title, slug, excerpt, category, tags, focus_keyword, published_at, meta_description")
+        .select("id, title, slug, excerpt, category, tags, focus_keyword, published_at, meta_description, mode")
         .eq("status", "published")
         .order("published_at", { ascending: false })
         .limit(50);
@@ -139,6 +139,7 @@ export default async function BlogPage() {
                   title={a.title}
                   excerpt={a.excerpt}
                   tags={a.tags ?? []}
+                  mode={a.mode}
                 />
               );
             })}

@@ -71,6 +71,142 @@ Return ONLY valid JSON (no markdown outside the JSON):
 
 export type GenerateArticleResult = { status: number; payload: Record<string, unknown> };
 
+// ── LORE DOSSIER ──────────────────────────────────────────────────────────────
+
+const LORE_SYSTEM = `You are an investigative conspiracy researcher writing hypothesis dossiers for The Theorist. This is SPECULATIVE ANALYSIS — not verified reporting. Readers explicitly understand this content is a hypothesis dossier.
+
+Write an analytical, narrative-driven deep-dive. Tone: factual-sounding and investigative, NOT sensationalist. Use conditional language ("allegedly", "claimed", "reportedly", "according to") for unverified claims.
+
+Structure your article using these sections (use ## headings):
+## The Claim — what is alleged or widely believed
+## Key Figures — named actors, organizations, networks, alleged roles
+## The Evidence Trail — what actually exists, even if indirect or circumstantial
+## Timeline — key dates and events in chronological order
+## Competing Theories — alternative explanations for the same facts
+## What Would Falsify This — what evidence would disprove the theory
+## Open Threads — unanswered questions for readers to investigate
+
+Length: 1200–1600 words. Use ### sub-headings within sections as needed.
+
+SOURCE RULES:
+- The user will provide SEED URLs. Treat them as primary citations — use them verbatim in the sources array.
+- You may add mainstream news citations (nytimes.com, theguardian.com, bbc.com, reuters.com, apnews.com, washingtonpost.com, politico.com, theintercept.com, propublica.org) only if you are CERTAIN the specific URL exists.
+- For books, documentaries, forums, podcasts, or anything without a stable URL: set url to "" and describe where to find it.
+- NEVER invent or guess a URL. If in doubt: url: "".
+- Include a "tier" field: "seed" (user-provided), "media" (mainstream news), "community" (forums/blogs), "unverified".
+
+Return ONLY valid JSON (no markdown outside):
+{
+  "title": "Compelling dossier title (60 chars max)",
+  "slug": "url-friendly-slug",
+  "meta_description": "155 char description — make clear it is hypothesis/speculative",
+  "focus_keyword": "main keyword phrase",
+  "secondary_keywords": ["kw2", "kw3", "kw4"],
+  "content": "Full dossier markdown — ## and ### headings per structure above",
+  "excerpt": "2–3 sentence teaser (speculative framing explicit)",
+  "category": "lore",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "sources": [
+    {
+      "title": "Source title",
+      "url": "https://real-verified-url-or-empty-string",
+      "description": "What it contains; if url empty, how to find it",
+      "tier": "seed | media | community | unverified"
+    }
+  ]
+}`;
+
+export type LoreDossierParams = {
+  topic: string;
+  angle?: string;
+  seedUrls?: string[];
+};
+
+export async function runLoreDossierCore(params: LoreDossierParams): Promise<GenerateArticleResult> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { status: 500, payload: { error: "OPENAI_API_KEY missing" } };
+  }
+
+  try {
+    const admin = getAdmin();
+    const { topic, angle, seedUrls = [] } = params;
+
+    const seedBlock = seedUrls.length
+      ? `\n\n--- SEED URLS (use these as primary citations):\n${seedUrls.map((u) => `- ${u}`).join("\n")}`
+      : "";
+
+    const prompt = `Write a hypothesis dossier about: "${topic}"${angle ? `\nAngle / focus: "${angle}"` : ""}${seedBlock}
+
+Internal links: reference "${SITE_URL}/board" for the Investigation Board, "${SITE_URL}/community" for community discussion.`;
+
+    const allowlist = createSourceUrlAllowlist(
+      mergeUrlSeeds(seedUrls, extractHttpsUrlsFromText(prompt)),
+      "article",
+    );
+
+    const article = await callOpenAIJSON<{
+      title: string;
+      slug: string;
+      meta_description: string;
+      focus_keyword: string;
+      secondary_keywords: string[];
+      content: string;
+      excerpt: string;
+      category: string;
+      tags: string[];
+      sources: Array<{ title: string; url: string; description: string; tier?: string }>;
+    }>({
+      apiKey: process.env.OPENAI_API_KEY!,
+      system: LORE_SYSTEM,
+      user: prompt + allowlist.promptBlock,
+      maxTokens: 3500,
+      model: "gpt-4o",
+    });
+
+    const baseSlug = slugify(article.slug || article.title);
+    const finalSlug = `${baseSlug}-${Date.now().toString(36)}`;
+
+    const { data: inserted, error } = await admin
+      .from("generated_articles")
+      .insert({
+        title: article.title,
+        slug: finalSlug,
+        meta_description: article.meta_description,
+        focus_keyword: article.focus_keyword,
+        secondary_keywords: article.secondary_keywords ?? [],
+        content: article.content,
+        excerpt: article.excerpt,
+        category: "lore",
+        tags: article.tags ?? [],
+        sources: article.sources ?? [],
+        mode: "lore_dossier",
+        status: "published",
+        published_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) return { status: 500, payload: { error: error.message } };
+
+    try {
+      revalidatePath("/blog");
+      revalidatePath(`/blog/${finalSlug}`);
+    } catch {
+      /* revalidatePath only valid during a Next.js request */
+    }
+
+    return {
+      status: 200,
+      payload: {
+        success: true,
+        article: { id: inserted.id, title: article.title, slug: finalSlug, url: `${SITE_URL}/blog/${finalSlug}` },
+      },
+    };
+  } catch (e) {
+    return { status: 500, payload: { error: String(e) } };
+  }
+}
+
 /** Shared by POST /api/generate-article and in-process scraper jobs (no HTTP / CRON_SECRET round-trip). */
 export async function runGenerateArticleCore(mode: string): Promise<GenerateArticleResult> {
   if (!process.env.OPENAI_API_KEY) {

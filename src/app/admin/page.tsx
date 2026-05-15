@@ -234,6 +234,13 @@ export default function AdminPage() {
   /** Non-empty label while Oracle RESET ALL (bulk) is running */
   const [bulkOracleBusy, setBulkOracleBusy] = useState<string>("");
 
+  // Lore Dossier Writer
+  const [loreTopic, setLoreTopic] = useState("");
+  const [loreAngle, setLoreAngle] = useState("");
+  const [loreSeedUrls, setLoreSeedUrls] = useState("");
+  const [loreGenerating, setLoreGenerating] = useState(false);
+  const [loreResult, setLoreResult] = useState<{ ok: boolean; message: string; url?: string } | null>(null);
+
   const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
   const [analyticsClientIp, setAnalyticsClientIp] = useState<string | null>(null);
   const [analyticsSuppress, setAnalyticsSuppress] = useState(false);
@@ -360,6 +367,36 @@ export default function AdminPage() {
       await loadStats();
     } finally {
       setUserBusy("");
+    }
+  }
+
+  async function generateLoreDossier() {
+    if (!loreTopic.trim()) return;
+    setLoreGenerating(true);
+    setLoreResult(null);
+    try {
+      const seedUrls = loreSeedUrls
+        .split("\n")
+        .map((u) => u.trim())
+        .filter((u) => u.startsWith("http"));
+      const res = await fetch("/api/admin/generate-lore", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ topic: loreTopic.trim(), angle: loreAngle.trim() || undefined, seedUrls }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; article?: { url?: string; title?: string }; error?: string };
+      if (data.success && data.article) {
+        setLoreResult({ ok: true, message: `Published: "${data.article.title}"`, url: data.article.url });
+        setLoreTopic("");
+        setLoreAngle("");
+        setLoreSeedUrls("");
+      } else {
+        setLoreResult({ ok: false, message: data.error ?? "Unknown error" });
+      }
+    } catch (e) {
+      setLoreResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setLoreGenerating(false);
     }
   }
 
@@ -2046,6 +2083,90 @@ export default function AdminPage() {
               {scrapers.length > 0 && writerScraperJobs.length === 0 && (
                 <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
                   No article_writer jobs found.
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── LORE DOSSIER WRITER ── */}
+          <section id="lore-writer" className="mt-10 space-y-4">
+            <div className="mb-1">
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid #c94dff", paddingLeft: 10 }}>
+                Lore / Hypothesis Dossier Writer
+              </h2>
+            </div>
+            <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", color: muted }}>
+              Generates a <strong style={{ color: "var(--foreground)" }}>HYPOTHESIS dossier</strong> — speculative conspiracy analysis (Epstein, Illuminati, Hollywood, adrenochrome, etc.).
+              Published to <code className="text-[var(--green-dim)]">/blog</code> with a visible disclaimer badge. Uses a different AI prompt than standard Investigation Reports — no CIA-allowlist restriction.
+            </div>
+            <div className="rounded-xl p-5 sm:p-6 sm:px-7 space-y-4" style={{ background: cardBg, border: "1px solid #3a1a4a" }}>
+              {/* Topic */}
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Topic *</label>
+                <input
+                  type="text"
+                  value={loreTopic}
+                  onChange={(e) => setLoreTopic(e.target.value)}
+                  placeholder="e.g. Jeffrey Epstein's network and elite connections"
+                  className="w-full rounded-md px-3 py-2 text-[12px] outline-none"
+                  style={{ background: "#0a0f0d", border: "1px solid #2a1a3a", color: "#c8e8d0", fontFamily: "var(--font-share-tech-mono), monospace" }}
+                />
+              </div>
+              {/* Angle */}
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Angle / focus <span style={{ color: "#3a5040" }}>(optional)</span></label>
+                <input
+                  type="text"
+                  value={loreAngle}
+                  onChange={(e) => setLoreAngle(e.target.value)}
+                  placeholder="e.g. Intelligence blackmail operation, who was protected"
+                  className="w-full rounded-md px-3 py-2 text-[12px] outline-none"
+                  style={{ background: "#0a0f0d", border: "1px solid #2a1a3a", color: "#c8e8d0", fontFamily: "var(--font-share-tech-mono), monospace" }}
+                />
+              </div>
+              {/* Seed URLs */}
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Seed / reference URLs <span style={{ color: "#3a5040" }}>(optional — one per line)</span></label>
+                <textarea
+                  value={loreSeedUrls}
+                  onChange={(e) => setLoreSeedUrls(e.target.value)}
+                  rows={4}
+                  placeholder={"https://example.com/article-1\nhttps://example.com/article-2"}
+                  className="w-full rounded-md px-3 py-2 text-[12px] outline-none resize-y"
+                  style={{ background: "#0a0f0d", border: "1px solid #2a1a3a", color: "#c8e8d0", fontFamily: "var(--font-share-tech-mono), monospace" }}
+                />
+                <p className="mt-1 text-[10px]" style={{ color: "#2a4030" }}>These become primary citations in the dossier. Any https:// URL is accepted (no domain restriction).</p>
+              </div>
+              {/* Generate button */}
+              <button
+                type="button"
+                onClick={() => void generateLoreDossier()}
+                disabled={loreGenerating || !loreTopic.trim()}
+                className="rounded-md px-5 py-2 text-[11px] font-bold uppercase tracking-widest transition-all"
+                style={{
+                  background: loreGenerating ? "rgba(201,77,255,0.06)" : "rgba(201,77,255,0.12)",
+                  border: "1px solid #c94dff",
+                  color: loreGenerating ? "#7a3a9a" : "#c94dff",
+                  cursor: loreGenerating || !loreTopic.trim() ? "not-allowed" : "pointer",
+                  opacity: !loreTopic.trim() ? 0.4 : 1,
+                }}
+              >
+                {loreGenerating ? "◈ Generating dossier…" : "◈ Generate Hypothesis Dossier"}
+              </button>
+              {loreGenerating && (
+                <p className="text-[11px]" style={{ color: "#c94dff" }}>OpenAI writing dossier — this takes ~30–60 seconds…</p>
+              )}
+              {loreResult && (
+                <div
+                  className="rounded-md px-4 py-3 text-[12px]"
+                  style={{ background: loreResult.ok ? "rgba(0,187,102,0.07)" : "rgba(255,80,80,0.07)", border: `1px solid ${loreResult.ok ? "#1a4a30" : "#4a1a1a"}`, color: loreResult.ok ? "#00ff88" : "#ff8080" }}
+                >
+                  {loreResult.message}
+                  {loreResult.ok && loreResult.url && (
+                    <a href={loreResult.url} target="_blank" rel="noopener noreferrer" className="ml-3 underline" style={{ color: "#00bb66" }}>
+                      Open →
+                    </a>
+                  )}
                 </div>
               )}
             </div>
