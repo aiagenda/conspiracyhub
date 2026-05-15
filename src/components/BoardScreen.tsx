@@ -24,6 +24,23 @@ function buildBoardPolymarketContext(news: NewsItem, analysis: OracleAnalysis | 
   return parts.join(" ").slice(0, 2200);
 }
 
+/** Preserve Brave web results from DB; BoardScreen used to drop these in sanitizeNodes. */
+function sanitizeBraveSources(raw: unknown): Node["detail"]["brave_sources"] {
+  if (!Array.isArray(raw)) return undefined;
+  const out: NonNullable<Node["detail"]["brave_sources"]> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const x = item as Record<string, unknown>;
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (!/^https?:\/\//i.test(url)) continue;
+    const title = typeof x.title === "string" && x.title.trim() ? x.title.trim() : url;
+    const description = typeof x.description === "string" ? x.description : "";
+    out.push({ title, url, description });
+    if (out.length >= 12) break;
+  }
+  return out.length ? out : undefined;
+}
+
 function sanitizeNodeType(value: unknown): NodeType {
   if (typeof value !== "string") return "event";
   const normalized = value.trim().toLowerCase();
@@ -59,6 +76,7 @@ function sanitizeNodes(nodes: unknown): Node[] {
           body: n.detail?.body ?? "",
           source: n.detail?.source ?? "Unknown source",
           threat: typeof n.detail?.threat === "number" ? n.detail.threat : 50,
+          excerpt: typeof n.detail?.excerpt === "string" && n.detail.excerpt.trim() ? n.detail.excerpt.trim() : undefined,
           source_url: n.detail?.source_url,
           source_tier: n.detail?.source_tier ?? "B",
           source_type: n.detail?.source_type ?? "media",
@@ -74,6 +92,7 @@ function sanitizeNodes(nodes: unknown): Node[] {
               : Math.round((typeof n.detail?.threat === "number" ? n.detail.threat : 50) * 0.9),
           open_questions: Array.isArray(n.detail?.open_questions) ? n.detail.open_questions : [],
           theory_sources: Array.isArray(n.detail?.theory_sources) ? n.detail.theory_sources : [],
+          brave_sources: sanitizeBraveSources(n.detail?.brave_sources),
         },
       } satisfies Node;
     })
@@ -100,6 +119,7 @@ function ensureCenterNode(nodes: Node[], news: NewsItem): Node[] {
       body: news.summary || first.detail?.body || "",
       source: news.url || first.detail?.source || "Guardian",
       threat: typeof news.score === "number" ? news.score : first.detail?.threat ?? 60,
+      excerpt: first.detail?.excerpt,
       source_url: news.url,
       source_tier: "B",
       source_type: "media",
@@ -111,6 +131,8 @@ function ensureCenterNode(nodes: Node[], news: NewsItem): Node[] {
       actors: first.detail?.actors ?? [],
       confidence: first.detail?.confidence ?? Math.round((typeof news.score === "number" ? news.score : 60) * 0.9),
       open_questions: first.detail?.open_questions ?? [],
+      theory_sources: Array.isArray(first.detail?.theory_sources) ? first.detail.theory_sources : [],
+      brave_sources: sanitizeBraveSources(first.detail?.brave_sources),
     },
   };
 
