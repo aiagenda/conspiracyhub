@@ -81,7 +81,6 @@ export default function FeedScreen({
   feedNotice?: FeedNotice;
   feedPagination?: FeedPagination;
 }) {
-  const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
   const [showAuth, setShowAuth] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -145,14 +144,8 @@ export default function FeedScreen({
     return () => window.clearInterval(id);
   }, []);
 
-  const sections = useMemo(
-    () => ["all", ...new Set(initialItems.map((i) => i.section))],
-    [initialItems]
-  );
   const visible = useMemo(() => {
-    const filtered =
-      filter === "all" ? initialItems : initialItems.filter((i) => i.section === filter);
-    return [...filtered].sort((a, b) => {
+    return [...initialItems].sort((a, b) => {
       if (sortBy === "priority") {
         if (b.score !== a.score) return b.score - a.score;
         return new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -161,7 +154,7 @@ export default function FeedScreen({
       if (byDate !== 0) return byDate;
       return b.score - a.score;
     });
-  }, [filter, initialItems, sortBy]);
+  }, [initialItems, sortBy]);
 
   function analyze(item: NewsItem) {
     router.push(`/article/${item.id}`);
@@ -260,25 +253,8 @@ export default function FeedScreen({
             </div>
           </div>
 
-          {/* FILTERS + CONTROLS */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 10 }}>
-            <div className="category-filter" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {sections.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilter(s)}
-                  style={{
-                    fontFamily: "var(--font-raj), sans-serif", fontSize: 12, fontWeight: 700,
-                    letterSpacing: 2, textTransform: "uppercase", padding: "5px 12px", borderRadius: 3,
-                    border: `1px solid ${filter === s ? "#00bb66" : "#1a3320"}`,
-                    background: filter === s ? "rgba(0,255,136,0.08)" : "transparent",
-                    color: filter === s ? "#00ff88" : "#5a8068", cursor: "pointer", transition: "all 0.15s"
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+          {/* SORT + COUNT */}
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 10 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <div style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
                 <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1 }}>SORT</span>
@@ -339,22 +315,11 @@ export default function FeedScreen({
                 </>
               ) : (
                 <>
-                  <div style={{ marginBottom: 12 }}>◈ NO HIGH-PRIORITY ARTICLES IN THIS CATEGORY</div>
+                  <div style={{ marginBottom: 12 }}>◈ NO ARTICLES TO SHOW</div>
                   <div style={{ fontSize: 9, color: "#2a4030", marginBottom: 20 }}>
                     MULTI-SOURCE SCRAPER — NEW ITEMS AS FEEDS UPDATE — CHECK BACK SOON
                   </div>
                 </>
-              )}
-              {filter !== "all" && (
-                <button
-                  type="button"
-                  onClick={() => setFilter("all")}
-                  style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "7px 16px", borderRadius: 3, border: "1px solid #1a3320", background: "transparent", color: "#5a8068", cursor: "pointer", transition: "all 0.15s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66"; (e.currentTarget as HTMLButtonElement).style.color = "#00ff88"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; (e.currentTarget as HTMLButtonElement).style.color = "#5a8068"; }}
-                >
-                  ← SHOW ALL CATEGORIES
-                </button>
               )}
             </div>
           )}
