@@ -11,6 +11,7 @@ import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { markArticleRead } from "@/lib/readArticles";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { isLiveChatEnabled } from "@/lib/featureFlags";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -255,6 +256,7 @@ export default function ArticleReader({
   initialChatOpen?: boolean;
   voteTheories?: VoteTheoryChip[];
 }) {
+  const liveChatEnabled = isLiveChatEnabled();
   const [highlights, setHighlights]     = useState<Highlight[]>([]);
   const [hlTotal, setHlTotal]           = useState(0);
   const [hlLimited, setHlLimited]       = useState(false);
@@ -262,7 +264,7 @@ export default function ArticleReader({
   const [hlError, setHlError]           = useState("");
   const [legendOpen, setLegendOpen]     = useState(true);
   const [filterCat, setFilterCat]       = useState<string | null>(null);
-  const [chatOpen, setChatOpen]         = useState(initialChatOpen);
+  const [chatOpen, setChatOpen]         = useState(Boolean(initialChatOpen && liveChatEnabled));
 
   useEffect(() => {
     markArticleRead(item.id);
@@ -306,7 +308,8 @@ export default function ArticleReader({
 
   const highCount = highlights.filter(h => h.severity === "high").length;
 
-  const rootClass = `ar-root${chatOpen ? " ar-chat-open" : ""}`;
+  const chatActive = liveChatEnabled && chatOpen;
+  const rootClass = `ar-root${chatActive ? " ar-chat-open" : ""}`;
 
   return (
     <div className={rootClass} style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
@@ -376,6 +379,7 @@ export default function ArticleReader({
           <span className="ar-dock-long">◈ OPEN INVESTIGATION BOARD ▶</span>
           <span className="ar-dock-short">◈ BOARD</span>
         </Link>
+        {liveChatEnabled ? (
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
@@ -406,6 +410,7 @@ export default function ArticleReader({
             </>
           )}
         </button>
+        ) : null}
         <button
           type="button"
           onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
@@ -474,10 +479,10 @@ export default function ArticleReader({
           style={{
             ...pageContentShellStyle({
               padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem",
-              ...(chatOpen ? { maxWidth: 1680 } : {}),
+              ...(chatActive ? { maxWidth: 1680 } : {}),
             }),
             display: "grid",
-            gridTemplateColumns: chatOpen
+            gridTemplateColumns: chatActive
               ? "minmax(0, 1fr) minmax(240px, 300px) minmax(280px, 340px)"
               : "minmax(0, 1fr) minmax(280px, 340px)",
             gap: "clamp(1.25rem, 3vw, 2.5rem)",
@@ -773,7 +778,7 @@ export default function ArticleReader({
             )}
           </div>
 
-          {chatOpen && (
+          {chatActive && (
             <div
               className="ar-col-chat"
               style={{

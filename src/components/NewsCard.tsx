@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import ReaderReactionVote from "@/components/ReaderReactionVote";
+import { isLiveChatEnabled } from "@/lib/featureFlags";
 import type { NewsItem } from "@/types";
 
 function scoreColor(s: number) {
@@ -33,6 +34,7 @@ export default function NewsCard({
   read?: boolean;
 }) {
   const color = scoreColor(item.score);
+  const showLiveChat = isLiveChatEnabled();
   const borderIdle = read ? "#1a4030" : "#1a3320";
   const borderHover = read ? "#2a6048" : "#2a4a30";
 
@@ -219,6 +221,7 @@ export default function NewsCard({
           >
             ▸ DISCUSS IN COMMUNITY
           </Link>
+          {showLiveChat ? (
           <Link
             href={`/article/${item.id}?chat=1`}
             style={{
@@ -248,6 +251,7 @@ export default function NewsCard({
           >
             ◈ LIVE CHAT
           </Link>
+          ) : null}
         </div>
         </div>
       </div>

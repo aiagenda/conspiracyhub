@@ -94,7 +94,7 @@ export default function GuidePage() {
             <Sub>News card</Sub>
             <Row label="THREAT: 82" color="#ff3333">AI risk score. 80+ = red, 60–79 = yellow, 55–59 = green. Reflects likelihood of hidden connections or suppressed information.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
-            <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board or live chat; Oracle runs in the board context when needed.</Row>
+            <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board; optional per-article live chat appears in the dock only when <code style={{ color: "#3a5040" }}>NEXT_PUBLIC_LIVE_CHAT_ENABLED=true</code> is set on deploy. Oracle runs in the board context when needed.</Row>
             <Sub>Status bar</Sub>
             <Note>Green dots = active data source. Yellow = degraded/idle. Red = error. DARPA: ████ is intentionally redacted — symbolises partially classified defence data.</Note>
           </Section>
@@ -182,7 +182,7 @@ export default function GuidePage() {
 
           {/* COMMUNITY */}
           <Section icon="◈" title="Community Intelligence" color="#00bb66">
-            <Note>/community is an open-source intelligence board. Post sightings, documents, theories, tips or questions. No account required.</Note>
+            <Note>/community lists and threads are public to read. Posting, replies, reactions, and @oracle require signing in from the feed.</Note>
             <Sub>Thread categories</Sub>
             <Row label="👁 SIGHTING" color="#00ff88">Direct observation — aerial, terrestrial or unexplained.</Row>
             <Row label="📄 DOCUMENT" color="#ff3333">FOIA file, leaked document or official record.</Row>

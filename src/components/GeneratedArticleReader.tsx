@@ -9,6 +9,7 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import VotePanel from "@/components/VotePanel";
 import { markArticleRead } from "@/lib/readArticles";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { isLiveChatEnabled } from "@/lib/featureFlags";
 import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
@@ -49,13 +50,15 @@ export default function GeneratedArticleReader({
   initialChatOpen?: boolean;
   voteTheories?: VoteTheoryChip[];
 }) {
-  const [chatOpen, setChatOpen] = useState(initialChatOpen);
+  const liveChatEnabled = isLiveChatEnabled();
+  const [chatOpen, setChatOpen] = useState(Boolean(initialChatOpen && liveChatEnabled));
 
   useEffect(() => {
     markArticleRead(item.id);
   }, [item.id]);
 
-  const rootClass = `gar-root${chatOpen ? " gar-chat-open" : ""}`;
+  const chatActive = liveChatEnabled && chatOpen;
+  const rootClass = `gar-root${chatActive ? " gar-chat-open" : ""}`;
 
   return (
     <div className={rootClass} style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
@@ -125,6 +128,7 @@ export default function GeneratedArticleReader({
           <span className="gar-dock-long">◈ OPEN INVESTIGATION BOARD ▶</span>
           <span className="gar-dock-short">◈ BOARD</span>
         </Link>
+        {liveChatEnabled ? (
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
@@ -155,6 +159,7 @@ export default function GeneratedArticleReader({
             </>
           )}
         </button>
+        ) : null}
         <button
           type="button"
           onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
@@ -277,10 +282,10 @@ export default function GeneratedArticleReader({
           style={{
             ...pageContentShellStyle({
               padding: "1.75rem clamp(1rem, 3vw, 2rem) 6rem",
-              ...(chatOpen ? { maxWidth: 1680 } : {}),
+              ...(chatActive ? { maxWidth: 1680 } : {}),
             }),
             display: "grid",
-            gridTemplateColumns: chatOpen
+            gridTemplateColumns: chatActive
               ? "minmax(0, 1fr) minmax(240px, 300px) minmax(280px, 340px)"
               : "minmax(0, 1fr) minmax(280px, 340px)",
             gap: "clamp(1.25rem, 3vw, 2.5rem)",
@@ -500,7 +505,7 @@ export default function GeneratedArticleReader({
             <PolymarketWidget query={item.title} context={buildPolymarketContext(item, markdown)} />
           </div>
 
-          {chatOpen ? (
+          {chatActive ? (
             <div
               className="gar-col-chat"
               style={{

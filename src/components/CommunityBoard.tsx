@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import RegisteredOnlyGate from "@/components/RegisteredOnlyGate";
 import { fetchWithSupabaseAuth } from "@/lib/authFetch";
 import { ARTICLE_THREAD_STARTER_FP } from "@/lib/articleThreadStarters";
 import { pageContentShellStyle } from "@/lib/pageShell";
@@ -170,7 +169,7 @@ function ReactionBtn({ type, count, active, onClick }: { type: "like" | "dislike
 }
 
 // ── THREAD DETAIL ──────────────────────────────────────────────
-function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }) {
+function ThreadDetail({ thread, onBack, canPost }: { thread: Thread; onBack: () => void; canPost: boolean }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState("");
@@ -200,6 +199,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
       .then(async (d: { posts?: Post[] }) => {
         let list = d.posts ?? [];
         if (
+          canPost &&
           (thread.linked_article_id || thread.linked_generated_article_id) &&
           !list.some((p) => p.author_fingerprint === ARTICLE_THREAD_STARTER_FP)
         ) {
@@ -225,7 +225,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
     return () => {
       cancelled = true;
     };
-  }, [thread.id, thread.linked_article_id, thread.linked_generated_article_id]);
+  }, [thread.id, thread.linked_article_id, thread.linked_generated_article_id, canPost]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -252,6 +252,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
   }, [posts]);
 
   function react(postId: string, reaction: "like" | "dislike") {
+    if (!canPost) return;
     if (reactions[postId] === reaction) return; // already voted this way
     const prev = reactions[postId];
     const next = { ...reactions, [postId]: reaction };
@@ -271,6 +272,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
   }
 
   async function submit(parentId?: string) {
+    if (!canPost) return;
     const text = parentId ? replyText : reply;
     const gif = parentId ? replyGif : mainGif;
     if ((!text.trim() && !gif) || posting) return;
@@ -346,6 +348,8 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
 
           {/* Actions row */}
           <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+            {canPost ? (
+              <>
             <ReactionBtn type="like" count={post.likes} active={myReaction === "like"} onClick={() => react(post.id, "like")} />
             <ReactionBtn type="dislike" count={post.dislikes} active={myReaction === "dislike"} onClick={() => react(post.id, "dislike")} />
             {!isOracle && (
@@ -354,10 +358,12 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
                 ↩ REPLY{postReplies.length > 0 ? ` (${postReplies.length})` : ""}
               </button>
             )}
+              </>
+            ) : null}
           </div>
 
           {/* Inline reply form */}
-          {isReplying && (
+          {isReplying && canPost && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a3320" }}>
               {replyGif && (
                 <div style={{ marginBottom: 6, position: "relative", display: "inline-block" }}>
@@ -444,6 +450,7 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
       </div>
 
       {/* Main compose box */}
+      {canPost ? (
       <div style={{ padding: "12px 16px", borderTop: "1px solid #1a3320", background: "#050c07" }}>
         <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2, marginBottom: 8 }}>
           TIP: TYPE <span style={{ color: "#00bb66" }}>@oracle</span> TO INVOKE AI ANALYSIS
@@ -480,6 +487,14 @@ function ThreadDetail({ thread, onBack }: { thread: Thread; onBack: () => void }
           <GifPicker onSelect={url => { setMainGif(url); setGifPickerFor(null); }} onClose={() => setGifPickerFor(null)} />
         )}
       </div>
+      ) : (
+      <div style={{ padding: "12px 16px", borderTop: "1px solid #1a3320", background: "#050c07", fontSize: 11, color: "#5a8068", lineHeight: 1.65 }}>
+        <span style={{ color: "#ffaa00", letterSpacing: 1 }}>READ-ONLY</span>
+        {" — "}
+        <Link href="/" style={{ color: "#00bb66" }}>Sign in from the feed</Link>
+        {" "}to post replies, react, or invoke <span style={{ color: "#00bb66" }}>@oracle</span>.
+      </div>
+      )}
     </div>
   );
 }
@@ -492,6 +507,7 @@ function NewThreadForm({
   defaultTitle = "",
   defaultBody = "",
   defaultCategory,
+  canPost = true,
 }: {
   onCreated: (t: Thread) => void;
   linkedArticleId?: string | null;
@@ -499,6 +515,8 @@ function NewThreadForm({
   defaultTitle?: string;
   defaultBody?: string;
   defaultCategory?: string;
+  /** When false, show sign-in prompt (public community browse). */
+  canPost?: boolean;
 }) {
   const [title, setTitle] = useState(defaultTitle);
   const [body, setBody] = useState(defaultBody);
@@ -545,6 +563,20 @@ function NewThreadForm({
   }
 
   const inp: CSSProperties = { background: "#090f0b", border: "1px solid #1a3320", borderRadius: 3, padding: "8px 12px", color: "#c8e8d0", fontFamily: FONT, fontSize: 12, outline: "none", width: "100%", transition: "border-color 0.2s" };
+
+  if (!canPost) {
+    return (
+      <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", padding: "16px 18px", fontSize: 12, color: "#5a8068", lineHeight: 1.65 }}>
+        <span style={{ color: "#ffaa00", letterSpacing: 2, fontFamily: RAJ, fontSize: 11 }}>SIGN IN TO POST</span>
+        <div style={{ marginTop: 10 }}>
+          <Link href="/" style={{ color: "#00bb66", fontWeight: 700 }}>
+            Open the feed and sign in
+          </Link>
+          {" — "}then you can start threads, reply, and use <span style={{ color: "#00bb66" }}>@oracle</span>.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden" }}>
@@ -698,7 +730,7 @@ export default function CommunityBoard() {
   }, []);
 
   useEffect(() => {
-    if (!authReady || !signedIn) return;
+    if (!authReady) return;
     if (articleBundleId && articleBundleKind) {
       setLoading(false);
       setShowNew(false);
@@ -722,7 +754,7 @@ export default function CommunityBoard() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, signedIn, articleBundleId, articleBundleKind, fetchThreadList, loadArticleBundle]);
+  }, [authReady, articleBundleId, articleBundleKind, fetchThreadList, loadArticleBundle]);
 
   const discussionSeedTitle = articleTitle
     ? `Discussion: ${articleTitle}`.slice(0, 120)
@@ -759,19 +791,6 @@ export default function CommunityBoard() {
     );
   }
 
-  if (!signedIn) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#050c07" }}>
-        <div className="scanline" />
-        <RegisteredOnlyGate
-          variant="fullscreen"
-          title="COMMUNITY — SIGN IN REQUIRED"
-          subtitle="Threads, replies, and @oracle on the community board are for registered members only."
-        />
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
@@ -786,7 +805,7 @@ export default function CommunityBoard() {
           <div style={{ width: 1, height: 20, background: "#1a3320" }} />
           <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>COMMUNITY INTELLIGENCE</div>
           <div style={{ marginLeft: "auto" }}>
-            {!articleBundleId && (
+            {!articleBundleId && signedIn && (
             <button onClick={() => setShowNew(s => !s)}
               style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
               {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
@@ -794,6 +813,26 @@ export default function CommunityBoard() {
             )}
           </div>
         </div>
+
+        {!signedIn && (
+          <div
+            style={{
+              padding: "8px 16px",
+              borderBottom: "1px solid #1a3320",
+              background: "rgba(255, 170, 0, 0.06)",
+              fontSize: 10,
+              color: "#7a9078",
+              letterSpacing: 0.5,
+            }}
+          >
+            <span style={{ color: "#ffaa00", fontWeight: 700 }}>BROWSING</span>
+            {" — "}Threads are public to read.{" "}
+            <Link href="/" style={{ color: "#00bb66" }}>
+              Sign in from the feed
+            </Link>
+            {" "}to post, reply, react, or use <span style={{ color: "#00bb66" }}>@oracle</span>.
+          </div>
+        )}
 
         <div style={pageContentShellStyle()}>
 
@@ -806,7 +845,7 @@ export default function CommunityBoard() {
 
           {showNew && !articleBundleId && (
             <div style={{ marginBottom: "1.5rem" }}>
-              <NewThreadForm onCreated={t => { setShowNew(false); setSelectedThread(t); refreshThreads(); }} />
+              <NewThreadForm canPost={signedIn} onCreated={t => { setShowNew(false); setSelectedThread(t); refreshThreads(); }} />
             </div>
           )}
 
@@ -857,6 +896,7 @@ export default function CommunityBoard() {
                     </div>
                   ) : (
                     <NewThreadForm
+                      canPost={signedIn}
                       linkedArticleId={articleFromUrl ?? undefined}
                       linkedGeneratedArticleId={generatedFromUrl ?? undefined}
                       defaultTitle={discussionSeedTitle}
@@ -875,7 +915,7 @@ export default function CommunityBoard() {
 
           {selectedThread ? (
             <div style={{ height: "calc(100vh - 200px)", border: "1px solid #1a3320", borderRadius: 4, overflow: "hidden", background: "#090f0b" }}>
-              <ThreadDetail thread={selectedThread} onBack={onLeaveThreadDetail} />
+              <ThreadDetail thread={selectedThread} onBack={onLeaveThreadDetail} canPost={signedIn} />
             </div>
           ) : !articleBundleId ? (
             <>

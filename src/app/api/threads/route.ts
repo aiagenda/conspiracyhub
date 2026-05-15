@@ -73,12 +73,10 @@ function truncateChat(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
-// GET — list threads or single thread with posts (registered users only)
+// GET — list threads or single thread with posts (public read; POST still requires auth)
 export async function GET(req: NextRequest) {
   try {
     const admin = getAdmin();
-    const authResult = await requireRegisteredUser(req, admin);
-    if ("response" in authResult) return authResult.response;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
