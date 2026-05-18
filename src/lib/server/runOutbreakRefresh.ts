@@ -341,7 +341,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           affectedCoords,
         };
       })
-      .filter(Boolean);
+      .filter((row): row is NonNullable<typeof row> => row != null);
 
     const outbreaksSorted = sortByPublishedAtDesc(outbreaks);
 
