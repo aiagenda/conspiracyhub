@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { getFeedMinScore } from "@/lib/feedMinScore";
 import { SYSTEM_SCORE } from "@/lib/prompts";
 
 export const maxDuration = 300; // 5 min – Vercel Pro max for cron routes
@@ -343,10 +344,7 @@ export async function runScraper(openAiKey: string) {
     /* table missing handled below */
   }
 
-  const minScore = Math.max(
-    0,
-    Math.min(100, parseInt(process.env.SCRAPER_MIN_SCORE ?? "55", 10) || 55),
-  );
+  const minScore = getFeedMinScore();
   const scoringCap = Math.min(
     200,
     Math.max(40, parseInt(process.env.SCRAPER_SCORING_CAP ?? "120", 10) || 120),

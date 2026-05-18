@@ -90,9 +90,9 @@ export default function GuidePage() {
 
           {/* FEED */}
           <Section icon="◈" title="Main Feed" color="#00ff88">
-            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority / threat score (0–100). Only articles scoring 55+ are shown.</Note>
+            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority / threat score (0–100). Only articles scoring 70+ are shown.</Note>
             <Sub>News card</Sub>
-            <Row label="THREAT: 82" color="#ff3333">AI risk score. 80+ = red, 60–79 = yellow, 55–59 = green. Reflects likelihood of hidden connections or suppressed information.</Row>
+            <Row label="THREAT: 82" color="#ff3333">AI risk score. 80+ = high (red), 70–79 = elevated (red). Below 70 is hidden from the feed.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
             <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board; optional per-article live chat appears in the dock only when <code style={{ color: "#3a5040" }}>NEXT_PUBLIC_LIVE_CHAT_ENABLED=true</code> is set on deploy. Oracle runs in the board context when needed.</Row>
             <Sub>Status bar</Sub>

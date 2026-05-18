@@ -2060,7 +2060,7 @@ export default function AdminPage() {
               <strong style={{ color: "var(--foreground)" }}>Google News (RSS)</strong>,{" "}
               <strong style={{ color: "var(--foreground)" }}>Reddit</strong>, and{" "}
               <strong style={{ color: "var(--foreground)" }}>investigative RSS</strong> feeds — then GPT scores headlines; only rows ≥{" "}
-              <code className="text-[var(--green-dim)]">SCRAPER_MIN_SCORE</code> (default 55) are stored. On the public feed,{" "}
+              <code className="text-[var(--green-dim)]">SCRAPER_MIN_SCORE</code> (default 70) are stored. On the public feed,{" "}
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
               <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> is a separate job (sightings table).{" "}

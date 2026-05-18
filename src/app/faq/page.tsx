@@ -14,7 +14,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Where does the content come from?",
-    a: "Articles are sourced from Guardian API, Google News, Reddit, and official government transparency portals (FOIA.gov, CIA Reading Room). The scraper runs automatically every few hours and only surfaces articles scoring 55+ on the AI threat scale.",
+    a: "Articles are sourced from Guardian API, Google News, Reddit, and official government transparency portals (FOIA.gov, CIA Reading Room). The scraper runs automatically every few hours and only surfaces articles scoring 70+ on the AI threat scale.",
   },
   {
     q: "What is the Oracle?",
@@ -22,7 +22,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What is the threat score?",
-    a: "An AI estimate (0–100) of how significant the event could be if the claims are accurate. It is a triage signal — not a safety warning. 80+ = high (red), 60–79 = medium (yellow), 55–59 = low (green). Only 55+ articles are shown.",
+    a: "An AI estimate (0–100) of how significant the event could be if the claims are accurate. It is a triage signal — not a safety warning. 80+ = high (red), 70–79 = elevated (red), below 70 is hidden from the feed. Only 70+ articles are shown.",
   },
   {
     q: "What is the Investigation Board?",

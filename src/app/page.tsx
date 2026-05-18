@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import FeedScreen, { type FeedPagination } from "@/components/FeedScreen";
 import { loadReaderReactionsForNewsIds } from "@/lib/readerReactionVote";
+import { getFeedMinScore } from "@/lib/feedMinScore";
 import { omitIfHungarianScript } from "@/lib/locale";
 import type { NewsItem } from "@/types";
 
@@ -62,18 +63,23 @@ export default async function Home({
   }
   const supabase = createClient(url, key);
   const cutoff = sevenDaysAgo();
+  const minScore = getFeedMinScore();
 
   const { count: countSeven } = await supabase
     .from("news_items")
     .select("*", { count: "exact", head: true })
-    .gte("published_at", cutoff);
+    .gte("published_at", cutoff)
+    .gte("score", minScore);
 
   const sevenDayTotal = countSeven ?? 0;
   const useSevenDayWindow = sevenDayTotal > 0;
 
   let totalCount = sevenDayTotal;
   if (!useSevenDayWindow) {
-    const { count: countAll } = await supabase.from("news_items").select("*", { count: "exact", head: true });
+    const { count: countAll } = await supabase
+      .from("news_items")
+      .select("*", { count: "exact", head: true })
+      .gte("score", minScore);
     totalCount = countAll ?? 0;
   }
 
@@ -85,7 +91,7 @@ export default async function Home({
   const from = (currentPage - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  let q = supabase.from("news_items").select("*");
+  let q = supabase.from("news_items").select("*").gte("score", minScore);
   if (useSevenDayWindow) {
     q = q.gte("published_at", cutoff).order("published_at", { ascending: false }).order("score", { ascending: false });
   } else {
