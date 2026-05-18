@@ -6,6 +6,7 @@ import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { sortByPubDateDesc } from "@/lib/sortByPubDate";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -1057,7 +1058,7 @@ export default function UAPTracker() {
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:4}}>LIVE UAP NEWS FEED · GOOGLE NEWS · UPDATED {new Date(data.generated_at).toLocaleTimeString()}</div>
                   {data.news.length===0&&<div style={{color:"#3a5040",fontSize:11,padding:16,textAlign:"center"}}>No live news available.</div>}
-                  {data.news.map((n,i)=>{
+                  {sortByPubDateDesc(data.news).map((n,i)=>{
                     const typeCol = n.type==="foia"?"#c94dff":n.type==="report"?"#ff3333":n.type==="social"?"#ffaa00":"#00bb66";
                     return (
                     <a key={i} href={n.url} target="_blank" rel="noreferrer"

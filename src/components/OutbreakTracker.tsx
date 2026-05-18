@@ -6,6 +6,7 @@ import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -583,7 +584,7 @@ function OutbreakDetail({o}:{o:Outbreak}) {
             <div style={{fontSize:11,color:"#3a5040",marginBottom:8,letterSpacing:1,lineHeight:1.6}}>
               Articles published in or about {o.origin_country?.toUpperCase()||o.location.toUpperCase()} — early signals appear here first
             </div>
-            {o.localNews.map((n,i)=>(
+            {sortByPubDateDesc(o.localNews).map((n,i)=>(
               <a key={i} href={n.url} target="_blank" rel="noreferrer"
                 style={{display:"block",border:"1px solid #1a3320",borderRadius:3,padding:"10px 12px",marginBottom:7,textDecoration:"none",background:"rgba(0,255,136,0.02)",transition:"border-color 0.15s"}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="#00bb66";}}
@@ -744,11 +745,13 @@ export default function OutbreakTracker() {
   if (loading) return <OutbreakLoadingScreen/>;
 
   const outbreaks = data?.outbreaks??[];
-  const visible = outbreaks.filter(o=>{
-    if (filter==="conspiracy") return o.has_conspiracy;
-    if (filter==="high") return o.risk_level==="HIGH"||o.risk_level==="CRITICAL";
-    return true;
-  });
+  const visible = sortByPublishedAtDesc(
+    outbreaks.filter((o) => {
+      if (filter === "conspiracy") return o.has_conspiracy;
+      if (filter === "high") return o.risk_level === "HIGH" || o.risk_level === "CRITICAL";
+      return true;
+    }),
+  );
 
   /** Keep selected pin on map when filter changes (same idea as UAP: selection stays coherent). */
   const mapOutbreaks =

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callOpenAIJSON } from "@/lib/openai";
+import { sortByPubDateDesc } from "@/lib/sortByPubDate";
 
 // ── COMPREHENSIVE UAP DOCUMENT DATABASE ───────────────────────
 const INCIDENTS = [
@@ -72,7 +73,7 @@ async function fetchAARO(): Promise<Array<{ title: string; url: string; source: 
       const url = m[1].startsWith("http") ? m[1] : `https://www.aaro.mil${m[1]}`;
       const title = m[2].trim();
       if (title.length > 10 && title.length < 200) {
-        results.push({ title, url, source: "AARO (Pentagon)", pubDate: new Date().toISOString(), type: "report" });
+        results.push({ title, url, source: "AARO (Pentagon)", pubDate: "", type: "report" });
       }
     }
   } catch {
@@ -231,11 +232,13 @@ export async function GET(req: NextRequest) {
 
   const allLive = [...aaro, ...blackvault, ...muckrock, ...news, ...reddit];
   const seen = new Set<string>();
-  const live = allLive.filter((n) => {
-    if (seen.has(n.title)) return false;
-    seen.add(n.title);
-    return true;
-  });
+  const live = sortByPubDateDesc(
+    allLive.filter((n) => {
+      if (seen.has(n.title)) return false;
+      seen.add(n.title);
+      return true;
+    }),
+  );
 
   const payload = {
     incidents: INCIDENTS,

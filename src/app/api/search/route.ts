@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { omitIfHungarianScript } from "@/lib/locale";
+import { sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -92,11 +93,13 @@ export async function GET(req: NextRequest) {
       .order("score", { ascending: false })
       .limit(10);
 
-    const newsSanitized = (newsResults ?? []).map((row: { angle?: string | null; summary?: string | null; [k: string]: unknown }) => ({
-      ...row,
-      angle: omitIfHungarianScript(row.angle ?? ""),
-      summary: omitIfHungarianScript(row.summary ?? ""),
-    }));
+    const newsSanitized = sortByPublishedAtDesc(
+      (newsResults ?? []).map((row: { angle?: string | null; summary?: string | null; published_at?: string | null; [k: string]: unknown }) => ({
+        ...row,
+        angle: omitIfHungarianScript(row.angle ?? ""),
+        summary: omitIfHungarianScript(row.summary ?? ""),
+      })),
+    );
 
     // AI enrichment (theories / patents / people / events) requires a registered account
     const registered = await isRegisteredUser(req.headers.get("authorization"));

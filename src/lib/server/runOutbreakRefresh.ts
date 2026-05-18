@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 const OUTBREAK_LOCAL_NEWS_MAX = 10;
@@ -60,41 +61,41 @@ const CURATED_DISEASES: CuratedItem[] = [
     description:
       "Hantavirus cases reported. Spread via rodent contact. No human-to-human transmission confirmed. Early warning clusters detected.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
+    pubDate: "",
   },
   {
     title: "H5N1 Avian Influenza — Human Cases",
     description:
       "H5N1 bird flu human infections confirmed in multiple countries. WHO monitoring for sustained human-to-human transmission.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
+    pubDate: "",
   },
   {
     title: "Mpox — Clade Ib Ongoing Outbreak",
     description:
       "Mpox clade Ib spreading across Central Africa. New variants show higher transmissibility. WHO declared public health emergency.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
+    pubDate: "",
   },
   {
     title: "Marburg Virus Disease — East Africa",
     description:
       "Marburg virus outbreak confirmed. Contact tracing underway. High fatality rate disease with no approved vaccine.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
+    pubDate: "",
   },
   {
     title: "Dengue Fever — Record Cases South America",
     description:
       "Brazil reports over 3 million dengue cases. Aedes aegypti mosquito range expanding due to climate change.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
+    pubDate: "",
   },
   {
     title: "Cholera — Sub-Saharan Africa",
     description: "Cholera spreading across multiple African countries. WHO reports over 500,000 cases this year.",
     link: "https://www.who.int/emergencies/disease-outbreak-news",
-    pubDate: new Date().toISOString(),
+    pubDate: "",
   },
 ];
 
@@ -120,7 +121,7 @@ async function fetchLocalNews(
       const source = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
       if (title && link) items.push({ title, url: link, source, pubDate: pub });
     }
-    return items.slice(0, OUTBREAK_LOCAL_NEWS_MAX);
+    return sortByPubDateDesc(items).slice(0, OUTBREAK_LOCAL_NEWS_MAX);
   } catch {
     return [];
   }
@@ -197,7 +198,7 @@ async function fetchWHO(): Promise<CuratedItem[]> {
       );
       if (!alreadyHave) combined.push(item);
     }
-    return combined.slice(0, 10);
+    return sortByPubDateDesc(combined).slice(0, 10);
   } catch {
     return CURATED_DISEASES;
   }
@@ -342,8 +343,10 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
       })
       .filter(Boolean);
 
+    const outbreaksSorted = sortByPublishedAtDesc(outbreaks);
+
     const payload: OutbreakPayload = {
-      outbreaks,
+      outbreaks: outbreaksSorted,
       generated_at: new Date().toISOString(),
       cached: false,
     };
