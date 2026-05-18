@@ -12,6 +12,10 @@ Return a JSON object with these fields:
 1. nodes — array of graph nodes around the article:
    - article node: id "center", type "article", x 500, y 320
    - supporting nodes: type one of: patent | foia | company | event | person
+   - **NODE COUNT: Aim for 8–12 supporting nodes (not counting center).** Populate all three layers below:
+     * LAYER 1 — direct actors (3–5 nodes): the most prominent people, companies, events directly mentioned or implicated in the article.
+     * LAYER 2 — secondary connections (3–5 nodes): entities connected to layer-1 nodes — e.g. the employer of a named person, the patent assignee for a technology, the agency that funded a company, a related historical event.
+     * LAYER 3 — evidence nodes (1–3 nodes): documents, FOIA records, patents, or data sources that substantiate the connections in layers 1–2.
    - Each node must have: id, type, x, y (spread around 1000x640 canvas), label (short uppercase, MAX 18 CHARS), sub (max 2 lines, each max 20 chars)
    - Each node.detail must include:
      * title (full name)
@@ -38,6 +42,7 @@ Return a JSON object with these fields:
      * If a person filed/owns/controls an org or patent, draw PERSON→ORG or PERSON→PATENT — NOT ARTICLE→PERSON.
      * Edges from the center ARTICLE node should only appear for nodes that have NO direct relationship to any other non-center node.
      * Avoid hub-and-spoke layouts where everything connects solely to the center article. Prefer lateral connections.
+     * **MANDATORY lateral edges: include at least 3 edges that connect two non-center nodes to each other** (layer-1 → layer-2, layer-2 → layer-3, person → company, person → patent, etc.). These cross-connections are what make the graph meaningful.
    - Color guide: #ff3333 = direct evidence, #ffaa00 = indirect link, #00bb66 = counter-signal, #5a8068 = cross-reference
 
 3. theories — between 1 and 5 REAL conspiracy theories that genuinely exist or circulate around this topic:
