@@ -731,7 +731,7 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
 export default function UAPTracker() {
   const [data, setData]     = useState<{incidents:Incident[];people:Person[];organizations:Org[];documents:Document[];news:News[];generated_at:string}|null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]       = useState<"incidents"|"sightings"|"people"|"orgs"|"documents"|"news">("incidents");
+  const [tab, setTab]       = useState<"incidents"|"sightings"|"people"|"orgs"|"documents"|"news">("news");
   const [selected, setSelected] = useState<Incident|null>(null);
 
   // Sightings state
@@ -771,12 +771,12 @@ export default function UAPTracker() {
   if (!data) return null;
 
   const TABS = [
-    { key:"incidents",  label:`INCIDENTS (${data.incidents.length})` },
+    { key:"news",       label:`LATEST NEWS (${data.news.length})` },
     { key:"sightings",  label:`SIGHTINGS (${sightings.length})` },
+    { key:"incidents",  label:`INCIDENTS (${data.incidents.length})` },
     { key:"people",     label:`PEOPLE (${data.people.length})` },
     { key:"orgs",       label:`ORGS (${data.organizations.length})` },
     { key:"documents",  label:`DOCUMENTS (${data.documents.length})` },
-    { key:"news",       label:`LIVE FEED (${data.news.length})` },
   ];
 
   return (
@@ -803,7 +803,7 @@ export default function UAPTracker() {
             <div style={{fontFamily:RAJ,fontSize:10,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ UNIDENTIFIED AERIAL PHENOMENA — INTELLIGENCE DATABASE ■</div>
             <h1 style={{fontFamily:RAJ,fontSize:24,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>UAP Intelligence</h1>
             <div style={{fontSize:9,color:"#3a5040",letterSpacing:2}}>
-              DECLASSIFIED DOCUMENTS · CONGRESSIONAL TESTIMONY · WHISTLEBLOWER REPORTS · LIVE NEWS FEED
+              DECLASSIFIED DOCUMENTS · CONGRESSIONAL TESTIMONY · WHISTLEBLOWER REPORTS · LATEST NEWS
               <span style={{display:"block",marginTop:6,color:SIGHTING_COL,letterSpacing:1}}>
                 ◈ On <strong style={{color:"#5a8068"}}>INCIDENTS</strong> the map shows curated cases + optional NUFORC overlay. On <strong style={{color:SIGHTING_COL}}>SIGHTINGS</strong> the map shows <strong style={{color:SIGHTING_COL}}>NUFORC pins only</strong> (geocoded). {sightings.length} sightings in DB.
               </span>
@@ -818,7 +818,7 @@ export default function UAPTracker() {
               {label:"HIGH EVIDENCE",value:data.incidents.filter(i=>i.evidenceLevel==="HIGH").length,col:"#ff3333"},
               {label:"KEY WITNESSES",value:data.people.length,col:"#ffaa00"},
               {label:"DOCUMENTS",value:data.documents.length,col:"#c94dff"},
-              {label:"LIVE ITEMS",value:data.news.length,col:"#00bb66"},
+              {label:"LATEST NEWS",value:data.news.length,col:"#00bb66",onPress:()=>{setTab("news");}},
               {label:"NUFORC SIGHTINGS",value:sightings.length,col:SIGHTING_COL,onPress:()=>{setTab("sightings");}},
               {label:"FOIA/BLACKVAULT",value:((data as UAPData).stats?.blackvault_items??0)+((data as UAPData).stats?.muckrock_items??0),col:"#c94dff"},
             ] as Array<{label:string;value:number;col:string;onPress?:()=>void}>).map(({label,value,col,onPress})=>(
@@ -829,8 +829,8 @@ export default function UAPTracker() {
                 onClick={onPress}
                 onKeyDown={onPress?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onPress();}}:undefined}
                 style={{
-                  border:`1px solid ${onPress&&label==="NUFORC SIGHTINGS"?`${SIGHTING_COL}55`:"#1a3320"}`,
-                  borderRadius:3,padding:"8px 14px",background:onPress&&label==="NUFORC SIGHTINGS"?"rgba(255,204,0,0.04)":"#090f0b",
+                  border:`1px solid ${onPress&&(label==="NUFORC SIGHTINGS"||label==="LATEST NEWS")?(label==="LATEST NEWS"?"#00bb6655":`${SIGHTING_COL}55`):"#1a3320"}`,
+                  borderRadius:3,padding:"8px 14px",background:onPress&&(label==="NUFORC SIGHTINGS"||label==="LATEST NEWS")?(label==="LATEST NEWS"?"rgba(0,255,136,0.04)":"rgba(255,204,0,0.04)"):"#090f0b",
                   cursor:onPress?"pointer":undefined,
                 }}
               >
@@ -1056,8 +1056,8 @@ export default function UAPTracker() {
               {/* NEWS TAB */}
               {tab==="news"&&(
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:4}}>LIVE UAP NEWS FEED · GOOGLE NEWS · UPDATED {new Date(data.generated_at).toLocaleTimeString()}</div>
-                  {data.news.length===0&&<div style={{color:"#3a5040",fontSize:11,padding:16,textAlign:"center"}}>No live news available.</div>}
+                  <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:4}}>LATEST UAP NEWS · NEWEST FIRST · UPDATED {new Date(data.generated_at).toLocaleTimeString()}</div>
+                  {data.news.length===0&&<div style={{color:"#3a5040",fontSize:11,padding:16,textAlign:"center"}}>No headlines available.</div>}
                   {sortByPubDateDesc(data.news).map((n,i)=>{
                     const typeCol = n.type==="foia"?"#c94dff":n.type==="report"?"#ff3333":n.type==="social"?"#ffaa00":"#00bb66";
                     return (
@@ -1103,10 +1103,21 @@ export default function UAPTracker() {
                   <div style={{fontSize:9,color:"#3a5040",marginTop:8}}>This tab: map shows <span style={{color:SIGHTING_COL}}>NUFORC</span> only (geocoded).<br/>Incident pins return on the INCIDENTS tab.</div>
                 </div>
               )}
-              {tab!=="incidents"&&tab!=="sightings"&&(
+              {tab==="news"&&(
+                <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"1.5rem",textAlign:"center",color:"#3a5040",fontSize:10,letterSpacing:2,background:"rgba(0,255,136,0.02)"}}>
+                  <div style={{color:"#00bb66",fontSize:20,marginBottom:10}}>◈</div>
+                  LATEST HEADLINES<br/>FROM GOOGLE NEWS · FOIA · REDDIT
+                  <div style={{fontSize:9,color:"#3a5040",marginTop:10,lineHeight:1.65}}>
+                    Sorted newest first. Open a link in a new tab, or explore curated cases and NUFORC reports below.
+                  </div>
+                  <button type="button" onClick={()=>setTab("incidents")} style={{display:"block",margin:"12px auto 4px",fontFamily:RAJ,fontSize:11,fontWeight:700,color:"#00bb66",background:"transparent",border:"1px solid #00bb66",borderRadius:3,padding:"5px 14px",cursor:"pointer",letterSpacing:2}}>VIEW INCIDENTS ▶</button>
+                  <button type="button" onClick={()=>setTab("sightings")} style={{display:"block",margin:"0 auto",fontFamily:RAJ,fontSize:11,fontWeight:700,color:SIGHTING_COL,background:"transparent",border:`1px solid ${SIGHTING_COL}66`,borderRadius:3,padding:"5px 14px",cursor:"pointer",letterSpacing:2}}>VIEW SIGHTINGS ▶</button>
+                </div>
+              )}
+              {tab!=="incidents"&&tab!=="sightings"&&tab!=="news"&&(
                 <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"1.5rem",textAlign:"center",color:"#3a5040",fontSize:10,letterSpacing:2}}>
                   SELECT AN INCIDENT<br/>FROM THE MAP OR LIST
-                  <button onClick={()=>setTab("incidents")} style={{display:"block",margin:"12px auto 0",fontFamily:RAJ,fontSize:11,fontWeight:700,color:"#00bb66",background:"transparent",border:"1px solid #00bb66",borderRadius:3,padding:"5px 14px",cursor:"pointer",letterSpacing:2}}>VIEW INCIDENTS ▶</button>
+                  <button type="button" onClick={()=>setTab("incidents")} style={{display:"block",margin:"12px auto 0",fontFamily:RAJ,fontSize:11,fontWeight:700,color:"#00bb66",background:"transparent",border:"1px solid #00bb66",borderRadius:3,padding:"5px 14px",cursor:"pointer",letterSpacing:2}}>VIEW INCIDENTS ▶</button>
                 </div>
               )}
             </div>
