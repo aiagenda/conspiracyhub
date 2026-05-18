@@ -1,6 +1,7 @@
 "use client";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
@@ -24,12 +25,18 @@ interface Org      { id:string; name:string; fullName:string; type:string; found
 interface Document { id:string; name:string; year:number; type:string; classification:string; url:string; description:string; }
 interface News     { title:string; url:string; source:string; pubDate:string; type?: string }
 
+type SightingContentKind = "report" | "blog" | "case";
+
 interface Sighting {
   id: string; source: string; source_url: string | null;
   title: string; description: string; location_name: string | null;
   lat: number | null; lng: number | null;
   event_date: string | null; shape: string | null; duration_text: string | null;
   classification: string; upvotes: number; comment_count: number; created_at: string;
+  image_url?: string | null;
+  has_media?: boolean;
+  content_kind?: SightingContentKind;
+  description_is_excerpt?: boolean;
 }
 interface SightingComment {
   id: string; author_name: string; content: string; likes: number; dislikes: number; created_at: string;
@@ -55,13 +62,46 @@ function timeAgo(d: string) {
 }
 
 /** Legacy one-line bodies: split at sentence starts so paragraphs can render. */
-function softBreakLongProse(text: string, minLen = 380): string {
+function softBreakLongProse(text: string, minLen = 200): string {
   const t = text.replace(/\r\n/g, "\n").trim();
   if (t.length < minLen || /\n/.test(t)) return t;
   return t.replace(/(?<=[.!?])\s+(?=[A-Z0-9("“„])/g, "\n\n");
 }
 
-/** Plain / near-plain text with real line breaks and comfortable paragraph spacing. */
+function contentKindStyle(kind?: SightingContentKind) {
+  if (kind === "blog") return { label: "NUFORC BLOG", color: "#00bb66" };
+  if (kind === "case") return { label: "CASE DIGEST", color: "#ffaa00" };
+  return { label: "WITNESS REPORT", color: SIGHTING_COL };
+}
+
+function sightingPreview(text: string, max = 160): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}…`;
+}
+
+type ProseBlock =
+  | { type: "p"; lines: string[] }
+  | { type: "ul"; items: string[] };
+
+function parseProseBlocks(raw: string): ProseBlock[] {
+  const blocks: ProseBlock[] = [];
+  for (const chunk of raw.split(/\n{2,}/)) {
+    const lines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const listItems = lines
+      .filter((l) => /^[-*•]\s+/.test(l) || /^\d+\.\s+/.test(l))
+      .map((l) => l.replace(/^[-*•]\s+/, "").replace(/^\d+\.\s+/, "").trim());
+    if (listItems.length >= 2 && listItems.length === lines.length) {
+      blocks.push({ type: "ul", items: listItems });
+      continue;
+    }
+    blocks.push({ type: "p", lines });
+  }
+  return blocks;
+}
+
+/** Plain text with paragraphs, lists, and comfortable spacing. */
 function ReadableProse({
   text,
   softBreak = false,
@@ -73,26 +113,33 @@ function ReadableProse({
 }) {
   const raw = (softBreak ? softBreakLongProse(text) : text).replace(/\r\n/g, "\n").trim();
   if (!raw) return null;
-  const blocks = raw.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  const blocks = parseProseBlocks(raw);
   const base: CSSProperties = {
-    lineHeight: 1.85,
+    lineHeight: 1.9,
+    fontSize: 13,
+    color: "#b8dcc8",
     wordBreak: "break-word",
     overflowWrap: "break-word",
     ...style,
   };
   return (
     <div style={base}>
-      {blocks.map((block, i) => (
-        <p
-          key={i}
-          style={{
-            margin: i === blocks.length - 1 ? 0 : "0 0 1em 0",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {block}
-        </p>
-      ))}
+      {blocks.map((block, i) => {
+        if (block.type === "ul") {
+          return (
+            <ul key={i} style={{ margin: "0 0 1.1em 0", paddingLeft: "1.25em" }}>
+              {block.items.map((item, j) => (
+                <li key={j} style={{ marginBottom: "0.45em" }}>{item}</li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p key={i} style={{ margin: i === blocks.length - 1 ? 0 : "0 0 1.1em 0", whiteSpace: "pre-wrap" }}>
+            {block.lines.join("\n")}
+          </p>
+        );
+      })}
     </div>
   );
 }
@@ -355,25 +402,49 @@ function UAPMap({
 function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () => void }) {
   const [comments, setComments] = useState<SightingComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
+  const [loadingBody, setLoadingBody] = useState(true);
+  const [bodyText, setBodyText] = useState(sighting.description);
+  const [imageUrl, setImageUrl] = useState<string | null>(sighting.image_url ?? null);
+  const [isExcerpt, setIsExcerpt] = useState(!!sighting.description_is_excerpt);
   const [text, setText] = useState("");
   const [name, setName] = useState("Anonymous");
   const [posting, setPosting] = useState(false);
   const [upvotes, setUpvotes] = useState(sighting.upvotes);
   const [voted, setVoted] = useState(false);
   const [reactions, setReactions] = useState<Record<string,"like"|"dislike">>({});
+  const kind = contentKindStyle(sighting.content_kind);
 
   useEffect(() => {
     setLoadingComments(true);
-    fetch(`/api/uap-sightings?id=${sighting.id}`)
-      .then(r => r.json())
-      .then((d: { comments?: SightingComment[] }) => setComments(d.comments ?? []))
+    setLoadingBody(true);
+    setBodyText(sighting.description);
+    setImageUrl(sighting.image_url ?? null);
+    setIsExcerpt(!!sighting.description_is_excerpt);
+    fetch(`/api/uap-sightings?id=${sighting.id}&full=1`)
+      .then((r) => r.json())
+      .then((d: {
+        comments?: SightingComment[];
+        full_description?: string | null;
+        sighting?: Sighting;
+      }) => {
+        setComments(d.comments ?? []);
+        if (d.full_description && d.full_description.length > (sighting.description?.length ?? 0)) {
+          setBodyText(d.full_description);
+          setIsExcerpt(false);
+        }
+        const img = d.sighting?.image_url ?? sighting.image_url;
+        if (img) setImageUrl(img);
+      })
       .catch(() => {})
-      .finally(() => setLoadingComments(false));
+      .finally(() => {
+        setLoadingComments(false);
+        setLoadingBody(false);
+      });
     try {
       const stored = localStorage.getItem("theorist-uap-reactions");
       if (stored) setReactions(JSON.parse(stored) as Record<string,"like"|"dislike">);
     } catch {}
-  }, [sighting.id]);
+  }, [sighting.id, sighting.description, sighting.description_is_excerpt, sighting.image_url]);
 
   async function upvote() {
     if (voted) return;
@@ -415,10 +486,16 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
 
       {/* Header card */}
       <div style={{border:`1px solid ${SIGHTING_COL}44`,borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
+        {imageUrl&&(
+          <div style={{position:"relative",width:"100%",aspectRatio:"16/9",maxHeight:280,background:"#050c07"}}>
+            <Image src={imageUrl} alt="" fill sizes="(max-width:768px) 100vw,640px" style={{objectFit:"cover"}} unoptimized />
+          </div>
+        )}
         <div style={{padding:"10px 14px",borderBottom:`1px solid ${SIGHTING_COL}22`,background:"rgba(255,204,0,0.04)"}}>
           <div style={{display:"flex",gap:8,marginBottom:6,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:9,color:SIGHTING_COL,border:`1px solid ${SIGHTING_COL}`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>NUFORC REPORT</span>
+            <span style={{fontSize:9,color:kind.color,border:`1px solid ${kind.color}`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{kind.label}</span>
             {sighting.shape&&<span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.4)",padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{sighting.shape.toUpperCase()}</span>}
+            {(sighting.has_media||imageUrl)&&<span style={{fontSize:9,color:"#00bb66",border:"1px solid rgba(0,187,102,0.4)",padding:"1px 7px",borderRadius:2,letterSpacing:1}}>PHOTO</span>}
             {sighting.source_url&&<a href={sighting.source_url} target="_blank" rel="noreferrer" style={{marginLeft:"auto",fontSize:9,color:"#00bb66",textDecoration:"none"}}>↗ SOURCE</a>}
           </div>
           <div style={{fontFamily:RAJ,fontSize:18,fontWeight:700,color:"#ffe8a0",lineHeight:1.3,marginBottom:6}}>{sighting.title}</div>
@@ -426,16 +503,24 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
             {sighting.event_date} · {sighting.location_name}
             {sighting.duration_text&&<> · Duration: {sighting.duration_text}</>}
           </div>
+          {loadingBody && (
+            <div style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1, marginBottom: 10 }}>LOADING FULL REPORT…</div>
+          )}
+          {!loadingBody && isExcerpt && (
+            <div style={{ fontSize: 9, color: "#ffaa00", border: "1px solid rgba(255,170,0,0.35)", padding: "6px 10px", borderRadius: 3, marginBottom: 10, letterSpacing: 0.5, lineHeight: 1.5 }}>
+              Excerpt from NUFORC — open SOURCE for the original page if anything looks truncated.
+            </div>
+          )}
           <ReadableProse
-            text={sighting.description}
+            text={bodyText}
             softBreak
-            style={{ fontFamily: FONT, fontSize: 12, color: "#c8e8d0", marginBottom: 10 }}
+            style={{ fontFamily: FONT, fontSize: 13, color: "#c8e8d0", marginBottom: 12 }}
           />
-          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div style={{display:"flex",gap:10,alignItems:"center",paddingTop:4,borderTop:"1px solid #1a3320"}}>
             <button onClick={upvote} disabled={voted} style={{background:voted?"rgba(255,204,0,0.1)":"transparent",border:`1px solid ${voted?SIGHTING_COL:"#1a3320"}`,color:voted?SIGHTING_COL:"#5a8068",fontFamily:FONT,fontSize:10,padding:"4px 12px",borderRadius:3,cursor:voted?"default":"pointer",letterSpacing:1}}>
               ▲ {upvotes}
             </button>
-            <span style={{fontSize:9,color:"#3a5040"}}>💬 {comments.length} comments</span>
+            <span style={{ fontSize: 9, color: "#3a5040" }}>💬 {comments.length} comments</span>
           </div>
         </div>
       </div>
@@ -951,20 +1036,23 @@ export default function UAPTracker() {
                         </div>
                       )}
                       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                        {sightings.map(s=>(
+                        {sightings.map(s=>{
+                          const sk = contentKindStyle(s.content_kind);
+                          return (
                           <div key={s.id} onClick={()=>setSelectedSighting(s)}
                             style={{border:`1px solid ${SIGHTING_COL}22`,borderRadius:4,background:"#090f0b",cursor:"pointer",transition:"all 0.15s",overflow:"hidden"}}
                             onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=`${SIGHTING_COL}66`;(e.currentTarget as HTMLDivElement).style.background="rgba(255,204,0,0.04)";}}
                             onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=`${SIGHTING_COL}22`;(e.currentTarget as HTMLDivElement).style.background="#090f0b";}}>
                             <div style={{padding:"8px 12px",borderBottom:`1px solid ${SIGHTING_COL}11`,background:"rgba(255,204,0,0.02)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                              <span style={{fontSize:9,color:SIGHTING_COL,border:`1px solid ${SIGHTING_COL}44`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>NUFORC</span>
+                              <span style={{fontSize:9,color:sk.color,border:`1px solid ${sk.color}66`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{sk.label}</span>
                               {s.shape&&<span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.3)",padding:"1px 6px",borderRadius:2}}>{s.shape.toUpperCase()}</span>}
+                              {(s.has_media||s.image_url)&&<span style={{fontSize:9,color:"#00bb66",border:"1px solid rgba(0,187,102,0.35)",padding:"1px 6px",borderRadius:2}}>PHOTO</span>}
                               <span style={{fontSize:9,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{s.event_date??""}</span>
                             </div>
                             <div style={{padding:"10px 12px"}}>
                               <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#ffe8a0",lineHeight:1.3,marginBottom:3}}>{s.title}</div>
                               <div style={{fontSize:11,color:"#5a8068",letterSpacing:1,marginBottom:6}}>{s.location_name}</div>
-                              <div style={{fontSize:11,color:"#7aaa8a",lineHeight:1.6,marginBottom:6}}>{s.description.slice(0,120)}{s.description.length>120?"...":""}</div>
+                              <div style={{fontSize:11,color:"#7aaa8a",lineHeight:1.6,marginBottom:6}}>{sightingPreview(s.description)}</div>
                               <div style={{display:"flex",gap:10,fontSize:9,color:"#3a5040"}}>
                                 <span>▲ {s.upvotes}</span>
                                 <span>💬 {s.comment_count}</span>
@@ -972,7 +1060,8 @@ export default function UAPTracker() {
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </>
                   )}

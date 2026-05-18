@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import {
+  extractFirstImageUrl,
+  inferContentKind,
+  nuforcPostIdFromSourceId,
+  NUFORC_CASE_SNIPPET_MAX,
+  NUFORC_EXCERPT_MAX,
+  type NuforcContentKind,
+} from "@/lib/nuforcContent";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -178,12 +186,12 @@ function extractCaseHits(plain: string): CaseHit[] {
       const key = `${city},${state}`.toLowerCase();
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
-        const ctx = lines.slice(i, Math.min(i + 6, lines.length)).join(" ");
+        const ctx = lines.slice(i, Math.min(i + 18, lines.length)).join("\n");
         hits.push({
           geoQuery: `${city}, ${state}, USA`,
           locationDisplay: `${city}, ${state}`,
           eventDate: parseFreeformDate(ctx),
-          snippet: ctx.slice(0, 400),
+          snippet: excerptPlain(ctx, NUFORC_CASE_SNIPPET_MAX).text,
         });
       }
       continue;
@@ -200,12 +208,12 @@ function extractCaseHits(plain: string): CaseHit[] {
         const key = `${city},${country}`.toLowerCase();
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
-          const ctx = lines.slice(i, Math.min(i + 6, lines.length)).join(" ");
+          const ctx = lines.slice(i, Math.min(i + 18, lines.length)).join("\n");
           hits.push({
             geoQuery: `${city}, ${country}`,
             locationDisplay: `${city}, ${country}`,
             eventDate: parseFreeformDate(ctx),
-            snippet: ctx.slice(0, 400),
+            snippet: excerptPlain(ctx, NUFORC_CASE_SNIPPET_MAX).text,
           });
         }
         break;
@@ -213,6 +221,47 @@ function extractCaseHits(plain: string): CaseHit[] {
     }
   }
   return hits;
+}
+
+/** Trim at word/sentence boundary when storing excerpts. */
+function excerptPlain(plain: string, max: number): { text: string; isExcerpt: boolean } {
+  const t = plain.replace(/\r\n/g, "\n").trim();
+  if (t.length <= max) return { text: t, isExcerpt: false };
+  let cut = t.slice(0, max);
+  const sent = cut.lastIndexOf(". ");
+  if (sent > max * 0.65) cut = cut.slice(0, sent + 1);
+  else {
+    const sp = cut.lastIndexOf(" ");
+    if (sp > max * 0.75) cut = cut.slice(0, sp);
+  }
+  return { text: cut.trim(), isExcerpt: true };
+}
+
+async function fetchNuforcFullBody(
+  sourceId: string,
+): Promise<{ plain: string; image_url: string | null } | null> {
+  const postId = nuforcPostIdFromSourceId(sourceId);
+  if (!postId) return null;
+  try {
+    const res = await fetch(
+      `https://nuforc.org/wp-json/wp/v2/posts/${postId}?_fields=content,link`,
+      {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "ConspiracyHub/1.0 (UAP sighting reader; +https://nuforc.org)",
+        },
+        signal: AbortSignal.timeout(20000),
+      },
+    );
+    if (!res.ok) return null;
+    const post = (await res.json()) as { content?: { rendered?: string } };
+    const html = post.content?.rendered ?? "";
+    const plain = stripHtml(html);
+    if (plain.length < 20) return null;
+    return { plain, image_url: extractFirstImageUrl(html) };
+  } catch {
+    return null;
+  }
 }
 
 async function scrapeNUFORC(): Promise<NuforcRow[]> {
@@ -241,9 +290,11 @@ async function scrapeNUFORC(): Promise<NuforcRow[]> {
 
       for (const p of posts) {
         const title = stripHtml(p.title?.rendered ?? "");
-        const plain = stripHtml(p.content?.rendered ?? "");
+        const html = p.content?.rendered ?? "";
+        const plain = stripHtml(html);
         if (title.length < 4) continue;
-        const summary = plain.slice(0, 2000) || null;
+        const imageUrl = extractFirstImageUrl(html);
+        const fullExcerpt = excerptPlain(plain, NUFORC_EXCERPT_MAX);
         const sid = `wp-${p.id}`;
 
         // Try to extract multiple individual cases from the post
@@ -253,6 +304,7 @@ async function scrapeNUFORC(): Promise<NuforcRow[]> {
           for (let ci = 0; ci < cases.length; ci++) {
             const c = cases[ci];
             const csid = `${sid}-c${ci}`;
+            const caseExcerpt = excerptPlain(c.snippet || plain, NUFORC_CASE_SNIPPET_MAX);
             byId.set(csid, {
               source_id: csid,
               source_url: p.link,
@@ -262,7 +314,10 @@ async function scrapeNUFORC(): Promise<NuforcRow[]> {
               displayTitle: `${title} — ${c.locationDisplay}`.slice(0, 190),
               shape: null,
               duration: null,
-              summary: c.snippet || summary,
+              summary: caseExcerpt.text,
+              image_url: imageUrl,
+              content_kind: "case",
+              description_is_excerpt: caseExcerpt.isExcerpt || fullExcerpt.isExcerpt,
             });
           }
         } else {
@@ -276,7 +331,10 @@ async function scrapeNUFORC(): Promise<NuforcRow[]> {
             displayTitle: title,
             shape: null,
             duration: null,
-            summary,
+            summary: fullExcerpt.text,
+            image_url: imageUrl,
+            content_kind: inferContentKind(title, plain.length, false),
+            description_is_excerpt: fullExcerpt.isExcerpt,
           });
         }
       }
@@ -293,12 +351,52 @@ interface NuforcRow {
   source_id: string;
   source_url: string;
   dateRaw: string;
-  location: string | null;       // geocoding query
-  locationDisplay: string | null; // human-readable short location
+  location: string | null;
+  locationDisplay: string | null;
   displayTitle: string;
   shape: string | null;
   duration: string | null;
   summary: string | null;
+  image_url: string | null;
+  content_kind: NuforcContentKind;
+  description_is_excerpt: boolean;
+}
+
+async function insertNuforcSighting(
+  admin: ReturnType<typeof getAdmin>,
+  row: NuforcRow,
+): Promise<{ coords: GeoCoords | null; usedRemote: boolean }> {
+  const eventDate = parseEventDate(row.dateRaw);
+  const geoQ = row.location;
+  let coords: GeoCoords | null = null;
+  let usedRemote = false;
+  if (geoQ) {
+    const res2 = await geocode(geoQ);
+    coords = res2.coords;
+    usedRemote = res2.usedRemote;
+  }
+
+  await admin.from("uap_sightings").insert({
+    source: "nuforc",
+    source_id: row.source_id,
+    source_url: row.source_url,
+    title: row.displayTitle.slice(0, 200),
+    description: row.summary ?? `${row.displayTitle} — sourced from NUFORC.org.`,
+    location_name: (row.locationDisplay ?? geoQ) ?? null,
+    lat: coords?.lat ?? null,
+    lng: coords?.lng ?? null,
+    geocoded: !!coords,
+    event_date: eventDate,
+    shape: row.shape?.toLowerCase() ?? null,
+    duration_text: row.duration,
+    classification: "REPORTED",
+    has_media: !!row.image_url,
+    image_url: row.image_url,
+    content_kind: row.content_kind,
+    description_is_excerpt: row.description_is_excerpt,
+  });
+
+  return { coords, usedRemote };
 }
 
 // ── Nominatim geocoder (OpenStreetMap, free, no key) ─────────
@@ -397,32 +495,8 @@ export async function runUapScrape(maxNew = 70): Promise<{
       .maybeSingle();
     if (existing) { skipped++; continue; }
 
-    const eventDate = parseEventDate(row.dateRaw);
-    const geoQ = row.location;
-    let coords: GeoCoords | null = null;
-    let usedRemote = false;
-    if (geoQ) {
-      const res2 = await geocode(geoQ);
-      coords = res2.coords;
-      usedRemote = res2.usedRemote;
-    }
+    const { coords, usedRemote } = await insertNuforcSighting(admin, row);
     if (coords) geocoded++;
-
-    await admin.from("uap_sightings").insert({
-      source: "nuforc",
-      source_id: row.source_id,
-      source_url: row.source_url,
-      title: row.displayTitle.slice(0, 200),
-      description: row.summary ?? `${row.displayTitle} — sourced from NUFORC.org.`,
-      location_name: (row.locationDisplay ?? geoQ) ?? null,
-      lat: coords?.lat ?? null,
-      lng: coords?.lng ?? null,
-      geocoded: !!coords,
-      event_date: eventDate,
-      shape: row.shape?.toLowerCase() ?? null,
-      duration_text: row.duration,
-      classification: "REPORTED",
-    });
     inserted++;
     if (usedRemote) await new Promise((r) => setTimeout(r, 1100));
   }
@@ -442,6 +516,7 @@ export async function GET(req: NextRequest) {
     const since = searchParams.get("since"); // ISO date
 
     if (id) {
+      const wantFull = searchParams.get("full") === "1";
       const { data: sighting } = await admin
         .from("uap_sightings")
         .select("*")
@@ -453,7 +528,23 @@ export async function GET(req: NextRequest) {
         .select("*")
         .eq("sighting_id", id)
         .order("created_at", { ascending: true });
-      return NextResponse.json({ sighting, comments: comments ?? [] });
+
+      let full_description: string | null = null;
+      let image_url: string | null = (sighting?.image_url as string | null) ?? null;
+
+      if (wantFull && sighting?.source === "nuforc" && typeof sighting.source_id === "string") {
+        const live = await fetchNuforcFullBody(sighting.source_id);
+        if (live) {
+          full_description = live.plain;
+          if (!image_url && live.image_url) image_url = live.image_url;
+        }
+      }
+
+      return NextResponse.json({
+        sighting: sighting ? { ...sighting, ...(image_url ? { image_url } : {}) } : sighting,
+        comments: comments ?? [],
+        full_description,
+      });
     }
 
     let q = admin
@@ -520,35 +611,8 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const eventDate = parseEventDate(row.dateRaw);
-        const geoQ = row.location; // already extracted — may be null
-        let coords: GeoCoords | null = null;
-        let usedRemote = false;
-        if (geoQ) {
-          const res2 = await geocode(geoQ);
-          coords = res2.coords;
-          usedRemote = res2.usedRemote;
-        }
+        const { coords, usedRemote } = await insertNuforcSighting(admin, row);
         if (coords) geocoded++;
-
-        await admin.from("uap_sightings").insert({
-          source: "nuforc",
-          source_id: row.source_id,
-          source_url: row.source_url,
-          title: row.displayTitle.slice(0, 200),
-          description:
-            row.summary ??
-            `${row.displayTitle} — sourced from NUFORC.org.`,
-          // Store human-readable display name; fall back to geocoding query
-          location_name: (row.locationDisplay ?? geoQ) ?? null,
-          lat: coords?.lat ?? null,
-          lng: coords?.lng ?? null,
-          geocoded: !!coords,
-          event_date: eventDate,
-          shape: row.shape?.toLowerCase() ?? null,
-          duration_text: row.duration,
-          classification: "REPORTED",
-        });
         inserted++;
 
         if (usedRemote) {

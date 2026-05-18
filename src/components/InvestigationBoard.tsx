@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import { combinePolymarketQuery } from "@/lib/polymarketQuery";
@@ -9,6 +9,82 @@ import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
 const RAJ = "'Rajdhani', sans-serif";
+
+/** Detail drawer width — synced via --ib-panel-w on .ib-root */
+const IB_PANEL_W = "clamp(400px, 40vw, 480px)";
+
+const IB_TYPE = {
+  sectionLabel: {
+    fontFamily: FONT,
+    fontSize: 10,
+    color: "#5a8068",
+    letterSpacing: 2,
+    textTransform: "uppercase" as const,
+    marginBottom: 6,
+  },
+  body: { fontFamily: FONT, fontSize: 13, color: "#c8e8d0", lineHeight: 1.8 },
+  bodyMuted: { fontFamily: FONT, fontSize: 13, color: "#7aaa8a", lineHeight: 1.75 },
+  bodySm: { fontFamily: FONT, fontSize: 12, color: "#7aaa8a", lineHeight: 1.65 },
+  panelTitle: { fontFamily: RAJ, fontSize: 17, fontWeight: 700, letterSpacing: 1 },
+  headline: { fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.4 },
+  passage: { fontFamily: FONT, fontSize: 13, color: "#c8e8d0", lineHeight: 1.8, fontStyle: "italic" as const },
+  listItem: { fontSize: 12, color: "#7aaa8a", lineHeight: 1.65 },
+  meta: { fontFamily: FONT, fontSize: 10 },
+};
+
+function useNarrowPanel() {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setNarrow(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return narrow;
+}
+
+function DetailAccordion({
+  title,
+  defaultOpen = false,
+  accent = "#5a8068",
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  accent?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginTop: 12, border: "1px solid #1a3320", borderRadius: 3, overflow: "hidden", background: "rgba(0,0,0,0.15)" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          padding: "9px 12px",
+          background: "rgba(0,255,136,0.02)",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: FONT,
+          fontSize: 10,
+          color: accent,
+          letterSpacing: 2,
+          textTransform: "uppercase",
+        }}
+      >
+        <span>{title}</span>
+        <span style={{ color: "#5a8068", fontSize: 9 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open ? <div style={{ padding: "10px 12px 12px", borderTop: "1px solid #1a3320" }}>{children}</div> : null}
+    </div>
+  );
+}
 
 /** Excluded from PNG export (with data-share-ignore). */
 const EXPORT_IGNORE = "data-export-ignore";
@@ -46,7 +122,7 @@ function tuneBoardCloneForExport(doc: Document, root: HTMLElement) {
   const mainSvg = root.querySelector(".ib-main-svg");
   if (mainSvg instanceof SVGElement) {
     mainSvg.style.opacity = "1";
-    mainSvg.style.width = hasDetailPanel ? "calc(100% - 360px)" : "100%";
+    mainSvg.style.width = hasDetailPanel ? "calc(100% - var(--ib-panel-w, 440px))" : "100%";
     mainSvg.style.height = "100%";
   }
   root.querySelectorAll(".ib-detail-panel").forEach((panel) => {
@@ -449,7 +525,7 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
           {!isTheory && d.excerpt && (
             <div style={{ border: "1px solid #1a3320", borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
               <div style={{ padding: "10px 12px", background: "rgba(0,255,136,0.02)", borderBottom: "1px solid #1a3320" }}>
-                <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ KEY PASSAGE</div>
+                <div style={{ ...IB_TYPE.sectionLabel, color: "#00bb66", marginBottom: 8 }}>◈ KEY PASSAGE</div>
                 <blockquote style={{ margin: 0, padding: "0 0 0 12px", borderLeft: "2px solid #1a4a2a" }}>
                   <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", lineHeight: 1.8, fontStyle: "italic" }}>
                     &ldquo;{d.excerpt}&rdquo;
@@ -585,6 +661,7 @@ function DetailPanel({
   analysisSources,
   polymarketArticleTitle,
   polymarketArticleContext,
+  overlay = false,
 }: {
   node: Node | null;
   edges: Edge[];
@@ -592,6 +669,7 @@ function DetailPanel({
   analysisSources?: OracleSource[];
   polymarketArticleTitle?: string;
   polymarketArticleContext?: string;
+  overlay?: boolean;
 }) {
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   if (!node) return null;
@@ -601,19 +679,20 @@ function DetailPanel({
   return (
     <>
     <div
-      className="ib-detail-panel"
+      className={`ib-detail-panel${overlay ? " ib-detail-overlay" : ""}`}
       style={{
         position: "absolute",
         right: 0,
         top: 0,
         bottom: 0,
-        width: 360,
+        width: "var(--ib-panel-w)",
         background: "#06110a",
         borderLeft: `1px solid ${c.border}`,
         display: "flex",
         flexDirection: "column",
         animation: "slideIn 0.25s ease",
-        zIndex: 10,
+        zIndex: 30,
+        boxShadow: "-8px 0 32px rgba(0,0,0,0.35)",
       }}
     >
       <div
@@ -628,14 +707,14 @@ function DetailPanel({
       >
         <div>
           <div style={{ fontFamily: FONT, fontSize: 10, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
-          <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: c.text, letterSpacing: 1, marginTop: 3 }}>{node.label}</div>
+          <div style={{ ...IB_TYPE.panelTitle, color: c.text, marginTop: 3 }}>{node.label}</div>
         </div>
         <button type="button" data-export-ignore onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 11, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
           ✕
         </button>
       </div>
 
-      <div className="ib-detail-panel-scroll" style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div className="ib-detail-panel-scroll" style={{ flex: 1, overflowY: "auto", padding: "18px 20px" }}>
         {node.type === "theory" ? (
           <div style={{ marginBottom: 12 }}>
             {/* Theory header badge */}
@@ -646,7 +725,7 @@ function DetailPanel({
             </div>
 
             {/* Full explanation */}
-            <div style={{ fontFamily: FONT, fontSize: 12, color: "#c8e8d0", lineHeight: 1.85, marginBottom: 14 }}>
+            <div style={{ ...IB_TYPE.body, marginBottom: 14 }}>
               {d.body}
             </div>
 
@@ -663,7 +742,7 @@ function DetailPanel({
             ) : null}
 
             {/* Evidence points */}
-            {d.key_claims && d.key_claims.length > 0 ? (
+            {node.type !== "theory" && d.key_claims && d.key_claims.length > 0 ? (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Evidence cited by theorists</div>
                 {d.key_claims.map((item: string, i: number) => (
@@ -676,7 +755,7 @@ function DetailPanel({
             ) : null}
 
             {/* Counter evidence */}
-            {d.counter_evidence && d.counter_evidence.length > 0 ? (
+            {node.type !== "theory" && d.counter_evidence && d.counter_evidence.length > 0 ? (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Mainstream counter-arguments</div>
                 {d.counter_evidence.map((item: string, i: number) => (
@@ -689,7 +768,7 @@ function DetailPanel({
             ) : null}
 
             {/* Timeline */}
-            {d.timeline && d.timeline.length > 0 ? (
+            {node.type !== "theory" && d.timeline && d.timeline.length > 0 ? (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Theory timeline</div>
                 {d.timeline.map((item: { date: string; event: string }, i: number) => (
@@ -786,8 +865,8 @@ function DetailPanel({
 
         {node.type !== "theory" ? (
           <>
-            <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.4, marginBottom: 10 }}>{d.title}</div>
-            <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.75, marginBottom: 12 }}>{d.body}</div>
+            <div style={{ ...IB_TYPE.headline, marginBottom: 10 }}>{d.title}</div>
+            <div style={{ ...IB_TYPE.bodyMuted, marginBottom: 12 }}>{d.body}</div>
 
             <div style={{ border: "1px solid #1a3320", borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
               <div
@@ -839,9 +918,9 @@ function DetailPanel({
               </div>
               {d.excerpt ? (
                 <div style={{ padding: "10px 12px", background: "rgba(0,255,136,0.02)", borderBottom: d.source_url ? "1px solid #1a3320" : "none" }}>
-                  <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ KEY PASSAGE</div>
+                  <div style={{ ...IB_TYPE.sectionLabel, color: "#00bb66", marginBottom: 8 }}>◈ KEY PASSAGE</div>
                   <blockquote style={{ margin: 0, padding: "0 0 0 10px", borderLeft: "2px solid #1a4a2a" }}>
-                    <div style={{ fontFamily: FONT, fontSize: 10, color: "#c8e8d0", lineHeight: 1.75, fontStyle: "italic" }}>
+                    <div style={{ ...IB_TYPE.passage }}>
                       &ldquo;{d.excerpt}&rdquo;
                     </div>
                   </blockquote>
@@ -877,20 +956,18 @@ function DetailPanel({
             </div>
 
             {d.why_it_matters ? (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Why it matters</div>
-                <div style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", lineHeight: 1.65 }}>{d.why_it_matters}</div>
-              </div>
+              <DetailAccordion title="Why it matters" defaultOpen accent="#00bb66">
+                <div style={IB_TYPE.bodyMuted}>{d.why_it_matters}</div>
+              </DetailAccordion>
             ) : null}
           </>
         ) : null}
 
-        {/* Brave Web Intelligence — all node types */}
-        {d.brave_sources && (d.brave_sources as { title: string; url: string; description: string }[]).length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 10, color: "#4ab8e0", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>
-              ⬡ Web Intelligence · {(d.brave_sources as { title: string; url: string; description: string }[]).length} sources
-            </div>
+        {node.type !== "theory" && d.brave_sources && (d.brave_sources as { title: string; url: string; description: string }[]).length > 0 ? (
+          <DetailAccordion
+            title={`Web Intelligence · ${(d.brave_sources as { title: string; url: string; description: string }[]).length} sources`}
+            accent="#4ab8e0"
+          >
             {(d.brave_sources as { title: string; url: string; description: string }[]).slice(0, 8).map((src, i) => {
               let domain = "";
               try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
@@ -900,133 +977,131 @@ function DetailPanel({
                   href={src.url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ display: "block", marginBottom: 7, padding: "7px 10px", border: "1px solid rgba(74,184,224,0.22)", borderRadius: 4, background: "rgba(74,184,224,0.03)", textDecoration: "none" }}
+                  style={{ display: "block", marginBottom: 7, padding: "8px 11px", border: "1px solid rgba(74,184,224,0.22)", borderRadius: 4, background: "rgba(74,184,224,0.03)", textDecoration: "none" }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
-                    <span style={{ color: "#4ab8e0", fontSize: 10, flexShrink: 0 }}>↗</span>
-                    <span style={{ fontFamily: FONT, fontSize: 11, color: "#7ad4f0", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{src.title}</span>
+                    <span style={{ color: "#4ab8e0", fontSize: 11, flexShrink: 0 }}>↗</span>
+                    <span style={{ fontFamily: FONT, fontSize: 12, color: "#7ad4f0", fontWeight: 600, lineHeight: 1.4 }}>{src.title}</span>
                   </div>
                   {src.description ? (
-                    <div style={{ fontFamily: FONT, fontSize: 10, color: "#5a8a9a", lineHeight: 1.5, marginBottom: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{src.description}</div>
+                    <div style={{ ...IB_TYPE.bodySm, color: "#5a8a9a", marginBottom: 3 }}>{src.description}</div>
                   ) : null}
-                  {domain ? <div style={{ fontFamily: FONT, fontSize: 9, color: "#3a6878", letterSpacing: 1 }}>{domain}</div> : null}
+                  {domain ? <div style={{ ...IB_TYPE.meta, color: "#3a6878", letterSpacing: 1 }}>{domain}</div> : null}
                 </a>
               );
             })}
-          </div>
-        ) : (d.theory_sources && (d.theory_sources as string[]).length > 0) ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 10, color: "#c94dff", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Theory citations</div>
+          </DetailAccordion>
+        ) : (node.type !== "theory" && d.theory_sources && (d.theory_sources as string[]).length > 0) ? (
+          <DetailAccordion title="Theory citations" accent="#c94dff">
             {(d.theory_sources as string[]).filter((s: string) => isLikelyUrl(s)).slice(0, 12).map((item: string, i: number) => (
-              <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, color: "#bdb0c8", fontSize: 11, marginBottom: 6, wordBreak: "break-word" }}>
+              <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, wordBreak: "break-word" }}>
                 <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
                 <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none", flex: 1 }}>{item}</a>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
 
-        {d.key_claims && d.key_claims.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>
-              {node.type === "theory" ? "Supporting lines of reasoning" : "Key claims"}
-            </div>
+        {node.type !== "theory" && d.key_claims && d.key_claims.length > 0 ? (
+          <DetailAccordion title="Key claims">
             {d.key_claims.slice(0, 6).map((item, i) => (
-              <div key={`claim-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
-                <span style={{ color: "#00bb66" }}>▸</span>
+              <div key={`claim-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
+                <span style={{ color: "#00bb66", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
 
-        {d.counter_evidence && d.counter_evidence.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Counter-evidence</div>
+        {node.type !== "theory" && d.counter_evidence && d.counter_evidence.length > 0 ? (
+          <DetailAccordion title="Counter-evidence">
             {d.counter_evidence.slice(0, 6).map((item, i) => (
-              <div key={`counter-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
-                <span style={{ color: "#ffaa00" }}>▸</span>
+              <div key={`counter-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
+                <span style={{ color: "#ffaa00", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
 
         {d.uncertainties && d.uncertainties.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Uncertainties</div>
+          <DetailAccordion title="Uncertainties">
             {d.uncertainties.slice(0, 6).map((item, i) => (
-              <div key={`uncertain-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
-                <span style={{ color: "#ff3333" }}>▸</span>
+              <div key={`uncertain-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
+                <span style={{ color: "#ff3333", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
 
-        {d.timeline && d.timeline.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Timeline</div>
+        {node.type !== "theory" && d.timeline && d.timeline.length > 0 ? (
+          <DetailAccordion title="Timeline">
             {d.timeline.slice(0, 6).map((item, i) => (
-              <div key={`timeline-${i}`} style={{ display: "grid", gridTemplateColumns: "74px 1fr", gap: 6, color: "#7aaa8a", fontSize: 10, marginBottom: 4 }}>
-                <span style={{ color: "#5a8068" }}>{item.date}</span>
+              <div key={`timeline-${i}`} style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, ...IB_TYPE.listItem, marginBottom: 6 }}>
+                <span style={{ color: "#5a8068", fontFamily: FONT }}>{item.date}</span>
                 <span>{item.event}</span>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
 
-        {d.actors && d.actors.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Actors</div>
+        {d.actors && d.actors.length > 0 && node.type !== "theory" ? (
+          <DetailAccordion title="Actors">
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {d.actors.slice(0, 10).map((actor, i) => (
-                <span key={`actor-${i}`} style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 6px", borderRadius: 2, color: "#7aaa8a" }}>
+                <span key={`actor-${i}`} style={{ fontSize: 11, border: "1px solid #1a3320", padding: "3px 8px", borderRadius: 2, color: "#7aaa8a" }}>
                   {actor}
                 </span>
               ))}
             </div>
-          </div>
+          </DetailAccordion>
         ) : null}
 
         {typeof d.confidence === "number" ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 5, textTransform: "uppercase" }}>
-              Confidence {Math.round(d.confidence)}%
-            </div>
-            <div style={{ height: 3, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
+          <DetailAccordion title={`Confidence ${Math.round(d.confidence)}%`}>
+            <div style={{ height: 4, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, d.confidence))}%`, background: "#00bb66", borderRadius: 2 }} />
             </div>
-          </div>
+          </DetailAccordion>
         ) : null}
 
         {d.open_questions && d.open_questions.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Open questions</div>
+          <DetailAccordion title="Open questions">
             {d.open_questions.slice(0, 8).map((item, i) => (
-              <div key={`q-${i}`} style={{ display: "flex", gap: 7, color: "#7aaa8a", fontSize: 10, marginBottom: 5 }}>
+              <div key={`q-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6 }}>
                 <span style={{ color: "#00bb66" }}>?</span>
                 <span>{item}</span>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
 
         {node.type === "theory" && analysisSources && analysisSources.length > 0 ? (
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #1a3320" }}>
-            <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Corpus sources (full analysis)</div>
+          <DetailAccordion title="Corpus sources (full analysis)">
             {analysisSources.slice(0, 8).map((s) => (
-              <div key={s.id ?? s.url} style={{ marginBottom: 8 }}>
-                <a href={s.url} target="_blank" rel="noreferrer" style={{ color: "#00bb66", fontSize: 10, textDecoration: "none", display: "block" }}>
+              <div key={s.id ?? s.url} style={{ marginBottom: 10 }}>
+                <a href={s.url} target="_blank" rel="noreferrer" style={{ color: "#00bb66", fontSize: 12, textDecoration: "none", display: "block", lineHeight: 1.5 }}>
                   {s.title} ↗
                 </a>
-                <div style={{ fontSize: 8, color: "#476352", marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: "#476352", marginTop: 3 }}>
                   {s.domain} · tier {s.tier} · {s.source_type}
                 </div>
               </div>
             ))}
-          </div>
+          </DetailAccordion>
         ) : null}
+
+        <DetailAccordion title={`Connections (${edges.filter((e) => e.from === node.id || e.to === node.id).length})`}>
+          {edges
+            .filter((e) => e.from === node.id || e.to === node.id)
+            .map((e, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 22, height: 2, background: e.color, flexShrink: 0 }} />
+                <div style={{ ...IB_TYPE.meta, color: "#7aaa8a", letterSpacing: 0.5, lineHeight: 1.5 }}>{e.label}</div>
+              </div>
+            ))}
+        </DetailAccordion>
 
         <PolymarketInline
           articleTitle={polymarketArticleTitle}
@@ -1034,18 +1109,6 @@ function DetailPanel({
           nodeLabel={node.label}
           nodeDetailTitle={d.title}
         />
-
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Connections</div>
-          {edges
-            .filter((e) => e.from === node.id || e.to === node.id)
-            .map((e, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
-                <div style={{ width: 20, height: 1.5, background: e.color, flexShrink: 0 }} />
-                <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{e.label}</div>
-              </div>
-            ))}
-        </div>
       </div>
 
       <div style={{ padding: "12px 14px", borderTop: "1px solid #1a3320" }}>
@@ -1102,6 +1165,8 @@ export default function InvestigationBoard({
   const [shareToast, setShareToast] = useState("");
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const shareMenuRef = useRef<HTMLDivElement>(null);
+
+  const narrowPanel = useNarrowPanel();
 
   const shareText = conclusion
     ? `Investigation: "${conclusion.slice(0, 120)}${conclusion.length > 120 ? "…" : ""}" — The Theorist`
@@ -1398,9 +1463,14 @@ export default function InvestigationBoard({
   const hasDarpa = allText.includes("darpa");
 
   return (
-    <div style={{ fontFamily: FONT, background: "#040b06", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div className="ib-root" style={{ fontFamily: FONT, background: "#040b06", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", ["--ib-panel-w" as string]: IB_PANEL_W }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+        .ib-root { --ib-panel-w: clamp(400px, 40vw, 480px); }
+        .ib-detail-panel-scroll { max-width: 65ch; }
+        @media (max-width: 1023px) {
+          .ib-detail-overlay { width: min(100%, 480px) !important; box-shadow: -12px 0 48px rgba(0,0,0,0.55); }
+        }
         @keyframes dashMove { to { stroke-dashoffset: -20; } }
         @keyframes glowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
         @keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
@@ -1510,7 +1580,7 @@ export default function InvestigationBoard({
           style={{
             position: "absolute",
             top: 12,
-            right: internalSelected ? 372 : 12,
+            right: internalSelected ? "calc(var(--ib-panel-w) + 16px)" : 12,
             zIndex: 20,
             display: "flex",
             gap: 6,
@@ -1686,7 +1756,7 @@ export default function InvestigationBoard({
           className="ib-main-svg"
           ref={svgRef}
           viewBox="0 0 1000 640"
-          style={{ width: internalSelected ? "calc(100% - 360px)" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
+          style={{ width: internalSelected && !narrowPanel ? "calc(100% - var(--ib-panel-w))" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
           preserveAspectRatio="xMidYMid meet"
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
@@ -1719,7 +1789,7 @@ export default function InvestigationBoard({
                     return (
                       <>
                         <rect x={mx - bw/2} y={my - 10} width={bw} height={16} rx={2} fill="#040b06" stroke={e.color} strokeWidth={0.5} strokeOpacity={0.6} />
-                        <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.9} style={{ fontFamily: FONT, fontSize: 7, letterSpacing: 0.5 }}>
+                        <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.9} style={{ fontFamily: FONT, fontSize: 9, letterSpacing: 0.5 }}>
                           {lbl}
                         </text>
                       </>
@@ -1732,7 +1802,7 @@ export default function InvestigationBoard({
         </svg>
 
         <div style={{ position: "absolute", bottom: 16, left: 16, display: "flex", flexDirection: "column", gap: 5, background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "10px 12px" }}>
-          <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginBottom: 4, textTransform: "uppercase" }}>Connection types</div>
+          <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 4, textTransform: "uppercase" }}>Connection types</div>
           {[
             ["#ff3333", "Direct evidence"],
             ["#ffaa00", "Indirect link"],
@@ -1742,7 +1812,7 @@ export default function InvestigationBoard({
           ].map(([col, label]) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 18, height: 1.5, background: col }} />
-              <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{label}</span>
+              <span style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>{label}</span>
             </div>
           ))}
         </div>
@@ -1753,7 +1823,7 @@ export default function InvestigationBoard({
             style={{
               position: "absolute",
               bottom: 16,
-              right: 376,
+              right: "calc(var(--ib-panel-w) + 16px)",
               zIndex: 20,
               display: "flex",
               flexDirection: "row",
@@ -1853,10 +1923,23 @@ export default function InvestigationBoard({
           </div>
         )}
 
+        {narrowPanel && internalSelected ? (
+          <div
+            data-export-ignore
+            role="presentation"
+            onClick={() => {
+              setInternalSelected(null);
+              onNodeClick(null);
+            }}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 25 }}
+          />
+        ) : null}
+
         {internalSelected ? (
           <DetailPanel
             node={internalSelected}
             edges={edges}
+            overlay={narrowPanel}
             onClose={() => {
               setInternalSelected(null);
               onNodeClick(null);
