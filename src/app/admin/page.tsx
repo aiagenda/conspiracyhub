@@ -738,6 +738,31 @@ export default function AdminPage() {
     }
   }
 
+  async function enrichUapBriefs() {
+    setScraperBusy("uap-briefs");
+    try {
+      const res = await fetch("/api/admin/scrapers", {
+        method: "PATCH",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "enrich_uap_briefs", limit: 12 }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        result?: { payload?: { updated?: number; scanned?: number } };
+      };
+      if (!res.ok) {
+        setNewsIngestHint(`Brief enrich failed: ${data.error ?? res.status}`);
+      } else {
+        const p = data.result?.payload;
+        setNewsIngestHint(
+          `UAP briefs: updated ${p?.updated ?? 0} / scanned ${p?.scanned ?? 0} (run again for more)`,
+        );
+      }
+    } finally {
+      setScraperBusy("");
+    }
+  }
+
   async function runScraperNow(job: ScraperJob) {
     setScraperBusy(job.id);
     if (job.target === "news_scraper") setNewsIngestHint(null);
@@ -869,21 +894,32 @@ export default function AdminPage() {
               {running ? "Running" : "Run now"}
             </button>
             {job.target === "uap_scraper" && (
-              <button
-                type="button"
-                disabled={running}
-                onClick={() => {
-                  const current = Number(job.config?.max_new ?? 70) || 70;
-                  const raw = prompt("UAP max_new (1-120):", String(current));
-                  if (!raw) return;
-                  const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
-                  void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
-                }}
-                className="rounded border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
-                style={{ borderColor: "#2a3830", color: muted }}
-              >
-                max_new
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={running}
+                  onClick={() => {
+                    const current = Number(job.config?.max_new ?? 70) || 70;
+                    const raw = prompt("UAP max_new (1-120):", String(current));
+                    if (!raw) return;
+                    const val = Math.min(Math.max(parseInt(raw, 10) || 70, 1), 120);
+                    void updateScraper(job, { config: { ...(job.config ?? {}), max_new: val } });
+                  }}
+                  className="rounded border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+                  style={{ borderColor: "#2a3830", color: muted }}
+                >
+                  max_new
+                </button>
+                <button
+                  type="button"
+                  disabled={scraperBusy === "uap-briefs"}
+                  onClick={() => void enrichUapBriefs()}
+                  className="rounded border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+                  style={{ borderColor: "#2a3830", color: muted }}
+                >
+                  {scraperBusy === "uap-briefs" ? "Briefs…" : "AI briefs"}
+                </button>
+              </>
             )}
           </div>
         </div>

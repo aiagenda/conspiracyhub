@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { runEnrichUapBriefs } from "@/app/api/uap-sightings/route";
 import {
   executeJob,
   getSchedulerSnapshot,
@@ -30,6 +31,23 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json()) as Record<string, unknown>;
     const action = String(body.action ?? "update");
     const id = String(body.id ?? "");
+
+    if (action === "enrich_uap_briefs") {
+      const limit = Math.min(
+        Math.max(parseInt(String(body.limit ?? "12"), 10) || 12, 1),
+        25,
+      );
+      try {
+        const payload = await runEnrichUapBriefs(limit);
+        return NextResponse.json({ ok: true, result: { ok: true, payload } });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 500 },
+        );
+      }
+    }
+
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
     const db = admin();

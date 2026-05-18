@@ -9,6 +9,7 @@ import {
   NUFORC_EXCERPT_MAX,
   type NuforcContentKind,
 } from "@/lib/nuforcContent";
+import { generateSightingBrief } from "@/lib/sightingBrief";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -314,6 +315,7 @@ async function scrapeNUFORC(): Promise<NuforcRow[]> {
               displayTitle: `${title} — ${c.locationDisplay}`.slice(0, 190),
               shape: null,
               duration: null,
+              full_plain: c.snippet || plain,
               summary: caseExcerpt.text,
               image_url: imageUrl,
               content_kind: "case",
@@ -331,6 +333,7 @@ async function scrapeNUFORC(): Promise<NuforcRow[]> {
             displayTitle: title,
             shape: null,
             duration: null,
+            full_plain: plain,
             summary: fullExcerpt.text,
             image_url: imageUrl,
             content_kind: inferContentKind(title, plain.length, false),
@@ -356,6 +359,8 @@ interface NuforcRow {
   displayTitle: string;
   shape: string | null;
   duration: string | null;
+  /** Full plain text for brief generation */
+  full_plain: string;
   summary: string | null;
   image_url: string | null;
   content_kind: NuforcContentKind;
@@ -376,12 +381,19 @@ async function insertNuforcSighting(
     usedRemote = res2.usedRemote;
   }
 
+  const summaryBrief = await generateSightingBrief(
+    row.full_plain,
+    row.displayTitle,
+    row.content_kind,
+  );
+
   await admin.from("uap_sightings").insert({
     source: "nuforc",
     source_id: row.source_id,
     source_url: row.source_url,
     title: row.displayTitle.slice(0, 200),
     description: row.summary ?? `${row.displayTitle} — sourced from NUFORC.org.`,
+    summary_brief: summaryBrief,
     location_name: (row.locationDisplay ?? geoQ) ?? null,
     lat: coords?.lat ?? null,
     lng: coords?.lng ?? null,
@@ -502,6 +514,72 @@ export async function runUapScrape(maxNew = 70): Promise<{
   }
 
   return { success: true, inserted, skipped, geocoded, truncated, fetched_candidates: rows.length };
+}
+
+/** Backfill summary_brief for long sightings (used by cron/admin). */
+export async function runEnrichUapBriefs(batchLimit = 12): Promise<{
+  success: boolean;
+  updated: number;
+  scanned: number;
+  remaining_pool: number;
+}> {
+  const admin = getAdmin();
+  const limit = Math.min(Math.max(batchLimit, 1), 25);
+
+  const { data: rows, error: selErr } = await admin
+    .from("uap_sightings")
+    .select(
+      "id, title, description, content_kind, source, source_id, description_is_excerpt, summary_brief",
+    )
+    .eq("status", "active")
+    .is("summary_brief", null)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (selErr) {
+    throw new Error(selErr.message);
+  }
+
+  const candidates = (rows ?? [])
+    .filter((r) => {
+      const len = (r.description as string | null)?.length ?? 0;
+      const kind = r.content_kind as NuforcContentKind | null;
+      return len >= 1200 || kind === "blog" || kind === "case";
+    })
+    .slice(0, limit);
+
+  let updated = 0;
+  for (const row of candidates) {
+    let plain = ((row.description as string) ?? "").trim();
+    if (
+      row.source === "nuforc" &&
+      row.description_is_excerpt &&
+      typeof row.source_id === "string"
+    ) {
+      const live = await fetchNuforcFullBody(row.source_id);
+      if (live?.plain && live.plain.length > plain.length) plain = live.plain;
+    }
+    const brief = await generateSightingBrief(
+      plain,
+      (row.title as string) ?? "NUFORC report",
+      (row.content_kind as NuforcContentKind) ?? "report",
+    );
+    if (brief) {
+      const { error: upErr } = await admin
+        .from("uap_sightings")
+        .update({ summary_brief: brief })
+        .eq("id", row.id);
+      if (!upErr) updated++;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+
+  return {
+    success: true,
+    updated,
+    scanned: candidates.length,
+    remaining_pool: (rows ?? []).length,
+  };
 }
 
 // ── GET — list sightings ──────────────────────────────────────
@@ -628,6 +706,25 @@ export async function POST(req: NextRequest) {
         truncated,
         fetched_candidates: rows.length,
       });
+    }
+
+    // ── enrich_briefs — backfill summary_brief for long posts ─
+    if (action === "enrich_briefs") {
+      const secret = body.secret as string | undefined;
+      if (secret !== process.env.SCRAPER_SECRET) {
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
+      const batchLimit = Math.min(
+        Math.max(parseInt(String(body.limit ?? "12"), 10) || 12, 1),
+        25,
+      );
+      try {
+        const payload = await runEnrichUapBriefs(batchLimit);
+        return NextResponse.json(payload);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
     }
 
     // ── re_geocode — fill lat/lng for rows missing coordinates ─

@@ -9,7 +9,13 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { sortByPubDateDesc } from "@/lib/sortByPubDate";
 import {
-  SightingBodyProse,
+  shouldDefaultToBriefView,
+  previewPlainText,
+} from "@/lib/sightingBrief";
+import {
+  SightingBriefBullets,
+  SightingRichBody,
+  shouldUseBlogSections,
   shouldUseDigestLayout,
   type SightingContentKind,
 } from "@/lib/sightingProse";
@@ -40,6 +46,7 @@ interface Sighting {
   has_media?: boolean;
   content_kind?: SightingContentKind;
   description_is_excerpt?: boolean;
+  summary_brief?: string | null;
 }
 interface SightingComment {
   id: string; author_name: string; content: string; likes: number; dislikes: number; created_at: string;
@@ -417,12 +424,16 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
   const [upvotes, setUpvotes] = useState(sighting.upvotes);
   const [voted, setVoted] = useState(false);
   const [reactions, setReactions] = useState<Record<string,"like"|"dislike">>({});
+  const [showFullText, setShowFullText] = useState(false);
+  const [briefText, setBriefText] = useState(sighting.summary_brief ?? "");
   const kind = contentKindStyle(sighting.content_kind);
 
   useEffect(() => {
     setLoadingComments(true);
     setLoadingBody(true);
+    setShowFullText(false);
     setBodyText(sighting.description);
+    setBriefText(sighting.summary_brief ?? "");
     setImageUrl(sighting.image_url ?? null);
     setIsExcerpt(!!sighting.description_is_excerpt);
     fetch(`/api/uap-sightings?id=${sighting.id}&full=1`)
@@ -433,6 +444,7 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
         sighting?: Sighting;
       }) => {
         setComments(d.comments ?? []);
+        if (d.sighting?.summary_brief) setBriefText(d.sighting.summary_brief);
         if (d.full_description && d.full_description.length > (sighting.description?.length ?? 0)) {
           setBodyText(d.full_description);
           setIsExcerpt(false);
@@ -449,7 +461,21 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
       const stored = localStorage.getItem("theorist-uap-reactions");
       if (stored) setReactions(JSON.parse(stored) as Record<string,"like"|"dislike">);
     } catch {}
-  }, [sighting.id, sighting.description, sighting.description_is_excerpt, sighting.image_url]);
+  }, [sighting.id, sighting.description, sighting.description_is_excerpt, sighting.image_url, sighting.summary_brief]);
+
+  const useBriefDefault = shouldDefaultToBriefView(briefText, bodyText.length);
+  const showingBrief = useBriefDefault && !showFullText && !!briefText.trim();
+  const hasStructuredBody =
+    shouldUseDigestLayout(bodyText, sighting.content_kind) ||
+    shouldUseBlogSections(bodyText, sighting.content_kind);
+  const richBody = (
+    <SightingRichBody
+      text={bodyText}
+      contentKind={sighting.content_kind}
+      sourceUrl={sighting.source_url}
+      accent={kind.color}
+    />
+  );
 
   async function upvote() {
     if (voted) return;
@@ -511,23 +537,96 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
           {loadingBody && (
             <div style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1, marginBottom: 10 }}>LOADING FULL REPORT…</div>
           )}
-          {!loadingBody && isExcerpt && (
+          {!loadingBody && isExcerpt && !showingBrief && (
             <div style={{ fontSize: 9, color: "#ffaa00", border: "1px solid rgba(255,170,0,0.35)", padding: "6px 10px", borderRadius: 3, marginBottom: 10, letterSpacing: 0.5, lineHeight: 1.5 }}>
               Excerpt from NUFORC — open SOURCE for the original page if anything looks truncated.
             </div>
           )}
-          {shouldUseDigestLayout(bodyText, sighting.content_kind) ? (
-            <SightingBodyProse
-              text={bodyText}
-              sourceUrl={sighting.source_url}
-              accent={kind.color}
-            />
-          ) : (
-            <ReadableProse
-              text={bodyText}
-              softBreak
-              style={{ marginBottom: 12 }}
-            />
+          {!loadingBody && showingBrief && (
+            <>
+              <SightingBriefBullets brief={briefText} accent={kind.color} />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowFullText(true)}
+                  style={{
+                    fontFamily: RAJ,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    padding: "6px 14px",
+                    borderRadius: 3,
+                    cursor: "pointer",
+                    border: `1px solid ${kind.color}`,
+                    background: "rgba(255,204,0,0.06)",
+                    color: kind.color,
+                  }}
+                >
+                  SHOW FULL TEXT ▼
+                </button>
+              </div>
+            </>
+          )}
+          {!loadingBody && (!showingBrief || showFullText) && (
+            <>
+              {useBriefDefault && showFullText && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullText(false)}
+                  style={{
+                    display: "block",
+                    marginBottom: 12,
+                    fontFamily: RAJ,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    padding: "5px 12px",
+                    borderRadius: 3,
+                    cursor: "pointer",
+                    border: "1px solid #1a3320",
+                    background: "transparent",
+                    color: "#5a8068",
+                  }}
+                >
+                  ▲ BACK TO BRIEF
+                </button>
+              )}
+              {hasStructuredBody ? (
+                richBody
+              ) : (
+                <ReadableProse
+                  text={
+                    showFullText || !useBriefDefault
+                      ? bodyText
+                      : previewPlainText(bodyText)
+                  }
+                  softBreak
+                  style={{ marginBottom: 12 }}
+                />
+              )}
+              {!showFullText && !useBriefDefault && bodyText.length > 600 && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullText(true)}
+                  style={{
+                    display: "block",
+                    marginBottom: 12,
+                    fontFamily: RAJ,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    padding: "6px 14px",
+                    borderRadius: 3,
+                    cursor: "pointer",
+                    border: `1px solid ${SIGHTING_COL}66`,
+                    background: "transparent",
+                    color: SIGHTING_COL,
+                  }}
+                >
+                  SHOW FULL TEXT ▼
+                </button>
+              )}
+            </>
           )}
           <div style={{display:"flex",gap:10,alignItems:"center",paddingTop:4,borderTop:"1px solid #1a3320"}}>
             <button onClick={upvote} disabled={voted} style={{background:voted?"rgba(255,204,0,0.1)":"transparent",border:`1px solid ${voted?SIGHTING_COL:"#1a3320"}`,color:voted?SIGHTING_COL:"#5a8068",fontFamily:FONT,fontSize:10,padding:"4px 12px",borderRadius:3,cursor:voted?"default":"pointer",letterSpacing:1}}>
@@ -1047,7 +1146,7 @@ export default function UAPTracker() {
               {tab==="sightings"&&(
                 <div>
                   <div style={{marginBottom:12,fontSize:9,color:"#5a8068",letterSpacing:1}}>
-                    Source: NUFORC (National UFO Reporting Center) · Auto-geocoded via OpenStreetMap · ingest runs from Admin → Scrapers
+                    Source: NUFORC · Long posts show an intelligence brief first (Admin → Scrapers → AI briefs to backfill)
                   </div>
 
                   {selectedSighting ? (
