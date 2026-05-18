@@ -44,44 +44,19 @@ function useNarrowPanel() {
   return narrow;
 }
 
-function DetailAccordion({
+function DetailSection({
   title,
-  defaultOpen = false,
   accent = "#5a8068",
   children,
 }: {
   title: string;
-  defaultOpen?: boolean;
   accent?: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ marginTop: 12, border: "1px solid #1a3320", borderRadius: 3, overflow: "hidden", background: "rgba(0,0,0,0.15)" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          padding: "9px 12px",
-          background: "rgba(0,255,136,0.02)",
-          border: "none",
-          cursor: "pointer",
-          fontFamily: FONT,
-          fontSize: 10,
-          color: accent,
-          letterSpacing: 2,
-          textTransform: "uppercase",
-        }}
-      >
-        <span>{title}</span>
-        <span style={{ color: "#5a8068", fontSize: 9 }}>{open ? "▲" : "▼"}</span>
-      </button>
-      {open ? <div style={{ padding: "10px 12px 12px", borderTop: "1px solid #1a3320" }}>{children}</div> : null}
+    <div style={{ marginTop: 14 }}>
+      <div style={{ ...IB_TYPE.sectionLabel, color: accent, marginBottom: 8 }}>{title}</div>
+      {children}
     </div>
   );
 }
@@ -956,15 +931,15 @@ function DetailPanel({
             </div>
 
             {d.why_it_matters ? (
-              <DetailAccordion title="Why it matters" defaultOpen accent="#00bb66">
+              <DetailSection title="Why it matters" accent="#00bb66">
                 <div style={IB_TYPE.bodyMuted}>{d.why_it_matters}</div>
-              </DetailAccordion>
+              </DetailSection>
             ) : null}
           </>
         ) : null}
 
         {node.type !== "theory" && d.brave_sources && (d.brave_sources as { title: string; url: string; description: string }[]).length > 0 ? (
-          <DetailAccordion
+          <DetailSection
             title={`Web Intelligence · ${(d.brave_sources as { title: string; url: string; description: string }[]).length} sources`}
             accent="#4ab8e0"
           >
@@ -990,64 +965,64 @@ function DetailPanel({
                 </a>
               );
             })}
-          </DetailAccordion>
+          </DetailSection>
         ) : (node.type !== "theory" && d.theory_sources && (d.theory_sources as string[]).length > 0) ? (
-          <DetailAccordion title="Theory citations" accent="#c94dff">
+          <DetailSection title="Theory citations" accent="#c94dff">
             {(d.theory_sources as string[]).filter((s: string) => isLikelyUrl(s)).slice(0, 12).map((item: string, i: number) => (
               <div key={`tsrc-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, wordBreak: "break-word" }}>
                 <span style={{ color: "#e9b3ff", flexShrink: 0 }}>⟨{i + 1}⟩</span>
                 <a href={item.trim()} target="_blank" rel="noreferrer" style={{ color: "#00bb66", textDecoration: "none", flex: 1 }}>{item}</a>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {node.type !== "theory" && d.key_claims && d.key_claims.length > 0 ? (
-          <DetailAccordion title="Key claims">
+          <DetailSection title="Key claims">
             {d.key_claims.slice(0, 6).map((item, i) => (
               <div key={`claim-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
                 <span style={{ color: "#00bb66", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {node.type !== "theory" && d.counter_evidence && d.counter_evidence.length > 0 ? (
-          <DetailAccordion title="Counter-evidence">
+          <DetailSection title="Counter-evidence">
             {d.counter_evidence.slice(0, 6).map((item, i) => (
               <div key={`counter-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
                 <span style={{ color: "#ffaa00", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {d.uncertainties && d.uncertainties.length > 0 ? (
-          <DetailAccordion title="Uncertainties">
+          <DetailSection title="Uncertainties">
             {d.uncertainties.slice(0, 6).map((item, i) => (
               <div key={`uncertain-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
                 <span style={{ color: "#ff3333", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {node.type !== "theory" && d.timeline && d.timeline.length > 0 ? (
-          <DetailAccordion title="Timeline">
+          <DetailSection title="Timeline">
             {d.timeline.slice(0, 6).map((item, i) => (
               <div key={`timeline-${i}`} style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, ...IB_TYPE.listItem, marginBottom: 6 }}>
                 <span style={{ color: "#5a8068", fontFamily: FONT }}>{item.date}</span>
                 <span>{item.event}</span>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {d.actors && d.actors.length > 0 && node.type !== "theory" ? (
-          <DetailAccordion title="Actors">
+          <DetailSection title="Actors">
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {d.actors.slice(0, 10).map((actor, i) => (
                 <span key={`actor-${i}`} style={{ fontSize: 11, border: "1px solid #1a3320", padding: "3px 8px", borderRadius: 2, color: "#7aaa8a" }}>
@@ -1055,30 +1030,30 @@ function DetailPanel({
                 </span>
               ))}
             </div>
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {typeof d.confidence === "number" ? (
-          <DetailAccordion title={`Confidence ${Math.round(d.confidence)}%`}>
+          <DetailSection title={`Confidence ${Math.round(d.confidence)}%`}>
             <div style={{ height: 4, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, d.confidence))}%`, background: "#00bb66", borderRadius: 2 }} />
             </div>
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {d.open_questions && d.open_questions.length > 0 ? (
-          <DetailAccordion title="Open questions">
+          <DetailSection title="Open questions">
             {d.open_questions.slice(0, 8).map((item, i) => (
               <div key={`q-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6 }}>
                 <span style={{ color: "#00bb66" }}>?</span>
                 <span>{item}</span>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
         {node.type === "theory" && analysisSources && analysisSources.length > 0 ? (
-          <DetailAccordion title="Corpus sources (full analysis)">
+          <DetailSection title="Corpus sources (full analysis)">
             {analysisSources.slice(0, 8).map((s) => (
               <div key={s.id ?? s.url} style={{ marginBottom: 10 }}>
                 <a href={s.url} target="_blank" rel="noreferrer" style={{ color: "#00bb66", fontSize: 12, textDecoration: "none", display: "block", lineHeight: 1.5 }}>
@@ -1089,10 +1064,10 @@ function DetailPanel({
                 </div>
               </div>
             ))}
-          </DetailAccordion>
+          </DetailSection>
         ) : null}
 
-        <DetailAccordion title={`Connections (${edges.filter((e) => e.from === node.id || e.to === node.id).length})`}>
+        <DetailSection title={`Connections (${edges.filter((e) => e.from === node.id || e.to === node.id).length})`}>
           {edges
             .filter((e) => e.from === node.id || e.to === node.id)
             .map((e, i) => (
@@ -1101,7 +1076,7 @@ function DetailPanel({
                 <div style={{ ...IB_TYPE.meta, color: "#7aaa8a", letterSpacing: 0.5, lineHeight: 1.5 }}>{e.label}</div>
               </div>
             ))}
-        </DetailAccordion>
+        </DetailSection>
 
         <PolymarketInline
           articleTitle={polymarketArticleTitle}

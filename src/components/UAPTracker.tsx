@@ -8,6 +8,11 @@ import * as topojson from "topojson-client";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { sortByPubDateDesc } from "@/lib/sortByPubDate";
+import {
+  SightingBodyProse,
+  shouldUseDigestLayout,
+  type SightingContentKind,
+} from "@/lib/sightingProse";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -24,8 +29,6 @@ interface Person   { id:string; name:string; role:string; affiliation:string; cl
 interface Org      { id:string; name:string; fullName:string; type:string; founded:string; status:string; description:string; transparency:string; url:string; }
 interface Document { id:string; name:string; year:number; type:string; classification:string; url:string; description:string; }
 interface News     { title:string; url:string; source:string; pubDate:string; type?: string }
-
-type SightingContentKind = "report" | "blog" | "case";
 
 interface Sighting {
   id: string; source: string; source_url: string | null;
@@ -115,11 +118,13 @@ function ReadableProse({
   if (!raw) return null;
   const blocks = parseProseBlocks(raw);
   const base: CSSProperties = {
-    lineHeight: 1.9,
-    fontSize: 13,
-    color: "#b8dcc8",
+    fontFamily: RAJ,
+    lineHeight: 1.8,
+    fontSize: 15,
+    color: "#c8e8d0",
     wordBreak: "break-word",
     overflowWrap: "break-word",
+    maxWidth: "42rem",
     ...style,
   };
   return (
@@ -491,7 +496,7 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
             <Image src={imageUrl} alt="" fill sizes="(max-width:768px) 100vw,640px" style={{objectFit:"cover"}} unoptimized />
           </div>
         )}
-        <div style={{padding:"10px 14px",borderBottom:`1px solid ${SIGHTING_COL}22`,background:"rgba(255,204,0,0.04)"}}>
+        <div style={{padding:"16px 20px",borderBottom:`1px solid ${SIGHTING_COL}22`,background:"rgba(255,204,0,0.04)"}}>
           <div style={{display:"flex",gap:8,marginBottom:6,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{fontSize:9,color:kind.color,border:`1px solid ${kind.color}`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{kind.label}</span>
             {sighting.shape&&<span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.4)",padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{sighting.shape.toUpperCase()}</span>}
@@ -511,11 +516,19 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
               Excerpt from NUFORC — open SOURCE for the original page if anything looks truncated.
             </div>
           )}
-          <ReadableProse
-            text={bodyText}
-            softBreak
-            style={{ fontFamily: FONT, fontSize: 13, color: "#c8e8d0", marginBottom: 12 }}
-          />
+          {shouldUseDigestLayout(bodyText, sighting.content_kind) ? (
+            <SightingBodyProse
+              text={bodyText}
+              sourceUrl={sighting.source_url}
+              accent={kind.color}
+            />
+          ) : (
+            <ReadableProse
+              text={bodyText}
+              softBreak
+              style={{ marginBottom: 12 }}
+            />
+          )}
           <div style={{display:"flex",gap:10,alignItems:"center",paddingTop:4,borderTop:"1px solid #1a3320"}}>
             <button onClick={upvote} disabled={voted} style={{background:voted?"rgba(255,204,0,0.1)":"transparent",border:`1px solid ${voted?SIGHTING_COL:"#1a3320"}`,color:voted?SIGHTING_COL:"#5a8068",fontFamily:FONT,fontSize:10,padding:"4px 12px",borderRadius:3,cursor:voted?"default":"pointer",letterSpacing:1}}>
               ▲ {upvotes}
@@ -855,6 +868,8 @@ export default function UAPTracker() {
 
   if (!data) return null;
 
+  const sightingReadMode = tab === "sightings" && !!selectedSighting;
+
   const TABS = [
     { key:"news",       label:`LATEST NEWS (${data.news.length})` },
     { key:"sightings",  label:`SIGHTINGS (${sightings.length})` },
@@ -926,6 +941,7 @@ export default function UAPTracker() {
           </div>
 
           {/* WORLD MAP */}
+          {!sightingReadMode && (
           <div style={{marginBottom:"1.25rem"}}>
             <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
               <div style={{fontFamily:FONT,fontSize:10,color:"#5a8068",letterSpacing:2}}>
@@ -968,9 +984,19 @@ export default function UAPTracker() {
               selectedSighting={selectedSighting}
             />
           </div>
+          )}
 
           {/* TABS + CONTENT */}
-          <div className="uap-main-split two-col-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(360px,420px)",gap:"clamp(1rem,2.5vw,1.75rem)"}}>
+          <div
+            className="uap-main-split two-col-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: sightingReadMode
+                ? "1fr"
+                : "minmax(0,1fr) minmax(360px,420px)",
+              gap: "clamp(1rem,2.5vw,1.75rem)",
+            }}
+          >
 
             {/* LEFT */}
             <div>
@@ -1168,6 +1194,7 @@ export default function UAPTracker() {
             </div>
 
             {/* RIGHT: Detail panel */}
+            {!sightingReadMode && (
             <div>
               {selected&&tab==="incidents"&&(
                 <div>
@@ -1210,6 +1237,7 @@ export default function UAPTracker() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
 
