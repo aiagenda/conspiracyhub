@@ -33,6 +33,8 @@ Write in English. Be factual, reference real documents and events. Your articles
 - Include real references (CIA FOIA, Pentagon, Congressional testimony, patents)
 - Analyze conspiracy theories critically — what evidence exists, what is speculation
 - End with open questions that invite readers to investigate further
+- Include a "## FAQ" section with exactly 3-4 subsections (### Question?) and concise answers — optimized for Google FAQ rich results
+- Populate the "faqs" JSON array with the same 3-4 Q&A pairs (question + answer fields)
 
 CRITICAL SOURCE RULES — read carefully:
 The user message may include "--- ALLOWED_SOURCE_URLS" (URLs from the seed story). When present:
@@ -60,6 +62,9 @@ Return ONLY valid JSON (no markdown outside the JSON):
   "excerpt": "2-3 sentence teaser for the article",
   "category": "uap|biotech|surveillance|finance|politics|technology",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "faqs": [
+    {"question": "Clear question matching the focus keyword?", "answer": "2-4 sentence direct answer for search snippets."}
+  ],
   "sources": [
     {
       "title": "Exact document or article title",
@@ -70,6 +75,63 @@ Return ONLY valid JSON (no markdown outside the JSON):
 }`;
 
 export type GenerateArticleResult = { status: number; payload: Record<string, unknown> };
+
+type GeneratedArticlePayload = {
+  title: string;
+  slug: string;
+  meta_description: string;
+  focus_keyword: string;
+  secondary_keywords: string[];
+  content: string;
+  excerpt: string;
+  category: string;
+  tags: string[];
+  faqs?: Array<{ question: string; answer: string }>;
+  sources: Array<{ title: string; url: string; description: string; tier?: string }>;
+};
+
+async function enrichArticleContentForSeo(
+  admin: ReturnType<typeof getAdmin>,
+  article: GeneratedArticlePayload,
+  finalSlug: string,
+) {
+  const { data: peers } = await admin
+    .from("generated_articles")
+    .select("slug, title, focus_keyword, category, tags")
+    .eq("status", "published")
+    .limit(50);
+
+  const { injectInternalLinks, rankRelatedArticles, normalizeFaqs } = await import("@/lib/blogSeo");
+  const related = rankRelatedArticles(
+    {
+      slug: finalSlug,
+      focus_keyword: article.focus_keyword,
+      category: article.category,
+      tags: article.tags,
+    },
+    (peers ?? []) as Array<{ slug: string; title: string; focus_keyword: string; category: string }>,
+  );
+  const content = injectInternalLinks(article.content, {
+    siteUrl: SITE_URL,
+    currentSlug: finalSlug,
+    related,
+  });
+  const faqs = normalizeFaqs(article.faqs, content);
+  return { content, faqs };
+}
+
+async function insertPublishedArticle(
+  admin: ReturnType<typeof getAdmin>,
+  row: Record<string, unknown>,
+) {
+  const first = await admin.from("generated_articles").insert(row).select().single();
+  if (!first.error) return first;
+  if (/faqs/i.test(first.error.message) && "faqs" in row) {
+    const { faqs: _omit, ...withoutFaqs } = row;
+    return admin.from("generated_articles").insert(withoutFaqs).select().single();
+  }
+  return first;
+}
 
 // ── LORE DOSSIER ──────────────────────────────────────────────────────────────
 
@@ -85,6 +147,7 @@ Structure your article using these sections (use ## headings):
 ## Competing Theories — alternative explanations for the same facts
 ## What Would Falsify This — what evidence would disprove the theory
 ## Open Threads — unanswered questions for readers to investigate
+## FAQ — 3 questions readers search for (### per question)
 
 Length: 1200–1600 words. Use ### sub-headings within sections as needed.
 
@@ -106,6 +169,9 @@ Return ONLY valid JSON (no markdown outside):
   "excerpt": "2–3 sentence teaser (speculative framing explicit)",
   "category": "lore",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "faqs": [
+    {"question": "...", "answer": "..."}
+  ],
   "sources": [
     {
       "title": "Source title",
@@ -144,18 +210,7 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board, "${SI
       "article",
     );
 
-    const article = await callOpenAIJSON<{
-      title: string;
-      slug: string;
-      meta_description: string;
-      focus_keyword: string;
-      secondary_keywords: string[];
-      content: string;
-      excerpt: string;
-      category: string;
-      tags: string[];
-      sources: Array<{ title: string; url: string; description: string; tier?: string }>;
-    }>({
+    const article = await callOpenAIJSON<GeneratedArticlePayload>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: LORE_SYSTEM,
       user: prompt + allowlist.promptBlock,
@@ -165,26 +220,24 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board, "${SI
 
     const baseSlug = slugify(article.slug || article.title);
     const finalSlug = `${baseSlug}-${Date.now().toString(36)}`;
+    const { content: seoContent, faqs } = await enrichArticleContentForSeo(admin, article, finalSlug);
 
-    const { data: inserted, error } = await admin
-      .from("generated_articles")
-      .insert({
-        title: article.title,
-        slug: finalSlug,
-        meta_description: article.meta_description,
-        focus_keyword: article.focus_keyword,
-        secondary_keywords: article.secondary_keywords ?? [],
-        content: article.content,
-        excerpt: article.excerpt,
-        category: "lore",
-        tags: article.tags ?? [],
-        sources: article.sources ?? [],
-        mode: "lore_dossier",
-        status: "published",
-        published_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data: inserted, error } = await insertPublishedArticle(admin, {
+      title: article.title,
+      slug: finalSlug,
+      meta_description: article.meta_description,
+      focus_keyword: article.focus_keyword,
+      secondary_keywords: article.secondary_keywords ?? [],
+      content: seoContent,
+      excerpt: article.excerpt,
+      category: "lore",
+      tags: article.tags ?? [],
+      faqs,
+      sources: article.sources ?? [],
+      mode: "lore_dossier",
+      status: "published",
+      published_at: new Date().toISOString(),
+    });
 
     if (error) return { status: 500, payload: { error: error.message } };
 
@@ -454,18 +507,7 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
     );
     const userPrompt = prompt + articleAllow.promptBlock;
 
-    const article = await callOpenAIJSON<{
-      title: string;
-      slug: string;
-      meta_description: string;
-      focus_keyword: string;
-      secondary_keywords: string[];
-      content: string;
-      excerpt: string;
-      category: string;
-      tags: string[];
-      sources: Array<{ title: string; url: string; description: string }>;
-    }>({
+    const article = await callOpenAIJSON<GeneratedArticlePayload>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: ARTICLE_SYSTEM,
       user: userPrompt,
@@ -475,29 +517,27 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
 
     const baseSlug = slugify(article.slug || article.title);
     const finalSlug = `${baseSlug}-${Date.now().toString(36)}`;
+    const { content: seoContent, faqs } = await enrichArticleContentForSeo(admin, article, finalSlug);
 
-    const { data: inserted, error } = await admin
-      .from("generated_articles")
-      .insert({
-        title: article.title,
-        slug: finalSlug,
-        meta_description: article.meta_description,
-        focus_keyword: article.focus_keyword,
-        secondary_keywords: article.secondary_keywords ?? [],
-        content: article.content,
-        excerpt: article.excerpt,
-        category: article.category,
-        tags: article.tags ?? [],
-        sources: await (async () => {
-          const filtered = sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow));
-          return enrichSourcesWithRealUrls(filtered, process.env.BRAVE_SEARCH_API_KEY);
-        })(),
-        mode,
-        status: "published",
-        published_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data: inserted, error } = await insertPublishedArticle(admin, {
+      title: article.title,
+      slug: finalSlug,
+      meta_description: article.meta_description,
+      focus_keyword: article.focus_keyword,
+      secondary_keywords: article.secondary_keywords ?? [],
+      content: seoContent,
+      excerpt: article.excerpt,
+      category: article.category,
+      tags: article.tags ?? [],
+      faqs,
+      sources: await (async () => {
+        const filtered = sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow));
+        return enrichSourcesWithRealUrls(filtered, process.env.BRAVE_SEARCH_API_KEY);
+      })(),
+      mode,
+      status: "published",
+      published_at: new Date().toISOString(),
+    });
 
     if (error) return { status: 500, payload: { error: error.message } };
 

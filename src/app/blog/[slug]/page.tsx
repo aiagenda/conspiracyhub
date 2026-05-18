@@ -3,11 +3,21 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import GeneratedArticleReader from "@/components/GeneratedArticleReader";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
+import {
+  blogArticleOgImageUrl,
+  buildArticleJsonLd,
+  buildFaqJsonLd,
+  defaultOgImageUrl,
+  getSiteUrl,
+  injectInternalLinks,
+  normalizeFaqs,
+  rankRelatedArticles,
+} from "@/lib/blogSeo";
 import type { NewsItem } from "@/types";
 
 export const revalidate = 86400;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
+const SITE_URL = getSiteUrl();
 
 interface Article {
   id: string;
@@ -23,6 +33,7 @@ interface Article {
   sources: Array<{ title: string; url: string; description: string }>;
   published_at: string;
   mode: string;
+  faqs?: unknown;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -41,6 +52,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!data) return {};
 
   const canonicalUrl = `${SITE_URL}/blog/${slug}`;
+  const ogImage = blogArticleOgImageUrl(data.title);
   return {
     title: `${data.title} | The Theorist`,
     description: data.meta_description,
@@ -54,11 +66,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       publishedTime: data.published_at,
       section: data.category,
       siteName: "The Theorist",
+      images: [
+        { url: ogImage, width: 1200, height: 630, alt: data.title },
+        { url: defaultOgImageUrl(), width: 1200, height: 630, alt: "The Theorist" },
+      ],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: data.title,
       description: data.meta_description,
+      images: [ogImage],
     },
   };
 }
@@ -86,7 +103,33 @@ export default async function BlogArticlePage({
   if (!data) return notFound();
   const article = data as Article;
 
-  const canonical = `${SITE_URL.replace(/\/$/, "")}/blog/${slug}`;
+  const { data: peers } = await admin
+    .from("generated_articles")
+    .select("slug, title, focus_keyword, category, tags")
+    .eq("status", "published")
+    .neq("slug", slug)
+    .order("published_at", { ascending: false })
+    .limit(40);
+
+  const related = rankRelatedArticles(
+    {
+      slug,
+      focus_keyword: article.focus_keyword,
+      category: article.category,
+      tags: article.tags,
+    },
+    peers ?? [],
+  );
+
+  const markdown = injectInternalLinks(article.content, {
+    siteUrl: SITE_URL,
+    currentSlug: slug,
+    related,
+  });
+
+  const faqs = normalizeFaqs(article.faqs, markdown);
+
+  const canonical = `${SITE_URL}/blog/${slug}`;
   const summary =
     (typeof article.excerpt === "string" && article.excerpt.trim()) ||
     (typeof article.meta_description === "string" && article.meta_description.trim()) ||
@@ -97,7 +140,7 @@ export default async function BlogArticlePage({
     title: article.title,
     summary,
     url: canonical,
-    image: null,
+    image: blogArticleOgImageUrl(article.title),
     date: article.published_at,
     section: article.category,
     score: 55,
@@ -108,18 +151,8 @@ export default async function BlogArticlePage({
     source: "generated",
   };
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: article.title,
-    description: article.meta_description,
-    keywords: [article.focus_keyword, ...(article.secondary_keywords ?? [])].join(", "),
-    datePublished: article.published_at,
-    dateModified: article.published_at,
-    url: canonical,
-    publisher: { "@type": "Organization", name: "The Theorist", url: SITE_URL },
-    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
-  };
+  const articleLd = buildArticleJsonLd(article, canonical);
+  const faqLd = buildFaqJsonLd(faqs, canonical);
 
   const { data: oracleAnalysis } = await admin
     .from("oracle_analyses")
@@ -135,11 +168,14 @@ export default async function BlogArticlePage({
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }} />
+      {faqLd ? (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+      ) : null}
       <GeneratedArticleReader
         item={item}
         slug={slug}
-        markdown={article.content}
+        markdown={markdown}
         sources={sources}
         initialChatOpen={initialChatOpen}
         voteTheories={voteTheories}
