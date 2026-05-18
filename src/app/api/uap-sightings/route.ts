@@ -521,10 +521,17 @@ export async function runEnrichUapBriefs(batchLimit = 12): Promise<{
   success: boolean;
   updated: number;
   scanned: number;
-  remaining_pool: number;
+  skipped_short: number;
+  remaining_without_brief: number;
 }> {
   const admin = getAdmin();
   const limit = Math.min(Math.max(batchLimit, 1), 25);
+
+  const { count: remainingCount } = await admin
+    .from("uap_sightings")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "active")
+    .is("summary_brief", null);
 
   const { data: rows, error: selErr } = await admin
     .from("uap_sightings")
@@ -533,8 +540,8 @@ export async function runEnrichUapBriefs(batchLimit = 12): Promise<{
     )
     .eq("status", "active")
     .is("summary_brief", null)
-    .order("created_at", { ascending: false })
-    .limit(100);
+    .order("event_date", { ascending: false, nullsFirst: false })
+    .limit(150);
 
   if (selErr) {
     throw new Error(selErr.message);
@@ -544,18 +551,17 @@ export async function runEnrichUapBriefs(batchLimit = 12): Promise<{
     .filter((r) => {
       const len = (r.description as string | null)?.length ?? 0;
       const kind = r.content_kind as NuforcContentKind | null;
-      return len >= 1200 || kind === "blog" || kind === "case";
+      if (kind === "blog" || kind === "case" || kind === "report") return true;
+      if (r.description_is_excerpt) return true;
+      return len >= 400;
     })
     .slice(0, limit);
 
   let updated = 0;
+  let skippedShort = 0;
   for (const row of candidates) {
     let plain = ((row.description as string) ?? "").trim();
-    if (
-      row.source === "nuforc" &&
-      row.description_is_excerpt &&
-      typeof row.source_id === "string"
-    ) {
+    if (row.source === "nuforc" && typeof row.source_id === "string") {
       const live = await fetchNuforcFullBody(row.source_id);
       if (live?.plain && live.plain.length > plain.length) plain = live.plain;
     }
@@ -570,15 +576,23 @@ export async function runEnrichUapBriefs(batchLimit = 12): Promise<{
         .update({ summary_brief: brief })
         .eq("id", row.id);
       if (!upErr) updated++;
+    } else {
+      skippedShort++;
     }
     await new Promise((r) => setTimeout(r, 400));
   }
+
+  const remainingAfter = Math.max(
+    0,
+    (remainingCount ?? 0) - updated,
+  );
 
   return {
     success: true,
     updated,
     scanned: candidates.length,
-    remaining_pool: (rows ?? []).length,
+    skipped_short: skippedShort,
+    remaining_without_brief: remainingAfter,
   };
 }
 

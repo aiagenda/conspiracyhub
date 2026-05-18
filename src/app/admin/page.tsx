@@ -198,6 +198,11 @@ export default function AdminPage() {
   const [scraperBusy, setScraperBusy] = useState<string>("");
   /** Short summary after manual news ingest (Guardian + GNews + Reddit + RSS). */
   const [newsIngestHint, setNewsIngestHint] = useState<string | null>(null);
+  /** Visible on the NUFORC scraper card after “AI briefs”. */
+  const [uapBriefHint, setUapBriefHint] = useState<{
+    text: string;
+    variant: "success" | "error" | "info";
+  } | null>(null);
 
   // Subscribers
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -740,6 +745,7 @@ export default function AdminPage() {
 
   async function enrichUapBriefs() {
     setScraperBusy("uap-briefs");
+    setUapBriefHint({ text: "Generating intelligence briefs… (may take ~1 min)", variant: "info" });
     try {
       const res = await fetch("/api/admin/scrapers", {
         method: "PATCH",
@@ -748,16 +754,40 @@ export default function AdminPage() {
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
-        result?: { payload?: { updated?: number; scanned?: number } };
+        result?: {
+          payload?: {
+            updated?: number;
+            scanned?: number;
+            skipped_short?: number;
+            remaining_without_brief?: number;
+          };
+        };
       };
       if (!res.ok) {
-        setNewsIngestHint(`Brief enrich failed: ${data.error ?? res.status}`);
+        const msg = data.error ?? `HTTP ${res.status}`;
+        setUapBriefHint({ text: `Failed: ${msg}`, variant: "error" });
+        setNewsIngestHint(`UAP AI briefs failed: ${msg}`);
       } else {
         const p = data.result?.payload;
-        setNewsIngestHint(
-          `UAP briefs: updated ${p?.updated ?? 0} / scanned ${p?.scanned ?? 0} (run again for more)`,
-        );
+        const updated = p?.updated ?? 0;
+        const scanned = p?.scanned ?? 0;
+        const remaining = p?.remaining_without_brief ?? "?";
+        const skipped = p?.skipped_short ?? 0;
+        const text =
+          updated > 0
+            ? `✓ ${updated} brief${updated === 1 ? "" : "s"} saved (${scanned} processed). ~${remaining} sightings still need a brief — click AI briefs again.`
+            : scanned === 0
+              ? "No eligible sightings without a brief (or migration missing: summary_brief column)."
+              : `0 briefs saved (${scanned} tried${skipped ? `, ${skipped} too short` : ""}). ~${remaining} still waiting — try again.`;
+        setUapBriefHint({
+          text,
+          variant: updated > 0 ? "success" : "info",
+        });
+        setNewsIngestHint(`UAP AI briefs: ${updated} updated · ${scanned} scanned · ~${remaining} remaining`);
       }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setUapBriefHint({ text: `Failed: ${msg}`, variant: "error" });
     } finally {
       setScraperBusy("");
     }
@@ -915,7 +945,11 @@ export default function AdminPage() {
                   disabled={scraperBusy === "uap-briefs"}
                   onClick={() => void enrichUapBriefs()}
                   className="rounded border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
-                  style={{ borderColor: "#2a3830", color: muted }}
+                  style={{
+                    borderColor: scraperBusy === "uap-briefs" ? "var(--green-dark)" : "#2a3830",
+                    color: scraperBusy === "uap-briefs" ? "var(--green)" : muted,
+                    background: scraperBusy === "uap-briefs" ? "rgba(0,187,102,0.1)" : "transparent",
+                  }}
                 >
                   {scraperBusy === "uap-briefs" ? "Briefs…" : "AI briefs"}
                 </button>
@@ -923,6 +957,38 @@ export default function AdminPage() {
             )}
           </div>
         </div>
+
+        {job.target === "uap_scraper" && uapBriefHint ? (
+          <div
+            className="mt-2 rounded-md border px-3 py-2.5 text-[11px] leading-relaxed"
+            style={{
+              borderColor:
+                uapBriefHint.variant === "error"
+                  ? "#4a1a1a"
+                  : uapBriefHint.variant === "success"
+                    ? "rgba(0,187,102,0.45)"
+                    : "#2a3830",
+              background:
+                uapBriefHint.variant === "error"
+                  ? "rgba(255,51,51,0.08)"
+                  : uapBriefHint.variant === "success"
+                    ? "rgba(0,187,102,0.08)"
+                    : "#0a100c",
+              color:
+                uapBriefHint.variant === "error"
+                  ? "#ff9b9b"
+                  : uapBriefHint.variant === "success"
+                    ? "var(--green)"
+                    : "var(--foreground)",
+            }}
+            role="status"
+          >
+            <span className="mr-2 font-semibold uppercase tracking-wider" style={{ color: muted }}>
+              Result
+            </span>
+            {uapBriefHint.text}
+          </div>
+        ) : null}
 
         <div
           className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-2"
@@ -2085,7 +2151,9 @@ export default function AdminPage() {
                 style={{ borderColor: "#2a3830", background: "#0a100c", color: "var(--foreground)" }}
               >
                 <span className="mr-2 uppercase tracking-wider" style={{ color: muted }}>
-                  Last manual ingest
+                  {newsIngestHint.startsWith("UAP AI briefs")
+                    ? "UAP AI briefs"
+                    : "Last manual ingest"}
                 </span>
                 {newsIngestHint}
               </div>
