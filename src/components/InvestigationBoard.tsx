@@ -42,12 +42,24 @@ function tuneBoardCloneForExport(doc: Document, root: HTMLElement) {
       el.style.transition = "none";
     }
   });
+  const hasDetailPanel = Boolean(root.querySelector(".ib-detail-panel"));
   const mainSvg = root.querySelector(".ib-main-svg");
   if (mainSvg instanceof SVGElement) {
     mainSvg.style.opacity = "1";
-    mainSvg.style.width = "100%";
+    mainSvg.style.width = hasDetailPanel ? "calc(100% - 360px)" : "100%";
     mainSvg.style.height = "100%";
   }
+  root.querySelectorAll(".ib-detail-panel").forEach((panel) => {
+    if (!(panel instanceof HTMLElement)) return;
+    panel.style.animation = "none";
+    const scroll = panel.querySelector(".ib-detail-panel-scroll");
+    if (scroll instanceof HTMLElement) {
+      scroll.style.overflow = "visible";
+      scroll.style.overflowY = "visible";
+      scroll.style.maxHeight = "none";
+      scroll.style.height = "auto";
+    }
+  });
   root.querySelectorAll("svg").forEach((svg) => {
     if (!svg.classList.contains("ib-main-svg")) svg.style.opacity = "0.5";
   });
@@ -590,7 +602,6 @@ function DetailPanel({
     <>
     <div
       className="ib-detail-panel"
-      data-export-ignore
       style={{
         position: "absolute",
         right: 0,
@@ -619,12 +630,12 @@ function DetailPanel({
           <div style={{ fontFamily: FONT, fontSize: 10, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
           <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: c.text, letterSpacing: 1, marginTop: 3 }}>{node.label}</div>
         </div>
-        <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 11, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
+        <button type="button" data-export-ignore onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 11, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
           ✕
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div className="ib-detail-panel-scroll" style={{ flex: 1, overflowY: "auto", padding: 16 }}>
         {node.type === "theory" ? (
           <div style={{ marginBottom: 12 }}>
             {/* Theory header badge */}
@@ -1039,6 +1050,8 @@ function DetailPanel({
 
       <div style={{ padding: "12px 14px", borderTop: "1px solid #1a3320" }}>
         <button
+          type="button"
+          data-export-ignore
           onClick={() => setShowFullAnalysis(true)}
           style={{
             width: "100%",
@@ -1115,21 +1128,45 @@ export default function InvestigationBoard({
   const downloadPng = useCallback(async (): Promise<string | null> => {
     if (!boardRef.current) return null;
     setShareMenuOpen(false);
+
+    const previousSelection = internalSelected;
+    const didAutoPick = !previousSelection && nodes.length > 0;
+    if (didAutoPick) {
+      const pick =
+        nodes.find((n) => n.id === "center") ??
+        nodes.find((n) => n.type !== "theory") ??
+        nodes[0];
+      setInternalSelected(pick);
+      onNodeClick(pick);
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await new Promise<void>((r) => setTimeout(r, 120));
+    }
+
     if (typeof document !== "undefined" && document.fonts?.ready) {
       await document.fonts.ready;
     }
     const html2canvas = (await import("html2canvas")).default;
-    const canvas = await html2canvas(boardRef.current, {
+    const el = boardRef.current;
+    const canvas = await html2canvas(el, {
       backgroundColor: "#050c07",
       scale: 3,
       useCORS: true,
       allowTaint: false,
       logging: false,
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
       ignoreElements: shouldIgnoreInExport,
       onclone: (clonedDoc, clonedEl) => {
         tuneBoardCloneForExport(clonedDoc, clonedEl as HTMLElement);
       },
     });
+
+    if (didAutoPick) {
+      setInternalSelected(null);
+      onNodeClick(null);
+    }
     return new Promise((resolve) => {
       canvas.toBlob(
         (blob) => {
@@ -1146,7 +1183,7 @@ export default function InvestigationBoard({
         1
       );
     });
-  }, []);
+  }, [internalSelected, nodes, onNodeClick]);
 
   const shareVia = useCallback(async (platform: string) => {
     if (sharing) return;
