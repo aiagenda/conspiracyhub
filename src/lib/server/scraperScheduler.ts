@@ -181,8 +181,32 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   }
 }
 
+const OUTBREAK_JOB = {
+  job_key: "outbreak_refresh",
+  name: "Outbreak intelligence refresh",
+  target: "outbreak_scraper",
+  schedule_cron: "0 9 * * *",
+  enabled: false,
+  config: {},
+} as const;
+
+/** Idempotent — creates the job if migration was not applied yet. */
+async function ensureOutbreakScraperJob() {
+  const db = admin();
+  const { data: existing } = await db
+    .from("scraper_jobs")
+    .select("id")
+    .eq("job_key", OUTBREAK_JOB.job_key)
+    .maybeSingle();
+  if (existing) return;
+
+  const { error } = await db.from("scraper_jobs").upsert(OUTBREAK_JOB, { onConflict: "job_key" });
+  if (error) console.warn("[scraper] ensure outbreak_refresh job:", error.message);
+}
+
 export async function getSchedulerSnapshot() {
   const db = admin();
+  await ensureOutbreakScraperJob();
   const { data: jobs, error: jobsErr } = await db
     .from("scraper_jobs")
     .select("id,job_key,name,target,schedule_cron,enabled,config")

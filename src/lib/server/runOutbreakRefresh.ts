@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
+const OUTBREAK_LOCAL_NEWS_MAX = 10;
 
 const WHO_RSS = "https://www.who.int/rss-feeds/news-releases.xml";
 
@@ -103,7 +104,7 @@ async function fetchLocalNews(
 ): Promise<Array<{ title: string; url: string; source: string; pubDate: string }>> {
   try {
     const query = encodeURIComponent(`${disease} ${country}`);
-    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en&num=5`;
+    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en&num=${OUTBREAK_LOCAL_NEWS_MAX}`;
     const res = await fetch(url, {
       headers: { "User-Agent": "TheTheorist/1.0" },
       signal: AbortSignal.timeout(6000),
@@ -119,7 +120,7 @@ async function fetchLocalNews(
       const source = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
       if (title && link) items.push({ title, url: link, source, pubDate: pub });
     }
-    return items.slice(0, 5);
+    return items.slice(0, OUTBREAK_LOCAL_NEWS_MAX);
   } catch {
     return [];
   }
