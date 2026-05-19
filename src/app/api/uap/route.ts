@@ -128,37 +128,53 @@ async function fetchMuckRockUAP(): Promise<Array<{ title: string; url: string; s
 
 async function fetchUAPNews(): Promise<Array<{ title: string; url: string; source: string; pubDate: string; type: string }>> {
   const queries = [
-    "UAP UFO Pentagon AARO 2025",
-    "David Grusch UAP disclosure",
-    "declassified UFO documents 2025",
-    "UAP Congressional hearing testimony",
+    // broad live feed
+    "UAP UFO Pentagon",
+    "UFO disclosure 2026",
+    // key figures
+    "Ross Coulthart UAP UFO",
+    "David Grusch UAP whistleblower",
+    "Ryan Graves UAP pilot",
+    "Chris Mellon UAP",
+    // key orgs / events
+    "AARO UAP report",
+    "UAP Congressional hearing",
+    "FOIA UFO declassified",
+    "Pentagon UFO file dump",
+    // broader UAP topics
     "non-human intelligence craft",
-    "UAP whistleblower Pentagon secret",
+    "UAP whistleblower secret program",
     "alien craft recovered government",
+    "UFO sighting military pilot",
   ];
+  const seen = new Set<string>();
   const results: Array<{ title: string; url: string; source: string; pubDate: string; type: string }> = [];
-  for (const q of queries.slice(0, 4)) {
-    try {
-      const res = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, {
-        headers: { "User-Agent": "TheTheorist/1.0" },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) continue;
-      const xml = await res.text();
-      for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-        const x = m[1];
-        const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
-        const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
-        const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
-        const src = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
-        if (title && link && !results.some((r) => r.title === title))
-          results.push({ title, url: link, source: src || "Google News", pubDate: pub || new Date().toISOString(), type: "news" });
+  await Promise.all(
+    queries.map(async (q) => {
+      try {
+        const res = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36" },
+          signal: AbortSignal.timeout(7000),
+        });
+        if (!res.ok) return;
+        const xml = await res.text();
+        for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+          const x = m[1];
+          const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
+          const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
+          const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
+          const src = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
+          if (title && link && !seen.has(title)) {
+            seen.add(title);
+            results.push({ title, url: link, source: src || "Google News", pubDate: pub || new Date().toISOString(), type: "news" });
+          }
+        }
+      } catch {
+        /* skip */
       }
-    } catch {
-      /* skip */
-    }
-  }
-  return results.slice(0, 15);
+    }),
+  );
+  return results.slice(0, 40);
 }
 
 async function fetchRedditUAP(): Promise<Array<{ title: string; url: string; source: string; pubDate: string; type: string }>> {

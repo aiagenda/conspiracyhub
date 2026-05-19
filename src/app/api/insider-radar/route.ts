@@ -9,7 +9,6 @@ type Tracker = {
   type: "youtube" | "twitter";
   channelId?: string;
   handle?: string;
-  newsQuery?: string;
   avatar: string;
   color: string;
   category: string;
@@ -48,7 +47,6 @@ const TRACKERS: Tracker[] = [
     name: "David Grusch",
     type: "twitter",
     handle: "DavidCharlesGrusch",
-    newsQuery: "David Grusch UAP whistleblower",
     avatar: "🎖️",
     color: "#00ff88",
     category: "uap",
@@ -58,7 +56,6 @@ const TRACKERS: Tracker[] = [
     name: "Ryan Graves",
     type: "twitter",
     handle: "uncertainvector",
-    newsQuery: "Ryan Graves UAP pilot Americans for Safe Aerospace",
     avatar: "✈️",
     color: "#00bb66",
     category: "uap",
@@ -68,7 +65,6 @@ const TRACKERS: Tracker[] = [
     name: "Chris Mellon",
     type: "twitter",
     handle: "ChristopherMellon",
-    newsQuery: "Christopher Mellon UAP",
     avatar: "🏛️",
     color: "#8aa6ff",
     category: "uap",
@@ -78,7 +74,6 @@ const TRACKERS: Tracker[] = [
     name: "Ross Coulthart",
     type: "twitter",
     handle: "rosscoulthart",
-    newsQuery: "Ross Coulthart UAP",
     avatar: "📡",
     color: "#00bb66",
     category: "uap",
@@ -88,7 +83,6 @@ const TRACKERS: Tracker[] = [
     name: "Rep. Tim Burchett",
     type: "twitter",
     handle: "timburchett",
-    newsQuery: "Tim Burchett UAP congressional",
     avatar: "🏛️",
     color: "#c94dff",
     category: "uap",
@@ -167,43 +161,10 @@ async function fetchTwitterRSS(handle: string): Promise<Array<{ title: string; u
   return [];
 }
 
-async function fetchNewsRSS(query: string): Promise<Array<{ title: string; url: string; published: string }>> {
-  try {
-    const q = encodeURIComponent(query);
-    const res = await fetch(
-      `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`,
-      {
-        headers: { "User-Agent": UA, Accept: "application/rss+xml, application/xml, text/xml, */*" },
-        signal: AbortSignal.timeout(8000),
-        next: { revalidate: 1800 },
-      },
-    );
-    if (!res.ok) return [];
-    const xml = await res.text();
-    const items: Array<{ title: string; url: string; published: string }> = [];
-    for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-      const x = m[1];
-      const title = decodeXml(
-        x.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "",
-      );
-      const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
-      const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
-      if (title && link) items.push({ title, url: link, published: pub });
-    }
-    return items.slice(0, 3);
-  } catch {
-    return [];
-  }
-}
-
-async function fetchTwitterOrNews(
+async function fetchTwitterOrNitter(
   handle: string,
-  newsQuery?: string,
 ): Promise<Array<{ title: string; url: string; published: string }>> {
-  const fromNitter = await fetchTwitterRSS(handle);
-  if (fromNitter.length) return fromNitter;
-  if (newsQuery) return fetchNewsRSS(newsQuery);
-  return [];
+  return fetchTwitterRSS(handle);
 }
 
 export const revalidate = 1800;
@@ -215,7 +176,7 @@ export async function GET() {
         const posts =
           tracker.type === "youtube"
             ? await fetchYouTubeRSS(tracker.channelId!)
-            : await fetchTwitterOrNews(tracker.handle!, tracker.newsQuery);
+            : await fetchTwitterOrNitter(tracker.handle!);
         return { ...tracker, posts };
       }),
     );
