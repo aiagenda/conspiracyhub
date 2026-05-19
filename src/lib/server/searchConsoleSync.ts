@@ -67,6 +67,45 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+function pageFilterForSite(siteUrl: string): string {
+  if (siteUrl.startsWith("sc-domain:")) {
+    return `https://${siteUrl.slice("sc-domain:".length)}/`;
+  }
+  return siteUrl.endsWith("/") ? siteUrl : `${siteUrl}/`;
+}
+
+async function listAccessibleSites(accessToken: string): Promise<string[]> {
+  const res = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { siteEntry?: Array<{ siteUrl?: string }> };
+  return (data.siteEntry ?? []).map((e) => e.siteUrl ?? "").filter(Boolean);
+}
+
+async function gscApiError(res: Response, siteUrl: string, accessToken: string): Promise<never> {
+  let detail = "";
+  try {
+    const body = (await res.json()) as { error?: { message?: string } };
+    detail = body.error?.message ?? "";
+  } catch {
+    detail = await res.text().catch(() => "");
+  }
+
+  if (res.status === 403) {
+    const sites = await listAccessibleSites(accessToken);
+    const sitesHint =
+      sites.length > 0
+        ? ` Service account sees: ${sites.join(", ")}.`
+        : " Service account sees no properties — add it in Search Console → Settings → Users (or fix GSC_SITE_URL).";
+    throw new Error(
+      `GSC API 403 for "${siteUrl}".${sitesHint} Use sc-domain:the-theorist.com for domain properties. ${detail}`.trim(),
+    );
+  }
+
+  throw new Error(`GSC API error ${res.status} for "${siteUrl}"${detail ? `: ${detail}` : ""}`);
+}
+
 async function fetchSearchConsoleRows(accessToken: string, siteUrl: string, days = 28) {
   const endDate = new Date().toISOString().split("T")[0];
   const startDate = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
@@ -89,7 +128,7 @@ async function fetchSearchConsoleRows(accessToken: string, siteUrl: string, days
             filters: [
               {
                 dimension: "page",
-                expression: siteUrl,
+                expression: pageFilterForSite(siteUrl),
                 operator: "contains",
               },
             ],
@@ -99,7 +138,7 @@ async function fetchSearchConsoleRows(accessToken: string, siteUrl: string, days
     },
   );
 
-  if (!res.ok) throw new Error(`GSC API error: ${res.status}`);
+  if (!res.ok) await gscApiError(res, siteUrl, accessToken);
   return res.json() as Promise<{ rows?: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }> }>;
 }
 
