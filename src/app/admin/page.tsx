@@ -198,7 +198,7 @@ export default function AdminPage() {
   const [scraperBusy, setScraperBusy] = useState<string>("");
   /** Short summary after manual news ingest (Guardian + GNews + Reddit + RSS). */
   const [newsIngestHint, setNewsIngestHint] = useState<string | null>(null);
-  /** Visible on the NUFORC scraper card after “AI briefs”. */
+  /** Visible on the UAP full refresh card after “AI briefs”. */
   const [uapBriefHint, setUapBriefHint] = useState<{
     text: string;
     variant: "success" | "error" | "info";
@@ -825,21 +825,39 @@ export default function AdminPage() {
         error?: string;
         result?: { skipped?: boolean; reason?: string; ok?: boolean; payload?: Record<string, unknown> };
       };
-      if (job.target === "news_scraper" || job.target === "outbreak_scraper") {
+      if (job.target === "news_scraper" || job.target === "outbreak_scraper" || job.target === "uap_scraper") {
         if (!res.ok) {
-          setNewsIngestHint(`HTTP ${res.status}: ${data.error ?? "request failed"}`);
+          if (job.target === "uap_scraper") {
+            setUapBriefHint({ variant: "error", text: `HTTP ${res.status}: ${data.error ?? "request failed"}` });
+          } else {
+            setNewsIngestHint(`HTTP ${res.status}: ${data.error ?? "request failed"}`);
+          }
         } else {
         const r = data.result;
         if (data.error) {
-          setNewsIngestHint(`Error: ${data.error}`);
+          const msg = `Error: ${data.error}`;
+          if (job.target === "uap_scraper") setUapBriefHint({ variant: "error", text: msg });
+          else setNewsIngestHint(msg);
         } else if (r?.skipped) {
-          setNewsIngestHint(`Skipped: ${r.reason ?? "unknown"}`);
+          const msg = `Skipped: ${r.reason ?? "unknown"}`;
+          if (job.target === "uap_scraper") setUapBriefHint({ variant: "error", text: msg });
+          else setNewsIngestHint(msg);
         } else if (r?.ok === false) {
           const err = (r.payload as { error?: string } | undefined)?.error;
-          setNewsIngestHint(err ? `Failed: ${err}` : "Run failed (see job error below).");
+          const msg = err ? `Failed: ${err}` : "Run failed (see job error below).";
+          if (job.target === "uap_scraper") setUapBriefHint({ variant: "error", text: msg });
+          else setNewsIngestHint(msg);
         } else if (r?.payload && typeof r.payload === "object") {
           const p = r.payload;
-          if (job.target === "outbreak_scraper") {
+          if (job.target === "uap_scraper") {
+            const sight = p.sightings as { inserted?: number; skipped?: number; geocoded?: number } | undefined;
+            const news = p.news as { upserted?: number } | undefined;
+            const docs = p.documents as { upserted?: number } | undefined;
+            setUapBriefHint({
+              variant: "success",
+              text: `Full UAP refresh · news ${news?.upserted ?? 0} · docs +${docs?.upserted ?? 0} · sightings +${sight?.inserted ?? 0} (${sight?.geocoded ?? 0} geocoded) · ${String(p.refreshed_at ?? "").slice(0, 19)}`,
+            });
+          } else if (job.target === "outbreak_scraper") {
             const count = Array.isArray(p.outbreaks) ? p.outbreaks.length : "?";
             const cached = p.cached === true ? " (served from cache)" : "";
             setNewsIngestHint(`outbreaks ${count}${cached} · generated ${String(p.generated_at ?? "?")}`);
@@ -859,7 +877,8 @@ export default function AdminPage() {
             setNewsIngestHint(parts.join(" · "));
           }
         } else {
-          setNewsIngestHint("Done (no payload details).");
+          if (job.target === "uap_scraper") setUapBriefHint({ variant: "success", text: "Done (no payload details)." });
+          else setNewsIngestHint("Done (no payload details).");
         }
         }
       }
@@ -1096,6 +1115,26 @@ export default function AdminPage() {
               const n = Array.isArray(r.opportunities) ? r.opportunities.length : 0;
               const raw = typeof r.raw_count === "number" ? r.raw_count : 0;
               return `${n} opportunities · ${raw} queries from GSC`;
+            })()}
+          </div>
+        ) : null}
+        {job.target === "uap_scraper" && last?.status === "success" && last.result && typeof last.result === "object" ? (
+          <div
+            className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
+            style={{ borderColor: "#1a2620", color: "var(--green-dim)" }}
+            title={JSON.stringify(last.result)}
+          >
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+              Last run
+            </span>
+            {(() => {
+              const r = last.result as {
+                news?: { upserted?: number };
+                documents?: { upserted?: number };
+                sightings?: { inserted?: number; geocoded?: number };
+                refreshed_at?: string;
+              };
+              return `news ${r.news?.upserted ?? 0} · docs +${r.documents?.upserted ?? 0} · sightings +${r.sightings?.inserted ?? 0} · ${r.refreshed_at ? new Date(r.refreshed_at).toLocaleString("en-GB") : "—"}`;
             })()}
           </div>
         ) : null}
@@ -2205,7 +2244,7 @@ export default function AdminPage() {
               <code className="text-[var(--green-dim)]">SCRAPER_MIN_SCORE</code> (default 70) are stored. On the public feed,{" "}
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
-              <strong style={{ color: "var(--foreground)" }}>NUFORC UAP</strong> is a separate job (sightings table).{" "}
+              <strong style={{ color: "var(--foreground)" }}>UAP full intelligence refresh</strong> updates Latest News, Documents (FOIA feeds), curated Incidents/People/Orgs seed, and NUFORC Sightings in one run.{" "}
               <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
                 Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}

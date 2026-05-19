@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { runScraper } from "@/app/api/scraper/route";
-import { runUapScrape } from "@/app/api/uap-sightings/route";
+import { runUapFullScrape } from "@/lib/server/uapIngest";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
@@ -101,7 +101,7 @@ async function runUapScraper(config: Record<string, unknown> | null): Promise<{ 
     1
   ), 120);
   try {
-    const payload = await runUapScrape(maxNew);
+    const payload = await runUapFullScrape(maxNew);
     return { ok: true, status: 200, payload };
   } catch (e) {
     return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
@@ -223,6 +223,23 @@ async function ensureOutbreakScraperJob() {
   if (error) console.warn("[scraper] ensure outbreak_refresh job:", error.message);
 }
 
+const UAP_FULL_JOB = {
+  job_key: "uap_full_refresh",
+  name: "UAP full intelligence refresh",
+  target: "uap_scraper",
+  schedule_cron: "0 9 * * *",
+  enabled: true,
+  config: { max_new: 70 },
+} as const;
+
+/** Idempotent — unified UAP scrape (news, documents, reference seed, NUFORC). */
+async function ensureUapFullScraperJob() {
+  const db = admin();
+  const { error } = await db.from("scraper_jobs").upsert({ ...UAP_FULL_JOB }, { onConflict: "job_key" });
+  if (error) console.warn("[scraper] ensure uap_full_refresh:", error.message);
+  await db.from("scraper_jobs").update({ enabled: false }).eq("job_key", "uap_nuforc");
+}
+
 /** Idempotent — GSC sync + SEO article jobs (migration 20260516120100). */
 async function ensureSearchConsoleScraperJobs() {
   const db = admin();
@@ -241,6 +258,7 @@ async function ensureSearchConsoleScraperJobs() {
 export async function getSchedulerSnapshot() {
   const db = admin();
   await ensureOutbreakScraperJob();
+  await ensureUapFullScraperJob();
   await ensureSearchConsoleScraperJobs();
   const { data: jobs, error: jobsErr } = await db
     .from("scraper_jobs")
