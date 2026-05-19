@@ -388,7 +388,7 @@ function BoardAccessGate({
           )}
           {block.kind === "pro_required" && (
             <Link
-              href="/account"
+              href="/?auth=signup"
               style={{
                 display: "block",
                 fontFamily: "var(--font-raj), sans-serif",
@@ -405,7 +405,7 @@ function BoardAccessGate({
                 textAlign: "center",
               }}
             >
-              UPGRADE TO PRO — ACCOUNT & BILLING
+              REGISTER — 30-DAY ANALYST PASS FREE
             </Link>
           )}
           {backHref && (

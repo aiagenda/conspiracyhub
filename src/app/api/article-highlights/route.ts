@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
+import { PROFILE_PLAN_SELECT } from "@/lib/server/proTrial";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,8 +19,12 @@ async function getUserTier(auth: string | null): Promise<UserTier> {
     const admin = getAdminClient();
     const { data: { user }, error } = await admin.auth.getUser(auth.replace("Bearer ", ""));
     if (error || !user) return "guest";
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    return profile?.plan === "pro" ? "pro" : "free";
+    const { data: profile } = await admin
+      .from("user_profiles")
+      .select(PROFILE_PLAN_SELECT)
+      .eq("id", user.id)
+      .single();
+    return isEffectivePro(profile as UserProfilePlanRow) ? "pro" : "free";
   } catch {
     return "guest";
   }

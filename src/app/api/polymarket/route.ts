@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,8 +16,7 @@ async function isProUser(auth: string | null): Promise<boolean> {
     const admin = getAdminClient();
     const { data: { user }, error } = await admin.auth.getUser(auth.replace("Bearer ", ""));
     if (error || !user) return false;
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    return profile?.plan === "pro";
+    return userHasEffectivePro(admin, user.id);
   } catch {
     return false;
   }

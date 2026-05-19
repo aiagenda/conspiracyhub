@@ -12,6 +12,12 @@ type AccountPayload = {
   email: string;
   nickname: string | null;
   plan: string;
+  effective_pro?: boolean;
+  effective_plan?: string;
+  pro_trial_ends_at?: string | null;
+  pro_trial_days_left?: number | null;
+  on_analyst_pass_trial?: boolean;
+  can_claim_trial?: boolean;
   subscription_status: string | null;
   current_period_end: string | null;
   billing_portal_available: boolean;
@@ -48,6 +54,7 @@ export default function AccountPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
+  const [claimTrialLoading, setClaimTrialLoading] = useState(false);
 
   const [visitor, setVisitor] = useState(false);
 
@@ -114,6 +121,37 @@ export default function AccountPage() {
     }, 2000);
     return () => window.clearInterval(id);
   }, [load]);
+
+  async function claimAnalystPass() {
+    setError(null);
+    setClaimTrialLoading(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError("Sign in to claim your Analyst Pass.");
+        return;
+      }
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ claim_trial: true }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "Could not activate Analyst Pass");
+        return;
+      }
+      await load();
+    } finally {
+      setClaimTrialLoading(false);
+    }
+  }
 
   async function startCheckout() {
     setError(null);
@@ -251,6 +289,11 @@ export default function AccountPage() {
   const periodHint = data?.current_period_end
     ? accessPeriodHint(data.current_period_end, cancelingSubscription)
     : null;
+  const hasEffectivePro = Boolean(data?.effective_pro ?? data?.plan === "pro");
+  const onAnalystPass = Boolean(data?.on_analyst_pass_trial);
+  const trialDaysLeft =
+    typeof data?.pro_trial_days_left === "number" ? data.pro_trial_days_left : null;
+  const paidStripePro = Boolean(data?.stripe_subscription_id && !onAnalystPass);
 
   return (
     <div
@@ -449,11 +492,25 @@ export default function AccountPage() {
                 )}
               </div>
 
-              {data.plan === "pro" ? (
+              {hasEffectivePro ? (
                 <div style={{ ...card, borderColor: "rgba(0,255,136,0.3)", background: "rgba(0,255,136,0.03)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
                     <span style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 3 }}>PRO</span>
-                    {cancelingSubscription ? (
+                    {onAnalystPass ? (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          background: "rgba(0,255,136,0.12)",
+                          border: "1px solid rgba(0,187,102,0.5)",
+                          color: "#00ff88",
+                          padding: "2px 8px",
+                          borderRadius: 2,
+                          letterSpacing: 2,
+                        }}
+                      >
+                        ANALYST PASS · TRIAL
+                      </span>
+                    ) : cancelingSubscription ? (
                       <span
                         style={{
                           fontSize: 9,
@@ -471,18 +528,42 @@ export default function AccountPage() {
                       <span style={{ fontSize: 9, background: "rgba(0,255,136,0.15)", border: "1px solid rgba(0,255,136,0.4)", color: "#00ff88", padding: "2px 8px", borderRadius: 2, letterSpacing: 2 }}>ACTIVE</span>
                     )}
                   </div>
+                  {onAnalystPass && (
+                    <div style={{ fontSize: 11, color: "#9ac8b0", marginBottom: 12, lineHeight: 1.65 }}>
+                      {trialDaysLeft != null && trialDaysLeft > 0 ? (
+                        <>
+                          Your complimentary <strong style={{ color: "#00ff88" }}>Analyst Pass</strong> runs for{" "}
+                          <strong style={{ color: "#e8ffe8" }}>{trialDaysLeft}</strong> more day
+                          {trialDaysLeft === 1 ? "" : "s"}
+                          {data.pro_trial_ends_at ? (
+                            <>
+                              {" "}
+                              (ends{" "}
+                              {new Date(data.pro_trial_ends_at).toLocaleDateString(undefined, { dateStyle: "medium" })})
+                            </>
+                          ) : null}
+                          . No card required during the trial.
+                        </>
+                      ) : (
+                        <>Your Analyst Pass ends soon — subscribe below to keep PRO features.</>
+                      )}
+                    </div>
+                  )}
                   {cancelingSubscription && (
                     <div style={{ fontSize: 11, color: "#ffcc88", marginBottom: 10, lineHeight: 1.65 }}>
                       You canceled PRO in Stripe. Billing does not renew — you keep PRO features until the date below,
                       then the plan becomes FREE automatically.
                     </div>
                   )}
-                  {data.subscription_status && data.subscription_status !== "active" && !cancelingSubscription && (
+                  {paidStripePro &&
+                    data.subscription_status &&
+                    data.subscription_status !== "active" &&
+                    !cancelingSubscription && (
                     <div style={{ fontSize: 11, color: "#ffaa00", marginBottom: 6 }}>
                       Subscription status: <span style={{ color: "#e8ffe8" }}>{data.subscription_status}</span>
                     </div>
                   )}
-                  {data.current_period_end && (
+                  {paidStripePro && data.current_period_end && (
                     <div style={{ fontSize: 11, color: "#7aaa8a", marginBottom: 6, lineHeight: 1.6 }}>
                       {cancelingSubscription ? "PRO access ends:" : "Next renewal date:"}{" "}
                       <span style={{ color: "#c8e8d0" }}>
@@ -493,9 +574,36 @@ export default function AccountPage() {
                       </span>
                     </div>
                   )}
-                  {periodHint && (
+                  {paidStripePro && periodHint && (
                     <div style={{ fontSize: 11, color: "#5a8068", marginBottom: 14, letterSpacing: 0.3 }}>{periodHint}</div>
                   )}
+                  {onAnalystPass && (
+                    <div style={{ marginBottom: 14 }}>
+                      <button
+                        type="button"
+                        disabled={checkoutLoading}
+                        onClick={() => void startCheckout()}
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "9px 18px",
+                          border: "1px solid #00bb66",
+                          background: "rgba(0,255,136,0.06)",
+                          color: "#00ff88",
+                          borderRadius: 3,
+                          cursor: checkoutLoading ? "wait" : "pointer",
+                          opacity: checkoutLoading ? 0.7 : 1,
+                        }}
+                      >
+                        {checkoutLoading ? "OPENING CHECKOUT…" : "◐ KEEP PRO AFTER TRIAL — $7/mo ▸"}
+                      </button>
+                    </div>
+                  )}
+                  {paidStripePro && (
+                  <>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     <button
                       type="button"
@@ -547,6 +655,8 @@ export default function AccountPage() {
                       ? "You can still use Manage billing to update payment methods or invoices. Reactivate in Stripe if you change your mind before the end date."
                       : "Change card · Invoices · Cancel ends PRO at period end unless you choose immediate cancel in Stripe."}
                   </div>
+                  </>
+                  )}
                 </div>
               ) : (
                 <div style={{ ...card, borderColor: "#1a3320" }}>
@@ -554,9 +664,43 @@ export default function AccountPage() {
                     <span style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 22, fontWeight: 700, color: "#5a8068", letterSpacing: 3 }}>FREE</span>
                   </div>
                   <div style={{ fontSize: 12, color: "#7aaa8a", marginBottom: 16, lineHeight: 1.7 }}>
-                    Upgrade to <strong style={{ color: "#00ff88" }}>PRO</strong> for unlimited Oracle triggers, full article highlights, Polymarket real-time odds, URL analyzer and board export.
+                    {data.can_claim_trial ? (
+                      <>
+                        Claim your one-time <strong style={{ color: "#00ff88" }}>30-day Analyst Pass</strong> — full PRO
+                        with no credit card. Or subscribe for $7/mo when you are ready.
+                      </>
+                    ) : (
+                      <>
+                        Upgrade to <strong style={{ color: "#00ff88" }}>PRO</strong> for unlimited Oracle triggers, full
+                        article highlights, Polymarket real-time odds, URL analyzer and board export. New accounts include a
+                        30-day Analyst Pass at signup.
+                      </>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {data.can_claim_trial && (
+                      <button
+                        type="button"
+                        disabled={claimTrialLoading}
+                        onClick={() => void claimAnalystPass()}
+                        style={{
+                          fontFamily: "var(--font-raj), sans-serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          padding: "9px 18px",
+                          border: "1px solid #00bb66",
+                          background: "rgba(0,255,136,0.12)",
+                          color: "#00ff88",
+                          borderRadius: 3,
+                          cursor: claimTrialLoading ? "wait" : "pointer",
+                          opacity: claimTrialLoading ? 0.7 : 1,
+                        }}
+                      >
+                        {claimTrialLoading ? "ACTIVATING…" : "◈ CLAIM 30-DAY ANALYST PASS ▸"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={checkoutLoading}

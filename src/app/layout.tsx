@@ -4,6 +4,7 @@ import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
 import PageTracker from "@/components/PageTracker";
 import SendFeedbackWidget from "@/components/SendFeedbackWidget";
+import TrialPromoBar from "@/components/TrialPromoBar";
 
 const raj = Rajdhani({
   variable: "--font-raj",
@@ -89,6 +90,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <PageTracker />
+        <TrialPromoBar />
         <main id="main-content" className="flex flex-1 flex-col outline-none">
           {children}
         </main>

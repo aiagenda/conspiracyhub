@@ -6,6 +6,7 @@ import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
 import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
+import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
 function getAdminClient() {
@@ -31,8 +32,9 @@ export async function POST(req: NextRequest) {
     const { newsId } = await req.json();
     if (!newsId) return NextResponse.json({ error: "newsId_required" }, { status: 400 });
 
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    if (!(await userHasEffectivePro(admin, user.id))) {
+      return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    }
 
     const { data: news } = await admin.from("news_items").select("*").eq("id", newsId).single();
     if (!news) return NextResponse.json({ error: "news_not_found" }, { status: 404 });

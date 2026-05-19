@@ -734,10 +734,10 @@ export default function ArticleReader({
                       ⚠ {hlTotal - highlights.length} SIGNAL{hlTotal - highlights.length > 1 ? "S" : ""} HIDDEN
                     </div>
                     <div style={{ fontFamily: FONT, fontSize: 10, color: "#8a7a60", letterSpacing: 0.5, lineHeight: 1.55, marginBottom: 10 }}>
-                      PRO unlocks all {hlTotal} signals — medium + low severity flags with full notes.
+                      Register for a <strong style={{ color: "#ffcc66" }}>30-day Analyst Pass</strong> — unlock all {hlTotal} signals with full notes.
                     </div>
                     <a
-                      href="/account"
+                      href="/?auth=signup"
                       style={{
                         display: "block",
                         textAlign: "center",
@@ -763,7 +763,7 @@ export default function ArticleReader({
                         (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,170,0,0.5)";
                       }}
                     >
-                      UPGRADE TO PRO — $7/MO ▶
+                      REGISTER — FREE 30-DAY PASS ▶
                     </a>
                   </div>
                 )}

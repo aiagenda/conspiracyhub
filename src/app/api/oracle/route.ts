@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runOraclePipelineInsert } from "@/lib/server/oraclePipeline";
+import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,8 +47,9 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       if (cached) return NextResponse.json(cached);
 
-      const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-      if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+      if (!(await userHasEffectivePro(admin, user.id))) {
+        return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+      }
 
       const result = await runOraclePipelineInsert(admin, { newsId });
       if (!result.ok) {
@@ -65,8 +67,9 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (cached) return NextResponse.json(cached);
 
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    if (!(await userHasEffectivePro(admin, user.id))) {
+      return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    }
 
     const result = await runOraclePipelineInsert(admin, { generatedArticleId });
     if (!result.ok) {

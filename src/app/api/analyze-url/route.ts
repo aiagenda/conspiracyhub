@@ -8,6 +8,7 @@ import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } fro
 import { normalizeVerdict } from "@/lib/verdict";
 import { fetchUrlContent } from "@/lib/urlContent";
 import type { OracleAnalysis } from "@/types";
+import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,8 +29,9 @@ export async function POST(req: NextRequest) {
     } = await admin.auth.getUser(auth.replace("Bearer ", ""));
     if (userErr || !user) return NextResponse.json({ error: "invalid_token" }, { status: 401 });
 
-    const { data: profile } = await admin.from("user_profiles").select("plan").eq("id", user.id).single();
-    if (profile?.plan !== "pro") return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    if (!(await userHasEffectivePro(admin, user.id))) {
+      return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    }
 
     const body = await req.json();
     const urlStr: string = body.url ?? "";

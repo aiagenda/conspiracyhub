@@ -9,13 +9,23 @@ const MONO = "var(--font-share-tech-mono), monospace";
 
 type SignupSuccessMode = "confirm_email" | "signed_in";
 
-export default function AuthModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<"signin" | "signup">("signin");
+export default function AuthModal({
+  onClose,
+  initialTab = "signin",
+}: {
+  onClose: () => void;
+  initialTab?: "signin" | "signup";
+}) {
+  const [tab, setTab] = useState<"signin" | "signup">(initialTab);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState<{ mode: SignupSuccessMode; email: string } | null>(null);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -224,8 +234,8 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
                   </>
                 ) : (
                   <>
-                    Your account is live — no email step required on this server. You can close this panel and keep
-                    investigating.
+                    Your account is live with a <strong style={{ color: "#00bb66" }}>30-day Analyst Pass</strong> — full
+                    PRO (Oracle, URL analysis, highlights). Open Account anytime to see days remaining.
                   </>
                 )}
               </p>
@@ -336,6 +346,25 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
+
+            {tab === "signup" && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 4,
+                  border: "1px solid rgba(0,187,102,0.4)",
+                  background: "rgba(0,255,136,0.06)",
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  color: "#9ac8b0",
+                  lineHeight: 1.6,
+                  letterSpacing: 0.3,
+                }}
+              >
+                <strong style={{ color: "#00ff88" }}>30-day Analyst Pass</strong> included — full PRO after signup
+                (Oracle, URL analyzer, all highlights). No credit card required for the trial.
+              </div>
+            )}
 
             {/* INPUTS */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

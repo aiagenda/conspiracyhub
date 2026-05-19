@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { Suspense } from "react";
 import FeedScreen, { type FeedPagination } from "@/components/FeedScreen";
 import { loadReaderReactionsForNewsIds } from "@/lib/readerReactionVote";
 import { getFeedMinScore } from "@/lib/feedMinScore";
@@ -124,10 +125,12 @@ export default async function Home({
       : undefined;
 
   return (
-    <FeedScreen
-      initialItems={items}
-      feedNotice={items.length === 0 ? "empty_database" : undefined}
-      feedPagination={feedPagination}
-    />
+    <Suspense fallback={null}>
+      <FeedScreen
+        initialItems={items}
+        feedNotice={items.length === 0 ? "empty_database" : undefined}
+        feedPagination={feedPagination}
+      />
+    </Suspense>
   );
 }

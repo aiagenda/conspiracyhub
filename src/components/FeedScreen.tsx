@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
@@ -91,6 +91,7 @@ export default function FeedScreen({
   /** Re-render periodically so relative "Xm ago" labels advance without re-fetching /api/health. */
   const [healthAgeTick, setHealthAgeTick] = useState(0);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -112,6 +113,13 @@ export default function FeedScreen({
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
 
+  useEffect(() => {
+    const auth = searchParams.get("auth");
+    if (auth === "signup" || auth === "signin") {
+      setShowAuth(true);
+    }
+  }, [searchParams]);
+
   // Fetch plan from account API when user changes
   useEffect(() => {
     if (!user) {
@@ -128,7 +136,7 @@ export default function FeedScreen({
           if (!token) return;
           fetch("/api/account", { headers: { Authorization: `Bearer ${token}` } })
             .then((r) => r.json())
-            .then((d) => setUserPlan(d.plan ?? null))
+            .then((d) => setUserPlan(d.effective_plan ?? d.plan ?? null))
             .catch(() => {});
         });
     });
@@ -542,7 +550,15 @@ export default function FeedScreen({
       >
         ↑
       </button>
-      {showAuth && <AuthModal onClose={() => { setShowAuth(false); refreshUser(); }} />}
+      {showAuth && (
+        <AuthModal
+          initialTab={searchParams.get("auth") === "signup" ? "signup" : "signin"}
+          onClose={() => {
+            setShowAuth(false);
+            refreshUser();
+          }}
+        />
+      )}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={redirectToStripeCheckout} />}
     </div>
   );

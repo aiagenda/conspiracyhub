@@ -5,6 +5,7 @@ import {
   executeJob,
   matchesCronNow,
 } from "@/lib/server/scraperScheduler";
+import { expireExpiredProTrials } from "@/lib/server/proTrial";
 
 export const maxDuration = 300;
 
@@ -17,6 +18,14 @@ function admin() {
 
 async function runTick() {
   const db = admin();
+  let trialExpired = 0;
+  try {
+    const r = await expireExpiredProTrials(db);
+    trialExpired = r.expired;
+  } catch (e) {
+    console.error("[scheduler] expire trials", e);
+  }
+
   const { data: jobs, error } = await db
     .from("scraper_jobs")
     .select("id,job_key,name,target,schedule_cron,enabled,config")
@@ -39,6 +48,7 @@ async function runTick() {
   return {
     tick_at: now.toISOString(),
     due_count: due.length,
+    pro_trials_expired: trialExpired,
     results,
   };
 }

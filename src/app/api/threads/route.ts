@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import { createHash } from "crypto";
 import { ARTICLE_THREAD_STARTER_FP, buildArticleThreadStarterRow } from "@/lib/articleThreadStarters";
 import { callOpenAIJSON } from "@/lib/openai";
+import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -310,8 +311,7 @@ export async function POST(req: NextRequest) {
       const FREE_ORACLE_DAILY_LIMIT = 3;
       let oracleBlocked = false;
       if (mentionsOracle && apiKey) {
-        const { data: prof } = await admin.from("user_profiles").select("plan").eq("id", authUser.id).single();
-        const isPro = prof?.plan === "pro";
+        const isPro = await userHasEffectivePro(admin, authUser.id);
         if (!isPro) {
           const since = new Date(Date.now() - 86_400_000).toISOString();
           const { count } = await admin
