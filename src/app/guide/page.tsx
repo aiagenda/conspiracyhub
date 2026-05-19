@@ -166,7 +166,7 @@ export default function GuidePage() {
             </Note>
             <Sub>Sources</Sub>
             <Row label="YOUTUBE" color="#ff3333">Direct channel RSS — e.g. The Why Files, Ross Coulthart, SecureTeam10. Cards show thumbnails and ↗ WATCH links.</Row>
-            <Row label="INSIDERS" color="#00ff88">Tracked figures such as David Grusch, Ryan Graves, Chris Mellon, Ross Coulthart (X), Rep. Tim Burchett. When X/Twitter mirrors are unavailable, items may come from Google News search (badge: <strong style={{ color: "#c8e8d0" }}>NEWS</strong>) — still credible headlines, not live tweets.</Row>
+            <Row label="INSIDERS" color="#00ff88">Tracked figures such as David Grusch, Ryan Graves, Chris Mellon, Ross Coulthart (X), Rep. Tim Burchett. X posts use the official API when <code style={{ color: "#3a5040" }}>X_BEARER_TOKEN</code> (or <code style={{ color: "#3a5040" }}>X_CLIENT_ID</code> + <code style={{ color: "#3a5040" }}>X_CLIENT_SECRET</code>) is set on Vercel; badge <strong style={{ color: "#c8e8d0" }}>X</strong> = live tweets.</Row>
             <Sub>Filters</Sub>
             <Row label="ALL" color="#5a8068">Every signal in one grid, newest first.</Row>
             <Row label="▶ YOUTUBE" color="#ff3333">Video uploads only.</Row>

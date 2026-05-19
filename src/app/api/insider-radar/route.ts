@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchXPostsByHandle, isXApiConfigured } from "@/lib/server/xApi";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -128,8 +129,11 @@ async function fetchYouTubeRSS(
   }
 }
 
-async function fetchTwitterRSS(handle: string): Promise<Array<{ title: string; url: string; published: string }>> {
-  const NITTER_INSTANCES = ["nitter.net", "nitter.poast.org", "nitter.privacydev.net"];
+/** Legacy fallback when X API env is not configured. */
+async function fetchTwitterNitterFallback(
+  handle: string,
+): Promise<Array<{ title: string; url: string; published: string }>> {
+  const NITTER_INSTANCES = ["nitter.poast.org", "nitter.privacydev.net"];
 
   for (const instance of NITTER_INSTANCES) {
     try {
@@ -161,22 +165,28 @@ async function fetchTwitterRSS(handle: string): Promise<Array<{ title: string; u
   return [];
 }
 
-async function fetchTwitterOrNitter(
+async function fetchTwitterPosts(
   handle: string,
 ): Promise<Array<{ title: string; url: string; published: string }>> {
-  return fetchTwitterRSS(handle);
+  if (isXApiConfigured()) {
+    const fromX = await fetchXPostsByHandle(handle, 3);
+    if (fromX.length) return fromX;
+  }
+  return fetchTwitterNitterFallback(handle);
 }
 
 export const revalidate = 1800;
 
 export async function GET() {
   try {
+    const x_source = isXApiConfigured() ? "x_api" : "nitter_fallback";
+
     const results = await Promise.allSettled(
       TRACKERS.map(async (tracker) => {
         const posts =
           tracker.type === "youtube"
             ? await fetchYouTubeRSS(tracker.channelId!)
-            : await fetchTwitterOrNitter(tracker.handle!);
+            : await fetchTwitterPosts(tracker.handle!);
         return { ...tracker, posts };
       }),
     );
@@ -215,6 +225,7 @@ export async function GET() {
         post_count: t.posts.length,
       })),
       generated_at: new Date().toISOString(),
+      x_source,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

@@ -54,7 +54,7 @@ function PostCard({ post }: { post: Post }) {
               {post.tracker_name}
             </span>
             <span style={{ fontSize: 10, color: "#5a8068", border: "1px solid #1a3320", padding: "2px 7px", borderRadius: 2, letterSpacing: 1, textTransform: "uppercase", fontFamily: RAJ, fontWeight: 700 }}>
-              {post.tracker_type === "youtube" ? "YT" : "NEWS"}
+              {post.tracker_type === "youtube" ? "YT" : "X"}
             </span>
             <span style={{ fontSize: 11, color: "#5a8068", marginLeft: "auto", letterSpacing: 1 }}>{timeAgo(post.published)}</span>
           </div>
@@ -140,7 +140,7 @@ export default function InsiderRadar() {
             {[
               { key: "all",     label: "ALL" },
               { key: "youtube", label: "▶ YOUTUBE" },
-              { key: "twitter", label: "✕ X / NEWS" },
+              { key: "twitter", label: "✕ X" },
             ].map(f => (
               <button key={f.key} type="button" onClick={() => setFilter(f.key as typeof filter)}
                 style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 2, cursor: "pointer", border: `1px solid ${filter === f.key ? "#00bb66" : "#1a3320"}`, background: filter === f.key ? "rgba(0,255,136,0.08)" : "transparent", color: filter === f.key ? "#00ff88" : "#5a8068" }}>
@@ -159,7 +159,7 @@ export default function InsiderRadar() {
           {loading && (
             <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
               <div style={{ marginBottom: 12 }}>[ SCANNING INSIDER CHANNELS... ]</div>
-              {["Connecting to YouTube RSS...", "Fetching insider feeds...", "Sorting by relevance..."].map((l, i) => (
+              {["Connecting to YouTube RSS...", "Fetching X / insider feeds...", "Sorting by relevance..."].map((l, i) => (
                 <div key={i} style={{ color: "#3a6040", marginBottom: 5, fontSize: 11 }}>{l}</div>
               ))}
             </div>
