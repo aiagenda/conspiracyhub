@@ -20,6 +20,7 @@ export default function SiteFooter() {
 
   return (
     <footer
+      className="site-footer"
       style={{
         borderTop: "1px solid #1a3320",
         padding: "20px clamp(1rem, 3vw, 2rem)",
@@ -33,11 +34,11 @@ export default function SiteFooter() {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 9, color: "#2a4030", letterSpacing: 3, textTransform: "uppercase" }}>
+        <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 3, textTransform: "uppercase" }}>
           ■ THE THEORIST
         </span>
         <span style={{ width: 1, height: 12, background: "#1a3320", display: "inline-block" }} />
-        <span style={{ fontSize: 9, color: "#1e3028", letterSpacing: 1, textTransform: "uppercase" }}>
+        <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 1, textTransform: "uppercase" }}>
           © {new Date().getFullYear()} · AI INVESTIGATIVE INTELLIGENCE
         </span>
       </div>
@@ -52,12 +53,12 @@ export default function SiteFooter() {
               fontWeight: 700,
               letterSpacing: 2,
               textTransform: "uppercase",
-              color: pathname === l.href ? "#00bb66" : "#2a4030",
+              color: pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)",
               textDecoration: "none",
               transition: "color 0.15s",
             }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = pathname === l.href ? "#00bb66" : "#2a4030"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)"; }}
           >
             {l.label}
           </a>

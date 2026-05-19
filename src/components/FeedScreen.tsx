@@ -304,21 +304,21 @@ export default function FeedScreen({
 
           {/* EMPTY STATE */}
           {visible.length === 0 && (
-            <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
+            <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--muted, #9ec8ae)", fontSize: 11, letterSpacing: 2 }}>
               {initialItems.length === 0 && feedNotice === "missing_supabase_env" ? (
                 <>
                   <div style={{ marginBottom: 12, color: "#ffaa00" }}>◈ SERVER: SUPABASE NOT CONFIGURED</div>
-                  <div style={{ fontSize: 10, color: "#3a5040", maxWidth: 420, margin: "0 auto 20px", lineHeight: 1.6 }}>
-                    Set <span style={{ color: "#5a8068" }}>NEXT_PUBLIC_SUPABASE_URL</span> and{" "}
-                    <span style={{ color: "#5a8068" }}>SUPABASE_SERVICE_KEY</span> on Vercel (Production), then redeploy.
+                  <div style={{ fontSize: 10, color: "var(--muted-dim, #7aaa8a)", maxWidth: 420, margin: "0 auto 20px", lineHeight: 1.6 }}>
+                    Set <span style={{ color: "var(--muted, #9ec8ae)" }}>NEXT_PUBLIC_SUPABASE_URL</span> and{" "}
+                    <span style={{ color: "var(--muted, #9ec8ae)" }}>SUPABASE_SERVICE_KEY</span> on Vercel (Production), then redeploy.
                   </div>
                 </>
               ) : initialItems.length === 0 && feedNotice === "empty_database" ? (
                 <>
                   <div style={{ marginBottom: 12 }}>◈ NO ARTICLES IN DATABASE YET</div>
-                  <div style={{ fontSize: 10, color: "#3a5040", maxWidth: 440, margin: "0 auto 16px", lineHeight: 1.6 }}>
-                    Open <strong style={{ color: "#5a8068" }}>Admin → Scrapers</strong> and use <strong style={{ color: "#5a8068" }}>Run now</strong> on the news job, or wait for the daily cron (09:00 UTC). Ensure{" "}
-                    <span style={{ color: "#5a8068" }}>OPENAI_API_KEY</span>, <span style={{ color: "#5a8068" }}>CRON_SECRET</span>, and migrations are applied on Supabase.
+                  <div style={{ fontSize: 10, color: "var(--muted-dim, #7aaa8a)", maxWidth: 440, margin: "0 auto 16px", lineHeight: 1.6 }}>
+                    Open <strong style={{ color: "var(--muted, #9ec8ae)" }}>Admin → Scrapers</strong> and use <strong style={{ color: "var(--muted, #9ec8ae)" }}>Run now</strong> on the news job, or wait for the daily cron (09:00 UTC). Ensure{" "}
+                    <span style={{ color: "var(--muted, #9ec8ae)" }}>OPENAI_API_KEY</span>, <span style={{ color: "var(--muted, #9ec8ae)" }}>CRON_SECRET</span>, and migrations are applied on Supabase.
                   </div>
                 </>
               ) : (
@@ -405,7 +405,7 @@ export default function FeedScreen({
                 </div>
               ) : (
                 <>
-                  <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 2, width: "100%", textAlign: "center" }}>
+                  <span style={{ fontSize: 10, color: "var(--muted-dim, #7aaa8a)", letterSpacing: 2, width: "100%", textAlign: "center" }}>
                     PAGE {feedPagination.page} / {feedPagination.totalPages}
                   </span>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -430,6 +430,7 @@ export default function FeedScreen({
                       </Link>
                     ) : (
                       <span
+                        className="feed-pagination-muted"
                         style={{
                           fontFamily: "var(--font-raj), sans-serif",
                           fontSize: 12,
@@ -439,7 +440,6 @@ export default function FeedScreen({
                           padding: "8px 18px",
                           borderRadius: 3,
                           border: "1px solid #1a3320",
-                          color: "#2a4030",
                           cursor: "default",
                         }}
                       >
@@ -491,6 +491,7 @@ export default function FeedScreen({
                       )
                     ) : (
                       <span
+                        className="feed-pagination-muted"
                         style={{
                           fontFamily: "var(--font-raj), sans-serif",
                           fontSize: 12,
@@ -500,7 +501,6 @@ export default function FeedScreen({
                           padding: "8px 18px",
                           borderRadius: 3,
                           border: "1px solid #1a3320",
-                          color: "#2a4030",
                           cursor: "default",
                         }}
                       >
@@ -529,7 +529,6 @@ export default function FeedScreen({
           borderRadius: "50%",
           background: "rgba(9,15,11,0.9)",
           border: "1px solid #1a3320",
-          color: "#5a8068",
           fontSize: 14,
           cursor: "pointer",
           display: "flex",
@@ -544,7 +543,7 @@ export default function FeedScreen({
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
-          (e.currentTarget as HTMLButtonElement).style.color = "#5a8068";
+          (e.currentTarget as HTMLButtonElement).style.color = "var(--muted-dim, #7aaa8a)";
         }}
         title="Back to top"
       >

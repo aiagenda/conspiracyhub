@@ -8,10 +8,10 @@
   --green-dark: #1a3320;
   --red: #ff3333;
   --amber: #ffaa00;
-  /* Secondary text on #050c07 — ≥4.5:1 for small UI copy (was #5a8068) */
-  --muted: #7aaa8a;
-  --muted-dim: #6a9478;
-  --faint: #5a8068;
+  /* Secondary text on #050c07 / #090f0b — WCAG AA small text (was #5a8068) */
+  --muted: #9ec8ae;
+  --muted-dim: #7aaa8a;
+  --faint: #6a9478;
   --card: #090f0b;
 }
 
@@ -91,7 +91,29 @@ body {
   color: var(--muted-dim) !important;
 }
 .news-card-meta {
+  color: #b0dcc0 !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+.news-card-angle {
   color: var(--muted) !important;
+}
+.news-card-action-link {
+  color: var(--muted-dim) !important;
+}
+.reader-reaction-btn {
+  color: var(--muted-dim) !important;
+}
+.site-footer a {
+  color: var(--muted-dim) !important;
+}
+.site-footer-meta {
+  color: var(--muted-dim) !important;
+}
+.feed-scroll-top {
+  color: var(--muted-dim) !important;
+}
+.feed-pagination-muted {
+  color: var(--muted-dim) !important;
 }
 
 /* Focus — keyboard navigation */

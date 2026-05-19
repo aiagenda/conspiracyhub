@@ -158,7 +158,7 @@ export default function NewsCard({
         </a>
 
         {item.angle && (
-          <div style={{ fontSize: 14, color: "#5a8068", borderLeft: "2px solid #1a3320", paddingLeft: 10, lineHeight: 1.65 }}>
+          <div className="news-card-angle" style={{ fontSize: 14, borderLeft: "2px solid #1a3320", paddingLeft: 10, lineHeight: 1.65 }}>
             <span style={{ color: "#00bb66" }}>▸ </span>
             {item.angle}
           </div>
@@ -194,13 +194,13 @@ export default function NewsCard({
           </button>
           <Link
             href={`/community?article=${item.id}`}
+            className="news-card-action-link"
             style={{
               display: "block",
               textAlign: "center",
               textDecoration: "none",
               background: "transparent",
               border: "1px solid #1a3320",
-              color: "#5a8068",
               borderRadius: 3,
               padding: "10px 14px",
               fontFamily: "var(--font-raj), sans-serif",
@@ -216,7 +216,7 @@ export default function NewsCard({
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#5a8068";
+              (e.currentTarget as HTMLAnchorElement).style.color = "var(--muted-dim, #7aaa8a)";
             }}
           >
             ▸ DISCUSS IN COMMUNITY
@@ -224,13 +224,13 @@ export default function NewsCard({
           {showLiveChat ? (
           <Link
             href={`/article/${item.id}?chat=1`}
+            className="news-card-action-link"
             style={{
               display: "block",
               textAlign: "center",
               textDecoration: "none",
               background: "transparent",
               border: "1px solid rgba(0,187,102,0.3)",
-              color: "#4a7060",
               borderRadius: 3,
               padding: "10px 14px",
               fontFamily: "var(--font-raj), sans-serif",
@@ -246,7 +246,7 @@ export default function NewsCard({
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,187,102,0.3)";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#4a7060";
+              (e.currentTarget as HTMLAnchorElement).style.color = "var(--muted-dim, #7aaa8a)";
             }}
           >
             ◈ LIVE CHAT

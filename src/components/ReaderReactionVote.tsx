@@ -116,18 +116,19 @@ export default function ReaderReactionVote({
     [insideLink, my, post],
   );
 
-  const scoreColor = stats.score > 0 ? "#00ff88" : stats.score < 0 ? "#ff6666" : "#5a8068";
+  const scoreColor = stats.score > 0 ? "#00ff88" : stats.score < 0 ? "#ff6666" : "var(--muted-dim, #7aaa8a)";
 
   const btn = (active: boolean, aria: string, onClick: (e: React.MouseEvent) => void, child: string) => (
     <button
       type="button"
+      className={active ? undefined : "reader-reaction-btn"}
       aria-label={aria}
       onClick={onClick}
       disabled={pending || (!useArticle && !useGenerated)}
       style={{
         border: `1px solid ${active ? "#00bb66" : "#1a3320"}`,
         background: active ? "rgba(0,187,102,0.15)" : "transparent",
-        color: active ? "#00ff88" : "#5a8068",
+        color: active ? "#00ff88" : undefined,
         borderRadius: 2,
         width: 28,
         height: 26,
