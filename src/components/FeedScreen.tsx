@@ -179,7 +179,7 @@ export default function FeedScreen({
             THE THEORIST
           </Link>
           <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
-          <div className="site-header-subtitle" style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, flexShrink: 0 }}>
+          <div className="site-header-subtitle" style={{ letterSpacing: 2, flexShrink: 0 }}>
             AI INVESTIGATIVE INTELLIGENCE
           </div>
 
@@ -198,7 +198,7 @@ export default function FeedScreen({
         <div
           className="status-bar"
           data-age-tick={healthAgeTick}
-          style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, color: "#5a8068", padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}
+          style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 10, padding: "7px 20px", borderBottom: "1px solid #1a3320", background: "rgba(0,255,136,0.01)" }}
         >
           {([
             { label: "INGEST", key: "ingest", tip: "Newest article in DB (any source), not last crawl." },
@@ -213,14 +213,14 @@ export default function FeedScreen({
           ] as const).map(({ label, key, tip }) => {
             const status = health ? health[key] : null;
             const age = formatHealthAge(health?.last_at?.[key]);
-            const col = !status ? "#3a5040" : status === "online" ? "#00ff88" : status === "degraded" || status === "idle" ? "#ffaa00" : "#ff3333";
+            const col = !status ? "#6a9478" : status === "online" ? "#00ff88" : status === "degraded" || status === "idle" ? "#ffaa00" : "#ff3333";
             const pulse = status === "online";
             return (
               <span key={label} style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }} title={tip}>
                 <span className={pulse ? "animate-pulse-dot" : ""} style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: col }} />
-                <span style={{ color: status === "error" ? "#ff8888" : "#5a8068" }}>
+                <span style={{ color: status === "error" ? "#ff8888" : "var(--muted, #7aaa8a)" }}>
                   {label}
-                  {age ? <span style={{ color: "#3a5040", fontWeight: 400 }}> · {age}</span> : null}
+                  {age ? <span style={{ color: "var(--muted-dim, #6a9478)", fontWeight: 400 }}> · {age}</span> : null}
                 </span>
                 {status && status !== "online" && (
                   <span style={{ fontSize: 8, color: col, letterSpacing: 1 }}>[{status.toUpperCase()}]</span>
@@ -236,13 +236,13 @@ export default function FeedScreen({
 
         {/* TICKER */}
         <div className="ticker-bar" style={{ height: 26, borderBottom: "1px solid #1a3320", background: "#030803", overflow: "hidden", display: "flex", alignItems: "center" }}>
-          <div style={{ fontSize: 9, color: "#1a4a2a", padding: "0 10px", borderRight: "1px solid #1a3320", whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1 }}>
+          <div style={{ padding: "0 10px", borderRight: "1px solid #1a3320", whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 1 }}>
             LIVE
           </div>
           <div style={{ overflow: "hidden", flex: 1 }}>
             <div className="animate-ticker" style={{ display: "flex", whiteSpace: "nowrap" }}>
               {[...TICKER_ITEMS, ...TICKER_ITEMS].map((t, i) => (
-                <span key={i} style={{ fontSize: 9, color: "#2a5035", letterSpacing: 1, padding: "0 28px" }}>{t}</span>
+                <span key={i} style={{ letterSpacing: 1, padding: "0 28px" }}>{t}</span>
               ))}
             </div>
           </div>
@@ -253,10 +253,10 @@ export default function FeedScreen({
 
           {/* PAGE HEADER */}
           <div style={{ textAlign: "center", marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid #1a3320" }}>
-            <div style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 6, color: "#5a8068", marginBottom: 6, textTransform: "uppercase" }}>
+            <div className="feed-page-subhead" style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 6, marginBottom: 6, textTransform: "uppercase" }}>
               ■ AI-CURATED CONSPIRACY INVESTIGATION FEED ■
             </div>
-            <div style={{ fontSize: 11, color: "#3a6040", letterSpacing: 2 }}>
+            <div className="feed-page-tagline" style={{ fontSize: 11, letterSpacing: 2 }}>
               LATEST FIRST · SWITCH TO PRIORITY SCORE WHEN NEEDED
             </div>
           </div>
@@ -265,7 +265,7 @@ export default function FeedScreen({
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 10 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <div style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                <span style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1 }}>SORT</span>
+                <span style={{ fontSize: 10, color: "var(--muted-dim, #6a9478)", letterSpacing: 1 }}>SORT</span>
                 {[
                   { id: "latest", label: "LATEST" },
                   { id: "priority", label: "PRIORITY" },
@@ -284,7 +284,7 @@ export default function FeedScreen({
                       borderRadius: 2,
                       border: `1px solid ${sortBy === opt.id ? "#00bb66" : "#1a3320"}`,
                       background: sortBy === opt.id ? "rgba(0,255,136,0.08)" : "transparent",
-                      color: sortBy === opt.id ? "#00ff88" : "#5a8068",
+                      color: sortBy === opt.id ? "#00ff88" : "var(--muted, #7aaa8a)",
                       cursor: "pointer",
                     }}
                   >
@@ -293,7 +293,7 @@ export default function FeedScreen({
                 ))}
               </div>
               {visible.length > 0 && (
-                <span style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1 }}>
+                <span style={{ fontSize: 11, color: "var(--muted, #7aaa8a)", letterSpacing: 1 }}>
                   {feedPagination
                     ? `${visible.length} ON THIS PAGE · ${feedPagination.totalCount} TOTAL`
                     : `${visible.length} ACTIVE SIGNALS`}

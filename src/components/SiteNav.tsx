@@ -26,9 +26,11 @@ const NAV_LINKS = [
   { href: "/insider-radar", label: "INSIDER RADAR", color: "#ffaa00" },
   { href: "/community", label: "COMMUNITY", color: "#00bb66" },
   { href: "/blog", label: "ANALYSIS", color: "#c94dff" },
-  { href: "/search", label: "SEARCH", color: "#5a8068" },
-  { href: "/guide", label: "GUIDE", color: "#5a8068" },
+  { href: "/search", label: "SEARCH", color: "#9ec8ae" },
+  { href: "/guide", label: "GUIDE", color: "#9ec8ae" },
 ];
+
+const MUTED_UI = "var(--muted, #7aaa8a)";
 
 export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, onUpgrade, onSignedOut }: Props) {
   const pathname = usePathname() ?? "";
@@ -74,7 +76,8 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
               display: "inline-flex", alignItems: "center", gap: 5,
               border: `1px solid ${isActive(href) ? color : color + "44"}`,
               background: isActive(href) ? `${color}10` : blink ? "rgba(255,51,51,0.04)" : "transparent",
-              color: isActive(href) ? color : blink ? "#ff3333" : "#5a8068",
+              color: isActive(href) ? color : blink ? "#ff6666" : color,
+              opacity: isActive(href) ? 1 : 0.9,
               animation: blink && !isActive(href) ? "outbreakBlink 2s ease-in-out infinite" : undefined,
               transition: "all 0.15s",
             }}>
@@ -87,13 +90,13 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
           <>
             <Link href="/account" style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, textDecoration: "none", border: "1px solid #1a3320", color: "#00bb66" }}>ACCOUNT</Link>
             <button type="button" onClick={() => void signOut().then(afterSignOut)}
-              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", background: "transparent", cursor: "pointer" }}>
+              style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: MUTED_UI, background: "transparent", cursor: "pointer" }}>
               SIGN OUT
             </button>
           </>
         ) : (
           <button type="button" onClick={onSignIn}
-            style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: "#5a8068", background: "transparent", cursor: "pointer" }}>
+            style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, padding: "5px 11px", borderRadius: 3, border: "1px solid #1a3320", color: MUTED_UI, background: "transparent", cursor: "pointer" }}>
             SIGN IN
           </button>
         )}
@@ -132,9 +135,9 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
           borderRadius: 3, cursor: "pointer", flexShrink: 0,
           flexDirection: "column", gap: 5,
         }}>
-        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s, opacity 0.2s", transform: menuOpen ? "rotate(45deg) translate(0, 5px)" : "none" }} />
-        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#5a8068", opacity: menuOpen ? 0 : 1, transition: "opacity 0.2s" }} />
-        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#5a8068", transition: "transform 0.2s", transform: menuOpen ? "rotate(-45deg) translate(0, -5px)" : "none" }} />
+        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#7aaa8a", transition: "transform 0.2s, opacity 0.2s", transform: menuOpen ? "rotate(45deg) translate(0, 5px)" : "none" }} />
+        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#7aaa8a", opacity: menuOpen ? 0 : 1, transition: "opacity 0.2s" }} />
+        <span style={{ display: "block", width: 18, height: 1.5, background: menuOpen ? "#00ff88" : "#7aaa8a", transition: "transform 0.2s", transform: menuOpen ? "rotate(-45deg) translate(0, -5px)" : "none" }} />
       </button>
 
       {/* Mobile dropdown menu */}
@@ -155,7 +158,8 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
                 fontFamily: RAJ, fontSize: 16, fontWeight: 700,
                 letterSpacing: 2, textTransform: "uppercase",
                 textDecoration: "none",
-                color: isActive(href) ? color : blink ? "#ff3333" : "#7aaa8a",
+                color: isActive(href) ? color : blink ? "#ff6666" : color,
+                opacity: isActive(href) ? 1 : 0.92,
                 background: isActive(href) ? `${color}08` : "transparent",
               }}>
               {blink && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ff3333", display: "inline-block", animation: "obDot 1s infinite", flexShrink: 0 }} />}
@@ -168,11 +172,11 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
               <>
                 <Link href="/account" style={{ flex: 1, textAlign: "center", padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#00bb66", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, textDecoration: "none" }}>ACCOUNT</Link>
                 <button type="button" onClick={() => void signOut().then(afterSignOut)}
-                  style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN OUT</button>
+                  style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: MUTED_UI, fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN OUT</button>
               </>
             ) : (
               <button type="button" onClick={() => { setMenuOpen(false); onSignIn?.(); }}
-                style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: "#5a8068", fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN IN</button>
+                style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: MUTED_UI, fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN IN</button>
             )}
             {(userPlan ?? "").toLowerCase() !== "pro" && (
               onUpgrade ? (

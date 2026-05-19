@@ -95,7 +95,7 @@ export default function NewsCard({
             {item.score}% PRIORITY
           </div>
           {/* Section + time */}
-          <div style={{ position: "absolute", bottom: 10, left: 12, fontSize: 11, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase" }}>
+          <div className="news-card-meta" style={{ position: "absolute", bottom: 10, left: 12, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" }}>
             {item.section} · {timeAgo(item.date)}
           </div>
           {/* VIEWED badge — only show when read */}

@@ -8,7 +8,10 @@
   --green-dark: #1a3320;
   --red: #ff3333;
   --amber: #ffaa00;
-  --muted: #5a8068;
+  /* Secondary text on #050c07 — ≥4.5:1 for small UI copy (was #5a8068) */
+  --muted: #7aaa8a;
+  --muted-dim: #6a9478;
+  --faint: #5a8068;
   --card: #090f0b;
 }
 
@@ -64,6 +67,32 @@ body {
 .animate-slide-in-right { animation: slideInRight 0.25s ease forwards; }
 .animate-ticker { animation: ticker 35s linear infinite; }
 .animate-glow-pulse { animation: glowPulse 1.5s ease-in-out infinite; }
+
+/* Feed chrome — axe contrast (small text on dark terminal bg) */
+.site-header-subtitle {
+  color: var(--muted) !important;
+  font-size: 10px !important;
+}
+.status-bar {
+  color: var(--muted) !important;
+}
+.ticker-bar > div:first-child {
+  color: var(--muted-dim) !important;
+  font-size: 10px !important;
+}
+.ticker-bar .animate-ticker span {
+  color: var(--muted) !important;
+  font-size: 10px !important;
+}
+.feed-page-subhead {
+  color: var(--muted) !important;
+}
+.feed-page-tagline {
+  color: var(--muted-dim) !important;
+}
+.news-card-meta {
+  color: var(--muted) !important;
+}
 
 /* Focus — keyboard navigation */
 :focus-visible {
