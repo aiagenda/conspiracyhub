@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-const UA = "TheTheorist/1.0 (+https://the-theorist.com)";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 type Tracker = {
   id: string;
@@ -14,21 +15,97 @@ type Tracker = {
 };
 
 const TRACKERS: Tracker[] = [
-  { id: "whyfiles", name: "The Why Files", type: "youtube", channelId: "UCcIOjaKHWVOkEBHRmhpKmrA", avatar: "🔍", color: "#00ff88", category: "uap" },
-  { id: "coulthart", name: "Ross Coulthart", type: "youtube", channelId: "UCW34TpWDGIRCYMHCTKFJXWA", avatar: "📡", color: "#00bb66", category: "uap" },
-  { id: "secureteam", name: "SecureTeam10", type: "youtube", channelId: "UCKdDlCiMDniPBxTKMHnXhcw", avatar: "🛸", color: "#8aa6ff", category: "uap" },
-  { id: "grusch_tw", name: "David Grusch", type: "twitter", handle: "DavidCharlesGrusch", avatar: "🎖️", color: "#00ff88", category: "uap" },
-  { id: "graves_tw", name: "Ryan Graves", type: "twitter", handle: "uncertainvector", avatar: "✈️", color: "#00bb66", category: "uap" },
-  { id: "mellon_tw", name: "Chris Mellon", type: "twitter", handle: "ChristopherMellon", avatar: "🏛️", color: "#8aa6ff", category: "uap" },
-  { id: "coulthart_tw", name: "Ross Coulthart", type: "twitter", handle: "rosscoulthart", avatar: "📡", color: "#00bb66", category: "uap" },
-  { id: "burchett_tw", name: "Rep. Tim Burchett", type: "twitter", handle: "timburchett", avatar: "🏛️", color: "#c94dff", category: "uap" },
+  {
+    id: "whyfiles",
+    name: "The Why Files",
+    type: "youtube",
+    channelId: "UCIFk2uvCNcEmZ77g0ESKLcQ",
+    avatar: "🔍",
+    color: "#00ff88",
+    category: "uap",
+  },
+  {
+    id: "coulthart",
+    name: "Ross Coulthart",
+    type: "youtube",
+    channelId: "UCW-NJDzqcE7eC5lZu3xL7hA",
+    avatar: "📡",
+    color: "#00bb66",
+    category: "uap",
+  },
+  {
+    id: "secureteam",
+    name: "SecureTeam10",
+    type: "youtube",
+    channelId: "UC4F3j3ed_To-M3H2YLLD5vw",
+    avatar: "🛸",
+    color: "#8aa6ff",
+    category: "uap",
+  },
+  {
+    id: "grusch_tw",
+    name: "David Grusch",
+    type: "twitter",
+    handle: "DavidCharlesGrusch",
+    avatar: "🎖️",
+    color: "#00ff88",
+    category: "uap",
+  },
+  {
+    id: "graves_tw",
+    name: "Ryan Graves",
+    type: "twitter",
+    handle: "uncertainvector",
+    avatar: "✈️",
+    color: "#00bb66",
+    category: "uap",
+  },
+  {
+    id: "mellon_tw",
+    name: "Chris Mellon",
+    type: "twitter",
+    handle: "ChristopherMellon",
+    avatar: "🏛️",
+    color: "#8aa6ff",
+    category: "uap",
+  },
+  {
+    id: "coulthart_tw",
+    name: "Ross Coulthart",
+    type: "twitter",
+    handle: "rosscoulthart",
+    avatar: "📡",
+    color: "#00bb66",
+    category: "uap",
+  },
+  {
+    id: "burchett_tw",
+    name: "Rep. Tim Burchett",
+    type: "twitter",
+    handle: "timburchett",
+    avatar: "🏛️",
+    color: "#c94dff",
+    category: "uap",
+  },
 ];
 
-async function fetchYouTubeRSS(channelId: string): Promise<Array<{ title: string; url: string; published: string; thumbnail?: string }>> {
+function decodeXml(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+async function fetchYouTubeRSS(
+  channelId: string,
+): Promise<Array<{ title: string; url: string; published: string; thumbnail?: string }>> {
   try {
     const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
-      headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(6000),
+      headers: { "User-Agent": UA, Accept: "application/atom+xml, application/xml, text/xml, */*" },
+      signal: AbortSignal.timeout(8000),
       next: { revalidate: 1800 },
     });
     if (!res.ok) return [];
@@ -36,8 +113,11 @@ async function fetchYouTubeRSS(channelId: string): Promise<Array<{ title: string
     const items: Array<{ title: string; url: string; published: string; thumbnail?: string }> = [];
     for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
       const x = m[1];
-      const title = x.match(/<title>(.*?)<\/title>/)?.[1]?.trim() ?? "";
-      const url = x.match(/href="(https:\/\/www\.youtube\.com\/watch[^"]+)"/)?.[1] ?? "";
+      const title = decodeXml(x.match(/<title>(.*?)<\/title>/)?.[1]?.trim() ?? "");
+      const url =
+        x.match(/rel="alternate"\s+href="(https:\/\/www\.youtube\.com\/watch[^"]+)"/)?.[1] ??
+        x.match(/href="(https:\/\/www\.youtube\.com\/watch[^"]+)"/)?.[1] ??
+        "";
       const pub = x.match(/<published>(.*?)<\/published>/)?.[1] ?? "";
       const thumb = x.match(/url="(https:\/\/i\.ytimg\.com[^"]+)"/)?.[1];
       if (title && url) items.push({ title, url, published: pub, thumbnail: thumb });
@@ -49,21 +129,24 @@ async function fetchYouTubeRSS(channelId: string): Promise<Array<{ title: string
 }
 
 async function fetchTwitterRSS(handle: string): Promise<Array<{ title: string; url: string; published: string }>> {
-  const NITTER_INSTANCES = ["nitter.net", "nitter.privacydev.net", "nitter.poast.org"];
+  const NITTER_INSTANCES = ["nitter.net", "nitter.poast.org", "nitter.privacydev.net"];
 
   for (const instance of NITTER_INSTANCES) {
     try {
       const res = await fetch(`https://${instance}/${handle}/rss`, {
-        headers: { "User-Agent": UA },
-        signal: AbortSignal.timeout(5000),
+        headers: { "User-Agent": UA, Accept: "application/rss+xml, application/xml, text/xml, */*" },
+        signal: AbortSignal.timeout(8000),
         next: { revalidate: 1800 },
       });
       if (!res.ok) continue;
       const xml = await res.text();
+      if (xml.includes("not whitelisted") || xml.includes("bot check")) continue;
       const items: Array<{ title: string; url: string; published: string }> = [];
       for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
         const x = m[1];
-        const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
+        const title = decodeXml(
+          x.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "",
+        );
         const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
         const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
         if (title && link && !title.startsWith("RT @")) {
@@ -94,7 +177,8 @@ export async function GET() {
 
     const trackers = results
       .map((r, i) => {
-        if (r.status === "rejected") return { ...TRACKERS[i], posts: [] as Array<{ title: string; url: string; published: string }> };
+        if (r.status === "rejected")
+          return { ...TRACKERS[i], posts: [] as Array<{ title: string; url: string; published: string }> };
         return r.value;
       })
       .filter((t) => t.posts.length > 0);
