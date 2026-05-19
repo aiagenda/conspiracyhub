@@ -76,6 +76,7 @@ export default function GuidePage() {
             <Row label="FEED" color="#00ff88">Home <code style={{ color: "#3a5040" }}>/</code> — priority-scored news stream.</Row>
             <Row label="UAP FILES" color="#8aa6ff">Dedicated UAP database <code style={{ color: "#3a5040" }}>/uap</code>.</Row>
             <Row label="OUTBREAKS" color="#ff3333">Health alerts <code style={{ color: "#3a5040" }}>/outbreaks</code>.</Row>
+            <Row label="INSIDER RADAR" color="#ffaa00">Live insider feed <code style={{ color: "#3a5040" }}>/insider-radar</code> — UAP researchers, whistleblowers, journalists, Congress (see section below).</Row>
             <Row label="COMMUNITY" color="#00bb66">OSINT board <code style={{ color: "#3a5040" }}>/community</code>.</Row>
             <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
             <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
@@ -158,6 +159,25 @@ export default function GuidePage() {
             <Row label="LOW" color="#00bb66">Primarily eyewitness accounts.</Row>
           </Section>
 
+          {/* INSIDER RADAR */}
+          <Section icon="📡" title="Insider Radar" color="#ffaa00">
+            <Note>
+              <code style={{ color: "#3a5040" }}>/insider-radar</code> aggregates recent posts from curated UAP insiders — no database or admin setup. The page uses the same wide layout and card grid as the main feed (max 1520px, ~340px columns) for readability.
+            </Note>
+            <Sub>Sources</Sub>
+            <Row label="YOUTUBE" color="#ff3333">Direct channel RSS — e.g. The Why Files, Ross Coulthart, SecureTeam10. Cards show thumbnails and ↗ WATCH links.</Row>
+            <Row label="INSIDERS" color="#00ff88">Tracked figures such as David Grusch, Ryan Graves, Chris Mellon, Ross Coulthart (X), Rep. Tim Burchett. When X/Twitter mirrors are unavailable, items may come from Google News search (badge: <strong style={{ color: "#c8e8d0" }}>NEWS</strong>) — still credible headlines, not live tweets.</Row>
+            <Sub>Filters</Sub>
+            <Row label="ALL" color="#5a8068">Every signal in one grid, newest first.</Row>
+            <Row label="▶ YOUTUBE" color="#ff3333">Video uploads only.</Row>
+            <Row label="✕ X / NEWS" color="#5a8068">Insider trackers (live X when possible, otherwise news matches).</Row>
+            <Row label="UAP" color="#8aa6ff">Category filter when multiple categories exist (currently UAP-focused trackers).</Row>
+            <Sub>Tracker badges</Sub>
+            <Note>Coloured chips under the header show which channels returned data and how many items each contributed. If the grid is empty, feeds may be rate-limited — refresh after a few minutes.</Note>
+            <Sub>Navigation</Sub>
+            <Note>Minimal header: ← FEED, same as other tracker pages. Listed in the top nav as <strong style={{ color: "#ffaa00" }}>INSIDER RADAR</strong> (amber).</Note>
+          </Section>
+
           {/* OUTBREAKS */}
           <Section icon="⬤" title="Outbreaks Tracker" color="#ff3333">
             <Note>/outbreaks shows real-time alerts from WHO, CDC and ProMED. The nav button blinks red as a live attention signal.</Note>
@@ -210,16 +230,17 @@ export default function GuidePage() {
 
           {/* PRO */}
           <Section icon="◐" title="Free vs. PRO" color="#c94dff">
-            <Row label="FREE" color="#5a8068">Browse feed, view cached Oracle analyses, 3 @oracle triggers/day, top-3 article highlights, community access.</Row>
+            <Row label="FREE" color="#5a8068">Browse feed, Insider Radar, outbreaks, UAP files, view cached Oracle analyses, 3 @oracle triggers/day, top-3 article highlights, community access.</Row>
+            <Row label="TRIAL" color="#ffaa00">New accounts may receive a <strong style={{ color: "#c8e8d0" }}>30-day Analyst Pass</strong> (full PRO, no card). Legacy users can claim once from Account if eligible. Trial status and days left appear on <code style={{ color: "#3a5040" }}>/account</code>.</Row>
             <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full article highlights, Polymarket real-time odds, URL analyzer, email alerts at 75%+ threat, board PNG export, unlimited Investigation Boards.</Row>
             <Note>Sign in via the SIGN IN button. Upgrade via PRO ▶ — payment handled by Stripe. Manage subscription from your Account page.</Note>
           </Section>
 
           {/* FOOTER */}
           <div style={{ padding: "14px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", fontSize: 10, color: "#3a5040", lineHeight: 1.8 }}>
-            <span style={{ color: "#5a8068" }}>◈ VERSION</span>{" "}<span style={{ color: "#00ff88" }}>1.2</span>
+            <span style={{ color: "#5a8068" }}>◈ VERSION</span>{" "}<span style={{ color: "#00ff88" }}>1.3</span>
             {"  ·  "}
-            <span style={{ color: "#5a8068" }}>SOURCES</span>{" "}<span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · AARO · WHO</span>
+            <span style={{ color: "#5a8068" }}>SOURCES</span>{" "}<span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · AARO · WHO · YouTube RSS</span>
             {"  ·  "}
             <span style={{ color: "#5a8068" }}>AI</span>{" "}<span style={{ color: "#c8e8d0" }}>GPT-4o</span>
             {"  ·  "}
