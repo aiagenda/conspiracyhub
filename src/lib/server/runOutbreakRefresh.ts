@@ -1,11 +1,45 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
+/** Bump when pipeline changes so stale JSON blobs are ignored. */
+export const OUTBREAK_CACHE_VERSION = 2;
 const OUTBREAK_LOCAL_NEWS_MAX = 10;
+const OUTBREAK_CANDIDATE_MAX = 12;
+const OUTBREAK_ANALYZE_MAX = 8;
+const FEED_OUTBREAK_LOOKBACK_DAYS = 21;
 
-const WHO_RSS = "https://www.who.int/rss-feeds/news-releases.xml";
+/** WHO news-releases feed 404s; Africa emergencies RSS includes Ebola/Marburg/etc. */
+const OUTBREAK_RSS_FEEDS = ["https://www.afro.who.int/rss/emergencies.xml"];
+
+const OUTBREAK_KEYWORD_RE =
+  /disease|outbreak|virus|infection|fever|flu|ebola|mpox|cholera|plague|epidemic|dengue|marburg|hanta|hantavirus|polio|measles|pandemic|pathogen|bioweapon|avian|influenza|lassa|nipah|zika|coronavirus|covid|mers|sudan virus/i;
+
+const DISEASE_SIGNATURES = [
+  "ebola",
+  "marburg",
+  "mpox",
+  "h5n1",
+  "hantavirus",
+  "hanta",
+  "cholera",
+  "dengue",
+  "measles",
+  "polio",
+  "plague",
+  "influenza",
+  "coronavirus",
+  "covid",
+  "mers",
+  "lassa",
+  "nipah",
+  "zika",
+  "sudan virus",
+  "yellow fever",
+  "bird flu",
+  "avian",
+] as const;
 
 const COORDS: Record<string, [number, number]> = {
   china: [35.86, 104.19],
@@ -97,7 +131,147 @@ const CURATED_DISEASES: CuratedItem[] = [
     link: "https://www.who.int/emergencies/disease-outbreak-news",
     pubDate: "",
   },
+  {
+    title: "Ebola Virus Disease — Central Africa",
+    description:
+      "Ebola virus disease clusters under WHO monitoring in DRC and neighboring regions. Contact tracing and lab confirmation ongoing.",
+    link: "https://www.who.int/emergencies/disease-outbreak-news",
+    pubDate: "",
+  },
 ];
+
+type LocalNewsRow = { title: string; url: string; source: string; pubDate: string };
+
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isOutbreakRelevant(text: string): boolean {
+  return OUTBREAK_KEYWORD_RE.test(text);
+}
+
+function isWeakRssTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return t === "weekly bulletin" || t.startsWith("weekly bulletin ");
+}
+
+function diseaseSignature(title: string): string {
+  const t = title.toLowerCase();
+  for (const d of DISEASE_SIGNATURES) {
+    if (t.includes(d)) return d;
+  }
+  const first = t.split(/[^a-z0-9]+/).find((w) => w.length > 3);
+  return first ?? t.slice(0, 24);
+}
+
+function mergeOutbreakCandidates(feed: CuratedItem[], rss: CuratedItem[], curated: CuratedItem[]): CuratedItem[] {
+  const out: CuratedItem[] = [];
+  const seen = new Set<string>();
+
+  const add = (item: CuratedItem) => {
+    if (!item.title?.trim() || isWeakRssTitle(item.title)) return;
+    const sig = diseaseSignature(item.title);
+    if (seen.has(sig)) return;
+    seen.add(sig);
+    out.push(item);
+  };
+
+  for (const item of sortByPubDateDesc(feed)) add(item);
+  for (const item of sortByPubDateDesc(rss)) add(item);
+  for (const item of curated) add(item);
+
+  return out.slice(0, OUTBREAK_CANDIDATE_MAX);
+}
+
+async function parseRssItems(feedUrl: string): Promise<CuratedItem[]> {
+  const res = await fetch(feedUrl, {
+    headers: { "User-Agent": "TheTheorist/1.0" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) return [];
+  const xml = await res.text();
+  const items: CuratedItem[] = [];
+  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const x = m[1];
+    const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
+    const desc =
+      x
+        .match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]
+        ?.replace(/<[^>]+>/g, " ")
+        .trim() ?? "";
+    const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
+    const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
+    if (title && link && isOutbreakRelevant(title + " " + desc)) {
+      items.push({ title, description: stripHtml(desc).slice(0, 300), link, pubDate: pub });
+    }
+  }
+  return items;
+}
+
+async function fetchOutbreakRss(): Promise<CuratedItem[]> {
+  const batches = await Promise.allSettled(OUTBREAK_RSS_FEEDS.map((url) => parseRssItems(url)));
+  const merged: CuratedItem[] = [];
+  for (const b of batches) {
+    if (b.status === "fulfilled") merged.push(...b.value);
+  }
+  return sortByPubDateDesc(merged);
+}
+
+async function fetchFeedOutbreakCandidates(admin: SupabaseClient): Promise<CuratedItem[]> {
+  const cutoff = new Date(Date.now() - FEED_OUTBREAK_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
+  const { data, error } = await admin
+    .from("news_items")
+    .select("title, summary, url, published_at, angle")
+    .gte("published_at", cutoff)
+    .gte("score", 55)
+    .order("published_at", { ascending: false })
+    .limit(120);
+
+  if (error || !data?.length) return [];
+
+  const items: CuratedItem[] = [];
+  for (const row of data) {
+    const title = String(row.title ?? "").trim();
+    const blob = [title, row.summary, row.angle].filter(Boolean).join(" ");
+    if (!title || !isOutbreakRelevant(blob)) continue;
+    items.push({
+      title,
+      description: stripHtml(String(row.summary ?? row.angle ?? "")).slice(0, 300) || title,
+      link: String(row.url ?? "/"),
+      pubDate: row.published_at ? new Date(row.published_at).toUTCString() : "",
+    });
+  }
+  return sortByPubDateDesc(items);
+}
+
+async function fetchFeedLocalNews(admin: SupabaseClient, disease: string): Promise<LocalNewsRow[]> {
+  const token = disease.split(/\s+/)[0]?.toLowerCase();
+  if (!token || token.length < 3) return [];
+
+  const cutoff = new Date(Date.now() - FEED_OUTBREAK_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
+  const { data } = await admin
+    .from("news_items")
+    .select("title, url, published_at, source")
+    .gte("published_at", cutoff)
+    .order("published_at", { ascending: false })
+    .limit(80);
+
+  if (!data?.length) return [];
+
+  const re = new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const rows: LocalNewsRow[] = [];
+  for (const row of data) {
+    const title = String(row.title ?? "").trim();
+    if (!title || !re.test(title)) continue;
+    rows.push({
+      title,
+      url: String(row.url ?? "/"),
+      source: String(row.source ?? "ConspiracyHub feed"),
+      pubDate: row.published_at ? new Date(row.published_at).toUTCString() : "",
+    });
+  }
+  return sortByPubDateDesc(rows).slice(0, OUTBREAK_LOCAL_NEWS_MAX);
+}
 
 async function fetchLocalNews(
   disease: string,
@@ -166,48 +340,23 @@ type AnalysisRow = {
   origin_country: string;
 };
 
-async function fetchWHO(): Promise<CuratedItem[]> {
-  try {
-    const res = await fetch(WHO_RSS, {
-      headers: { "User-Agent": "TheTheorist/1.0" },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return CURATED_DISEASES;
-    const xml = await res.text();
-    const items: CuratedItem[] = [];
-    for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-      const x = m[1];
-      const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
-      const desc =
-        x.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]?.replace(/<[^>]+>/g, "").trim() ?? "";
-      const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
-      const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
-      if (
-        title &&
-        /disease|outbreak|virus|infection|fever|flu|ebola|mpox|cholera|plague|epidemic|dengue|marburg|hanta|polio|measles/i.test(
-          title + desc,
-        )
-      ) {
-        items.push({ title, description: desc.slice(0, 300), link, pubDate: pub });
-      }
-    }
-    const combined = [...CURATED_DISEASES];
-    for (const item of items) {
-      const alreadyHave = combined.some(
-        (c) => c.title.toLowerCase().split(" ")[0] === item.title.toLowerCase().split(" ")[0],
-      );
-      if (!alreadyHave) combined.push(item);
-    }
-    return sortByPubDateDesc(combined).slice(0, 10);
-  } catch {
-    return CURATED_DISEASES;
-  }
+async function fetchOutbreakCandidates(admin: SupabaseClient): Promise<CuratedItem[]> {
+  const [feed, rss] = await Promise.all([
+    fetchFeedOutbreakCandidates(admin),
+    fetchOutbreakRss().catch(() => [] as CuratedItem[]),
+  ]);
+  const merged = mergeOutbreakCandidates(feed, rss, CURATED_DISEASES);
+  return merged.length > 0 ? merged : CURATED_DISEASES;
 }
 
 export function buildOutbreakPreviewPayload() {
-  const rows = CURATED_DISEASES.slice(0, 2).map((item, i) => {
+  const ebola =
+    CURATED_DISEASES.find((c) => /ebola/i.test(c.title)) ?? CURATED_DISEASES[CURATED_DISEASES.length - 1]!;
+  const h5n1 = CURATED_DISEASES.find((c) => /h5n1|avian/i.test(c.title)) ?? CURATED_DISEASES[1]!;
+  const rows = [ebola, h5n1].map((item, i) => {
     const diseaseGuess = item.title.split(/[—\-–]/)[0]?.trim() ?? "Pathogen signal";
-    const latLng = i === 0 ? COORDS.brazil! : COORDS.global!;
+    const isEbola = /ebola/i.test(item.title);
+    const latLng = isEbola ? COORDS.drc! : COORDS.brazil!;
     return {
       id: `preview-${i}-${Date.now()}`,
       title: item.title,
@@ -215,18 +364,17 @@ export function buildOutbreakPreviewPayload() {
       source_url: item.link,
       published_at: item.pubDate,
       disease: diseaseGuess,
-      location: i === 0 ? "brazil" : "multiple countries",
-      origin_country: i === 0 ? "brazil" : "global",
-      affected_countries: i === 0 ? ["brazil"] : ["brazil", "india", "united states"],
+      location: isEbola ? "drc" : "brazil",
+      origin_country: isEbola ? "drc" : "brazil",
+      affected_countries: isEbola ? ["drc", "congo"] : ["brazil"],
       lat: latLng[0],
       lng: latLng[1],
-      affectedCoords:
-        i === 0
-          ? [{ country: "brazil", lat: latLng[0], lng: latLng[1] }]
-          : [
-              { country: "brazil", lat: COORDS.brazil![0], lng: COORDS.brazil![1] },
-              { country: "india", lat: COORDS.india![0], lng: COORDS.india![1] },
-            ],
+      affectedCoords: isEbola
+        ? [
+            { country: "drc", lat: COORDS.drc![0], lng: COORDS.drc![1] },
+            { country: "congo", lat: COORDS.congo![0], lng: COORDS.congo![1] },
+          ]
+        : [{ country: "brazil", lat: latLng[0], lng: latLng[1] }],
       conspiracy_score: 12,
       has_conspiracy: false,
       theories: [
@@ -254,6 +402,7 @@ export function buildOutbreakPreviewPayload() {
 export type OutbreakPayload = {
   outbreaks: unknown[];
   generated_at: string;
+  cache_version?: number;
   cached?: boolean;
   preview?: boolean;
 };
@@ -285,7 +434,9 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
         .maybeSingle();
       if (c && Date.now() - new Date(c.created_at).getTime() < OUTBREAK_CACHE_TTL_MS) {
         const data = c.data as OutbreakPayload;
-        return { ok: true, status: 200, payload: { ...data, cached: true } };
+        if ((data.cache_version ?? 1) >= OUTBREAK_CACHE_VERSION) {
+          return { ok: true, status: 200, payload: { ...data, cached: true } };
+        }
       }
     } catch {
       /* table may not exist until migration */
@@ -293,11 +444,11 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
   }
 
   try {
-    const items = await fetchWHO();
+    const items = await fetchOutbreakCandidates(admin);
     const apiKey = process.env.OPENAI_API_KEY!;
 
     const settled = await Promise.allSettled(
-      items.slice(0, 8).map(async (item) => {
+      items.slice(0, OUTBREAK_ANALYZE_MAX).map(async (item) => {
         const analysis = await callOpenAIJSON<AnalysisRow>({
           apiKey,
           system: SYS,
@@ -306,7 +457,19 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           model: "gpt-4o-mini",
           maxAttempts: 2,
         });
-        const localNews = await fetchLocalNews(analysis.disease, analysis.origin_country || analysis.location);
+        const country = analysis.origin_country || analysis.location;
+        const [googleNews, feedNews] = await Promise.all([
+          fetchLocalNews(analysis.disease, country),
+          fetchFeedLocalNews(admin, analysis.disease),
+        ]);
+        const seenUrls = new Set<string>();
+        const localNews: LocalNewsRow[] = [];
+        for (const row of [...feedNews, ...googleNews]) {
+          if (seenUrls.has(row.url)) continue;
+          seenUrls.add(row.url);
+          localNews.push(row);
+          if (localNews.length >= OUTBREAK_LOCAL_NEWS_MAX) break;
+        }
         return { ...analysis, localNews, rawItem: item };
       }),
     );
@@ -348,6 +511,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
     const payload: OutbreakPayload = {
       outbreaks: outbreaksSorted,
       generated_at: new Date().toISOString(),
+      cache_version: OUTBREAK_CACHE_VERSION,
       cached: false,
     };
 

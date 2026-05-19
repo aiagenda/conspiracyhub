@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import Link from "next/link";
 import * as d3 from "d3";
@@ -202,260 +202,429 @@ function OutbreakLoadingScreen() {
 }
 
 // ── WORLD MAP ──────────────────────────────────────────────────
-function WorldMap({outbreaks,selected,onSelect}:{outbreaks:Outbreak[];selected:Outbreak|null;onSelect:(o:Outbreak)=>void}) {
+type ObMapCtx = {
+  svg: d3.Selection<SVGSVGElement, unknown, null, undefined>;
+  geoG: d3.Selection<SVGGElement, unknown, null, undefined>;
+  linesG: d3.Selection<SVGGElement, unknown, null, undefined>;
+  markersG: d3.Selection<SVGGElement, unknown, null, undefined>;
+  proj: d3.GeoProjection;
+  W: number;
+  H: number;
+  zoom: d3.ZoomBehavior<SVGSVGElement, unknown>;
+};
+
+type ObMarkerDatum = ObMapMarkerDraw & { x: number; y: number };
+
+function pulseHalo(parent: d3.Selection<SVGGElement, unknown, null, undefined>, ringR: number, stroke: string) {
+  parent
+    .append("circle")
+    .attr("r", ringR)
+    .attr("cx", 0)
+    .attr("cy", 0)
+    .attr("fill", "none")
+    .attr("stroke", stroke)
+    .attr("stroke-width", 0.75)
+    .attr("stroke-opacity", 0.18)
+    .append("animate")
+    .attr("attributeName", "stroke-opacity")
+    .attr("values", "0.08;0.28;0.08")
+    .attr("dur", "2.4s")
+    .attr("repeatCount", "indefinite");
+}
+
+function applyObMarkerStyles(
+  g: d3.Selection<SVGGElement, ObMarkerDatum, SVGGElement, unknown>,
+  selectedId: string | null,
+) {
+  g.each(function (d) {
+    const isSel = d.o.id === selectedId;
+    const node = d3.select(this);
+    node
+      .select(".ob-rim")
+      .attr("stroke-width", isSel && d.isPrimary ? 2.2 : 1.4);
+    node
+      .select(".ob-dot")
+      .attr("r", isSel && d.isPrimary ? d.dotR + 1.5 : d.dotR)
+      .attr("stroke-width", isSel && d.isPrimary ? 1.4 : 1);
+    node
+      .select(".ob-label")
+      .style("display", d.isPrimary && (isSel || d.o.conspiracy_score >= 65) ? "block" : "none");
+  });
+}
+
+function WorldMap({
+  outbreaks,
+  selected,
+  onSelect,
+}: {
+  outbreaks: Outbreak[];
+  selected: Outbreak | null;
+  onSelect: (o: Outbreak) => void;
+}) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const mapCtxRef = useRef<ObMapCtx | null>(null);
+  const worldRef = useRef<unknown>(null);
+  const outbreaksRef = useRef(outbreaks);
+  const selectedIdRef = useRef<string | null>(selected?.id ?? null);
+  const onSelectRef = useRef(onSelect);
+  const setTooltipRef = useRef<(t: { x: number; y: number; o: Outbreak } | null) => void>(() => {});
   const [world, setWorld] = useState<unknown>(null);
-  const [tooltip, setTooltip] = useState<{x:number;y:number;o:Outbreak}|null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; o: Outbreak } | null>(null);
 
-  useEffect(()=>{
+  outbreaksRef.current = outbreaks;
+  selectedIdRef.current = selected?.id ?? null;
+  onSelectRef.current = onSelect;
+  setTooltipRef.current = setTooltip;
+  worldRef.current = world;
+
+  useEffect(() => {
     fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
-      .then(r=>r.json()).then(setWorld).catch(()=>{});
-  },[]);
+      .then((r) => r.json())
+      .then(setWorld)
+      .catch(() => {});
+  }, []);
 
-  useEffect(()=>{
-    if (!world||!svgRef.current) return;
-    const svgEl = svgRef.current;
+  const paintMarkers = useCallback((ctx: ObMapCtx, selectedId: string | null) => {
+    const { linesG, markersG, proj } = ctx;
+    const list = outbreaksRef.current;
 
-    function paint() {
-      if (!svgEl || !world) return;
-      const W = Math.max(svgEl.getBoundingClientRect().width || svgEl.clientWidth, 280);
-      const H = 360;
-      svgEl.setAttribute("width", String(W));
-      svgEl.setAttribute("height", String(H));
-      const svg = d3.select(svgEl);
-      svg.selectAll("*").remove();
+    linesG.selectAll("*").remove();
+    markersG.selectAll("*").remove();
 
-      const proj = d3.geoNaturalEarth1();
-      proj.fitSize([W, H], { type: "Sphere" });
-      const path = d3.geoPath().projection(proj);
+    const markerQueue: ObMapMarkerDraw[] = [];
 
-      svg.append("rect").attr("width",W).attr("height",H).attr("fill","#030806");
+    for (const o of list) {
+      const lat = Number(o.lat);
+      const lng = Number(o.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
-      const geoG = svg.append("g").attr("class", "ob-geo");
+      const col = RISK_COL(o.risk_level, o.conspiracy_score);
+      const isSel = o.id === selectedId;
+      const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
 
-      const graticule = d3.geoGraticule()();
-      geoG.append("path").datum(graticule)
-        .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
-        .attr("fill","none").attr("stroke","#0a1f0d").attr("stroke-width","0.3");
+      const mainPos = proj([lng, lat]);
+      if (!mainPos) continue;
 
-      // @ts-expect-error TopoJSON topology typed loosely vs geojson
-      const countries = topojson.feature(world, world.objects.countries);
-      geoG.append("g").selectAll("path")
-        // @ts-expect-error features from topojson.feature
-        .data(countries.features).enter().append("path")
-        .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
-        .attr("fill","#0a160c").attr("stroke","#1a3320").attr("stroke-width","0.4");
+      const allPositions: Array<[number, number]> = [[mainPos[0], mainPos[1]]];
 
-      // Country borders
-      // @ts-expect-error TopoJSON mesh callback types
-      const borders = topojson.mesh(world, world.objects.countries, (a:unknown,b:unknown)=>a!==b);
-      geoG.append("path").datum(borders)
-        .attr("d", path as d3.ValueFn<SVGPathElement,unknown,string>)
-        .attr("fill","none").attr("stroke","#1a3320").attr("stroke-width","0.3");
-
-      // Lines + markers AFTER landmasses so pins paint on top (SVG paint order = DOM order).
-      const linesG = geoG.append("g").attr("class", "ob-lines");
-      const markersG = geoG.append("g").attr("class", "ob-markers");
-
-      function pulseHalo(parent: d3.Selection<SVGGElement, any, null, undefined>, ringR: number, stroke: string) {
-        parent.append("circle")
-          .attr("r", ringR)
-          .attr("cx", 0).attr("cy", 0)
-          .attr("fill", "none").attr("stroke", stroke).attr("stroke-width", 0.75).attr("stroke-opacity", 0.18)
-          .append("animate")
-          .attr("attributeName", "stroke-opacity")
-          .attr("values", "0.08;0.28;0.08")
-          .attr("dur", "2.4s")
-          .attr("repeatCount", "indefinite");
-      }
-
-      const markerQueue: ObMapMarkerDraw[] = [];
-
-      for (const o of outbreaks) {
-        const lat = Number(o.lat);
-        const lng = Number(o.lng);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-
-        const col = RISK_COL(o.risk_level, o.conspiracy_score);
-        const isSel = selected?.id === o.id;
-        const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
-
-        const mainPos = proj([lng, lat]);
-        if (!mainPos) continue;
-
-        const allPositions: Array<[number, number, string]> = [[mainPos[0], mainPos[1], "primary"]];
-
-        if (o.affectedCoords && o.affectedCoords.length > 1) {
-          for (const ac of o.affectedCoords) {
-            if (Math.abs(ac.lat - lat) < 0.1 && Math.abs(ac.lng - lng) < 0.1) continue;
-            const ap = proj([ac.lng, ac.lat]);
-            if (ap) allPositions.push([ap[0], ap[1], ac.country]);
-          }
-        }
-
-        // All connector lines first so later outbreaks' lines are not painted over pins.
-        if (allPositions.length > 1) {
-          for (let i = 1; i < allPositions.length; i++) {
-            const [x1, y1] = allPositions[0];
-            const [x2, y2] = allPositions[i];
-            linesG
-              .append("line")
-              .attr("x1", x1)
-              .attr("y1", y1)
-              .attr("x2", x2)
-              .attr("y2", y2)
-              .attr("stroke", col)
-              .attr("stroke-width", isSel ? 1.1 : 0.85)
-              .attr("stroke-opacity", isSel ? 0.5 : 0.22)
-              .attr("stroke-dasharray", "4 6");
-          }
-        }
-
-        for (let pi = 0; pi < allPositions.length; pi++) {
-          const [x, y] = allPositions[pi];
-          const isPrimary = pi === 0;
-          const dotR = isPrimary ? r : Math.max(4, r - 2);
-          markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel });
+      if (o.affectedCoords && o.affectedCoords.length > 1) {
+        for (const ac of o.affectedCoords) {
+          if (Math.abs(ac.lat - lat) < 0.1 && Math.abs(ac.lng - lng) < 0.1) continue;
+          const ap = proj([ac.lng, ac.lat]);
+          if (ap) allPositions.push([ap[0], ap[1]]);
         }
       }
 
-      // Collision jitter: push apart pins that land within MIN_DIST px of each other.
-      const MIN_DIST = 18;
-      for (let i = 0; i < markerQueue.length; i++) {
-        for (let j = i + 1; j < markerQueue.length; j++) {
-          const a = markerQueue[i];
-          const b = markerQueue[j];
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < MIN_DIST && dist > 0) {
-            const push = (MIN_DIST - dist) / 2 + 1;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            markerQueue[i] = { ...a, x: a.x - nx * push, y: a.y - ny * push };
-            markerQueue[j] = { ...b, x: b.x + nx * push, y: b.y + ny * push };
-          } else if (dist === 0) {
-            // Exact same point: spread in a circle
-            const angle = (j * Math.PI * 2) / markerQueue.length;
-            markerQueue[j] = { ...b, x: b.x + Math.cos(angle) * MIN_DIST, y: b.y + Math.sin(angle) * MIN_DIST };
-          }
+      if (allPositions.length > 1) {
+        for (let i = 1; i < allPositions.length; i++) {
+          const [x1, y1] = allPositions[0];
+          const [x2, y2] = allPositions[i];
+          linesG
+            .append("line")
+            .attr("class", "ob-line")
+            .attr("data-outbreak-id", o.id)
+            .attr("x1", x1)
+            .attr("y1", y1)
+            .attr("x2", x2)
+            .attr("y2", y2)
+            .attr("stroke", col)
+            .attr("stroke-width", isSel ? 1.1 : 0.85)
+            .attr("stroke-opacity", isSel ? 0.5 : 0.22)
+            .attr("stroke-dasharray", "4 6");
         }
       }
 
-      for (const m of markerQueue) {
-        const { o, x, y, isPrimary, dotR, col, isSel } = m;
-
-        const mg = markersG
-          .append("g")
-          .datum({ x, y })
-          .attr("class", "ob-marker")
-          .attr("transform", `translate(${x},${y}) scale(1)`);
-
-        pulseHalo(mg, dotR + 6, col);
-        mg.append("circle")
-          .attr("cx", 0)
-          .attr("cy", 0)
-          .attr("r", dotR + 3)
-          .attr("fill", col)
-          .attr("fill-opacity", "0.12");
-        // High-contrast rim on dark map
-        mg.append("circle")
-          .attr("cx", 0)
-          .attr("cy", 0)
-          .attr("r", dotR + 1.2)
-          .attr("fill", "none")
-          .attr("stroke", "#e8ffe8")
-          .attr("stroke-opacity", isPrimary ? 0.55 : 0.35)
-          .attr("stroke-width", isSel && isPrimary ? 2.2 : 1.4);
-        mg.append("circle")
-          .attr("cx", 0)
-          .attr("cy", 0)
-          .attr("r", isSel && isPrimary ? dotR + 1.5 : dotR)
-          .attr("fill", col)
-          .attr("fill-opacity", isPrimary ? 0.95 : 0.72)
-          .attr("stroke", "#030806")
-          .attr("stroke-width", isSel && isPrimary ? 1.4 : 1)
-          .style("cursor", "pointer")
-          .on("mouseenter", function (event) {
-            setTooltip({ x: event.offsetX, y: event.offsetY, o });
-            d3.select(this).attr("fill-opacity", "1");
-          })
-          .on("mouseleave", function () {
-            setTooltip(null);
-            d3.select(this).attr("fill-opacity", isPrimary ? "0.95" : "0.72");
-          })
-          .on("click", () => onSelect(o));
-
-        if (isPrimary && (isSel || o.conspiracy_score >= 65)) {
-          // Outer glow circle uses r = dotR + 3; keep label clear of that + glyph stroke.
-          const labelX = dotR + 3 + 10;
-          mg.append("text")
-            .attr("x", labelX)
-            .attr("y", 0)
-            .attr("dominant-baseline", "middle")
-            .attr("fill", col)
-            .attr("font-size", "9")
-            .attr("font-weight", "700")
-            .attr("font-family", "'Share Tech Mono',monospace")
-            .attr("letter-spacing", "0.5")
-            .attr("paint-order", "stroke")
-            .attr("stroke", "#030806")
-            .attr("stroke-width", 3)
-            .attr("stroke-opacity", 0.85)
-            .text(o.disease.toUpperCase().slice(0, 14));
-        }
+      for (let pi = 0; pi < allPositions.length; pi++) {
+        const [x, y] = allPositions[pi];
+        const isPrimary = pi === 0;
+        const dotR = isPrimary ? r : Math.max(4, r - 2);
+        markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel });
       }
-
-      function applyObMarkerScale(t: d3.ZoomTransform) {
-        const k = t.k || 1;
-        markersG.selectAll<SVGGElement, { x: number; y: number }>("g.ob-marker").attr("transform", (d) => `translate(${d.x},${d.y}) scale(${1 / k})`);
-      }
-
-      const zoom = d3.zoom<SVGSVGElement, unknown>()
-        .extent([[0, 0], [W, H]])
-        .scaleExtent([1, 10])
-        .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
-          zoomTransformRef.current = event.transform;
-          geoG.attr("transform", String(event.transform)); // lines + map + markers (markers counter-scale inside)
-          applyObMarkerScale(event.transform);
-          setTooltip(null);
-        });
-      svg.call(zoom);
-      svg.call(zoom.transform, zoomTransformRef.current);
-
-      const ctrl = svg.append("g").attr("transform", `translate(${W - 36}, 10)`);
-      [
-        { dy: 0, label: "+", delta: 1.5 },
-        { dy: 22, label: "−", delta: 1 / 1.5 },
-        { dy: 44, label: "⌂", delta: null as number | null },
-      ].forEach(({ dy, label, delta }) => {
-        const btn = ctrl.append("g").attr("transform", `translate(0,${dy})`).style("cursor", "pointer");
-        btn.append("rect").attr("width", 22).attr("height", 18).attr("rx", 2).attr("fill", "rgba(9,15,11,0.85)").attr("stroke", "#1a3320");
-        btn.append("text").attr("x", 11).attr("y", 13).attr("text-anchor", "middle").attr("fill", "#5a8068").attr("font-size", "12").attr("font-family", "monospace").text(label);
-        btn.on("click", () => {
-          if (delta === null) {
-            zoomTransformRef.current = d3.zoomIdentity;
-            svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
-          } else svg.transition().duration(220).call(zoom.scaleBy, delta);
-        });
-        btn.on("mouseenter", function () {
-          d3.select(this).select("rect").attr("stroke", "#00bb66");
-          d3.select(this).select("text").attr("fill", "#00ff88");
-        });
-        btn.on("mouseleave", function () {
-          d3.select(this).select("rect").attr("stroke", "#1a3320");
-          d3.select(this).select("text").attr("fill", "#5a8068");
-        });
-      });
-
     }
 
-    paint();
-    const ro = new ResizeObserver(() => paint());
-    ro.observe(svgEl);
-    return () => ro.disconnect();
-  },[world,outbreaks,selected,onSelect]);
+    const MIN_DIST = 18;
+    for (let i = 0; i < markerQueue.length; i++) {
+      for (let j = i + 1; j < markerQueue.length; j++) {
+        const a = markerQueue[i];
+        const b = markerQueue[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < MIN_DIST && dist > 0) {
+          const push = (MIN_DIST - dist) / 2 + 1;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          markerQueue[i] = { ...a, x: a.x - nx * push, y: a.y - ny * push };
+          markerQueue[j] = { ...b, x: b.x + nx * push, y: b.y + ny * push };
+        } else if (dist === 0) {
+          const angle = (j * Math.PI * 2) / markerQueue.length;
+          markerQueue[j] = { ...b, x: b.x + Math.cos(angle) * MIN_DIST, y: b.y + Math.sin(angle) * MIN_DIST };
+        }
+      }
+    }
+
+    const markerData: ObMarkerDatum[] = markerQueue.map((m) => ({ ...m }));
+
+    const mg = markersG
+      .selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker")
+      .data(markerData, (d) => `${d.o.id}-${d.isPrimary ? "p" : "s"}`)
+      .join("g")
+      .attr("class", "ob-marker")
+      .attr("data-outbreak-id", (d) => d.o.id)
+      .attr("transform", (d) => {
+        const k = zoomTransformRef.current.k || 1;
+        return `translate(${d.x},${d.y}) scale(${1 / k})`;
+      });
+
+    mg.each(function (d) {
+      const group = d3.select(this);
+      group.selectAll("*").remove();
+
+      pulseHalo(group, d.dotR + 6, d.col);
+      group
+        .append("circle")
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("r", d.dotR + 3)
+        .attr("fill", d.col)
+        .attr("fill-opacity", "0.12");
+      group
+        .append("circle")
+        .attr("class", "ob-rim")
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("r", d.dotR + 1.2)
+        .attr("fill", "none")
+        .attr("stroke", "#e8ffe8")
+        .attr("stroke-opacity", d.isPrimary ? 0.55 : 0.35)
+        .attr("stroke-width", d.isSel && d.isPrimary ? 2.2 : 1.4);
+      group
+        .append("circle")
+        .attr("class", "ob-dot")
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("r", d.isSel && d.isPrimary ? d.dotR + 1.5 : d.dotR)
+        .attr("fill", d.col)
+        .attr("fill-opacity", d.isPrimary ? 0.95 : 0.72)
+        .attr("stroke", "#030806")
+        .attr("stroke-width", d.isSel && d.isPrimary ? 1.4 : 1)
+        .style("cursor", "pointer")
+        .on("mouseenter", function (event) {
+          setTooltipRef.current({ x: event.offsetX, y: event.offsetY, o: d.o });
+          d3.select(this).attr("fill-opacity", "1");
+        })
+        .on("mouseleave", function () {
+          setTooltipRef.current(null);
+          d3.select(this).attr("fill-opacity", d.isPrimary ? 0.95 : 0.72);
+        })
+        .on("click", (event) => {
+          event.stopPropagation();
+          onSelectRef.current(d.o);
+        });
+
+      const labelX = d.dotR + 3 + 10;
+      group
+        .append("text")
+        .attr("class", "ob-label")
+        .attr("x", labelX)
+        .attr("y", 0)
+        .attr("dominant-baseline", "middle")
+        .attr("fill", d.col)
+        .attr("font-size", "9")
+        .attr("font-weight", "700")
+        .attr("font-family", "'Share Tech Mono',monospace")
+        .attr("letter-spacing", "0.5")
+        .attr("paint-order", "stroke")
+        .attr("stroke", "#030806")
+        .attr("stroke-width", 3)
+        .attr("stroke-opacity", 0.85)
+        .text(d.o.disease.toUpperCase().slice(0, 14))
+        .style("display", d.isPrimary && (d.isSel || d.o.conspiracy_score >= 65) ? "block" : "none");
+    });
+
+    applyObMarkerStyles(mg, selectedId);
+
+    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-opacity", function () {
+      const id = d3.select(this).attr("data-outbreak-id");
+      return id === selectedId ? 0.5 : 0.22;
+    });
+    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-width", function () {
+      const id = d3.select(this).attr("data-outbreak-id");
+      return id === selectedId ? 1.1 : 0.85;
+    });
+  }, []);
+
+  const updateSelectionOnly = useCallback((selectedId: string | null) => {
+    const ctx = mapCtxRef.current;
+    if (!ctx) return;
+    const { markersG, linesG } = ctx;
+    applyObMarkerStyles(
+      markersG.selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker"),
+      selectedId,
+    );
+    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-opacity", function () {
+      const id = d3.select(this).attr("data-outbreak-id");
+      return id === selectedId ? 0.5 : 0.22;
+    });
+    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-width", function () {
+      const id = d3.select(this).attr("data-outbreak-id");
+      return id === selectedId ? 1.1 : 0.85;
+    });
+  }, []);
+
+  const paintBase = useCallback(() => {
+    const svgEl = svgRef.current;
+    const topo = worldRef.current;
+    if (!svgEl || !topo) return;
+
+    const W = Math.max(svgEl.getBoundingClientRect().width || svgEl.clientWidth, 280);
+    const H = 360;
+    svgEl.setAttribute("width", String(W));
+    svgEl.setAttribute("height", String(H));
+
+    const svg = d3.select(svgEl);
+    svg.selectAll("*").remove();
+    mapCtxRef.current = null;
+
+    const proj = d3.geoNaturalEarth1();
+    proj.fitSize([W, H], { type: "Sphere" });
+    const path = d3.geoPath().projection(proj);
+
+    svg.append("rect").attr("width", W).attr("height", H).attr("fill", "#030806");
+
+    const geoG = svg.append("g").attr("class", "ob-geo");
+
+    const graticule = d3.geoGraticule()();
+    geoG
+      .append("path")
+      .datum(graticule)
+      .attr("d", path as d3.ValueFn<SVGPathElement, unknown, string>)
+      .attr("fill", "none")
+      .attr("stroke", "#0a1f0d")
+      .attr("stroke-width", "0.3");
+
+    // @ts-expect-error TopoJSON topology typed loosely vs geojson
+    const countries = topojson.feature(topo, topo.objects.countries);
+    geoG
+      .append("g")
+      .selectAll("path")
+      // @ts-expect-error features from topojson.feature
+      .data(countries.features)
+      .enter()
+      .append("path")
+      .attr("d", path as d3.ValueFn<SVGPathElement, unknown, string>)
+      .attr("fill", "#0a160c")
+      .attr("stroke", "#1a3320")
+      .attr("stroke-width", "0.4");
+
+    // @ts-expect-error TopoJSON mesh callback types
+    const borders = topojson.mesh(topo, topo.objects.countries, (a: unknown, b: unknown) => a !== b);
+    geoG
+      .append("path")
+      .datum(borders)
+      .attr("d", path as d3.ValueFn<SVGPathElement, unknown, string>)
+      .attr("fill", "none")
+      .attr("stroke", "#1a3320")
+      .attr("stroke-width", "0.3");
+
+    const linesG = geoG.append("g").attr("class", "ob-lines");
+    const markersG = geoG.append("g").attr("class", "ob-markers");
+
+    function applyObMarkerScale(t: d3.ZoomTransform) {
+      const k = t.k || 1;
+      markersG
+        .selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker")
+        .attr("transform", (d) => `translate(${d.x},${d.y}) scale(${1 / k})`);
+    }
+
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .extent([
+        [0, 0],
+        [W, H],
+      ])
+      .scaleExtent([1, 10])
+      .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+        zoomTransformRef.current = event.transform;
+        geoG.attr("transform", String(event.transform));
+        applyObMarkerScale(event.transform);
+        setTooltipRef.current(null);
+      });
+
+    svg.on(".zoom", null);
+    svg.call(zoom);
+    svg.call(zoom.transform, zoomTransformRef.current);
+
+    const ctrl = svg.append("g").attr("class", "ob-zoom-ctrl").attr("transform", `translate(${W - 36}, 10)`);
+    [
+      { dy: 0, label: "+", delta: 1.5 },
+      { dy: 22, label: "−", delta: 1 / 1.5 },
+      { dy: 44, label: "⌂", delta: null as number | null },
+    ].forEach(({ dy, label, delta }) => {
+      const btn = ctrl.append("g").attr("transform", `translate(0,${dy})`).style("cursor", "pointer");
+      btn
+        .append("rect")
+        .attr("width", 22)
+        .attr("height", 18)
+        .attr("rx", 2)
+        .attr("fill", "rgba(9,15,11,0.85)")
+        .attr("stroke", "#1a3320");
+      btn
+        .append("text")
+        .attr("x", 11)
+        .attr("y", 13)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#5a8068")
+        .attr("font-size", "12")
+        .attr("font-family", "monospace")
+        .text(label);
+      btn.on("click", () => {
+        if (delta === null) {
+          zoomTransformRef.current = d3.zoomIdentity;
+          svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+        } else svg.transition().duration(220).call(zoom.scaleBy, delta);
+      });
+      btn.on("mouseenter", function () {
+        d3.select(this).select("rect").attr("stroke", "#00bb66");
+        d3.select(this).select("text").attr("fill", "#00ff88");
+      });
+      btn.on("mouseleave", function () {
+        d3.select(this).select("rect").attr("stroke", "#1a3320");
+        d3.select(this).select("text").attr("fill", "#5a8068");
+      });
+    });
+
+    const ctx: ObMapCtx = { svg, geoG, linesG, markersG, proj, W, H, zoom };
+    mapCtxRef.current = ctx;
+    paintMarkers(ctx, selectedIdRef.current);
+  }, [paintMarkers]);
+
+  useEffect(() => {
+    if (!world || !svgRef.current) return;
+    paintBase();
+
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => paintBase(), 150);
+    });
+    ro.observe(svgRef.current);
+    return () => {
+      ro.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
+    };
+  }, [world, paintBase]);
+
+  useEffect(() => {
+    const ctx = mapCtxRef.current;
+    if (!ctx) return;
+    paintMarkers(ctx, selectedIdRef.current);
+  }, [outbreaks, paintMarkers]);
+
+  useEffect(() => {
+    updateSelectionOnly(selected?.id ?? null);
+  }, [selected?.id, updateSelectionOnly]);
 
   return (
     <div
@@ -698,6 +867,10 @@ export default function OutbreakTracker() {
   const [selected, setSelected] = useState<Outbreak|null>(null);
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
 
+  const selectOutbreak = useCallback((o: Outbreak) => {
+    startTransition(() => setSelected(o));
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -851,10 +1024,10 @@ export default function OutbreakTracker() {
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
-                <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={setSelected} />
+                <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={selectOutbreak} />
                 <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                   {visible.map(o=>(
-                    <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>setSelected(o)}/>
+                    <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>selectOutbreak(o)}/>
                   ))}
                 </div>
               </div>
