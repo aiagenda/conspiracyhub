@@ -176,6 +176,8 @@ export default function GuidePage() {
             <Note>Coloured chips under the header show which channels returned data and how many items each contributed. If the grid is empty, feeds may be rate-limited — refresh after a few minutes.</Note>
             <Sub>Navigation</Sub>
             <Note>Minimal header: ← FEED, same as other tracker pages. Listed in the top nav as <strong style={{ color: "#ffaa00" }}>INSIDER RADAR</strong> (amber).</Note>
+            <Sub>Admin (GSC pipeline)</Sub>
+            <Note>On <code style={{ color: "#3a5040" }}>/admin</code>, sidebar <strong style={{ color: "#ffaa00" }}>SEO / GSC</strong>: run <strong style={{ color: "#c8e8d0" }}>Search Console sync</strong> first, then <strong style={{ color: "#c8e8d0" }}>Search Console SEO Article</strong>. Or call <code style={{ color: "#3a5040" }}>GET /api/search-console</code> with <code style={{ color: "#3a5040" }}>CRON_SECRET</code>.</Note>
           </Section>
 
           {/* OUTBREAKS */}

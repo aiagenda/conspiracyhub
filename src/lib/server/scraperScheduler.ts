@@ -190,6 +190,25 @@ const OUTBREAK_JOB = {
   config: {},
 } as const;
 
+const SEARCH_CONSOLE_JOBS = [
+  {
+    job_key: "search_console_sync",
+    name: "Search Console sync",
+    target: "search_console",
+    schedule_cron: "0 7 * * 0",
+    enabled: true,
+    config: {},
+  },
+  {
+    job_key: "article_writer_gsc",
+    name: "Search Console SEO Article",
+    target: "article_writer",
+    schedule_cron: "0 8 * * 0",
+    enabled: true,
+    config: { mode: "search_console" },
+  },
+] as const;
+
 /** Idempotent — creates the job if migration was not applied yet. */
 async function ensureOutbreakScraperJob() {
   const db = admin();
@@ -204,9 +223,25 @@ async function ensureOutbreakScraperJob() {
   if (error) console.warn("[scraper] ensure outbreak_refresh job:", error.message);
 }
 
+/** Idempotent — GSC sync + SEO article jobs (migration 20260516120100). */
+async function ensureSearchConsoleScraperJobs() {
+  const db = admin();
+  for (const job of SEARCH_CONSOLE_JOBS) {
+    const { data: existing } = await db
+      .from("scraper_jobs")
+      .select("id")
+      .eq("job_key", job.job_key)
+      .maybeSingle();
+    if (existing) continue;
+    const { error } = await db.from("scraper_jobs").upsert({ ...job }, { onConflict: "job_key" });
+    if (error) console.warn(`[scraper] ensure ${job.job_key}:`, error.message);
+  }
+}
+
 export async function getSchedulerSnapshot() {
   const db = admin();
   await ensureOutbreakScraperJob();
+  await ensureSearchConsoleScraperJobs();
   const { data: jobs, error: jobsErr } = await db
     .from("scraper_jobs")
     .select("id,job_key,name,target,schedule_cron,enabled,config")

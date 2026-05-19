@@ -719,8 +719,26 @@ export default function AdminPage() {
       ),
     [scrapers],
   );
+  const seoScraperJobs = useMemo(
+    () => scrapers.filter((j) => j.target === "search_console"),
+    [scrapers],
+  );
   const writerScraperJobs = useMemo(
-    () => scrapers.filter((j) => j.target === "article_writer"),
+    () =>
+      scrapers.filter(
+        (j) =>
+          j.target === "article_writer" &&
+          (j.config as { mode?: string } | null)?.mode !== "search_console",
+      ),
+    [scrapers],
+  );
+  const gscWriterJobs = useMemo(
+    () =>
+      scrapers.filter(
+        (j) =>
+          j.target === "article_writer" &&
+          (j.config as { mode?: string } | null)?.mode === "search_console",
+      ),
     [scrapers],
   );
 
@@ -1064,6 +1082,23 @@ export default function AdminPage() {
             </div>
           );
         })() : null}
+        {job.target === "search_console" && last?.status === "success" && last.result && typeof last.result === "object" ? (
+          <div
+            className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
+            style={{ borderColor: "#1a2620", color: "var(--green-dim)" }}
+            title={JSON.stringify(last.result)}
+          >
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+              Last run
+            </span>
+            {(() => {
+              const r = last.result as { opportunities?: unknown[]; raw_count?: number };
+              const n = Array.isArray(r.opportunities) ? r.opportunities.length : 0;
+              const raw = typeof r.raw_count === "number" ? r.raw_count : 0;
+              return `${n} opportunities · ${raw} queries from GSC`;
+            })()}
+          </div>
+        ) : null}
         {job.target === "outbreak_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "outbreaks" in last.result ? (
           <div
             className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
@@ -1230,6 +1265,9 @@ export default function AdminPage() {
           </button>
           <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-feed")}>
             Feed scrapers
+          </button>
+          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-seo")}>
+            SEO / GSC
           </button>
           <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-writers")}>
             Investigation writers
@@ -2185,6 +2223,44 @@ export default function AdminPage() {
               {scrapers.length > 0 && feedScraperJobs.length === 0 && (
                 <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
                   No feed ingest jobs in this database snapshot.
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── SEARCH CONSOLE / SEO ── */}
+          <section id="scrapers-seo" className="mt-10 space-y-4">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid #ffaa00", paddingLeft: 10 }}>
+                Search Console &amp; SEO
+              </h2>
+              <button
+                type="button"
+                onClick={() => void loadScrapers()}
+                className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                style={{ borderColor: "#1a2a22", color: muted }}
+              >
+                Refresh jobs
+              </button>
+            </div>
+            <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)", color: muted }}>
+              <strong style={{ color: "var(--foreground)" }}>1.</strong> Run <strong style={{ color: "#ffaa00" }}>Search Console sync</strong> first — pulls query data into{" "}
+              <code className="text-[var(--green-dim)]">search_console_cache</code>. Needs Vercel env{" "}
+              <code className="text-[var(--green-dim)]">GSC_SERVICE_ACCOUNT_EMAIL</code>,{" "}
+              <code className="text-[var(--green-dim)]">GSC_PRIVATE_KEY</code>, and{" "}
+              <code className="text-[var(--green-dim)]">GSC_SITE_URL</code> (domain property:{" "}
+              <code className="text-[var(--green-dim)]">sc-domain:the-theorist.com</code>).{" "}
+              <strong style={{ color: "var(--foreground)" }}>2.</strong> Then run <strong style={{ color: "#ffaa00" }}>Search Console SEO Article</strong> — writes a /blog post from the top opportunity.
+              <span className="mt-2 block text-[11px]">
+                Direct API: <code className="text-[var(--green-dim)]">GET /api/search-console</code> with Bearer <code className="text-[var(--green-dim)]">CRON_SECRET</code>.
+              </span>
+            </div>
+            <div className="space-y-2">
+              {seoScraperJobs.map(scraperJobCard)}
+              {gscWriterJobs.map(scraperJobCard)}
+              {scrapers.length > 0 && seoScraperJobs.length === 0 && gscWriterJobs.length === 0 && (
+                <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
+                  No Search Console jobs yet — click Refresh jobs (creates defaults) or run <code className="text-[var(--green-dim)]">supabase db push</code>.
                 </div>
               )}
             </div>
