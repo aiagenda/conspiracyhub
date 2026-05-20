@@ -76,6 +76,56 @@ async function fetchYouTubeRSS(
   }
 }
 
+/** Public timeline embed — no API key; works for most public accounts. */
+async function fetchTwitterSyndicationFallback(
+  handle: string,
+): Promise<Array<{ title: string; url: string; published: string }>> {
+  const key = handle.replace(/^@/, "");
+  try {
+    const res = await fetch(
+      `https://syndication.twitter.com/srv/timeline-profile/screen-name/${encodeURIComponent(key)}`,
+      {
+        headers: { "User-Agent": UA, Accept: "text/html" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!res.ok) return [];
+    const html = await res.text();
+    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (!m) return [];
+    const data = JSON.parse(m[1]) as {
+      props?: { pageProps?: { timeline?: { entries?: unknown[] } } };
+    };
+    const entries = data?.props?.pageProps?.timeline?.entries ?? [];
+    const items: Array<{ title: string; url: string; published: string }> = [];
+    for (const raw of entries) {
+      const e = raw as { content?: { tweet?: Record<string, unknown> } };
+      const tw = e?.content?.tweet;
+      if (!tw) continue;
+      const legacy = (tw.legacy ?? tw) as {
+        full_text?: string;
+        text?: string;
+        id_str?: string;
+        created_at?: string;
+      };
+      const title = (legacy.full_text ?? legacy.text ?? "").replace(/\s+/g, " ").trim();
+      const id = String(legacy.id_str ?? (tw as { rest_id?: string }).rest_id ?? "");
+      const created = legacy.created_at ?? "";
+      if (!title || !id || title.startsWith("RT @")) continue;
+      const published = created ? new Date(created).toISOString() : new Date().toISOString();
+      items.push({
+        title,
+        url: `https://x.com/${key}/status/${id}`,
+        published,
+      });
+      if (items.length >= 3) break;
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
 async function fetchTwitterNitterFallback(
   handle: string,
 ): Promise<Array<{ title: string; url: string; published: string }>> {
@@ -115,8 +165,10 @@ async function fetchTwitterPosts(
 ): Promise<Array<{ title: string; url: string; published: string }>> {
   if (isXApiConfigured()) {
     const { posts } = await fetchXPostsByHandle(handle, 3);
-    return posts;
+    if (posts.length > 0) return posts;
   }
+  const syndication = await fetchTwitterSyndicationFallback(handle);
+  if (syndication.length > 0) return syndication;
   return fetchTwitterNitterFallback(handle);
 }
 
@@ -133,7 +185,7 @@ export function buildInsiderPayload(
   trackersWithPosts: Array<InsiderTracker & { posts: Array<{ title: string; url: string; published: string; thumbnail?: string }> }>,
   refreshedAt: string,
 ): InsiderRadarPayload {
-  const x_source = isXApiConfigured() ? "x_api" : "nitter_fallback";
+  const x_source = isXApiConfigured() ? "x_api" : "syndication_or_nitter";
 
   const allPosts = trackersWithPosts
     .filter((t) => t.posts.length > 0)
@@ -185,6 +237,79 @@ export async function fetchYouTubeInsiderFeeds(): Promise<InsiderRadarPayload> {
   });
   const payload = buildInsiderPayload(trackersWithPosts, new Date().toISOString());
   return { ...payload, x_source: "youtube_only_warm" };
+}
+
+async function fetchTwitterInsiderFeeds(): Promise<
+  Array<InsiderTracker & { posts: Array<{ title: string; url: string; published: string }> }>
+> {
+  const twitter = INSIDER_TRACKERS.filter((t) => t.type === "twitter");
+  const batchSize = 5;
+  const out: Array<InsiderTracker & { posts: Array<{ title: string; url: string; published: string }> }> = [];
+  for (let i = 0; i < twitter.length; i += batchSize) {
+    const chunk = twitter.slice(i, i + batchSize);
+    const settled = await Promise.allSettled(chunk.map((t) => fetchTrackerPosts(t)));
+    for (let j = 0; j < chunk.length; j++) {
+      const r = settled[j];
+      out.push(
+        r.status === "fulfilled"
+          ? r.value
+          : { ...chunk[j], posts: [] },
+      );
+    }
+  }
+  return out;
+}
+
+/** Refresh X timelines and merge with YouTube (batched X to limit burst). */
+export async function runInsiderRadarTwitterRefresh(): Promise<{
+  ok: boolean;
+  status: number;
+  payload: InsiderRadarPayload | { error: string };
+}> {
+  try {
+    const [youtubeSettled, twitterResults] = await Promise.all([
+      Promise.allSettled(
+        INSIDER_TRACKERS.filter((t) => t.type === "youtube").map((t) => fetchTrackerPosts(t)),
+      ),
+      fetchTwitterInsiderFeeds(),
+    ]);
+
+    const ytById = new Map<string, InsiderTracker & { posts: Array<{ title: string; url: string; published: string }> }>();
+    youtubeSettled.forEach((r, i) => {
+      const tracker = INSIDER_TRACKERS.filter((t) => t.type === "youtube")[i];
+      if (r.status === "fulfilled") ytById.set(tracker.id, r.value);
+      else ytById.set(tracker.id, { ...tracker, posts: [] });
+    });
+    const twById = new Map(twitterResults.map((t) => [t.id, t]));
+
+    const trackersWithPosts = INSIDER_TRACKERS.map((tracker) => {
+      if (tracker.type === "youtube") {
+        return ytById.get(tracker.id) ?? { ...tracker, posts: [] };
+      }
+      return twById.get(tracker.id) ?? { ...tracker, posts: [] };
+    });
+
+    const fresh = buildInsiderPayload(trackersWithPosts, new Date().toISOString());
+    const admin = adminClient();
+    const { error } = await admin.from("insider_radar_cache").upsert(
+      {
+        id: INSIDER_CACHE_ID,
+        data: fresh,
+        refreshed_at: fresh.refreshed_at,
+      },
+      { onConflict: "id" },
+    );
+    if (error) {
+      return { ok: false, status: 500, payload: { error: error.message } };
+    }
+    return { ok: true, status: 200, payload: { ...fresh, cached: true } };
+  } catch (e) {
+    return {
+      ok: false,
+      status: 500,
+      payload: { error: e instanceof Error ? e.message : String(e) },
+    };
+  }
 }
 
 export async function runInsiderRadarQuickWarm(): Promise<{
@@ -258,7 +383,7 @@ export async function readInsiderRadarCache(): Promise<InsiderRadarPayload | nul
   }
 }
 
-/** Cron / admin: refresh cache (all X API calls happen here). */
+/** Cron / admin: full refresh (X + YouTube). */
 export async function runInsiderRadarRefresh(): Promise<{
   ok: boolean;
   status: number;

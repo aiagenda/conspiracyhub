@@ -4,5 +4,13 @@
       "path": "/api/scheduler/tick",
       "schedule": "0 9 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/insider-radar/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/insider-radar/refresh/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

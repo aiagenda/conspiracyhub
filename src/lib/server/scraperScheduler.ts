@@ -4,7 +4,7 @@ import { runUapFullScrape } from "@/lib/server/uapIngest";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
-import { runInsiderRadarRefresh } from "@/lib/server/insiderRadarIngest";
+import { runInsiderRadarTwitterRefresh } from "@/lib/server/insiderRadarIngest";
 
 export type ScraperJob = {
   id: string;
@@ -142,7 +142,7 @@ async function runOutbreakScraper(): Promise<{ ok: boolean; status: number; payl
 }
 
 async function runInsiderRadarScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
-  const { ok, status, payload } = await runInsiderRadarRefresh();
+  const { ok, status, payload } = await runInsiderRadarTwitterRefresh();
   return { ok, status, payload };
 }
 

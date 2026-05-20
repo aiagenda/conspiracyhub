@@ -91,7 +91,12 @@ export default function InsiderRadar() {
         setPosts(d.posts ?? []);
         setTrackers(d.trackers ?? []);
         setRefreshedAt(d.refreshed_at ?? null);
-        setCacheHint(d.hint ?? d.warm_error ?? null);
+        const hint =
+          d.hint ??
+          ((d.x_twitter_posts ?? 0) === 0
+            ? "X posts not loaded yet — Admin → Automation → Insider Radar → Run now, or reload after daily refresh."
+            : null);
+        setCacheHint(hint ?? d.warm_error ?? null);
         setWarmError(d.warm_error ?? d.error ?? null);
       })
       .catch(() => setWarmError("Network error loading feed"))
