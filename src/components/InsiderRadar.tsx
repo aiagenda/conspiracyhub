@@ -78,6 +78,7 @@ export default function InsiderRadar() {
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState<"all" | "youtube" | "twitter">("all");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [trackerFilter, setTrackerFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/insider-radar")
@@ -88,12 +89,15 @@ export default function InsiderRadar() {
   }, []);
 
   const visible = posts.filter(p => {
+    if (trackerFilter && p.tracker_id !== trackerFilter) return false;
     if (filter !== "all" && p.tracker_type !== filter) return false;
     if (catFilter !== "all" && p.category !== catFilter) return false;
     return true;
   });
 
+  const sortedTrackers = [...trackers].sort((a, b) => b.post_count - a.post_count || a.name.localeCompare(b.name));
   const cats = [...new Set(trackers.map(t => t.category))];
+  const activeTracker = trackerFilter ? trackers.find(t => t.id === trackerFilter) : null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
@@ -124,15 +128,42 @@ export default function InsiderRadar() {
             </div>
           </div>
 
-          {trackers.length > 0 && (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: "1.25rem", justifyContent: "center" }}>
-              {trackers.map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", border: `1px solid ${t.color}44`, borderRadius: 3, background: `${t.color}0a` }}>
-                  <span style={{ fontSize: 14 }}>{t.avatar}</span>
-                  <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 1 }}>{t.name}</span>
-                  <span style={{ fontSize: 10, color: "#5a8068" }}>{t.post_count}</span>
-                </div>
-              ))}
+          {sortedTrackers.length > 0 && (
+            <div style={{ marginBottom: "1.25rem" }}>
+              <div style={{ fontSize: 10, color: "var(--muted-dim, #7aaa8a)", letterSpacing: 2, textAlign: "center", marginBottom: 8 }}>
+                {trackerFilter
+                  ? <>FILTERING: <span style={{ color: activeTracker?.color ?? "#00ff88" }}>{activeTracker?.name ?? "—"}</span> · click again to clear</>
+                  : "CLICK A NAME TO FILTER POSTS"}
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+                {sortedTrackers.map(t => {
+                  const on = trackerFilter === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTrackerFilter(on ? null : t.id)}
+                      title={on ? `Clear filter (${t.name})` : `Show only ${t.name}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 12px",
+                        border: `1px solid ${on ? t.color : `${t.color}44`}`,
+                        borderRadius: 3,
+                        background: on ? `${t.color}22` : `${t.color}0a`,
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                        boxShadow: on ? `0 0 12px ${t.color}33` : undefined,
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>{t.avatar}</span>
+                      <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 1 }}>{t.name}</span>
+                      <span style={{ fontSize: 10, color: on ? t.color : "var(--muted-dim, #7aaa8a)" }}>{t.post_count}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -166,8 +197,10 @@ export default function InsiderRadar() {
           )}
 
           {!loading && visible.length === 0 && (
-            <div style={{ textAlign: "center", padding: "3rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
-              NO SIGNALS AVAILABLE — CHANNELS MAY BE RATE LIMITED
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "var(--muted, #9ec8ae)", fontSize: 11, letterSpacing: 2 }}>
+              {trackerFilter
+                ? `NO POSTS FOR ${activeTracker?.name?.toUpperCase() ?? "THIS INSIDER"} WITH CURRENT FILTERS`
+                : "NO SIGNALS AVAILABLE — CHANNELS MAY BE RATE LIMITED"}
             </div>
           )}
 

@@ -298,15 +298,15 @@ export async function GET(req: Request) {
       }),
     );
 
-    const trackers = results
+    const trackersWithPosts = results
       .map((r, i) => {
         if (r.status === "rejected")
           return { ...TRACKERS[i], posts: [] as Array<{ title: string; url: string; published: string }> };
         return r.value;
-      })
-      .filter((t) => t.posts.length > 0);
+      });
 
-    const allPosts = trackers
+    const allPosts = trackersWithPosts
+      .filter((t) => t.posts.length > 0)
       .flatMap((t) =>
         t.posts.map((p) => ({
           ...p,
@@ -323,7 +323,7 @@ export async function GET(req: Request) {
     const xTwitterCount = allPosts.filter((p) => p.tracker_type === "twitter").length;
     const payload: Record<string, unknown> = {
       posts: allPosts,
-      trackers: trackers.map((t) => ({
+      trackers: trackersWithPosts.map((t) => ({
         id: t.id,
         name: t.name,
         type: t.type,
