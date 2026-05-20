@@ -4,7 +4,7 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 2;
+export const OUTBREAK_CACHE_VERSION = 3;
 const OUTBREAK_LOCAL_NEWS_MAX = 10;
 const OUTBREAK_CANDIDATE_MAX = 12;
 const OUTBREAK_ANALYZE_MAX = 8;
@@ -14,7 +14,18 @@ const FEED_OUTBREAK_LOOKBACK_DAYS = 21;
 const OUTBREAK_RSS_FEEDS = ["https://www.afro.who.int/rss/emergencies.xml"];
 
 const OUTBREAK_KEYWORD_RE =
-  /disease|outbreak|virus|infection|fever|flu|ebola|mpox|cholera|plague|epidemic|dengue|marburg|hanta|hantavirus|polio|measles|pandemic|pathogen|bioweapon|avian|influenza|lassa|nipah|zika|coronavirus|covid|mers|sudan virus/i;
+  /\b(outbreak|epidemic|pandemic|ebola|mpox|cholera|plague|dengue|marburg|hantavirus|hanta|polio|measles|pathogen|bioweapon|lassa|nipah|zika|coronavirus|covid|mers|sudan virus|bird flu|avian influenza|h5n1)\b|disease outbreak|virus outbreak|infectious disease|case[s]? (?:of|reported|confirmed|rise|surge)|outbreak of/i;
+
+/** Explicit outbreak/epidemiology phrasing (required for feed items without a known pathogen). */
+const OUTBREAK_STRONG_RE =
+  /outbreak|epidemic|pandemic|cases reported|case[s]? (?:rise|surge|spike|confirmed)|cluster of|who declares|public health emergency|disease outbreak|confirmed cases|human-to-human|transmission|quarantine|isolation ward|vaccination campaign|contact tracing/i;
+
+/** Non-health stories that often false-trigger generic keywords. */
+const OUTBREAK_NEGATIVE_RE =
+  /influencer|hedge fund|film festival|cannes|\bf1\b|formula one|formula 1|election|philanthropist|open society|criminal court|press conference|retired from|zapatero|soros|stock market|earnings report|nba|nfl|premier league|rugby player|motorsport|box office|congress hearing|indicted for|pleaded guilty|motor neurone disease|als diagnosis.*retir/i;
+
+const INVALID_DISEASE_RE =
+  /^(unknown|n\/a|na|not applicable|none|unspecified|general|other|various|illness|sickness|pathogen signal)$/i;
 
 const DISEASE_SIGNATURES = [
   "ebola",
@@ -146,8 +157,40 @@ function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function isOutbreakRelevant(text: string): boolean {
-  return OUTBREAK_KEYWORD_RE.test(text);
+function hasKnownDiseaseSignature(text: string): boolean {
+  const t = text.toLowerCase();
+  return DISEASE_SIGNATURES.some((d) => t.includes(d));
+}
+
+function isOutbreakExcluded(text: string): boolean {
+  return OUTBREAK_NEGATIVE_RE.test(text);
+}
+
+/** Feed/RSS: known pathogen OR explicit outbreak phrasing; never politics/sports/finance. */
+function isStrictOutbreakCandidate(title: string, description = ""): boolean {
+  const blob = `${title} ${description}`.trim();
+  if (!blob || isOutbreakExcluded(blob)) return false;
+  if (hasKnownDiseaseSignature(blob)) return true;
+  if (!OUTBREAK_KEYWORD_RE.test(blob)) return false;
+  return OUTBREAK_STRONG_RE.test(blob);
+}
+
+function isValidDiseaseName(disease: string): boolean {
+  const d = disease.trim().toLowerCase();
+  if (!d || d.length < 3 || INVALID_DISEASE_RE.test(d)) return false;
+  if (isOutbreakExcluded(d)) return false;
+  if (hasKnownDiseaseSignature(d)) return true;
+  return d.split(/\s+/).length >= 2 && OUTBREAK_KEYWORD_RE.test(d);
+}
+
+function diseaseSearchToken(disease: string): string | null {
+  const t = disease.toLowerCase();
+  for (const sig of DISEASE_SIGNATURES) {
+    if (t.includes(sig)) return sig;
+  }
+  const word = disease.split(/\s+/).find((w) => w.length >= 5);
+  if (!word || INVALID_DISEASE_RE.test(word)) return null;
+  return word.toLowerCase();
 }
 
 function isWeakRssTitle(title: string): boolean {
@@ -160,8 +203,7 @@ function diseaseSignature(title: string): string {
   for (const d of DISEASE_SIGNATURES) {
     if (t.includes(d)) return d;
   }
-  const first = t.split(/[^a-z0-9]+/).find((w) => w.length > 3);
-  return first ?? t.slice(0, 24);
+  return `title:${t.slice(0, 56)}`;
 }
 
 function mergeOutbreakCandidates(feed: CuratedItem[], rss: CuratedItem[], curated: CuratedItem[]): CuratedItem[] {
@@ -201,7 +243,7 @@ async function parseRssItems(feedUrl: string): Promise<CuratedItem[]> {
         .trim() ?? "";
     const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
     const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
-    if (title && link && isOutbreakRelevant(title + " " + desc)) {
+    if (title && link && isStrictOutbreakCandidate(title, desc)) {
       items.push({ title, description: stripHtml(desc).slice(0, 300), link, pubDate: pub });
     }
   }
@@ -232,11 +274,11 @@ async function fetchFeedOutbreakCandidates(admin: SupabaseClient): Promise<Curat
   const items: CuratedItem[] = [];
   for (const row of data) {
     const title = String(row.title ?? "").trim();
-    const blob = [title, row.summary, row.angle].filter(Boolean).join(" ");
-    if (!title || !isOutbreakRelevant(blob)) continue;
+    const desc = stripHtml(String(row.summary ?? row.angle ?? ""));
+    if (!title || !isStrictOutbreakCandidate(title, desc)) continue;
     items.push({
       title,
-      description: stripHtml(String(row.summary ?? row.angle ?? "")).slice(0, 300) || title,
+      description: desc.slice(0, 300) || title,
       link: String(row.url ?? "/"),
       pubDate: row.published_at ? new Date(row.published_at).toUTCString() : "",
     });
@@ -245,8 +287,9 @@ async function fetchFeedOutbreakCandidates(admin: SupabaseClient): Promise<Curat
 }
 
 async function fetchFeedLocalNews(admin: SupabaseClient, disease: string): Promise<LocalNewsRow[]> {
-  const token = disease.split(/\s+/)[0]?.toLowerCase();
-  if (!token || token.length < 3) return [];
+  if (!isValidDiseaseName(disease)) return [];
+  const token = diseaseSearchToken(disease);
+  if (!token || token.length < 4) return [];
 
   const cutoff = new Date(Date.now() - FEED_OUTBREAK_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
   const { data } = await admin
@@ -262,7 +305,7 @@ async function fetchFeedLocalNews(admin: SupabaseClient, disease: string): Promi
   const rows: LocalNewsRow[] = [];
   for (const row of data) {
     const title = String(row.title ?? "").trim();
-    if (!title || !re.test(title)) continue;
+    if (!title || !re.test(title) || isOutbreakExcluded(title)) continue;
     rows.push({
       title,
       url: String(row.url ?? "/"),
@@ -277,8 +320,10 @@ async function fetchLocalNews(
   disease: string,
   country: string,
 ): Promise<Array<{ title: string; url: string; source: string; pubDate: string }>> {
+  if (!isValidDiseaseName(disease)) return [];
   try {
-    const query = encodeURIComponent(`${disease} ${country}`);
+    const searchTerm = diseaseSearchToken(disease) ?? disease.split(/\s+/).slice(0, 2).join(" ");
+    const query = encodeURIComponent(`${searchTerm} outbreak ${country}`);
     const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en&num=${OUTBREAK_LOCAL_NEWS_MAX}`;
     const res = await fetch(url, {
       headers: { "User-Agent": "TheTheorist/1.0" },
@@ -293,7 +338,7 @@ async function fetchLocalNews(
       const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
       const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
       const source = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
-      if (title && link) items.push({ title, url: link, source, pubDate: pub });
+      if (title && link && !isOutbreakExcluded(title)) items.push({ title, url: link, source, pubDate: pub });
     }
     return sortByPubDateDesc(items).slice(0, OUTBREAK_LOCAL_NEWS_MAX);
   } catch {
@@ -304,9 +349,12 @@ async function fetchLocalNews(
 const SYS = `You are a disease outbreak intelligence analyst. Analyze the outbreak for conspiracy relevance, patents, and geopolitical context.
 LANGUAGE: All JSON string values MUST be English only.
 
-Return ONLY valid JSON:
+If the story is NOT about an infectious disease outbreak (politics, sports, finance, entertainment, crime, philanthropy, etc.), return ONLY: {"reject":true}
+
+Otherwise return ONLY valid JSON:
 {
-  "disease":"short disease name (1-3 words)",
+  "reject":false,
+  "disease":"specific pathogen or syndrome name (e.g. ebola, dengue, h5n1 — NEVER use unknown, n/a, or illness)",
   "location":"primary affected country (lowercase, single country or 'multiple countries')",
   "affected_countries":["country1","country2"],
   "lat":0.0,"lng":0.0,
@@ -322,9 +370,11 @@ Return ONLY valid JSON:
 affected_countries: array of ALL countries currently affected (lowercase). If global or regional spread, list up to 8 specific countries.
 verdict: NATURAL|SUSPICIOUS|HIGHLY_SUSPICIOUS|UNKNOWN
 risk_level: LOW|MEDIUM|HIGH|CRITICAL
-Only cite real patent numbers and real URLs. conspiracy_score based on documented theories only.`;
+Only cite real patent numbers and real URLs. conspiracy_score based on documented theories only.
+disease MUST name a real infectious agent or WHO-tracked syndrome.`;
 
 type AnalysisRow = {
+  reject?: boolean;
   disease: string;
   location: string;
   affected_countries?: string[];
@@ -339,6 +389,17 @@ type AnalysisRow = {
   risk_level: string;
   origin_country: string;
 };
+
+function isAnalysisAcceptable(analysis: AnalysisRow, item: CuratedItem): boolean {
+  if (analysis.reject === true) return false;
+  if (!isValidDiseaseName(analysis.disease)) return false;
+  const blob = `${item.title} ${item.description}`;
+  if (isOutbreakExcluded(blob)) return false;
+  const verdict = (analysis.verdict ?? "").toUpperCase();
+  const diseaseBlob = `${analysis.disease} ${blob}`;
+  if (verdict === "UNKNOWN" && !hasKnownDiseaseSignature(diseaseBlob)) return false;
+  return true;
+}
 
 async function fetchOutbreakCandidates(admin: SupabaseClient): Promise<CuratedItem[]> {
   const [feed, rss] = await Promise.all([
@@ -457,6 +518,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           model: "gpt-4o-mini",
           maxAttempts: 2,
         });
+        if (!isAnalysisAcceptable(analysis, item)) return null;
         const country = analysis.origin_country || analysis.location;
         const [googleNews, feedNews] = await Promise.all([
           fetchLocalNews(analysis.disease, country),
@@ -476,7 +538,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
 
     const outbreaks = settled
       .map((r, i) => {
-        if (r.status === "rejected") return null;
+        if (r.status === "rejected" || r.value == null) return null;
         const { rawItem, ...rest } = r.value;
         const loc = rest.location?.toLowerCase() ?? "";
         const origin = rest.origin_country?.toLowerCase() ?? "";
@@ -506,7 +568,39 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
       })
       .filter((row): row is NonNullable<typeof row> => row != null);
 
-    const outbreaksSorted = sortByPublishedAtDesc(outbreaks);
+    let outbreaksSorted = sortByPublishedAtDesc(outbreaks);
+
+    if (outbreaksSorted.length === 0) {
+      outbreaksSorted = sortByPublishedAtDesc(
+        CURATED_DISEASES.slice(0, 4).map((item, i) => {
+          const diseaseGuess = item.title.split(/[—\-–]/)[0]?.trim() ?? "Ebola";
+          const isEbola = /ebola/i.test(item.title);
+          const latLng = isEbola ? COORDS.drc! : COORDS.brazil!;
+          return {
+            id: `ob-fallback-${i}-${Date.now()}`,
+            title: item.title,
+            description: item.description,
+            source_url: item.link,
+            published_at: item.pubDate,
+            disease: diseaseGuess,
+            location: isEbola ? "drc" : "brazil",
+            origin_country: isEbola ? "drc" : "brazil",
+            affected_countries: isEbola ? ["drc", "congo"] : ["brazil"],
+            lat: latLng[0],
+            lng: latLng[1],
+            affectedCoords: [{ country: isEbola ? "drc" : "brazil", lat: latLng[0], lng: latLng[1] }],
+            conspiracy_score: 8,
+            has_conspiracy: false,
+            theories: [] as AnalysisRow["theories"],
+            patents: [] as AnalysisRow["patents"],
+            key_facts: [item.description.slice(0, 200)],
+            verdict: "NATURAL",
+            risk_level: "MEDIUM",
+            localNews: [] as LocalNewsRow[],
+          };
+        }),
+      );
+    }
 
     const payload: OutbreakPayload = {
       outbreaks: outbreaksSorted,
