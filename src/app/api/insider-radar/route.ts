@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchXPostsByHandle, isXApiConfigured } from "@/lib/server/xApi";
+import { fetchXPostsByHandle, fetchXPostsForHandles, isXApiConfigured } from "@/lib/server/xApi";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -169,24 +169,39 @@ async function fetchTwitterPosts(
   handle: string,
 ): Promise<Array<{ title: string; url: string; published: string }>> {
   if (isXApiConfigured()) {
-    const fromX = await fetchXPostsByHandle(handle, 3);
-    if (fromX.length) return fromX;
+    const { posts } = await fetchXPostsByHandle(handle, 3);
+    return posts;
   }
   return fetchTwitterNitterFallback(handle);
 }
 
 export const revalidate = 1800;
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const debug =
+      url.searchParams.get("debug") === "1" &&
+      (process.env.NODE_ENV !== "production" ||
+        url.searchParams.get("key") === process.env.CRON_SECRET);
+
     const x_source = isXApiConfigured() ? "x_api" : "nitter_fallback";
+
+    const twitterHandles = TRACKERS.filter((t) => t.type === "twitter").map((t) => t.handle!);
+    const xBatch = debug ? await fetchXPostsForHandles(twitterHandles) : null;
 
     const results = await Promise.allSettled(
       TRACKERS.map(async (tracker) => {
-        const posts =
-          tracker.type === "youtube"
-            ? await fetchYouTubeRSS(tracker.channelId!)
-            : await fetchTwitterPosts(tracker.handle!);
+        if (tracker.type === "youtube") {
+          const posts = await fetchYouTubeRSS(tracker.channelId!);
+          return { ...tracker, posts };
+        }
+        if (isXApiConfigured()) {
+          const cached = xBatch?.results.find((r) => r.handle === tracker.handle);
+          const { posts } = cached ?? (await fetchXPostsByHandle(tracker.handle!, 3));
+          return { ...tracker, posts };
+        }
+        const posts = await fetchTwitterNitterFallback(tracker.handle!);
         return { ...tracker, posts };
       }),
     );
@@ -213,7 +228,8 @@ export async function GET() {
       )
       .sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime());
 
-    return NextResponse.json({
+    const xTwitterCount = allPosts.filter((p) => p.tracker_type === "twitter").length;
+    const payload: Record<string, unknown> = {
       posts: allPosts,
       trackers: trackers.map((t) => ({
         id: t.id,
@@ -226,7 +242,22 @@ export async function GET() {
       })),
       generated_at: new Date().toISOString(),
       x_source,
-    });
+      x_twitter_posts: xTwitterCount,
+    };
+
+    if (debug && xBatch) {
+      payload.x_debug = xBatch.results.map((r) => ({
+        handle: r.handle,
+        count: r.posts.length,
+        error: r.error ?? null,
+        sample: r.posts[0]?.title?.slice(0, 80) ?? null,
+      }));
+    } else if (isXApiConfigured() && xTwitterCount === 0) {
+      payload.x_hint =
+        "X API configured but no tweets returned. Check Vercel env X_BEARER_TOKEN, redeploy, and developer.x.com Usage for 403/429.";
+    }
+
+    return NextResponse.json(payload);
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

@@ -2,6 +2,12 @@
 
 export type XPost = { title: string; url: string; published: string };
 
+export type XHandleResult = {
+  handle: string;
+  posts: XPost[];
+  error?: string;
+};
+
 type TokenCache = { token: string; expiresAt: number };
 let tokenCache: TokenCache | null = null;
 
@@ -25,7 +31,6 @@ async function fetchAppBearerToken(): Promise<string | null> {
   const clientSecret = process.env.X_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) return null;
 
-  const bodies = ["grant_type=client_credentials"];
   const endpoints = [
     "https://api.x.com/2/oauth2/token",
     "https://api.twitter.com/oauth2/token",
@@ -39,7 +44,7 @@ async function fetchAppBearerToken(): Promise<string | null> {
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: basicAuthHeader(clientId, clientSecret),
         },
-        body: bodies[0],
+        body: "grant_type=client_credentials",
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) continue;
@@ -62,62 +67,89 @@ export function isXApiConfigured(): boolean {
   return !!(process.env.X_BEARER_TOKEN?.trim() || (process.env.X_CLIENT_ID?.trim() && process.env.X_CLIENT_SECRET?.trim()));
 }
 
-async function xGet<T>(path: string, bearer: string): Promise<T | null> {
+async function xGet<T>(path: string, bearer: string): Promise<{ data: T | null; error?: string }> {
   const bases = ["https://api.x.com", "https://api.twitter.com"];
+  let lastErr = "X API request failed";
+
   for (const base of bases) {
     try {
       const res = await fetch(`${base}${path}`, {
         headers: { Authorization: `Bearer ${bearer}`, "User-Agent": "TheTheorist/1.0" },
         signal: AbortSignal.timeout(12_000),
-        next: { revalidate: 1800 },
+        cache: "no-store",
       });
-      if (!res.ok) continue;
-      return (await res.json()) as T;
-    } catch {
-      continue;
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        lastErr = `HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ""}`;
+        continue;
+      }
+      return { data: (await res.json()) as T };
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
     }
   }
-  return null;
+  return { data: null, error: lastErr };
 }
 
-async function resolveUserId(handle: string, bearer: string): Promise<string | null> {
+async function resolveUserId(handle: string, bearer: string): Promise<{ id: string | null; error?: string }> {
   const key = handle.toLowerCase().replace(/^@/, "");
   const cached = USER_ID_CACHE.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.id;
+  if (cached && cached.expiresAt > Date.now()) return { id: cached.id };
 
-  const data = await xGet<{ data?: { id: string } }>(
+  const { data, error } = await xGet<{ data?: { id: string } }>(
     `/2/users/by/username/${encodeURIComponent(key)}?user.fields=username`,
     bearer,
   );
   const id = data?.data?.id;
-  if (!id) return null;
+  if (!id) return { id: null, error: error ?? `User @${key} not found` };
   USER_ID_CACHE.set(key, { id, expiresAt: Date.now() + USER_ID_TTL_MS });
-  return id;
+  return { id };
 }
 
 /** Latest original tweets from a public X account (no retweets). */
-export async function fetchXPostsByHandle(handle: string, limit = 3): Promise<XPost[]> {
+export async function fetchXPostsByHandle(handle: string, limit = 3): Promise<XHandleResult> {
   const bearer = await fetchAppBearerToken();
-  if (!bearer) return [];
+  if (!bearer) {
+    return { handle, posts: [], error: "X_BEARER_TOKEN or X_CLIENT_ID+SECRET not set" };
+  }
 
-  const userId = await resolveUserId(handle, bearer);
-  if (!userId) return [];
+  const { id: userId, error: userErr } = await resolveUserId(handle, bearer);
+  if (!userId) return { handle, posts: [], error: userErr };
 
   const params = new URLSearchParams({
-    max_results: String(Math.min(Math.max(limit, 5), 10)),
-    "tweet.fields": "created_at,entities",
+    max_results: "5",
+    "tweet.fields": "created_at",
     exclude: "retweets,replies",
   });
 
-  const data = await xGet<{
+  const { data, error } = await xGet<{
     data?: Array<{ id: string; text: string; created_at?: string }>;
   }>(`/2/users/${userId}/tweets?${params}`, bearer);
 
-  if (!data?.data?.length) return [];
+  if (error) return { handle, posts: [], error };
+  if (!data?.data?.length) return { handle, posts: [], error: "No tweets returned (empty timeline or quota)" };
 
-  return data.data.slice(0, limit).map((tweet) => ({
+  const posts = data.data.slice(0, limit).map((tweet) => ({
     title: tweet.text.replace(/\s+/g, " ").trim(),
     url: `https://x.com/${handle.replace(/^@/, "")}/status/${tweet.id}`,
     published: tweet.created_at ?? new Date().toISOString(),
   }));
+
+  return { handle, posts };
+}
+
+/** Fetch all Insider twitter handles in one call (for diagnostics). */
+export async function fetchXPostsForHandles(handles: string[]): Promise<{
+  results: XHandleResult[];
+  configured: boolean;
+}> {
+  const configured = isXApiConfigured();
+  if (!configured) {
+    return {
+      configured: false,
+      results: handles.map((h) => ({ handle: h, posts: [], error: "X API not configured" })),
+    };
+  }
+  const results = await Promise.all(handles.map((h) => fetchXPostsByHandle(h, 3)));
+  return { configured: true, results };
 }
