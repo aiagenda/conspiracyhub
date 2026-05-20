@@ -4,12 +4,19 @@ import { runUapFullScrape } from "@/lib/server/uapIngest";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
+import { runInsiderRadarRefresh } from "@/lib/server/insiderRadarIngest";
 
 export type ScraperJob = {
   id: string;
   job_key: string;
   name: string;
-  target: "news_scraper" | "uap_scraper" | "article_writer" | "search_console" | "outbreak_scraper";
+  target:
+    | "news_scraper"
+    | "uap_scraper"
+    | "article_writer"
+    | "search_console"
+    | "outbreak_scraper"
+    | "insider_radar_scraper";
   schedule_cron: string;
   enabled: boolean;
   config: Record<string, unknown> | null;
@@ -134,6 +141,11 @@ async function runOutbreakScraper(): Promise<{ ok: boolean; status: number; payl
   return { ok, status, payload };
 }
 
+async function runInsiderRadarScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const { ok, status, payload } = await runInsiderRadarRefresh();
+  return { ok, status, payload };
+}
+
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   const db = admin();
 
@@ -160,7 +172,9 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
             ? await runSearchConsoleScraper()
             : job.target === "outbreak_scraper"
               ? await runOutbreakScraper()
-              : await runUapScraper(job.config ?? {});
+              : job.target === "insider_radar_scraper"
+                ? await runInsiderRadarScraper()
+                : await runUapScraper(job.config ?? {});
 
     await finishRun(run.id, resp.ok ? "success" : "failed", {
       startedAt: run.started_at,
@@ -187,6 +201,15 @@ const OUTBREAK_JOB = {
   target: "outbreak_scraper",
   schedule_cron: "0 9 * * *",
   enabled: false,
+  config: {},
+} as const;
+
+const INSIDER_RADAR_JOB = {
+  job_key: "insider_radar_refresh",
+  name: "Insider Radar feed refresh",
+  target: "insider_radar_scraper",
+  schedule_cron: "0 9,21 * * *",
+  enabled: true,
   config: {},
 } as const;
 
@@ -221,6 +244,12 @@ async function ensureOutbreakScraperJob() {
 
   const { error } = await db.from("scraper_jobs").upsert(OUTBREAK_JOB, { onConflict: "job_key" });
   if (error) console.warn("[scraper] ensure outbreak_refresh job:", error.message);
+}
+
+async function ensureInsiderRadarScraperJob() {
+  const db = admin();
+  const { error } = await db.from("scraper_jobs").upsert({ ...INSIDER_RADAR_JOB }, { onConflict: "job_key" });
+  if (error) console.warn("[scraper] ensure insider_radar_refresh:", error.message);
 }
 
 const UAP_FULL_JOB = {
@@ -258,6 +287,7 @@ async function ensureSearchConsoleScraperJobs() {
 export async function getSchedulerSnapshot() {
   const db = admin();
   await ensureOutbreakScraperJob();
+  await ensureInsiderRadarScraperJob();
   await ensureUapFullScraperJob();
   await ensureSearchConsoleScraperJobs();
   const { data: jobs, error: jobsErr } = await db

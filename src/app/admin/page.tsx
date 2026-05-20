@@ -893,7 +893,10 @@ export default function AdminPage() {
     () =>
       scrapers.filter(
         (j) =>
-          j.target === "news_scraper" || j.target === "uap_scraper" || j.target === "outbreak_scraper",
+          j.target === "news_scraper" ||
+          j.target === "uap_scraper" ||
+          j.target === "outbreak_scraper" ||
+          j.target === "insider_radar_scraper",
       ),
     [scrapers],
   );
@@ -1003,7 +1006,12 @@ export default function AdminPage() {
         error?: string;
         result?: { skipped?: boolean; reason?: string; ok?: boolean; payload?: Record<string, unknown> };
       };
-      if (job.target === "news_scraper" || job.target === "outbreak_scraper" || job.target === "uap_scraper") {
+      if (
+        job.target === "news_scraper" ||
+        job.target === "outbreak_scraper" ||
+        job.target === "uap_scraper" ||
+        job.target === "insider_radar_scraper"
+      ) {
         if (!res.ok) {
           if (job.target === "uap_scraper") {
             setUapBriefHint({ variant: "error", text: `HTTP ${res.status}: ${data.error ?? "request failed"}` });
@@ -1039,6 +1047,9 @@ export default function AdminPage() {
             const count = Array.isArray(p.outbreaks) ? p.outbreaks.length : "?";
             const cached = p.cached === true ? " (served from cache)" : "";
             setNewsIngestHint(`outbreaks ${count}${cached} · generated ${String(p.generated_at ?? "?")}`);
+          } else if (job.target === "insider_radar_scraper") {
+            const n = typeof p.x_twitter_posts === "number" ? p.x_twitter_posts : "?";
+            setNewsIngestHint(`insider radar · ${n} X posts · ${String(p.refreshed_at ?? p.generated_at ?? "?")}`);
           } else {
             const src = p.sources as Record<string, number> | undefined;
             const parts: string[] = [];

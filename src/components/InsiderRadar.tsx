@@ -76,6 +76,8 @@ export default function InsiderRadar() {
   const [posts, setPosts]       = useState<Post[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const [cacheHint, setCacheHint] = useState<string | null>(null);
   const [filter, setFilter]     = useState<"all" | "youtube" | "twitter">("all");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [trackerFilter, setTrackerFilter] = useState<string | null>(null);
@@ -83,7 +85,12 @@ export default function InsiderRadar() {
   useEffect(() => {
     fetch("/api/insider-radar")
       .then(r => r.json())
-      .then(d => { setPosts(d.posts ?? []); setTrackers(d.trackers ?? []); })
+      .then(d => {
+        setPosts(d.posts ?? []);
+        setTrackers(d.trackers ?? []);
+        setRefreshedAt(d.refreshed_at ?? null);
+        setCacheHint(d.hint ?? null);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -112,7 +119,11 @@ export default function InsiderRadar() {
           <div style={{ fontFamily: RAJ, fontSize: 12, color: "#5a8068", letterSpacing: 2 }}>INSIDER RADAR</div>
           <div style={{ marginLeft: "auto", fontSize: 11, color: "#5a8068", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: loading ? "#3a5040" : "#00ff88", display: "inline-block" }} />
-            {loading ? "LOADING..." : `${posts.length} SIGNALS`}
+            {loading
+              ? "LOADING..."
+              : refreshedAt
+                ? `${posts.length} SIGNALS · ${new Date(refreshedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                : `${posts.length} SIGNALS`}
           </div>
         </header>
 
@@ -120,11 +131,11 @@ export default function InsiderRadar() {
 
           <div style={{ textAlign: "center", marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid #1a3320" }}>
             <div style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 600, letterSpacing: 6, color: "#5a8068", marginBottom: 6, textTransform: "uppercase" }}>
-              ■ REAL-TIME INTELLIGENCE SIGNALS ■
+              ■ CACHED INTELLIGENCE SIGNALS ■
             </div>
             <h1 style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 18px rgba(0,255,136,0.25)", margin: "0 0 8px" }}>Insider Radar</h1>
             <div style={{ fontSize: 11, color: "#5a8068", letterSpacing: 2, lineHeight: 1.6, maxWidth: 720, margin: "0 auto" }}>
-              LIVE POSTS FROM UAP INSIDERS · INVESTIGATIVE MEDIA · GEOPOLITICS · COMMENTATORS
+              UAP INSIDERS · MEDIA · GEOPOLITICS · COMMENTATORS — REFRESHED TWICE DAILY (09:00 & 21:00 UTC)
             </div>
           </div>
 
@@ -190,17 +201,17 @@ export default function InsiderRadar() {
           {loading && (
             <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
               <div style={{ marginBottom: 12 }}>[ SCANNING INSIDER CHANNELS... ]</div>
-              {["Connecting to YouTube RSS...", "Fetching X / insider feeds...", "Sorting by relevance..."].map((l, i) => (
+              {["Loading cached feed...", "Reading tracker index...", "Sorting by relevance..."].map((l, i) => (
                 <div key={i} style={{ color: "#3a6040", marginBottom: 5, fontSize: 11 }}>{l}</div>
               ))}
             </div>
           )}
 
           {!loading && visible.length === 0 && (
-            <div style={{ textAlign: "center", padding: "3rem 0", color: "var(--muted, #9ec8ae)", fontSize: 11, letterSpacing: 2 }}>
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "var(--muted, #9ec8ae)", fontSize: 11, letterSpacing: 2, maxWidth: 520, margin: "0 auto", lineHeight: 1.7 }}>
               {trackerFilter
                 ? `NO POSTS FOR ${activeTracker?.name?.toUpperCase() ?? "THIS INSIDER"} WITH CURRENT FILTERS`
-                : "NO SIGNALS AVAILABLE — CHANNELS MAY BE RATE LIMITED"}
+                : cacheHint ?? "NO SIGNALS IN CACHE — RUN INSIDER RADAR REFRESH IN ADMIN"}
             </div>
           )}
 
