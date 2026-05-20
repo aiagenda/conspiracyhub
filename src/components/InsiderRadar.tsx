@@ -82,6 +82,8 @@ export default function InsiderRadar() {
   const [catFilter, setCatFilter] = useState<string>("all");
   const [trackerFilter, setTrackerFilter] = useState<string | null>(null);
 
+  const [warmError, setWarmError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/insider-radar")
       .then(r => r.json())
@@ -89,9 +91,10 @@ export default function InsiderRadar() {
         setPosts(d.posts ?? []);
         setTrackers(d.trackers ?? []);
         setRefreshedAt(d.refreshed_at ?? null);
-        setCacheHint(d.hint ?? null);
+        setCacheHint(d.hint ?? d.warm_error ?? null);
+        setWarmError(d.warm_error ?? d.error ?? null);
       })
-      .catch(() => {})
+      .catch(() => setWarmError("Network error loading feed"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -200,8 +203,11 @@ export default function InsiderRadar() {
 
           {loading && (
             <div style={{ textAlign: "center", padding: "4rem 0", color: "#5a8068", fontSize: 11, letterSpacing: 2 }}>
-              <div style={{ marginBottom: 12 }}>[ SCANNING INSIDER CHANNELS... ]</div>
-              {["Loading cached feed...", "Reading tracker index...", "Sorting by relevance..."].map((l, i) => (
+              <div style={{ marginBottom: 12 }}>[ LOADING INSIDER FEED... ]</div>
+              <p style={{ color: "#3a6040", marginBottom: 10, fontSize: 10 }}>
+                First visit may take up to 60s while the cache warms (YouTube + X).
+              </p>
+              {["Reading cache or fetching sources...", "YouTube RSS + X timelines...", "Sorting by relevance..."].map((l, i) => (
                 <div key={i} style={{ color: "#3a6040", marginBottom: 5, fontSize: 11 }}>{l}</div>
               ))}
             </div>
@@ -211,7 +217,9 @@ export default function InsiderRadar() {
             <div style={{ textAlign: "center", padding: "3rem 0", color: "var(--muted, #9ec8ae)", fontSize: 11, letterSpacing: 2, maxWidth: 520, margin: "0 auto", lineHeight: 1.7 }}>
               {trackerFilter
                 ? `NO POSTS FOR ${activeTracker?.name?.toUpperCase() ?? "THIS INSIDER"} WITH CURRENT FILTERS`
-                : cacheHint ?? "NO SIGNALS IN CACHE — RUN INSIDER RADAR REFRESH IN ADMIN"}
+                : warmError
+                  ? `FEED ERROR: ${warmError}`
+                  : cacheHint ?? "NO SIGNALS — TRY ADMIN → AUTOMATION → INSIDER RADAR → RUN NOW"}
             </div>
           )}
 

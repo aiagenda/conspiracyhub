@@ -170,7 +170,53 @@ export function buildInsiderPayload(
   };
 }
 
-/** Fetches all trackers (X + YouTube) — only call from cron / admin refresh. */
+/** YouTube-only warm — fits Vercel Hobby ~10s limit on first page load. */
+export async function fetchYouTubeInsiderFeeds(): Promise<InsiderRadarPayload> {
+  const results = await Promise.allSettled(
+    INSIDER_TRACKERS.map((t) =>
+      t.type === "youtube" ? fetchTrackerPosts(t) : Promise.resolve({ ...t, posts: [] as Array<{ title: string; url: string; published: string }> }),
+    ),
+  );
+  const trackersWithPosts = results.map((r, i) => {
+    if (r.status === "rejected") {
+      return { ...INSIDER_TRACKERS[i], posts: [] as Array<{ title: string; url: string; published: string }> };
+    }
+    return r.value;
+  });
+  const payload = buildInsiderPayload(trackersWithPosts, new Date().toISOString());
+  return { ...payload, x_source: "youtube_only_warm" };
+}
+
+export async function runInsiderRadarQuickWarm(): Promise<{
+  ok: boolean;
+  status: number;
+  payload: InsiderRadarPayload | { error: string };
+}> {
+  try {
+    const fresh = await fetchYouTubeInsiderFeeds();
+    const admin = adminClient();
+    const { error } = await admin.from("insider_radar_cache").upsert(
+      {
+        id: INSIDER_CACHE_ID,
+        data: fresh,
+        refreshed_at: fresh.refreshed_at,
+      },
+      { onConflict: "id" },
+    );
+    if (error) {
+      return { ok: false, status: 500, payload: { error: error.message } };
+    }
+    return { ok: true, status: 200, payload: fresh };
+  } catch (e) {
+    return {
+      ok: false,
+      status: 500,
+      payload: { error: e instanceof Error ? e.message : String(e) },
+    };
+  }
+}
+
+/** Fetches all trackers (X + YouTube) — cron / admin full refresh only. */
 export async function fetchAllInsiderFeeds(): Promise<InsiderRadarPayload> {
   const results = await Promise.allSettled(INSIDER_TRACKERS.map((t) => fetchTrackerPosts(t)));
   const trackersWithPosts = results.map((r, i) => {
@@ -196,7 +242,11 @@ export async function readInsiderRadarCache(): Promise<InsiderRadarPayload | nul
       .select("data, refreshed_at")
       .eq("id", INSIDER_CACHE_ID)
       .maybeSingle();
-    if (error || !data?.data) return null;
+    if (error) {
+      console.error("[insider-radar] cache read:", error.message);
+      return null;
+    }
+    if (!data?.data) return null;
     const payload = data.data as InsiderRadarPayload;
     return {
       ...payload,
