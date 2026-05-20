@@ -166,12 +166,12 @@ export default function GuidePage() {
             </Note>
             <Sub>Sources</Sub>
             <Row label="YOUTUBE" color="#ff3333">Direct channel RSS — e.g. The Why Files, Ross Coulthart, SecureTeam10. Cards show thumbnails and ↗ WATCH links.</Row>
-            <Row label="INSIDERS" color="#00ff88">Tracked figures such as David Grusch, Ryan Graves, Chris Mellon, Ross Coulthart (X), Rep. Tim Burchett. X posts use the official API when <code style={{ color: "#3a5040" }}>X_BEARER_TOKEN</code> (or <code style={{ color: "#3a5040" }}>X_CLIENT_ID</code> + <code style={{ color: "#3a5040" }}>X_CLIENT_SECRET</code>) is set on Vercel; badge <strong style={{ color: "#c8e8d0" }}>X</strong> = live tweets.</Row>
+            <Row label="INSIDERS" color="#00ff88">UAP: Grusch, Graves, Mellon, Coulthart, Burchett. Media/commentary: Tucker Carlson, Dan Bilzerian, Ian Carroll, Candace Owens, Anastasia Loupis, Nick Fuentes. Geopolitics: Greta Thunberg, Bassem Youssef, Abdel Bari Atwan, Omar Suleiman. Live X via <code style={{ color: "#3a5040" }}>X_BEARER_TOKEN</code> on Vercel.</Row>
             <Sub>Filters</Sub>
             <Row label="ALL" color="#5a8068">Every signal in one grid, newest first.</Row>
             <Row label="▶ YOUTUBE" color="#ff3333">Video uploads only.</Row>
-            <Row label="✕ X / NEWS" color="#5a8068">Insider trackers (live X when possible, otherwise news matches).</Row>
-            <Row label="UAP" color="#8aa6ff">Category filter when multiple categories exist (currently UAP-focused trackers).</Row>
+            <Row label="✕ X" color="#5a8068">X/Twitter trackers only (official API).</Row>
+            <Row label="CATEGORIES" color="#8aa6ff"><strong style={{ color: "#c8e8d0" }}>uap</strong> · <strong style={{ color: "#c8e8d0" }}>media</strong> · <strong style={{ color: "#c8e8d0" }}>geopolitics</strong> · <strong style={{ color: "#c8e8d0" }}>commentary</strong></Row>
             <Sub>Tracker badges</Sub>
             <Note>Coloured chips under the header show which channels returned data and how many items each contributed. If the grid is empty, feeds may be rate-limited — refresh after a few minutes.</Note>
             <Sub>Navigation</Sub>
