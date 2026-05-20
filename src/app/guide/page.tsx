@@ -162,7 +162,7 @@ export default function GuidePage() {
           {/* INSIDER RADAR */}
           <Section icon="📡" title="Insider Radar" color="#ffaa00">
             <Note>
-              <code style={{ color: "#3a5040" }}>/insider-radar</code> reads a cached feed (YouTube RSS + X API) refreshed twice daily via cron (09:00 & 21:00 UTC) or Admin → Feed scrapers → <strong style={{ color: "var(--foreground)" }}>Insider Radar feed refresh</strong>. Page loads never call X directly.
+              <code style={{ color: "#3a5040" }}>/insider-radar</code> reads a cached feed (YouTube RSS + X API) refreshed daily at 09:00 UTC via <code style={{ color: "#3a5040" }}>/api/scheduler/tick</code> or Admin → <strong style={{ color: "var(--foreground)" }}>Automation → Insider Radar feed refresh</strong>. Page loads never call X directly.
             </Note>
             <Sub>Sources</Sub>
             <Row label="YOUTUBE" color="#ff3333">Direct channel RSS — e.g. The Why Files, Ross Coulthart, SecureTeam10. Cards show thumbnails and ↗ WATCH links.</Row>

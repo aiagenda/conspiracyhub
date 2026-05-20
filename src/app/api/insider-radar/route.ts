@@ -30,7 +30,7 @@ export async function GET() {
       x_source: "cache_empty",
       x_twitter_posts: 0,
       cached: false,
-      hint: "Feed not warmed yet. Run Insider Radar refresh from Admin → Feed scrapers, or wait for the next scheduled job (09:00 & 21:00 UTC).",
+      hint: "Feed not warmed yet. Run Insider Radar refresh from Admin → Automation → Ingest & intel, or wait for the daily job (09:00 UTC).",
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

@@ -208,7 +208,7 @@ const INSIDER_RADAR_JOB = {
   job_key: "insider_radar_refresh",
   name: "Insider Radar feed refresh",
   target: "insider_radar_scraper",
-  schedule_cron: "0 9,21 * * *",
+  schedule_cron: "0 9 * * *",
   enabled: true,
   config: {},
 } as const;

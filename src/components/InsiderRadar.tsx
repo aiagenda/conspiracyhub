@@ -135,7 +135,7 @@ export default function InsiderRadar() {
             </div>
             <h1 style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 18px rgba(0,255,136,0.25)", margin: "0 0 8px" }}>Insider Radar</h1>
             <div style={{ fontSize: 11, color: "#5a8068", letterSpacing: 2, lineHeight: 1.6, maxWidth: 720, margin: "0 auto" }}>
-              UAP INSIDERS · MEDIA · GEOPOLITICS · COMMENTATORS — REFRESHED TWICE DAILY (09:00 & 21:00 UTC)
+              UAP INSIDERS · MEDIA · GEOPOLITICS · COMMENTATORS — CACHE REFRESHED DAILY (09:00 UTC)
             </div>
           </div>
 
