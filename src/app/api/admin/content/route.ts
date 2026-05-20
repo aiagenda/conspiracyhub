@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const db = admin();
     const { searchParams } = new URL(req.url);
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-    const limit = 40;
+    const limit = 10;
     const from = (page - 1) * limit;
     const minScore = parseInt(searchParams.get("min_score") ?? "0", 10);
 

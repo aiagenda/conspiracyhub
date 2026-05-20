@@ -5,6 +5,22 @@ import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 import { humanizeCronUtc } from "@/lib/cronHuman";
 import { ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY } from "@/lib/analyticsExclude";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
+import {
+  ADMIN_LIST_LIMIT,
+  border,
+  cardBg,
+  muted,
+  type AdminTab,
+  type AutomationSubTab,
+  type ContentSubTab,
+} from "@/components/admin/constants";
+import {
+  AdminTabBar,
+  AutomationSubTabBar,
+  ContentSubTabBar,
+  SectionHeading,
+} from "@/components/admin/AdminTabBar";
+import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -110,14 +126,6 @@ interface ScraperJob {
   runs: ScraperRun[];
 }
 
-const border = "1px solid #1a2a22";
-const cardBg = "#080c09";
-const muted = "#5a8068";
-
-function scrollToId(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
@@ -183,185 +191,11 @@ function TableShell({ title, children }: { title: string; children: React.ReactN
   );
 }
 
-function TwitterDraftSection() {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{
-    article: { id: string; title: string; score: number; section: string; board_url: string };
-    variants: Array<{ style: string; text: string; full_tweet: string; char_count: number; twitter_intent_url: string }>;
-    hashtags: string[];
-    best_time: string;
-  } | null>(null);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState<string | null>(null);
-
-  async function generate() {
-    setLoading(true);
-    setError("");
-    setData(null);
-    try {
-      const res = await fetch("/api/admin/twitter-draft");
-      const d = await res.json();
-      if (d.error) setError(d.error);
-      else setData(d);
-    } catch (e) {
-      setError(String(e));
-    }
-    setLoading(false);
-  }
-
-  function copy(text: string, key: string) {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  const STYLE_COLORS: Record<string, string> = {
-    shocking: "#ff3333",
-    question: "#ffaa00",
-    investigative: "#00bb66",
-  };
-
-  return (
-    <div>
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-        <h2
-          className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]"
-          style={{ color: "var(--foreground)", borderLeft: "2px solid #ffaa00", paddingLeft: 10 }}
-        >
-          Twitter Draft Generator
-        </h2>
-        <button
-          type="button"
-          onClick={() => void generate()}
-          disabled={loading}
-          className="rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest transition-all"
-          style={{
-            border: "1px solid #ffaa00",
-            color: "#ffaa00",
-            background: "rgba(255,170,0,0.06)",
-            opacity: loading ? 0.5 : 1,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "Generating..." : "◈ Generate Drafts"}
-        </button>
-      </div>
-      <p className="mb-4 font-mono text-[10px]" style={{ color: "var(--green-dim)" }}>
-        Auto-picks today&apos;s top-scored article (70%+) and generates 3 tweet variants ready to post.
-      </p>
-
-      {error && (
-        <div
-          className="mb-4 rounded p-3 font-mono text-xs"
-          style={{ border: "1px solid rgba(255,51,51,0.3)", color: "#ff5555", background: "rgba(255,51,51,0.05)" }}
-        >
-          {error === "no_article_found"
-            ? "No articles scored 70%+ in the last 24h. Try again later."
-            : error}
-        </div>
-      )}
-
-      {data && (
-        <div className="space-y-4">
-          <div className="rounded p-3" style={{ border: "1px solid #1a3320", background: "#090f0b" }}>
-            <div className="mb-1 flex items-center gap-3">
-              <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: "var(--green-dim)" }}>
-                Source article
-              </span>
-              <span
-                className="rounded px-2 py-0.5 font-mono text-[10px]"
-                style={{ color: "#ff3333", border: "1px solid rgba(255,51,51,0.3)" }}
-              >
-                {data.article.score}% threat
-              </span>
-              <span className="ml-auto font-mono text-[9px]" style={{ color: "var(--green-dim)" }}>
-                Best time: {data.best_time}
-              </span>
-            </div>
-            <div className="font-mono text-xs" style={{ color: "var(--foreground)" }}>
-              {data.article.title}
-            </div>
-            <div className="mt-2 flex gap-3">
-              <a
-                href={data.article.board_url}
-                target="_blank"
-                rel="noreferrer"
-                className="font-mono text-[9px] uppercase"
-                style={{ color: "var(--green)" }}
-              >
-                ↗ Board
-              </a>
-              <span className="font-mono text-[9px]" style={{ color: "var(--green-dim)" }}>
-                {data.hashtags.map((h: string) => `#${h}`).join(" ")}
-              </span>
-            </div>
-          </div>
-
-          {data.variants.map((v) => (
-            <div
-              key={v.style}
-              className="overflow-hidden rounded"
-              style={{ border: `1px solid ${STYLE_COLORS[v.style] ?? "#1a3320"}44` }}
-            >
-              <div
-                className="flex items-center justify-between px-3 py-2"
-                style={{
-                  background: `${STYLE_COLORS[v.style] ?? "#1a3320"}0a`,
-                  borderBottom: "1px solid #1a3320",
-                }}
-              >
-                <span
-                  className="font-mono text-[9px] uppercase tracking-widest"
-                  style={{ color: STYLE_COLORS[v.style] ?? "#5a8068" }}
-                >
-                  {v.style}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-mono text-[9px]"
-                    style={{ color: v.char_count > 270 ? "#ff3333" : "var(--green-dim)" }}
-                  >
-                    {v.char_count}/280
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => copy(v.full_tweet, v.style)}
-                    className="rounded border px-2 py-0.5 font-mono text-[9px] uppercase"
-                    style={{
-                      border: "1px solid #1a3320",
-                      color: copied === v.style ? "#00ff88" : "var(--green-dim)",
-                      cursor: "pointer",
-                      background: "transparent",
-                    }}
-                  >
-                    {copied === v.style ? "✓ Copied" : "Copy"}
-                  </button>
-                  <a
-                    href={v.twitter_intent_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded border px-2 py-0.5 font-mono text-[9px] uppercase no-underline"
-                    style={{ border: "1px solid #1da1f2", color: "#1da1f2", background: "rgba(29,161,242,0.06)" }}
-                  >
-                    ↗ Post to X
-                  </a>
-                </div>
-              </div>
-              <pre
-                className="whitespace-pre-wrap p-3 font-mono text-xs"
-                style={{ color: "var(--foreground)", margin: 0 }}
-              >
-                {v.full_tweet}
-              </pre>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
+  const [contentSubTab, setContentSubTab] = useState<ContentSubTab>("twitter");
+  const [automationSubTab, setAutomationSubTab] = useState<AutomationSubTab>("ingest");
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -928,6 +762,15 @@ export default function AdminPage() {
     return news.find((j) => j.job_key === "news_main") ?? news[0] ?? null;
   }, [scrapers]);
 
+  const insiderRefreshJob = useMemo(
+    () => scrapers.find((j) => j.job_key === "insider_radar_refresh") ?? null,
+    [scrapers],
+  );
+  const uapRefreshJob = useMemo(
+    () => scrapers.find((j) => j.job_key === "uap_full_refresh" || j.target === "uap_scraper") ?? null,
+    [scrapers],
+  );
+
   async function updateScraper(job: ScraperJob, patch: Partial<Pick<ScraperJob, "enabled" | "schedule_cron" | "config">>) {
     setScraperBusy(job.id);
     try {
@@ -1378,9 +1221,6 @@ export default function AdminPage() {
     queueMicrotask(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
 
-  const navBtn =
-    "w-full rounded-md border border-transparent px-3.5 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wide transition-colors hover:border-[#1a3320] hover:bg-[#0a130d]";
-
   return (
     <div
       className="flex min-h-screen w-full flex-col"
@@ -1454,73 +1294,22 @@ export default function AdminPage() {
       </header>
 
       <div
-        className="flex w-full flex-1 flex-col gap-y-6 lg:flex-row lg:gap-0"
+        className="w-full flex-1"
         style={{
-          maxWidth: PAGE_CONTENT_MAX + 280,
+          maxWidth: PAGE_CONTENT_MAX + 120,
           marginInline: "auto",
           width: "100%",
           padding: PAGE_CONTENT_PADDING,
           boxSizing: "border-box",
         }}
       >
-        {/* Sidebar — desktop */}
-        <aside
-          className="flex w-full flex-shrink-0 flex-row flex-wrap gap-1.5 border-b pb-5 lg:w-[220px] lg:flex-col lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6 lg:pt-2"
-          style={{ borderColor: "#1a2a22" }}
-        >
-          <p className="hidden w-full text-[10px] uppercase tracking-widest lg:block" style={{ color: muted }}>
-            Navigate
-          </p>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("overview")}>
-            Overview
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("subscribers")}>
-            <span style={{ color: "var(--green)" }}>◈</span> Subscribers
-            {stats?.subscribers?.pro ? <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(0,187,102,0.15)", color: "var(--green)" }}>{stats.subscribers.pro} PRO</span> : null}
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("traffic")}>
-            Traffic &amp; API
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("community")}>
-            Community
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("content")}>
-            Content
-          </button>
-          <button type="button" className={navBtn} style={{ color: "#ffaa00" }} onClick={() => scrollToId("twitter-draft")}>
-            Twitter Drafts
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("contact")}>
-            Inbox
-            {stats?.contact?.unread ? <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(255,100,100,0.15)", color: "#ff8888" }}>{stats.contact.unread}</span> : null}
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-feed")}>
-            Feed scrapers
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-seo")}>
-            SEO / GSC
-          </button>
-          <button type="button" className={navBtn} style={{ color: "var(--foreground)" }} onClick={() => scrollToId("scrapers-writers")}>
-            Investigation writers
-          </button>
-          <div className="mt-auto hidden w-full border-t pt-4 lg:block" style={{ borderColor: "#1a2a22" }}>
-            <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: muted }}>
-              Public site
-            </p>
-            <a href="/guide" className="mb-1 block text-[12px]" style={{ color: "var(--green-dim)" }}>
-              Guide
-            </a>
-            <a href="/uap" className="mb-1 block text-[12px]" style={{ color: "var(--green-dim)" }}>
-              UAP files
-            </a>
-            <a href="/outbreaks" className="block text-[12px]" style={{ color: "var(--green-dim)" }}>
-              Outbreaks
-            </a>
-          </div>
-        </aside>
+        <main className="min-w-0 space-y-8">
+          <AdminTabBar
+            active={activeTab}
+            onChange={setActiveTab}
+            inboxUnread={stats?.contact?.unread ?? 0}
+          />
 
-        {/* Main column */}
-        <main className="min-w-0 flex-1 space-y-10 lg:pl-10">
           {err && (
             <div
               className="rounded-lg border px-4 py-3 text-[13px]"
@@ -1530,13 +1319,11 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Overview */}
-          <section id="overview">
-            <h2 className="font-raj mb-5 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-              Overview
-            </h2>
+          {activeTab === "dashboard" && (
+          <section className="space-y-6">
+            <SectionHeading title="Dashboard" />
             {stats && (
-              <div className="grid w-full grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 mb-4">
+              <div className="mb-4 grid w-full grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                 <StatTile title="PRO subscribers" value={stats.subscribers?.pro ?? 0} sub={`MRR: $${stats.subscribers?.mrr ?? 0}`} />
                 <StatTile title="Free users" value={stats.subscribers?.free ?? 0} sub={`+${stats.subscribers?.newLast7d ?? 0} last 7d`} />
                 <StatTile title="Page views (24h)" value={stats.pageViews.last24h} sub={`7d: ${stats.pageViews.last7d}`} />
@@ -1548,9 +1335,75 @@ export default function AdminPage() {
             {!stats && !err && (
               <p className="text-sm" style={{ color: muted }}>Loading metrics…</p>
             )}
+            <div className="rounded-lg border p-4" style={{ background: cardBg, border }}>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>Quick actions</p>
+              <div className="flex flex-wrap gap-2">
+                {mainNewsIngestJob ? (
+                  <button
+                    type="button"
+                    disabled={scraperBusy === mainNewsIngestJob.id}
+                    onClick={() => void runScraperNow(mainNewsIngestJob)}
+                    className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-50"
+                    style={{ borderColor: "var(--green-dark)", color: "var(--green)", background: "rgba(0,187,102,0.1)" }}
+                  >
+                    {scraperBusy === mainNewsIngestJob.id ? "…" : "News ingest"}
+                  </button>
+                ) : null}
+                {insiderRefreshJob ? (
+                  <button
+                    type="button"
+                    disabled={scraperBusy === insiderRefreshJob.id}
+                    onClick={() => void runScraperNow(insiderRefreshJob)}
+                    className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-50"
+                    style={{ borderColor: "#ffaa00", color: "#ffaa00", background: "rgba(255,170,0,0.08)" }}
+                  >
+                    {scraperBusy === insiderRefreshJob.id ? "…" : "Insider radar"}
+                  </button>
+                ) : null}
+                {uapRefreshJob ? (
+                  <button
+                    type="button"
+                    disabled={scraperBusy === uapRefreshJob.id}
+                    onClick={() => void runScraperNow(uapRefreshJob)}
+                    className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-50"
+                    style={{ borderColor: "var(--green-dark)", color: "var(--green)" }}
+                  >
+                    {scraperBusy === uapRefreshJob.id ? "…" : "UAP refresh"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab("content"); setContentSubTab("twitter"); }}
+                  className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ borderColor: "#ffaa00", color: "#ffaa00" }}
+                >
+                  X drafts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("inbox")}
+                  className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ borderColor: "#1a2a22", color: muted }}
+                >
+                  Inbox
+                  {(stats?.contact?.unread ?? 0) > 0 ? ` (${stats!.contact.unread})` : ""}
+                </button>
+              </div>
+              {newsIngestHint ? (
+                <p className="mt-3 font-mono text-[10px] leading-snug" style={{ color: "var(--green-dim)" }}>{newsIngestHint}</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-3 text-[12px]" style={{ color: "var(--green-dim)" }}>
+              <a href="/guide" className="no-underline hover:underline">Guide</a>
+              <a href="/uap" className="no-underline hover:underline">UAP</a>
+              <a href="/outbreaks" className="no-underline hover:underline">Outbreaks</a>
+              <a href="/insider-radar" className="no-underline hover:underline">Insider radar</a>
+            </div>
           </section>
+          )}
 
-          {/* ── SUBSCRIBERS ── */}
+          {activeTab === "audience" && (
+          <>
           <section id="subscribers" className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
@@ -2002,13 +1855,26 @@ export default function AdminPage() {
               )}
             </div>
           </section>
+          </>
+          )}
 
-          {/* ── CONTENT ── */}
+          {activeTab === "content" && (
           <section id="content" className="space-y-5">
+            <SectionHeading title="Content" accent="#ffaa00" />
+            <ContentSubTabBar active={contentSubTab} onChange={setContentSubTab} />
+
+            {contentSubTab === "twitter" && (
+              <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
+                <TwitterDraftSection />
+              </div>
+            )}
+
+            {contentSubTab === "articles" && (
+            <>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-                Content — Articles
-              </h2>
+              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--foreground)" }}>
+                Feed articles
+              </h3>
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-[11px]" style={{ color: muted }}>Min threat score:</span>
                 {[0, 50, 75, 90].map((s) => (
@@ -2025,16 +1891,15 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div
-              className="rounded-md border px-3 py-2.5 text-[11px] leading-snug"
-              style={{ borderColor: "var(--green-dark)", background: "rgba(0,187,102,0.07)", color: muted }}
-            >
-              <strong style={{ color: "var(--green)" }}>Oracle ↻</strong> — Oldalsáv: <strong style={{ color: "var(--foreground)" }}>Content</strong> → görgess le. A{" "}
-              <strong style={{ color: "var(--foreground)" }}>Feed article list</strong> és a{" "}
-              <strong style={{ color: "var(--foreground)" }}>Published reports</strong> táblázat minden sorában az utolsó oszlop (
-              <strong style={{ color: "var(--foreground)" }}>Actions</strong>): <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> a Board és a Delete mellett.
-              Be kell jelentkezned; a profilodban <code className="text-[var(--green-dim)]">is_admin = true</code> (Supabase).
-            </div>
+            <details className="rounded-md border text-[11px] leading-snug" style={{ borderColor: "var(--green-dark)", background: "rgba(0,187,102,0.07)", color: muted }}>
+              <summary className="cursor-pointer px-3 py-2.5 font-semibold uppercase tracking-wide" style={{ color: "var(--green)" }}>
+                Oracle help (click to expand)
+              </summary>
+              <p className="px-3 pb-2.5">
+                <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> in the Actions column reruns analysis per row. Requires sign-in and{" "}
+                <code className="text-[var(--green-dim)]">is_admin = true</code> on your profile.
+              </p>
+            </details>
 
             {articleSummary && (
               <div className="grid grid-cols-3 gap-3">
@@ -2085,14 +1950,14 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <details open className="group mt-4 overflow-hidden rounded-lg border" style={{ background: cardBg, border }}>
+            <details className="group mt-4 overflow-hidden rounded-lg border" style={{ background: cardBg, border }}>
               <summary
                 className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-raj text-[12px] font-bold uppercase tracking-[0.12em] outline-none [&::-webkit-details-marker]:hidden"
                 style={{ color: "var(--foreground)", background: "#0a100c" }}
               >
                 <span>Feed article list</span>
                 <span className="text-[10px] font-normal normal-case tracking-normal" style={{ color: muted }}>
-                  {articleTotal} rows · Oracle ↻ az Actions oszlopban · fejlécre kattintva összecsukható
+                  {articleTotal} total · {ADMIN_LIST_LIMIT} per page · Oracle ↻ in Actions
                 </span>
               </summary>
               <div className="border-t" style={{ borderColor: "#1a2a22" }}>
@@ -2204,20 +2069,23 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
-              {articleTotal > 40 && (
+              {articleTotal > ADMIN_LIST_LIMIT && (
                 <div className="flex items-center gap-3 border-t px-4 py-3" style={{ borderColor: "#1a2a22" }}>
                   <button type="button" disabled={articlePage <= 1} onClick={() => void loadArticles(articlePage - 1, articleScoreFilter)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>← Prev</button>
-                  <span className="text-[12px]" style={{ color: muted }}>Page {articlePage} · {articleTotal} total</span>
-                  <button type="button" disabled={articlePage * 40 >= articleTotal} onClick={() => void loadArticles(articlePage + 1, articleScoreFilter)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
+                  <span className="text-[12px]" style={{ color: muted }}>Showing {ADMIN_LIST_LIMIT} · page {articlePage} of {Math.ceil(articleTotal / ADMIN_LIST_LIMIT)} · {articleTotal} total</span>
+                  <button type="button" disabled={articlePage * ADMIN_LIST_LIMIT >= articleTotal} onClick={() => void loadArticles(articlePage + 1, articleScoreFilter)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
                 </div>
               )}
             </div>
               </div>
             </details>
+            </>
+            )}
 
-            <div className="mt-8 space-y-3">
-              <h3 className="font-raj text-xs font-bold uppercase tracking-[0.12em]" style={{ color: muted }}>
-                Analysis articles (blog)
+            {contentSubTab === "blog" && (
+            <div className="space-y-3">
+              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--foreground)" }}>
+                Blog / analysis reports
               </h3>
               <p className="text-[11px] leading-relaxed" style={{ color: muted }}>
                 <strong style={{ color: "var(--foreground)" }}>Readers</strong> = distinct fingerprints on{" "}
@@ -2270,7 +2138,7 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-              <details open className="group overflow-hidden rounded-lg border" style={{ background: cardBg, border }}>
+              <details className="group overflow-hidden rounded-lg border" style={{ background: cardBg, border }}>
                 <summary
                   className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-raj text-[12px] font-bold uppercase tracking-[0.12em] outline-none [&::-webkit-details-marker]:hidden"
                   style={{ color: "var(--foreground)", background: "#0a100c" }}
@@ -2368,28 +2236,31 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
-                {blogTotal > 30 && (
+                {blogTotal > ADMIN_LIST_LIMIT && (
                   <div className="flex items-center gap-3 border-t px-4 py-3" style={{ borderColor: "#1a2a22" }}>
                     <button type="button" disabled={blogPage <= 1} onClick={() => void loadBlogPosts(blogPage - 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>← Prev</button>
-                    <span className="text-[12px]" style={{ color: muted }}>Page {blogPage} · {blogTotal} total</span>
-                    <button type="button" disabled={blogPage * 30 >= blogTotal} onClick={() => void loadBlogPosts(blogPage + 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
+                    <span className="text-[12px]" style={{ color: muted }}>Showing {ADMIN_LIST_LIMIT} · page {blogPage} of {Math.ceil(blogTotal / ADMIN_LIST_LIMIT)} · {blogTotal} total</span>
+                    <button type="button" disabled={blogPage * ADMIN_LIST_LIMIT >= blogTotal} onClick={() => void loadBlogPosts(blogPage + 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
                   </div>
                 )}
                 </div>
               </details>
             </div>
+            )}
           </section>
+          )}
 
-          <section id="twitter-draft" className="space-y-5">
-            <TwitterDraftSection />
-          </section>
+          {activeTab === "automation" && (
+          <section className="space-y-6">
+            <SectionHeading title="Automation" />
+            <AutomationSubTabBar active={automationSubTab} onChange={setAutomationSubTab} />
 
-          {/* ── FEED SCRAPERS (ingest) — separate from investigation writers ── */}
-          <section id="scrapers-feed" className="space-y-5">
+            {automationSubTab === "ingest" && (
+          <div id="scrapers-feed" className="space-y-5">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-                Feed scrapers & ingest
-              </h2>
+              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--foreground)" }}>
+                Feed scrapers &amp; ingest
+              </h3>
               <div className="flex flex-wrap items-center gap-2">
                 {mainNewsIngestJob ? (
                   <button
@@ -2461,14 +2332,15 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-          </section>
+          </div>
+            )}
 
-          {/* ── SEARCH CONSOLE / SEO ── */}
-          <section id="scrapers-seo" className="mt-10 space-y-4">
+            {automationSubTab === "seo" && (
+          <div id="scrapers-seo" className="space-y-4">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid #ffaa00", paddingLeft: 10 }}>
+              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "#ffaa00" }}>
                 Search Console &amp; SEO
-              </h2>
+              </h3>
               <button
                 type="button"
                 onClick={() => void loadScrapers()}
@@ -2499,14 +2371,15 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-          </section>
+          </div>
+            )}
 
-          {/* ── INVESTIGATION ARTICLE WRITERS (OpenAI → /blog) ── */}
-          <section id="scrapers-writers" className="mt-10 space-y-4">
+            {automationSubTab === "writers" && (
+          <div id="scrapers-writers" className="space-y-4">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
+              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--foreground)" }}>
                 Investigation article writers
-              </h2>
+              </h3>
               <button
                 type="button"
                 onClick={() => void loadScrapers()}
@@ -2528,15 +2401,14 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-          </section>
+          </div>
+            )}
 
-          {/* ── LORE DOSSIER WRITER ── */}
-          <section id="lore-writer" className="mt-10 space-y-4">
-            <div className="mb-1">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid #c94dff", paddingLeft: 10 }}>
-                Lore / Hypothesis Dossier Writer
-              </h2>
-            </div>
+            {automationSubTab === "lore" && (
+          <div id="lore-writer" className="space-y-4">
+            <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "#c94dff" }}>
+              Lore / Hypothesis Dossier Writer
+            </h3>
             <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", color: muted }}>
               Generates a <strong style={{ color: "var(--foreground)" }}>HYPOTHESIS dossier</strong> — speculative conspiracy analysis (Epstein, Illuminati, Hollywood, adrenochrome, etc.).
               Published to <code className="text-[var(--green-dim)]">/blog</code> with a visible disclaimer badge. Uses a different AI prompt than standard Investigation Reports — no CIA-allowlist restriction.
@@ -2612,9 +2484,13 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          </div>
+            )}
           </section>
+          )}
 
-          {/* Inbox */}
+          {activeTab === "inbox" && (
+          <>
           <section id="contact">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
@@ -2808,11 +2684,8 @@ export default function AdminPage() {
             </div>
           </section>
 
-          {/* Reference / docs */}
-          <section id="reference">
-            <h2 className="font-raj mb-5 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-              Data &amp; compliance
-            </h2>
+          <section id="reference" className="mt-10">
+            <SectionHeading title="Data &amp; compliance" />
             <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded-lg p-4 text-[13px] leading-relaxed" style={{ background: cardBg, border, color: muted }}>
                 <p className="mb-2 font-semibold uppercase tracking-wide" style={{ color: "var(--foreground)" }}>
@@ -2839,6 +2712,8 @@ export default function AdminPage() {
               </div>
             </div>
           </section>
+          </>
+          )}
         </main>
       </div>
     </div>

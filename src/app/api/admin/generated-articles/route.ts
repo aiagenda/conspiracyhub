@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const db = admin();
     const page = Math.max(1, parseInt(new URL(req.url).searchParams.get("page") ?? "1", 10));
-    const limit = 30;
+    const limit = 10;
     const from = (page - 1) * limit;
 
     const { data, count, error } = await db
