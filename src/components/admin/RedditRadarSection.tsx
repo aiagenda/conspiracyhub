@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
+import { InsiderSignalsSection } from "@/components/admin/InsiderSignalsSection";
 
 type RedditMatch = {
   id: string;
@@ -40,6 +41,7 @@ type ScanStats = {
   skipped_existing: number;
   below_threshold: number;
   insert_errors: number;
+  purged?: number;
 };
 
 export function RedditRadarSection() {
@@ -137,9 +139,12 @@ export function RedditRadarSection() {
 
   return (
     <div>
+      <InsiderSignalsSection />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
-          Two-way scan: Reddit hot/new feeds + search driven by your site topics (feed, UAP, outbreaks, insider radar, blog).
+          Two-way scan: Reddit hot/new feeds + search driven by your feed, UAP dossiers, outbreaks, and blog articles.
+          Only matches with a real board page — promote insider tweets above first.
           Generates comment drafts — paste manually (no auto-spam).
           {pendingCount > 0 ? (
             <span className="ml-2 font-mono text-[11px]" style={{ color: "#ff6600" }}>
@@ -186,6 +191,7 @@ export function RedditRadarSection() {
           <div><span style={{ color: muted }}>{lastScan.search_queries}</span> search queries</div>
           <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#3a5040" }}>
             feed {lastScan.feed_posts} · search hits {lastScan.search_posts} · skipped {lastScan.skipped_existing} · below threshold {lastScan.below_threshold}
+            {(lastScan.purged ?? 0) > 0 ? ` · purged ${lastScan.purged}` : ""}
             {lastScan.insert_errors > 0 ? ` · insert errors ${lastScan.insert_errors} (run supabase db push?)` : ""}
           </div>
         </div>

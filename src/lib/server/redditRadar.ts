@@ -1,33 +1,67 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
-import { INSIDER_CACHE_ID, type InsiderRadarPayload } from "@/lib/server/insiderRadarIngest";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
 const UA = "TheTheorist/1.0 (reddit-radar; +https://www.the-theorist.com)";
 
+/** Investigation-relevant subreddits only — no generic news/hobby subs. */
 export const REDDIT_RADAR_SUBS = [
   "UFOs",
   "HighStrangeness",
   "aliens",
   "conspiracy",
+  "conspiracytheories",
   "Intelligence",
   "NSALeaks",
   "ufo",
   "UnresolvedMysteries",
-  "worldnews",
-  "science",
-  "infectiousdisease",
-  "Health",
   "UAP",
   "disclosure",
+  "Glitch_in_the_Matrix",
+  "CredibleDefense",
+  "infectiousdisease",
 ] as const;
 
-const MIN_MATCH_SCORE = 22;
-const MIN_SEARCH_MATCH_SCORE = 18;
-const LOOKBACK_DAYS = 21;
-const RSS_LIMIT = 10;
-const SEARCH_CANDIDATE_MAX = 15;
-const SEARCH_RESULTS_PER_QUERY = 8;
+/** Subreddits that should never produce matches (consumer, sports, gaming, etc.). */
+const SUBREDDIT_BLOCKLIST = new Set([
+  "fuckamazon",
+  "amazon",
+  "printers",
+  "techsupport",
+  "greenbay",
+  "nfl",
+  "nba",
+  "gaming",
+  "games",
+  "middleeastcrisis", // RTS game community, not geopolitics
+  "prodromo",
+  "lincolnproject",
+  "globalnews",
+  "mediatouch",
+  "health",
+  "science",
+  "worldnews",
+  "askreddit",
+  "pics",
+  "funny",
+  "todayilearned",
+]);
+
+/** Title patterns that indicate off-topic / news-article / consumer content. */
+const OFF_TOPIC_TITLE =
+  /\b(printer|toner|amazon delivery|shipping date|dates don.t mean|green bay|packers|video game|steam sale|laptop|wifi router|customer service|refund|coupon|recipe|meme|today i learned|on this day|years ago|decades ago|throwback)\b/i;
+
+/** Historical posts that aren't fresh discussion threads. */
+const STALE_HISTORICAL =
+  /\b(in 19\d{2}|in 20[01]\d|from 19\d{2}|from 20[01]\d|\b\d{4}:\s|a glimpse from the past)\b/i;
+
+const MIN_MATCH_SCORE = 55;
+const MIN_SEARCH_MATCH_SCORE = 50;
+const MAX_POST_AGE_DAYS = 7;
+const LOOKBACK_DAYS = 14;
+const RSS_LIMIT = 8;
+const SEARCH_CANDIDATE_MAX = 12;
+const SEARCH_RESULTS_PER_QUERY = 6;
 
 const STOP_WORDS = new Set([
   "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -51,12 +85,7 @@ export type RedditPostRow = {
 };
 
 export type SiteMatchCandidate = {
-  match_type:
-    | "news_item"
-    | "uap_sighting"
-    | "generated_article"
-    | "outbreak"
-    | "insider_post";
+  match_type: "news_item" | "uap_sighting" | "generated_article" | "outbreak";
   matched_id: string;
   matched_title: string;
   site_url: string;
@@ -91,7 +120,20 @@ export type RedditScanStats = {
   skipped_existing: number;
   below_threshold: number;
   insert_errors: number;
+  purged: number;
 };
+
+function filterVisibleMatches(rows: RedditMatchRow[]): RedditMatchRow[] {
+  return rows.filter(
+    (m) =>
+      m.match_type !== "insider_post" &&
+      m.match_score >= MIN_MATCH_SCORE &&
+      !isBlockedSubreddit(m.subreddit) &&
+      !OFF_TOPIC_TITLE.test(m.reddit_title) &&
+      !STALE_HISTORICAL.test(m.reddit_title) &&
+      isInvestigationTopic(m.reddit_title, ""),
+  );
+}
 
 function adminClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -138,6 +180,39 @@ function overlapScore(siteBlob: string, redditText: string): number {
 function parseSubreddit(url: string): string {
   const m = url.match(/reddit\.com\/r\/([^/]+)/i);
   return m?.[1] ?? "unknown";
+}
+
+function normalizeSub(name: string): string {
+  return name.replace(/^r\//i, "").toLowerCase();
+}
+
+function isBlockedSubreddit(subreddit: string): boolean {
+  return SUBREDDIT_BLOCKLIST.has(normalizeSub(subreddit));
+}
+
+function isFreshPost(pubDate: string): boolean {
+  if (!pubDate) return false;
+  const ts = new Date(pubDate).getTime();
+  if (Number.isNaN(ts)) return false;
+  const maxAge = MAX_POST_AGE_DAYS * 24 * 3600_000;
+  return Date.now() - ts <= maxAge;
+}
+
+function isInvestigationTopic(title: string, summary: string): boolean {
+  const text = `${title} ${summary}`;
+  if (OFF_TOPIC_TITLE.test(text)) return false;
+  if (STALE_HISTORICAL.test(text)) return false;
+  // Require at least one signal of investigatable content
+  const INVESTIGATION_SIGNAL =
+    /\b(ufo|uap|disclosure|cover.?up|whistleblow|leak|conspir|classified|pentagon|cia|nsa|fbi|sighting|encounter|outbreak|pandemic|virus|mystery|unexplained|document|hearing|testimony|investigat|timeline|contradict|insider|grusch|aaro|nuforc|pentagon)\b/i;
+  return INVESTIGATION_SIGNAL.test(text);
+}
+
+function isAllowedForMatch(post: RedditPostRow): boolean {
+  if (isBlockedSubreddit(post.subreddit)) return false;
+  if (!isFreshPost(post.pubDate)) return false;
+  if (!isInvestigationTopic(post.title, post.summary)) return false;
+  return true;
 }
 
 function buildSearchQuery(title: string): string {
@@ -206,6 +281,8 @@ export async function fetchRedditSubFeeds(): Promise<RedditPostRow[]> {
         source: sort === "hot" ? "feed_hot" : "feed_new",
       })) {
         if (seen.has(item.url)) continue;
+        if (isBlockedSubreddit(item.subreddit)) continue;
+        if (!isFreshPost(item.pubDate)) continue;
         seen.add(item.url);
         out.push(item);
       }
@@ -216,16 +293,22 @@ export async function fetchRedditSubFeeds(): Promise<RedditPostRow[]> {
 
 /** Site topic → Reddit search (reverse direction). */
 async function fetchRedditSearchForCandidate(candidate: SiteMatchCandidate): Promise<RedditPostRow[]> {
-  const q = encodeURIComponent(candidate.search_query);
+  // Restrict search to investigation subs + last week only
+  const subFilter = REDDIT_RADAR_SUBS.slice(0, 8)
+    .map((s) => `subreddit:${s}`)
+    .join(" OR ");
+  const q = encodeURIComponent(`${candidate.search_query} (${subFilter})`);
   const xml = await fetchRss(
-    `https://www.reddit.com/search.rss?q=${q}&sort=new&t=month&limit=${SEARCH_RESULTS_PER_QUERY}`,
+    `https://www.reddit.com/search.rss?q=${q}&sort=new&t=week&limit=${SEARCH_RESULTS_PER_QUERY}`,
   );
   if (!xml) return [];
   return parseRssEntries(xml, {
     source: "search",
     searchQuery: candidate.search_query,
     linkedCandidate: candidate,
-  }).slice(0, SEARCH_RESULTS_PER_QUERY);
+  })
+    .filter((p) => !isBlockedSubreddit(p.subreddit) && isFreshPost(p.pubDate))
+    .slice(0, SEARCH_RESULTS_PER_QUERY);
 }
 
 async function loadOutbreakCandidates(): Promise<SiteMatchCandidate[]> {
@@ -252,35 +335,6 @@ async function loadOutbreakCandidates(): Promise<SiteMatchCandidate[]> {
         blob,
         search_query: `${disease} outbreak`,
         priority: 75,
-      });
-    }
-  } catch {
-    /* cache may not exist */
-  }
-  return out;
-}
-
-async function loadInsiderCandidates(): Promise<SiteMatchCandidate[]> {
-  const admin = adminClient();
-  const out: SiteMatchCandidate[] = [];
-  try {
-    const { data } = await admin
-      .from("insider_radar_cache")
-      .select("data")
-      .eq("id", INSIDER_CACHE_ID)
-      .maybeSingle();
-    const payload = data?.data as InsiderRadarPayload | undefined;
-    for (const post of (payload?.posts ?? []).slice(0, 20)) {
-      const title = String(post.title ?? "").trim();
-      if (!title || title.length < 12) continue;
-      out.push({
-        match_type: "insider_post",
-        matched_id: post.tracker_id,
-        matched_title: title,
-        site_url: `${SITE_URL}/insider-radar`,
-        blob: [title, post.tracker_name, post.category].filter(Boolean).join(" "),
-        search_query: buildSearchQuery(title),
-        priority: post.tracker_type === "twitter" ? 68 : 60,
       });
     }
   } catch {
@@ -362,8 +416,8 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     });
   }
 
-  const [outbreak, insider] = await Promise.all([loadOutbreakCandidates(), loadInsiderCandidates()]);
-  out.push(...outbreak, ...insider);
+  const outbreak = await loadOutbreakCandidates();
+  out.push(...outbreak);
 
   return out.sort((a, b) => b.priority - a.priority);
 }
@@ -387,12 +441,12 @@ function resolveMatch(
 ): { candidate: SiteMatchCandidate; score: number } | null {
   const redditText = `${post.title} ${post.summary}`;
 
+  // Search results carry a linked candidate — still require real token overlap.
+  // Previously this auto-matched ANY search hit to the triggering article (bug).
   if (post.linkedCandidate) {
-    const score = Math.max(
-      overlapScore(post.linkedCandidate.blob, redditText),
-      MIN_SEARCH_MATCH_SCORE + 15,
-    );
-    return { candidate: post.linkedCandidate, score: Math.min(100, score) };
+    const score = overlapScore(post.linkedCandidate.blob, redditText);
+    if (score < MIN_SEARCH_MATCH_SCORE) return null;
+    return { candidate: post.linkedCandidate, score };
   }
 
   let best: { candidate: SiteMatchCandidate; score: number } | null = null;
@@ -405,12 +459,81 @@ function resolveMatch(
   return best;
 }
 
+/** Dismiss legacy insider_post matches — tweets are not linkable Reddit coverage. */
+async function purgeInsiderPostMatches(admin: SupabaseClient): Promise<number> {
+  const { data: rows } = await admin
+    .from("reddit_matches")
+    .select("id")
+    .eq("match_type", "insider_post")
+    .in("status", ["pending", "drafted"])
+    .limit(200);
+
+  const ids = (rows ?? []).map((r) => r.id);
+  if (ids.length === 0) return 0;
+
+  for (let i = 0; i < ids.length; i += 50) {
+    await admin
+      .from("reddit_matches")
+      .update({ status: "dismissed" })
+      .in("id", ids.slice(i, i + 50));
+  }
+  return ids.length;
+}
+
+/** Auto-dismiss existing pending matches that fail current quality gates. */
+async function purgeIrrelevantMatches(admin: SupabaseClient): Promise<number> {
+  const insiderPurged = await purgeInsiderPostMatches(admin);
+
+  const { data: rows } = await admin
+    .from("reddit_matches")
+    .select("id, reddit_title, subreddit, match_score, reddit_published_at, match_type")
+    .in("status", ["pending", "drafted"])
+    .limit(200);
+
+  const toDismiss: string[] = [];
+  for (const row of rows ?? []) {
+    const sub = String(row.subreddit ?? "");
+    const title = String(row.reddit_title ?? "");
+    const score = Number(row.match_score ?? 0);
+    const pub = row.reddit_published_at ? String(row.reddit_published_at) : "";
+
+    if (isBlockedSubreddit(sub)) {
+      toDismiss.push(row.id);
+      continue;
+    }
+    if (score < MIN_MATCH_SCORE) {
+      toDismiss.push(row.id);
+      continue;
+    }
+    if (OFF_TOPIC_TITLE.test(title) || STALE_HISTORICAL.test(title)) {
+      toDismiss.push(row.id);
+      continue;
+    }
+    if (pub && !isFreshPost(pub)) {
+      toDismiss.push(row.id);
+      continue;
+    }
+    if (!isInvestigationTopic(title, "")) {
+      toDismiss.push(row.id);
+    }
+  }
+
+  if (toDismiss.length === 0) return insiderPurged;
+
+  for (let i = 0; i < toDismiss.length; i += 50) {
+    const batch = toDismiss.slice(i, i + 50);
+    await admin.from("reddit_matches").update({ status: "dismissed" }).in("id", batch);
+  }
+  return insiderPurged + toDismiss.length;
+}
+
 export async function runRedditRadarScan(): Promise<{
   ok: boolean;
   stats: RedditScanStats;
   payload: { matches: RedditMatchRow[] };
 }> {
   const admin = adminClient();
+  const purged = await purgeIrrelevantMatches(admin);
   const candidates = await loadSiteCandidates(admin);
   const searchCandidates = pickSearchCandidates(candidates);
 
@@ -443,6 +566,11 @@ export async function runRedditRadarScan(): Promise<{
   for (const post of allPosts) {
     if (existingUrls.has(post.url)) {
       skippedExisting++;
+      continue;
+    }
+
+    if (!isAllowedForMatch(post)) {
+      belowThreshold++;
       continue;
     }
 
@@ -497,12 +625,13 @@ export async function runRedditRadarScan(): Promise<{
     skipped_existing: skippedExisting,
     below_threshold: belowThreshold,
     insert_errors: insertErrors,
+    purged,
   };
 
   return {
     ok: true,
     stats,
-    payload: { matches: (recent ?? []) as RedditMatchRow[] },
+    payload: { matches: filterVisibleMatches((recent ?? []) as RedditMatchRow[]) },
   };
 }
 
@@ -593,6 +722,9 @@ export async function generateRedditDraft(matchId: string): Promise<{
     .single();
 
   if (error || !match) throw new Error("match_not_found");
+  if (match.match_type === "insider_post") {
+    throw new Error("insider_post_not_supported — promote the tweet to board first");
+  }
 
   let context = "";
   if (match.match_type === "news_item" && match.matched_id) {
@@ -615,8 +747,6 @@ export async function generateRedditDraft(matchId: string): Promise<{
     }
   } else if (match.match_type === "outbreak") {
     context = `Our Outbreak Tracker covers ${match.matched_title} with live WHO/ProMED signals, conspiracy scoring, and local news feeds.`;
-  } else if (match.match_type === "insider_post") {
-    context = `Our Insider Radar tracks UAP/conspiracy insiders (Grusch, Coulthart, etc.) with live X and YouTube feeds.`;
   } else if (match.match_type === "generated_article" && match.matched_id) {
     const { data: art } = await admin
       .from("generated_articles")
@@ -667,6 +797,7 @@ export async function listRedditMatches(limit = 25): Promise<{
   matches: RedditMatchRow[];
 }> {
   const admin = adminClient();
+  await purgeIrrelevantMatches(admin);
 
   const { count } = await admin
     .from("reddit_matches")
@@ -677,13 +808,16 @@ export async function listRedditMatches(limit = 25): Promise<{
     .from("reddit_matches")
     .select("*")
     .in("status", ["pending", "drafted"])
+    .gte("match_score", MIN_MATCH_SCORE)
     .order("match_score", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
 
+  const matches = filterVisibleMatches((data ?? []) as RedditMatchRow[]);
+
   return {
     pending_count: count ?? 0,
-    matches: (data ?? []) as RedditMatchRow[],
+    matches,
   };
 }
 
