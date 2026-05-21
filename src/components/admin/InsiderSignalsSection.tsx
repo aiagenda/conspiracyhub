@@ -20,6 +20,7 @@ export function InsiderSignalsSection() {
   const [loading, setLoading] = useState(true);
   const [promotingKey, setPromotingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState<{ title: string; board_url: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +43,7 @@ export function InsiderSignalsSection() {
   async function promote(signalKey: string) {
     setPromotingKey(signalKey);
     setError("");
+    setSuccess(null);
     try {
       const res = await fetch("/api/admin/insider-signals", {
         method: "POST",
@@ -49,8 +51,15 @@ export function InsiderSignalsSection() {
         body: JSON.stringify({ action: "promote", signalKey }),
       });
       const d = await res.json();
-      if (d.error) setError(d.error);
-      else await load();
+      if (!res.ok || d.error) {
+        setError(d.error ?? `Request failed (${res.status})`);
+      } else {
+        setSuccess({
+          title: String(d.title ?? "Board item created"),
+          board_url: String(d.board_url ?? ""),
+        });
+        await load();
+      }
     } catch (e) {
       setError(String(e));
     }
@@ -73,6 +82,23 @@ export function InsiderSignalsSection() {
       {error ? (
         <div className="px-4 py-2 font-mono text-[10px]" style={{ color: "#ff6666" }}>
           {error}
+        </div>
+      ) : null}
+
+      {success ? (
+        <div
+          className="mx-4 mb-3 rounded border px-3 py-2 font-mono text-[10px]"
+          style={{ borderColor: "rgba(0,187,102,0.35)", color: "#00bb66", background: "rgba(0,187,102,0.08)" }}
+        >
+          ✓ Board item created:{" "}
+          {success.board_url ? (
+            <a href={success.board_url} target="_blank" rel="noreferrer" className="underline" style={{ color: "#00ff88" }}>
+              {success.title}
+            </a>
+          ) : (
+            success.title
+          )}
+          {" "}— now click <strong>Scan Reddit</strong> below to find matching threads.
         </div>
       ) : null}
 

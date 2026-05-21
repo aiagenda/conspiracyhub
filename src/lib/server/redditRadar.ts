@@ -55,13 +55,13 @@ const OFF_TOPIC_TITLE =
 const STALE_HISTORICAL =
   /\b(in 19\d{2}|in 20[01]\d|from 19\d{2}|from 20[01]\d|\b\d{4}:\s|a glimpse from the past)\b/i;
 
-const MIN_MATCH_SCORE = 55;
-const MIN_SEARCH_MATCH_SCORE = 50;
+const MIN_MATCH_SCORE = 45;
+const MIN_SEARCH_MATCH_SCORE = 40;
 const MAX_POST_AGE_DAYS = 7;
-const LOOKBACK_DAYS = 14;
-const RSS_LIMIT = 8;
-const SEARCH_CANDIDATE_MAX = 12;
-const SEARCH_RESULTS_PER_QUERY = 6;
+const LOOKBACK_DAYS = 21;
+const RSS_LIMIT = 10;
+const SEARCH_CANDIDATE_MAX = 24;
+const SEARCH_RESULTS_PER_QUERY = 8;
 
 const STOP_WORDS = new Set([
   "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -117,6 +117,7 @@ export type RedditScanStats = {
   search_posts: number;
   total_reddit_posts: number;
   new_matches: number;
+  revived_matches: number;
   skipped_existing: number;
   below_threshold: number;
   insert_errors: number;
@@ -150,6 +151,11 @@ function tokenize(text: string): string[] {
     .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
+const ENTITY_BOOST_TOKENS = [
+  "uap", "ufo", "epstein", "maxwell", "grusch", "palantir", "disclosure",
+  "whistleblow", "pentagon", "aaro", "conspiracy", "outbreak", "alien",
+];
+
 /** Weighted overlap — longer/rarer tokens count more. */
 function overlapScore(siteBlob: string, redditText: string): number {
   const siteTokens = tokenize(siteBlob);
@@ -171,6 +177,9 @@ function overlapScore(siteBlob: string, redditText: string): number {
   let bonus = 0;
   for (const w of siteTokens) {
     if (w.length >= 5 && redditLower.includes(w)) bonus += 4;
+  }
+  for (const entity of ENTITY_BOOST_TOKENS) {
+    if (siteLower.includes(entity) && redditLower.includes(entity)) bonus += 18;
   }
   if (siteLower.length >= 12 && redditLower.includes(siteLower.slice(0, 20))) bonus += 10;
 
@@ -204,7 +213,7 @@ function isInvestigationTopic(title: string, summary: string): boolean {
   if (STALE_HISTORICAL.test(text)) return false;
   // Require at least one signal of investigatable content
   const INVESTIGATION_SIGNAL =
-    /\b(ufo|uap|disclosure|cover.?up|whistleblow|leak|conspir|classified|pentagon|cia|nsa|fbi|sighting|encounter|outbreak|pandemic|virus|mystery|unexplained|document|hearing|testimony|investigat|timeline|contradict|insider|grusch|aaro|nuforc|pentagon)\b/i;
+    /\b(ufo|uap|disclosure|cover.?up|whistleblow|leak|conspir|classified|pentagon|cia|nsa|fbi|sighting|encounter|outbreak|pandemic|virus|mystery|unexplained|document|hearing|testimony|investigat|timeline|contradict|insider|grusch|aaro|nuforc|epstein|maxwell|palantir|jeffrey|extraterrestrial|alien|nhi|non.?human)\b/i;
   return INVESTIGATION_SIGNAL.test(text);
 }
 
@@ -351,7 +360,7 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     .from("news_items")
     .select("id, title, summary, angle, section, score")
     .gte("published_at", cutoff)
-    .gte("score", 50)
+    .gte("score", 40)
     .order("score", { ascending: false })
     .order("published_at", { ascending: false })
     .limit(120);
@@ -554,17 +563,26 @@ export async function runRedditRadarScan(): Promise<{
 
   const { data: existingRows } = await admin
     .from("reddit_matches")
-    .select("reddit_url")
+    .select("id, reddit_url, status")
     .gte("created_at", new Date(Date.now() - 14 * 24 * 3600_000).toISOString());
 
-  const existingUrls = new Set((existingRows ?? []).map((r) => r.reddit_url));
+  const activeUrls = new Set<string>();
+  const dismissedByUrl = new Map<string, string>();
+  for (const row of existingRows ?? []) {
+    const url = String(row.reddit_url ?? "");
+    if (!url) continue;
+    if (row.status === "dismissed") dismissedByUrl.set(url, String(row.id));
+    else activeUrls.add(url);
+  }
+
   let newMatches = 0;
+  let revivedMatches = 0;
   let skippedExisting = 0;
   let belowThreshold = 0;
   let insertErrors = 0;
 
   for (const post of allPosts) {
-    if (existingUrls.has(post.url)) {
+    if (activeUrls.has(post.url)) {
       skippedExisting++;
       continue;
     }
@@ -586,7 +604,7 @@ export async function runRedditRadarScan(): Promise<{
       continue;
     }
 
-    const { error } = await admin.from("reddit_matches").insert({
+    const row = {
       reddit_url: post.url,
       reddit_title: post.title,
       subreddit: parseSubreddit(post.url) || post.subreddit,
@@ -597,14 +615,29 @@ export async function runRedditRadarScan(): Promise<{
       site_url: hit.candidate.site_url,
       match_score: hit.score,
       status: "pending",
-    });
+      draft_variants: null,
+    };
+
+    const dismissedId = dismissedByUrl.get(post.url);
+    if (dismissedId) {
+      const { error } = await admin.from("reddit_matches").update(row).eq("id", dismissedId);
+      if (error) {
+        insertErrors++;
+        continue;
+      }
+      revivedMatches++;
+      activeUrls.add(post.url);
+      continue;
+    }
+
+    const { error } = await admin.from("reddit_matches").insert(row);
 
     if (error) {
       insertErrors++;
       continue;
     }
     newMatches++;
-    existingUrls.add(post.url);
+    activeUrls.add(post.url);
   }
 
   const { data: recent } = await admin
@@ -622,6 +655,7 @@ export async function runRedditRadarScan(): Promise<{
     search_posts: searchPosts.length,
     total_reddit_posts: allPosts.length,
     new_matches: newMatches,
+    revived_matches: revivedMatches,
     skipped_existing: skippedExisting,
     below_threshold: belowThreshold,
     insert_errors: insertErrors,

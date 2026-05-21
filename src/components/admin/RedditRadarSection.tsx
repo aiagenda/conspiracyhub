@@ -38,6 +38,7 @@ type ScanStats = {
   search_posts: number;
   total_reddit_posts: number;
   new_matches: number;
+  revived_matches?: number;
   skipped_existing: number;
   below_threshold: number;
   insert_errors: number;
@@ -187,10 +188,11 @@ export function RedditRadarSection() {
         >
           <div><span style={{ color: "#ff6600" }}>{lastScan.candidates_count}</span> site topics</div>
           <div><span style={{ color: "#ff6600" }}>{lastScan.total_reddit_posts}</span> Reddit posts</div>
-          <div><span style={{ color: "#00bb66" }}>{lastScan.new_matches}</span> new matches</div>
+          <div><span style={{ color: "#00bb66" }}>{lastScan.new_matches + (lastScan.revived_matches ?? 0)}</span> new matches</div>
           <div><span style={{ color: muted }}>{lastScan.search_queries}</span> search queries</div>
           <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#3a5040" }}>
             feed {lastScan.feed_posts} · search hits {lastScan.search_posts} · skipped {lastScan.skipped_existing} · below threshold {lastScan.below_threshold}
+            {(lastScan.revived_matches ?? 0) > 0 ? ` · revived ${lastScan.revived_matches}` : ""}
             {(lastScan.purged ?? 0) > 0 ? ` · purged ${lastScan.purged}` : ""}
             {lastScan.insert_errors > 0 ? ` · insert errors ${lastScan.insert_errors} (run supabase db push?)` : ""}
           </div>
@@ -218,8 +220,14 @@ export function RedditRadarSection() {
           style={{ borderColor: "#1a3320", background: "#090f0b" }}
         >
           <div className="font-mono text-xs leading-relaxed" style={{ color: muted }}>
-            No matches yet. Click <strong style={{ color: "#ff6600" }}>Scan Reddit</strong> to find threads
-            discussing topics you already cover.
+            No matches yet. Promote an insider tweet to board first, then click{" "}
+            <strong style={{ color: "#ff6600" }}>Scan Reddit</strong>.
+            {lastScan ? (
+              <>
+                {" "}Last scan: {lastScan.below_threshold} posts below match threshold,{" "}
+                {lastScan.skipped_existing} already tracked.
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
