@@ -78,9 +78,9 @@ export function ContentSubTabBar({
             onClick={() => onChange(t.id)}
             className={subTabBtn}
             style={{
-              borderColor: on ? (t.id === "twitter" ? "#ffaa00" : "var(--green-dark)") : "#1a2a22",
-              background: on ? (t.id === "twitter" ? "rgba(255,170,0,0.1)" : "rgba(0,187,102,0.08)") : "transparent",
-              color: on ? (t.id === "twitter" ? "#ffaa00" : "var(--green)") : muted,
+              borderColor: on ? (t.id === "twitter" ? "#ffaa00" : t.id === "reddit" ? "#ff6600" : "var(--green-dark)") : "#1a2a22",
+              background: on ? (t.id === "twitter" ? "rgba(255,170,0,0.1)" : t.id === "reddit" ? "rgba(255,102,0,0.1)" : "rgba(0,187,102,0.08)") : "transparent",
+              color: on ? (t.id === "twitter" ? "#ffaa00" : t.id === "reddit" ? "#ff6600" : "var(--green)") : muted,
             }}
           >
             {t.label}

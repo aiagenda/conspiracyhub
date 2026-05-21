@@ -21,6 +21,7 @@ import {
   SectionHeading,
 } from "@/components/admin/AdminTabBar";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
+import { RedditRadarSection } from "@/components/admin/RedditRadarSection";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -730,7 +731,8 @@ export default function AdminPage() {
           j.target === "news_scraper" ||
           j.target === "uap_scraper" ||
           j.target === "outbreak_scraper" ||
-          j.target === "insider_radar_scraper",
+          j.target === "insider_radar_scraper" ||
+          j.target === "reddit_radar_scraper",
       ),
     [scrapers],
   );
@@ -1373,6 +1375,14 @@ export default function AdminPage() {
                 ) : null}
                 <button
                   type="button"
+                  onClick={() => { setActiveTab("content"); setContentSubTab("reddit"); }}
+                  className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ borderColor: "#ff6600", color: "#ff6600" }}
+                >
+                  Reddit radar
+                </button>
+                <button
+                  type="button"
                   onClick={() => { setActiveTab("content"); setContentSubTab("twitter"); }}
                   className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
                   style={{ borderColor: "#ffaa00", color: "#ffaa00" }}
@@ -1866,6 +1876,12 @@ export default function AdminPage() {
             {contentSubTab === "twitter" && (
               <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
                 <TwitterDraftSection />
+              </div>
+            )}
+
+            {contentSubTab === "reddit" && (
+              <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
+                <RedditRadarSection />
               </div>
             )}
 

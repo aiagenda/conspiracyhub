@@ -5,6 +5,7 @@ import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
 import { runInsiderRadarTwitterRefresh } from "@/lib/server/insiderRadarIngest";
+import { runRedditRadarScan } from "@/lib/server/redditRadar";
 
 export type ScraperJob = {
   id: string;
@@ -16,7 +17,8 @@ export type ScraperJob = {
     | "article_writer"
     | "search_console"
     | "outbreak_scraper"
-    | "insider_radar_scraper";
+    | "insider_radar_scraper"
+    | "reddit_radar_scraper";
   schedule_cron: string;
   enabled: boolean;
   config: Record<string, unknown> | null;
@@ -146,6 +148,11 @@ async function runInsiderRadarScraper(): Promise<{ ok: boolean; status: number; 
   return { ok, status, payload };
 }
 
+async function runRedditRadarScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const result = await runRedditRadarScan();
+  return { ok: result.ok, status: 200, payload: result };
+}
+
 export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   const db = admin();
 
@@ -174,7 +181,9 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
               ? await runOutbreakScraper()
               : job.target === "insider_radar_scraper"
                 ? await runInsiderRadarScraper()
-                : await runUapScraper(job.config ?? {});
+                : job.target === "reddit_radar_scraper"
+                  ? await runRedditRadarScraper()
+                  : await runUapScraper(job.config ?? {});
 
     await finishRun(run.id, resp.ok ? "success" : "failed", {
       startedAt: run.started_at,
@@ -208,6 +217,15 @@ const INSIDER_RADAR_JOB = {
   job_key: "insider_radar_refresh",
   name: "Insider Radar feed refresh",
   target: "insider_radar_scraper",
+  schedule_cron: "0 9 * * *",
+  enabled: true,
+  config: {},
+} as const;
+
+const REDDIT_RADAR_JOB = {
+  job_key: "reddit_radar_scan",
+  name: "Reddit topic radar scan",
+  target: "reddit_radar_scraper",
   schedule_cron: "0 9 * * *",
   enabled: true,
   config: {},
@@ -252,6 +270,12 @@ async function ensureInsiderRadarScraperJob() {
   if (error) console.warn("[scraper] ensure insider_radar_refresh:", error.message);
 }
 
+async function ensureRedditRadarScraperJob() {
+  const db = admin();
+  const { error } = await db.from("scraper_jobs").upsert({ ...REDDIT_RADAR_JOB }, { onConflict: "job_key" });
+  if (error) console.warn("[scraper] ensure reddit_radar_scan:", error.message);
+}
+
 const UAP_FULL_JOB = {
   job_key: "uap_full_refresh",
   name: "UAP full intelligence refresh",
@@ -288,6 +312,7 @@ export async function getSchedulerSnapshot() {
   const db = admin();
   await ensureOutbreakScraperJob();
   await ensureInsiderRadarScraperJob();
+  await ensureRedditRadarScraperJob();
   await ensureUapFullScraperJob();
   await ensureSearchConsoleScraperJobs();
   const { data: jobs, error: jobsErr } = await db

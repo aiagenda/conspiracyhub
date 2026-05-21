@@ -5,7 +5,7 @@ export const cardBg = "#080c09";
 export const muted = "#5a8068";
 
 export type AdminTab = "dashboard" | "audience" | "content" | "automation" | "inbox";
-export type ContentSubTab = "articles" | "blog" | "twitter";
+export type ContentSubTab = "articles" | "blog" | "twitter" | "reddit";
 export type AutomationSubTab = "ingest" | "seo" | "writers" | "lore";
 
 export const ADMIN_TABS: { id: AdminTab; label: string; accent?: string }[] = [
@@ -20,6 +20,7 @@ export const CONTENT_SUBTABS: { id: ContentSubTab; label: string }[] = [
   { id: "articles", label: "Feed articles" },
   { id: "blog", label: "Blog reports" },
   { id: "twitter", label: "X Drafts" },
+  { id: "reddit", label: "Reddit Radar" },
 ];
 
 export const AUTOMATION_SUBTABS: { id: AutomationSubTab; label: string }[] = [
