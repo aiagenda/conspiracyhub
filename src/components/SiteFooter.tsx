@@ -23,47 +23,78 @@ export default function SiteFooter() {
       className="site-footer"
       style={{
         borderTop: "1px solid #1a3320",
-        padding: "20px clamp(1rem, 3vw, 2rem)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: 12,
         background: "#050c07",
         fontFamily: "var(--font-raj), sans-serif",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 3, textTransform: "uppercase" }}>
-          ■ THE THEORIST
-        </span>
-        <span style={{ width: 1, height: 12, background: "#1a3320", display: "inline-block" }} />
-        <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 1, textTransform: "uppercase" }}>
-          © {new Date().getFullYear()} · AI INVESTIGATIVE INTELLIGENCE
-        </span>
+      <div
+        style={{
+          padding: "20px clamp(1rem, 3vw, 2rem)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 3, textTransform: "uppercase" }}>
+            ■ THE THEORIST
+          </span>
+          <span style={{ width: 1, height: 12, background: "#1a3320", display: "inline-block" }} />
+          <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 1, textTransform: "uppercase" }}>
+            © {new Date().getFullYear()} · AI INVESTIGATIVE INTELLIGENCE
+          </span>
+        </div>
+        <nav style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {LINKS.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              style={{
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                color: pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)",
+                textDecoration: "none",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)"; }}
+            >
+              {l.label}
+            </a>
+          ))}
+        </nav>
       </div>
-      <nav style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        {LINKS.map((l) => (
+      <div
+        style={{
+          borderTop: "1px solid #1a3320",
+          padding: "10px clamp(1rem, 3vw, 2rem) 14px",
+          textAlign: "center",
+        }}
+      >
+        <span className="site-footer-meta" style={{ fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "#5a8068" }}>
+          Powered by{" "}
           <a
-            key={l.href}
-            href={l.href}
+            href="https://www.parallelhuman.tech/en"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
-              fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 10,
+              color: "#00bb66",
+              textDecoration: "none",
               fontWeight: 700,
               letterSpacing: 2,
-              textTransform: "uppercase",
-              color: pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)",
-              textDecoration: "none",
-              transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
           >
-            {l.label}
+            ParallelHuman
           </a>
-        ))}
-      </nav>
+        </span>
+      </div>
     </footer>
   );
 }
