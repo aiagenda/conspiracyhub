@@ -6,7 +6,7 @@ import {
   updateRedditMatchStatus,
 } from "@/lib/server/redditRadar";
 
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 /** List matches, scan Reddit, generate drafts, or update status. */
 export async function GET() {

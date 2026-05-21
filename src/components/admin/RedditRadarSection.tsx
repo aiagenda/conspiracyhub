@@ -25,6 +25,18 @@ const STYLE_COLORS: Record<string, string> = {
   analytical: "#8aa6ff",
 };
 
+type ScanStats = {
+  candidates_count: number;
+  feed_posts: number;
+  search_queries: number;
+  search_posts: number;
+  total_reddit_posts: number;
+  new_matches: number;
+  skipped_existing: number;
+  below_threshold: number;
+  insert_errors: number;
+};
+
 export function RedditRadarSection() {
   const [matches, setMatches] = useState<RedditMatch[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -34,6 +46,7 @@ export function RedditRadarSection() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [lastScan, setLastScan] = useState<ScanStats | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +82,7 @@ export function RedditRadarSection() {
       if (d.error) setError(d.error);
       else {
         setMatches(d.payload?.matches ?? []);
+        if (d.stats) setLastScan(d.stats);
         await load();
       }
     } catch (e) {
@@ -120,7 +134,8 @@ export function RedditRadarSection() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
-          Scans Reddit for threads matching your site content (feed, UAP, blog). Generates comment/post drafts — you paste manually (no auto-spam).
+          Two-way scan: Reddit hot/new feeds + search driven by your site topics (feed, UAP, outbreaks, insider radar, blog).
+          Generates comment drafts — paste manually (no auto-spam).
           {pendingCount > 0 ? (
             <span className="ml-2 font-mono text-[11px]" style={{ color: "#ff6600" }}>
               {pendingCount} pending
@@ -154,6 +169,22 @@ export function RedditRadarSection() {
           </button>
         </div>
       </div>
+
+      {lastScan && (
+        <div
+          className="mb-4 grid grid-cols-2 gap-2 rounded border p-3 font-mono text-[10px] sm:grid-cols-4"
+          style={{ borderColor: "#1a3320", background: "rgba(255,102,0,0.04)", color: muted }}
+        >
+          <div><span style={{ color: "#ff6600" }}>{lastScan.candidates_count}</span> site topics</div>
+          <div><span style={{ color: "#ff6600" }}>{lastScan.total_reddit_posts}</span> Reddit posts</div>
+          <div><span style={{ color: "#00bb66" }}>{lastScan.new_matches}</span> new matches</div>
+          <div><span style={{ color: muted }}>{lastScan.search_queries}</span> search queries</div>
+          <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#3a5040" }}>
+            feed {lastScan.feed_posts} · search hits {lastScan.search_posts} · skipped {lastScan.skipped_existing} · below threshold {lastScan.below_threshold}
+            {lastScan.insert_errors > 0 ? ` · insert errors ${lastScan.insert_errors} (run supabase db push?)` : ""}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div

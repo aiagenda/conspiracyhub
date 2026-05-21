@@ -1,9 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { INSIDER_CACHE_ID, type InsiderRadarPayload } from "@/lib/server/insiderRadarIngest";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
+const UA = "TheTheorist/1.0 (reddit-radar; +https://www.the-theorist.com)";
 
-/** Subreddits aligned with site sections — monitored for topic overlap. */
 export const REDDIT_RADAR_SUBS = [
   "UFOs",
   "HighStrangeness",
@@ -17,11 +18,16 @@ export const REDDIT_RADAR_SUBS = [
   "science",
   "infectiousdisease",
   "Health",
+  "UAP",
+  "disclosure",
 ] as const;
 
-const MIN_MATCH_SCORE = 38;
-const LOOKBACK_DAYS = 14;
-const RSS_LIMIT = 12;
+const MIN_MATCH_SCORE = 22;
+const MIN_SEARCH_MATCH_SCORE = 18;
+const LOOKBACK_DAYS = 21;
+const RSS_LIMIT = 10;
+const SEARCH_CANDIDATE_MAX = 15;
+const SEARCH_RESULTS_PER_QUERY = 8;
 
 const STOP_WORDS = new Set([
   "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -30,7 +36,7 @@ const STOP_WORDS = new Set([
   "that", "these", "those", "it", "its", "they", "them", "their", "we", "our", "you", "your",
   "he", "she", "his", "her", "who", "what", "when", "where", "why", "how", "not", "no", "yes",
   "all", "any", "some", "new", "says", "said", "after", "about", "into", "over", "just", "now",
-  "report", "reports", "breaking", "update", "video", "watch", "live",
+  "report", "reports", "breaking", "update", "video", "watch", "live", "says", "amid", " amid",
 ]);
 
 export type RedditPostRow = {
@@ -39,14 +45,24 @@ export type RedditPostRow = {
   subreddit: string;
   pubDate: string;
   summary: string;
+  source: "feed_hot" | "feed_new" | "search";
+  searchQuery?: string;
+  linkedCandidate?: SiteMatchCandidate;
 };
 
 export type SiteMatchCandidate = {
-  match_type: "news_item" | "uap_sighting" | "generated_article";
+  match_type:
+    | "news_item"
+    | "uap_sighting"
+    | "generated_article"
+    | "outbreak"
+    | "insider_post";
   matched_id: string;
   matched_title: string;
   site_url: string;
   blob: string;
+  search_query: string;
+  priority: number;
 };
 
 export type RedditMatchRow = {
@@ -65,6 +81,18 @@ export type RedditMatchRow = {
   created_at: string;
 };
 
+export type RedditScanStats = {
+  candidates_count: number;
+  feed_posts: number;
+  search_queries: number;
+  search_posts: number;
+  total_reddit_posts: number;
+  new_matches: number;
+  skipped_existing: number;
+  below_threshold: number;
+  insert_errors: number;
+};
+
 function adminClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
@@ -80,16 +108,31 @@ function tokenize(text: string): string[] {
     .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
-function overlapScore(a: string, b: string): number {
-  const ta = new Set(tokenize(a));
-  const tb = tokenize(b);
-  if (ta.size === 0 || tb.length === 0) return 0;
+/** Weighted overlap — longer/rarer tokens count more. */
+function overlapScore(siteBlob: string, redditText: string): number {
+  const siteTokens = tokenize(siteBlob);
+  const redditTokens = new Set(tokenize(redditText));
+  if (siteTokens.length === 0 || redditTokens.size === 0) return 0;
+
   let hits = 0;
-  for (const w of tb) {
-    if (ta.has(w)) hits++;
+  let weight = 0;
+  for (const w of siteTokens) {
+    const wgt = w.length >= 6 ? 2 : 1;
+    weight += wgt;
+    if (redditTokens.has(w)) hits += wgt;
   }
-  const denom = Math.min(ta.size, tb.length);
-  return Math.round((hits / Math.max(denom, 1)) * 100);
+
+  const base = Math.round((hits / Math.max(weight, 1)) * 100);
+
+  const siteLower = siteBlob.toLowerCase();
+  const redditLower = redditText.toLowerCase();
+  let bonus = 0;
+  for (const w of siteTokens) {
+    if (w.length >= 5 && redditLower.includes(w)) bonus += 4;
+  }
+  if (siteLower.length >= 12 && redditLower.includes(siteLower.slice(0, 20))) bonus += 10;
+
+  return Math.min(100, base + bonus);
 }
 
 function parseSubreddit(url: string): string {
@@ -97,42 +140,151 @@ function parseSubreddit(url: string): string {
   return m?.[1] ?? "unknown";
 }
 
-export async function fetchRedditRadarPosts(): Promise<RedditPostRow[]> {
+function buildSearchQuery(title: string): string {
+  const words = tokenize(title)
+    .filter((w) => w.length >= 4)
+    .slice(0, 5);
+  if (words.length === 0) {
+    return tokenize(title).slice(0, 3).join(" ");
+  }
+  return words.join(" ");
+}
+
+function parseRssEntries(xml: string, defaults: Partial<RedditPostRow>): RedditPostRow[] {
+  const items: RedditPostRow[] = [];
+  for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+    const x = m[1];
+    const title = x.match(/<title[^>]*>(.*?)<\/title>/)?.[1]?.trim() ?? "";
+    const link = x.match(/href="(https:\/\/www\.reddit\.com\/r\/[^"]+)"/)?.[1] ?? "";
+    const pub = x.match(/<updated>(.*?)<\/updated>/)?.[1] ?? "";
+    const summary =
+      x
+        .match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1]
+        ?.replace(/<[^>]+>/g, " ")
+        .trim()
+        .slice(0, 300) ?? "";
+    if (title && link) {
+      items.push({
+        title,
+        url: link,
+        subreddit: parseSubreddit(link) || defaults.subreddit || "unknown",
+        pubDate: pub,
+        summary,
+        source: defaults.source ?? "feed_hot",
+        searchQuery: defaults.searchQuery,
+        linkedCandidate: defaults.linkedCandidate,
+      });
+    }
+  }
+  return items;
+}
+
+async function fetchRss(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "application/atom+xml, application/rss+xml, */*" },
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+/** Subreddit hot + new feeds. */
+export async function fetchRedditSubFeeds(): Promise<RedditPostRow[]> {
   const out: RedditPostRow[] = [];
   const seen = new Set<string>();
 
   for (const sub of REDDIT_RADAR_SUBS) {
-    try {
-      const res = await fetch(`https://www.reddit.com/r/${sub}/hot.rss?limit=${RSS_LIMIT}`, {
-        headers: { "User-Agent": "TheTheorist/1.0 (reddit-radar)" },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) continue;
-      const xml = await res.text();
-      for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
-        const x = m[1];
-        const title = x.match(/<title[^>]*>(.*?)<\/title>/)?.[1]?.trim() ?? "";
-        const link = x.match(/href="(https:\/\/www\.reddit\.com\/r\/[^"]+)"/)?.[1] ?? "";
-        const pub = x.match(/<updated>(.*?)<\/updated>/)?.[1] ?? "";
-        const summary =
-          x
-            .match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1]
-            ?.replace(/<[^>]+>/g, " ")
-            .trim()
-            .slice(0, 300) ?? "";
-        if (!title || !link || seen.has(link)) continue;
-        seen.add(link);
-        out.push({
-          title,
-          url: link,
-          subreddit: sub,
-          pubDate: pub,
-          summary,
-        });
+    for (const sort of ["hot", "new"] as const) {
+      const xml = await fetchRss(`https://www.reddit.com/r/${sub}/${sort}.rss?limit=${RSS_LIMIT}`);
+      if (!xml) continue;
+      for (const item of parseRssEntries(xml, {
+        subreddit: sub,
+        source: sort === "hot" ? "feed_hot" : "feed_new",
+      })) {
+        if (seen.has(item.url)) continue;
+        seen.add(item.url);
+        out.push(item);
       }
-    } catch {
-      continue;
     }
+  }
+  return out;
+}
+
+/** Site topic → Reddit search (reverse direction). */
+async function fetchRedditSearchForCandidate(candidate: SiteMatchCandidate): Promise<RedditPostRow[]> {
+  const q = encodeURIComponent(candidate.search_query);
+  const xml = await fetchRss(
+    `https://www.reddit.com/search.rss?q=${q}&sort=new&t=month&limit=${SEARCH_RESULTS_PER_QUERY}`,
+  );
+  if (!xml) return [];
+  return parseRssEntries(xml, {
+    source: "search",
+    searchQuery: candidate.search_query,
+    linkedCandidate: candidate,
+  }).slice(0, SEARCH_RESULTS_PER_QUERY);
+}
+
+async function loadOutbreakCandidates(): Promise<SiteMatchCandidate[]> {
+  const admin = adminClient();
+  const out: SiteMatchCandidate[] = [];
+  try {
+    const { data } = await admin
+      .from("outbreak_cache")
+      .select("data")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const outbreaks = (data?.data as { outbreaks?: Array<{ disease?: string; title?: string; description?: string }> })?.outbreaks ?? [];
+    for (const ob of outbreaks.slice(0, 12)) {
+      const title = String(ob.title ?? ob.disease ?? "").trim();
+      const disease = String(ob.disease ?? title.split(/[—\-–]/)[0] ?? "").trim();
+      if (!disease) continue;
+      const blob = [disease, title, ob.description].filter(Boolean).join(" ");
+      out.push({
+        match_type: "outbreak",
+        matched_id: disease.toLowerCase().replace(/\s+/g, "-"),
+        matched_title: disease,
+        site_url: `${SITE_URL}/outbreaks`,
+        blob,
+        search_query: `${disease} outbreak`,
+        priority: 75,
+      });
+    }
+  } catch {
+    /* cache may not exist */
+  }
+  return out;
+}
+
+async function loadInsiderCandidates(): Promise<SiteMatchCandidate[]> {
+  const admin = adminClient();
+  const out: SiteMatchCandidate[] = [];
+  try {
+    const { data } = await admin
+      .from("insider_radar_cache")
+      .select("data")
+      .eq("id", INSIDER_CACHE_ID)
+      .maybeSingle();
+    const payload = data?.data as InsiderRadarPayload | undefined;
+    for (const post of (payload?.posts ?? []).slice(0, 20)) {
+      const title = String(post.title ?? "").trim();
+      if (!title || title.length < 12) continue;
+      out.push({
+        match_type: "insider_post",
+        matched_id: post.tracker_id,
+        matched_title: title,
+        site_url: `${SITE_URL}/insider-radar`,
+        blob: [title, post.tracker_name, post.category].filter(Boolean).join(" "),
+        search_query: buildSearchQuery(title),
+        priority: post.tracker_type === "twitter" ? 68 : 60,
+      });
+    }
+  } catch {
+    /* cache may not exist */
   }
   return out;
 }
@@ -145,13 +297,15 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     .from("news_items")
     .select("id, title, summary, angle, section, score")
     .gte("published_at", cutoff)
-    .gte("score", 55)
+    .gte("score", 50)
+    .order("score", { ascending: false })
     .order("published_at", { ascending: false })
-    .limit(150);
+    .limit(120);
 
   for (const row of news ?? []) {
     const title = String(row.title ?? "").trim();
     if (!title) continue;
+    const score = Number(row.score ?? 0);
     const blob = [title, row.summary, row.angle, row.section].filter(Boolean).join(" ");
     out.push({
       match_type: "news_item",
@@ -159,6 +313,8 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
       matched_title: title,
       site_url: `${SITE_URL}/board/${row.id}`,
       blob,
+      search_query: buildSearchQuery(title),
+      priority: score,
     });
   }
 
@@ -167,7 +323,7 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     .select("id, title, location_name, description, summary_brief")
     .gte("scraped_at", cutoff)
     .order("scraped_at", { ascending: false })
-    .limit(80);
+    .limit(60);
 
   for (const row of uap ?? []) {
     const title = String(row.title ?? "").trim();
@@ -179,6 +335,8 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
       matched_title: title,
       site_url: `${SITE_URL}/uap/${row.id}`,
       blob,
+      search_query: buildSearchQuery(`${title} ${row.location_name ?? ""}`),
+      priority: 65,
     });
   }
 
@@ -187,7 +345,7 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     .select("id, title, slug, excerpt")
     .gte("created_at", cutoff)
     .order("created_at", { ascending: false })
-    .limit(40);
+    .limit(30);
 
   for (const row of blog ?? []) {
     const title = String(row.title ?? "").trim();
@@ -199,21 +357,47 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
       matched_title: title,
       site_url: `${SITE_URL}/blog/${slug}`,
       blob: [title, row.excerpt].filter(Boolean).join(" "),
+      search_query: buildSearchQuery(title),
+      priority: 62,
     });
   }
 
+  const [outbreak, insider] = await Promise.all([loadOutbreakCandidates(), loadInsiderCandidates()]);
+  out.push(...outbreak, ...insider);
+
+  return out.sort((a, b) => b.priority - a.priority);
+}
+
+function pickSearchCandidates(candidates: SiteMatchCandidate[]): SiteMatchCandidate[] {
+  const seen = new Set<string>();
+  const out: SiteMatchCandidate[] = [];
+  for (const c of candidates) {
+    const key = c.search_query.toLowerCase();
+    if (!key || key.length < 4 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+    if (out.length >= SEARCH_CANDIDATE_MAX) break;
+  }
   return out;
 }
 
-function bestMatch(
-  reddit: RedditPostRow,
+function resolveMatch(
+  post: RedditPostRow,
   candidates: SiteMatchCandidate[],
 ): { candidate: SiteMatchCandidate; score: number } | null {
-  const query = `${reddit.title} ${reddit.summary}`;
-  let best: { candidate: SiteMatchCandidate; score: number } | null = null;
+  const redditText = `${post.title} ${post.summary}`;
 
+  if (post.linkedCandidate) {
+    const score = Math.max(
+      overlapScore(post.linkedCandidate.blob, redditText),
+      MIN_SEARCH_MATCH_SCORE + 15,
+    );
+    return { candidate: post.linkedCandidate, score: Math.min(100, score) };
+  }
+
+  let best: { candidate: SiteMatchCandidate; score: number } | null = null;
   for (const c of candidates) {
-    const score = overlapScore(c.blob, query);
+    const score = overlapScore(c.blob, redditText);
     if (score >= MIN_MATCH_SCORE && (!best || score > best.score)) {
       best = { candidate: c, score };
     }
@@ -223,33 +407,56 @@ function bestMatch(
 
 export async function runRedditRadarScan(): Promise<{
   ok: boolean;
-  scanned: number;
-  new_matches: number;
-  skipped_existing: number;
+  stats: RedditScanStats;
   payload: { matches: RedditMatchRow[] };
 }> {
   const admin = adminClient();
-  const [posts, candidates] = await Promise.all([
-    fetchRedditRadarPosts(),
-    loadSiteCandidates(admin),
+  const candidates = await loadSiteCandidates(admin);
+  const searchCandidates = pickSearchCandidates(candidates);
+
+  const [feedPosts, ...searchBatches] = await Promise.all([
+    fetchRedditSubFeeds(),
+    ...searchCandidates.map((c) => fetchRedditSearchForCandidate(c)),
   ]);
+
+  const searchPosts = searchBatches.flat();
+  const allPosts: RedditPostRow[] = [];
+  const seenUrls = new Set<string>();
+
+  for (const p of [...searchPosts, ...feedPosts]) {
+    if (seenUrls.has(p.url)) continue;
+    seenUrls.add(p.url);
+    allPosts.push(p);
+  }
 
   const { data: existingRows } = await admin
     .from("reddit_matches")
     .select("reddit_url")
-    .gte("created_at", new Date(Date.now() - 7 * 24 * 3600_000).toISOString());
+    .gte("created_at", new Date(Date.now() - 14 * 24 * 3600_000).toISOString());
 
   const existingUrls = new Set((existingRows ?? []).map((r) => r.reddit_url));
   let newMatches = 0;
   let skippedExisting = 0;
+  let belowThreshold = 0;
+  let insertErrors = 0;
 
-  for (const post of posts) {
+  for (const post of allPosts) {
     if (existingUrls.has(post.url)) {
       skippedExisting++;
       continue;
     }
-    const hit = bestMatch(post, candidates);
-    if (!hit) continue;
+
+    const hit = resolveMatch(post, candidates);
+    if (!hit) {
+      belowThreshold++;
+      continue;
+    }
+
+    const minRequired = post.source === "search" ? MIN_SEARCH_MATCH_SCORE : MIN_MATCH_SCORE;
+    if (hit.score < minRequired) {
+      belowThreshold++;
+      continue;
+    }
 
     const { error } = await admin.from("reddit_matches").insert({
       reddit_url: post.url,
@@ -264,10 +471,12 @@ export async function runRedditRadarScan(): Promise<{
       status: "pending",
     });
 
-    if (!error) {
-      newMatches++;
-      existingUrls.add(post.url);
+    if (error) {
+      insertErrors++;
+      continue;
     }
+    newMatches++;
+    existingUrls.add(post.url);
   }
 
   const { data: recent } = await admin
@@ -278,11 +487,21 @@ export async function runRedditRadarScan(): Promise<{
     .order("created_at", { ascending: false })
     .limit(30);
 
-  return {
-    ok: true,
-    scanned: posts.length,
+  const stats: RedditScanStats = {
+    candidates_count: candidates.length,
+    feed_posts: feedPosts.length,
+    search_queries: searchCandidates.length,
+    search_posts: searchPosts.length,
+    total_reddit_posts: allPosts.length,
     new_matches: newMatches,
     skipped_existing: skippedExisting,
+    below_threshold: belowThreshold,
+    insert_errors: insertErrors,
+  };
+
+  return {
+    ok: true,
+    stats,
     payload: { matches: (recent ?? []) as RedditMatchRow[] },
   };
 }
@@ -353,6 +572,17 @@ export async function generateRedditDraft(matchId: string): Promise<{
     if (sighting) {
       context = `Our UAP dossier:\nTitle: ${sighting.title}\nLocation: ${sighting.location_name}\nBrief: ${sighting.summary_brief ?? sighting.description?.slice(0, 300)}`;
     }
+  } else if (match.match_type === "outbreak") {
+    context = `Our Outbreak Tracker covers ${match.matched_title} with live WHO/ProMED signals, conspiracy scoring, and local news feeds.`;
+  } else if (match.match_type === "insider_post") {
+    context = `Our Insider Radar tracks UAP/conspiracy insiders (Grusch, Coulthart, etc.) with live X and YouTube feeds.`;
+  } else if (match.match_type === "generated_article" && match.matched_id) {
+    const { data: art } = await admin
+      .from("generated_articles")
+      .select("title, excerpt")
+      .eq("id", match.matched_id)
+      .maybeSingle();
+    if (art) context = `Our investigative report:\nTitle: ${art.title}\nExcerpt: ${art.excerpt}`;
   }
 
   const result = await callOpenAIJSON<{
