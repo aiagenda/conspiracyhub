@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
-import { buildInsiderArticleBody, isInsiderPromotedNews, isSocialPostUrl } from "@/lib/insiderArticle";
 import { fetchRedditArticleBody } from "@/lib/server/redditPostBody";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
@@ -91,7 +90,12 @@ async function fetchGuardianBody(guardianId: string): Promise<string> {
 /** Fetch + extract readable text from any article URL (for non-Guardian, non-Reddit sources). */
 async function fetchGenericBody(articleUrl: string): Promise<string> {
   if (!articleUrl?.startsWith("http")) return "";
-  if (isSocialPostUrl(articleUrl)) return "";
+  try {
+    const host = new URL(articleUrl).hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "x.com" || host === "twitter.com" || host === "mobile.twitter.com") return "";
+  } catch {
+    /* ignore invalid URL */
+  }
 
   try {
     const res = await fetch(articleUrl, {
@@ -148,13 +152,10 @@ export default async function ArticlePage({
   const isGuardian = (news.guardian_id ?? "").includes("/");
   const articleUrl = news.url ?? "";
   const isReddit = /reddit\.com\/r\//.test(articleUrl);
-  const isInsider = isInsiderPromotedNews(news);
 
   let redditThumbnail: string | null = null;
   let body: string;
-  if (isInsider) {
-    body = buildInsiderArticleBody(news);
-  } else if (isGuardian) {
+  if (isGuardian) {
     body = await fetchGuardianBody(news.guardian_id ?? "");
   } else if (isReddit) {
     const r = await fetchRedditArticleBody(articleUrl);
@@ -185,7 +186,6 @@ export default async function ArticlePage({
     section: news.section,
     score: news.score ?? 0,
     angle: omitIfHungarianScript(news.angle ?? ""),
-    source: news.source ?? undefined,
   };
 
   const fallbackBody = omitIfHungarianScript(news.summary ?? "");

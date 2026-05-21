@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
-import { InsiderSignalsSection } from "@/components/admin/InsiderSignalsSection";
 
 type RedditMatch = {
   id: string;
@@ -140,12 +139,9 @@ export function RedditRadarSection() {
 
   return (
     <div>
-      <InsiderSignalsSection />
-
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
           Two-way scan: Reddit hot/new feeds + search driven by your feed, UAP dossiers, outbreaks, and blog articles.
-          Only matches with a real board page — promote insider tweets above first.
           Generates comment drafts — paste manually (no auto-spam).
           {pendingCount > 0 ? (
             <span className="ml-2 font-mono text-[11px]" style={{ color: "#ff6600" }}>
@@ -220,14 +216,8 @@ export function RedditRadarSection() {
           style={{ borderColor: "#1a3320", background: "#090f0b" }}
         >
           <div className="font-mono text-xs leading-relaxed" style={{ color: muted }}>
-            No matches yet. Promote an insider tweet to board first, then click{" "}
-            <strong style={{ color: "#ff6600" }}>Scan Reddit</strong>.
-            {lastScan ? (
-              <>
-                {" "}Last scan: {lastScan.below_threshold} posts below match threshold,{" "}
-                {lastScan.skipped_existing} already tracked.
-              </>
-            ) : null}
+            No matches yet. Click <strong style={{ color: "#ff6600" }}>Scan Reddit</strong> to find threads
+            discussing topics you already cover.
           </div>
         </div>
       ) : null}
