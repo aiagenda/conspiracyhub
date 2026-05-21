@@ -20,6 +20,11 @@ type RedditMatch = {
 };
 
 const STYLE_COLORS: Record<string, string> = {
+  normal: "#00bb66",
+  short: "#ffaa00",
+  casual: "#00bb66",
+  direct: "#ffaa00",
+  skeptical: "#8aa6ff",
   helpful: "#00bb66",
   investigative: "#ffaa00",
   analytical: "#8aa6ff",

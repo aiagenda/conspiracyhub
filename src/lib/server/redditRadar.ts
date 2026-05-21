@@ -506,24 +506,65 @@ export async function runRedditRadarScan(): Promise<{
   };
 }
 
-const REDDIT_DRAFT_SYSTEM = `You are a Reddit community member who runs The Theorist — an AI-powered investigation platform for UAP, conspiracy, and outbreak intelligence.
-Write Reddit reply drafts for a thread where someone is discussing a topic we already covered on our site.
+const REDDIT_LINK_CLOSERS = [
+  "full breakdown here if useful:",
+  "we mapped it here:",
+  "more detail on our board:",
+  "thread breakdown:",
+  "if anyone wants the docs angle:",
+  "pulled the sources together here:",
+];
 
-Rules:
-- Sound human, not promotional or bot-like
-- Lead with value: a fact, angle, or insight from our coverage
-- Mention The Theorist naturally once (not "check out our amazing platform")
-- Include the site link once at the end
-- Comment variants: 2–4 sentences, conversational
-- Post variant: title under 120 chars, body 3–5 sentences
-- NEVER spam, NEVER copy-paste marketing speak
-- Match the subreddit tone (r/UFOs = curious/skeptical, r/conspiracy = analytical)
+const REDDIT_LINK_CLOSERS_SHORT = [
+  "here:",
+  "more:",
+  "breakdown:",
+  "if useful:",
+];
+
+function appendRedditLink(text: string, url: string, short = false): string {
+  const trimmed = text.trim();
+  const closers = short ? REDDIT_LINK_CLOSERS_SHORT : REDDIT_LINK_CLOSERS;
+  const closer = closers[Math.floor(Math.random() * closers.length)];
+  return `${trimmed} ${closer} ${url}`;
+}
+
+const REDDIT_DRAFT_SYSTEM = `You write Reddit comment drafts as a regular person who follows UAP, conspiracy, and outbreak news — not as a brand or PR account.
+Someone posted a thread about a topic we already covered. Add one concrete angle from our coverage that the thread is missing or glossing over.
+
+Voice:
+- Talk like a real Redditor: direct, casual, first-person when natural ("I", "we" sparingly)
+- Short sentences. No essay tone. No corporate polish.
+- Lead with ONE specific fact, doc gap, or angle — not a vague thesis
+- Do NOT mention "The Theorist" by name unless it fits naturally (usually skip the brand entirely)
+- Do NOT include any URL — we append the link separately
+
+Banned phrases (never use):
+- "It's interesting to see"
+- "Our analysis highlights"
+- "raises questions about"
+- "transparency and accountability"
+- "We dug into this"
+- "check out our platform"
+- "AI-powered investigation platform"
+- any marketing or press-release language
+
+Length:
+- "normal" variant: 2–3 sentences — conversational, one concrete angle
+- "short" variant: 1 sentence (2 max) — punchy, thread-native, no filler
+- Post variant: title under 120 chars; body 3–4 short sentences
+
+Subreddit tone:
+- r/UFOs — curious, skeptical, not preachy
+- r/conspiracy — doc-first, "here's what the paperwork actually says"
+- r/worldnews / r/news — fact first, minimal opinion
+- default — plain and helpful
 
 Return ONLY valid JSON:
 {
   "comment_variants": [
-    { "style": "helpful", "text": "comment without URL" },
-    { "style": "investigative", "text": "comment without URL" }
+    { "style": "normal", "text": "comment without URL" },
+    { "style": "short", "text": "comment without URL" }
   ],
   "post_variant": {
     "title": "post title",
@@ -600,12 +641,12 @@ export async function generateRedditDraft(matchId: string): Promise<{
     comment_variants: result.comment_variants.map((v) => ({
       style: v.style,
       text: v.text,
-      full_text: `${v.text}\n\nWe dug into this on The Theorist: ${match.site_url}`,
+      full_text: appendRedditLink(v.text, match.site_url, v.style === "short"),
     })),
     post_variant: {
       title: result.post_variant.title,
       body: result.post_variant.body,
-      full_text: `${result.post_variant.title}\n\n${result.post_variant.body}\n\n${match.site_url}`,
+      full_text: `${result.post_variant.title}\n\n${appendRedditLink(result.post_variant.body, match.site_url)}`,
     },
   };
 
