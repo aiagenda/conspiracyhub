@@ -18,7 +18,7 @@ Given the post text and author, write a board entry — NOT a copy-paste of the 
 Return ONLY valid JSON:
 {
   "title": "clear headline under 120 chars — news style, not tweet voice",
-  "summary": "2-3 sentences expanding context and why investigators care",
+  "summary": "2-3 short paragraphs: what happened, why it matters for investigators, what to watch next",
   "angle": "one-line conspiracy/investigation angle max 12 words",
   "score": 0-100
 }
@@ -187,16 +187,24 @@ export async function promoteInsiderToBoard(signalKey: string): Promise<{
   });
 
   const title = String(generated.title ?? "").trim().slice(0, 200);
-  const summary = String(generated.summary ?? "").trim();
+  const summaryCore = String(generated.summary ?? "").trim();
   const angle = String(generated.angle ?? "").trim();
   const score = Math.min(100, Math.max(0, Math.round(Number(generated.score ?? 65))));
 
   if (!title) throw new Error("generate_failed");
 
+  const tweetText = post.title.trim();
+  const summary = [
+    summaryCore,
+    tweetText ? `\n\nSource post (${post.tracker_name}): "${tweetText}"` : "",
+  ]
+    .join("")
+    .trim();
+
   const row = {
     guardian_id: signalKey,
     title,
-    summary: summary || post.title.slice(0, 400),
+    summary: summary || tweetText.slice(0, 400),
     url: post.url,
     image: post.thumbnail ?? null,
     published_at: post.published ? new Date(post.published).toISOString() : new Date().toISOString(),
