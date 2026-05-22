@@ -53,7 +53,7 @@ export default function BlogListRow({
       }}
       className="blog-list-row"
     >
-      <ReaderReactionVote generatedArticleId={generatedArticleId} initial={initialReaction} />
+      <ReaderReactionVote generatedArticleId={generatedArticleId} initial={initialReaction} relevanceScore={60} />
       <Link href={`/blog/${slug}`} style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
         <div
           style={{

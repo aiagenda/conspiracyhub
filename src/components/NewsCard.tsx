@@ -123,7 +123,7 @@ export default function NewsCard({
       </a>
 
       <div style={{ display: "flex", flexDirection: "row", flex: 1, minHeight: 0 }}>
-        <ReaderReactionVote articleId={item.id} initial={item.reader_reaction} />
+        <ReaderReactionVote articleId={item.id} initial={item.reader_reaction} relevanceScore={item.score} />
         <div
           style={{
             flex: 1,

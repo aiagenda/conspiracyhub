@@ -5,6 +5,53 @@ export const READER_REACTION_VOTE_TYPE = "reader_reaction";
 
 export type ReaderReactionStats = { score: number; up: number; down: number };
 
+function hashSeed(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Deterministic baseline up/down so empty articles still look active (display-only). */
+export function computeSeedReaction(
+  itemId: string,
+  relevanceScore = 50,
+): Pick<ReaderReactionStats, "up" | "down"> {
+  const h = hashSeed(itemId);
+  const tier = relevanceScore >= 70 ? 2 : relevanceScore >= 50 ? 1 : 0;
+  const upRanges: [number, number][] = [
+    [3, 10],
+    [6, 18],
+    [12, 35],
+  ];
+  const downRanges: [number, number][] = [
+    [0, 3],
+    [1, 5],
+    [2, 8],
+  ];
+  const [upMin, upMax] = upRanges[tier];
+  const [downMin, downMax] = downRanges[tier];
+  const up = upMin + (h % (upMax - upMin + 1));
+  const down = downMin + ((h >>> 8) % (downMax - downMin + 1));
+  return { up, down };
+}
+
+/** Merge real vote totals with display seed — real votes stack on top. */
+export function displayReaderReaction(
+  real: ReaderReactionStats | undefined,
+  itemId: string,
+  relevanceScore = 50,
+): ReaderReactionStats {
+  const base = real ?? { score: 0, up: 0, down: 0 };
+  if (!itemId) return base;
+  const seed = computeSeedReaction(itemId, relevanceScore);
+  const up = base.up + seed.up;
+  const down = base.down + seed.down;
+  return { up, down, score: up - down };
+}
+
 export function aggregateReactionValues(values: number[]): ReaderReactionStats {
   let score = 0;
   let up = 0;

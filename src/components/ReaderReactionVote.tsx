@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   READER_REACTION_VOTE_TYPE,
+  displayReaderReaction,
   type ReaderReactionStats,
 } from "@/lib/readerReactionVote";
 
@@ -12,6 +13,8 @@ type Props = {
   articleId?: string | number;
   generatedArticleId?: string | number;
   initial?: ReaderReactionStats;
+  /** Threat / relevance score — higher items get slightly more seed engagement. */
+  relevanceScore?: number;
   /** When true, vote clicks do not bubble (use inside `<Link>`). */
   insideLink?: boolean;
 };
@@ -20,9 +23,9 @@ export default function ReaderReactionVote({
   articleId,
   generatedArticleId,
   initial,
+  relevanceScore = 50,
   insideLink = false,
 }: Props) {
-  const [stats, setStats] = useState<ReaderReactionStats>(initial ?? { score: 0, up: 0, down: 0 });
   const [my, setMy] = useState<-1 | 0 | 1>(0);
   const [pending, setPending] = useState(false);
 
@@ -41,6 +44,18 @@ export default function ReaderReactionVote({
   /** Prefer feed article id when both are mistakenly passed. */
   const useArticle = aid.length > 0;
   const useGenerated = !useArticle && gid.length > 0;
+  const itemKey = useArticle ? aid : gid;
+
+  const applyDisplay = useCallback(
+    (real: ReaderReactionStats | undefined) => displayReaderReaction(real, itemKey, relevanceScore),
+    [itemKey, relevanceScore],
+  );
+
+  const [stats, setStats] = useState<ReaderReactionStats>(() => applyDisplay(initial));
+
+  useEffect(() => {
+    setStats(applyDisplay(initial));
+  }, [initial, applyDisplay]);
 
   const q = useArticle
     ? `article_id=${encodeURIComponent(aid)}`
@@ -53,7 +68,7 @@ export default function ReaderReactionVote({
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
-        if (d.reader_reaction) setStats(d.reader_reaction);
+        if (d.reader_reaction) setStats(applyDisplay(d.reader_reaction));
         const v = d.my_reader_reaction;
         setMy(v === 1 || v === -1 ? v : 0);
       })
@@ -61,13 +76,16 @@ export default function ReaderReactionVote({
     return () => {
       cancelled = true;
     };
-  }, [q, useArticle, useGenerated]);
+  }, [q, useArticle, useGenerated, applyDisplay]);
 
-  const syncFromJson = useCallback((d: { reader_reaction?: ReaderReactionStats; my_reader_reaction?: number }) => {
-    if (d.reader_reaction) setStats(d.reader_reaction);
-    const v = d.my_reader_reaction;
-    setMy(v === 1 || v === -1 ? v : 0);
-  }, []);
+  const syncFromJson = useCallback(
+    (d: { reader_reaction?: ReaderReactionStats; my_reader_reaction?: number }) => {
+      if (d.reader_reaction) setStats(applyDisplay(d.reader_reaction));
+      const v = d.my_reader_reaction;
+      setMy(v === 1 || v === -1 ? v : 0);
+    },
+    [applyDisplay],
+  );
 
   const post = useCallback(
     async (value: -1 | 0 | 1) => {
