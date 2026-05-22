@@ -2,6 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import SiteNav from "@/components/SiteNav";
 import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
@@ -234,6 +235,49 @@ function pulseHalo(parent: d3.Selection<SVGGElement, unknown, null, undefined>, 
     .attr("repeatCount", "indefinite");
 }
 
+const COORD_EPS = 0.15;
+
+function isSameGeo(aLat: number, aLng: number, bLat: number, bLng: number): boolean {
+  return Math.abs(aLat - bLat) < COORD_EPS && Math.abs(aLng - bLng) < COORD_EPS;
+}
+
+/** Origin + unique affected-country screen positions for spread lines. */
+function collectSpreadPositions(
+  o: Outbreak,
+  proj: d3.GeoProjection,
+): Array<[number, number]> {
+  const lat = Number(o.lat);
+  const lng = Number(o.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+
+  const mainPos = proj([lng, lat]);
+  if (!mainPos) return [];
+
+  const positions: Array<[number, number]> = [[mainPos[0], mainPos[1]]];
+  for (const ac of o.affectedCoords ?? []) {
+    if (isSameGeo(ac.lat, lat, ac.lng, lng)) continue;
+    const ap = proj([ac.lng, ac.lat]);
+    if (!ap) continue;
+    const dup = positions.some(([px, py]) => Math.hypot(px - ap[0], py - ap[1]) < 6);
+    if (!dup) positions.push([ap[0], ap[1]]);
+  }
+  return positions;
+}
+
+function obLineStyle(
+  outbreakId: string,
+  selectedId: string | null,
+): { opacity: number; width: number } {
+  if (!selectedId) return { opacity: 0.4, width: 1 };
+  if (outbreakId === selectedId) return { opacity: 0.88, width: 1.65 };
+  return { opacity: 0, width: 0 };
+}
+
+function outbreakMapVisible(outbreakId: string, selectedId: string | null): boolean {
+  if (!selectedId) return true;
+  return outbreakId === selectedId;
+}
+
 function applyObMarkerStyles(
   g: d3.Selection<SVGGElement, ObMarkerDatum, SVGGElement, unknown>,
   selectedId: string | null,
@@ -241,6 +285,9 @@ function applyObMarkerStyles(
   g.each(function (d) {
     const isSel = d.o.id === selectedId;
     const node = d3.select(this);
+    const visible = outbreakMapVisible(d.o.id, selectedId);
+    node.style("display", visible ? "" : "none");
+    node.style("opacity", visible ? (selectedId ? "1" : isSel ? "1" : "0.82") : "0");
     node
       .select(".ob-rim")
       .attr("stroke-width", isSel && d.isPrimary ? 2.2 : 1.4);
@@ -250,7 +297,7 @@ function applyObMarkerStyles(
       .attr("stroke-width", isSel && d.isPrimary ? 1.4 : 1);
     node
       .select(".ob-label")
-      .style("display", d.isPrimary && (isSel || d.o.conspiracy_score >= 65) ? "block" : "none");
+      .style("display", d.isPrimary && (isSel || !selectedId || d.o.conspiracy_score >= 65) ? "block" : "none");
   });
 }
 
@@ -297,6 +344,8 @@ function WorldMap({
     const markerQueue: ObMapMarkerDraw[] = [];
 
     for (const o of list) {
+      if (!outbreakMapVisible(o.id, selectedId)) continue;
+
       const lat = Number(o.lat);
       const lng = Number(o.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
@@ -304,19 +353,10 @@ function WorldMap({
       const col = RISK_COL(o.risk_level, o.conspiracy_score);
       const isSel = o.id === selectedId;
       const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
+      const lineStyle = obLineStyle(o.id, selectedId);
 
-      const mainPos = proj([lng, lat]);
-      if (!mainPos) continue;
-
-      const allPositions: Array<[number, number]> = [[mainPos[0], mainPos[1]]];
-
-      if (o.affectedCoords && o.affectedCoords.length > 1) {
-        for (const ac of o.affectedCoords) {
-          if (Math.abs(ac.lat - lat) < 0.1 && Math.abs(ac.lng - lng) < 0.1) continue;
-          const ap = proj([ac.lng, ac.lat]);
-          if (ap) allPositions.push([ap[0], ap[1]]);
-        }
-      }
+      const allPositions = collectSpreadPositions(o, proj);
+      if (!allPositions.length) continue;
 
       if (allPositions.length > 1) {
         for (let i = 1; i < allPositions.length; i++) {
@@ -331,9 +371,10 @@ function WorldMap({
             .attr("x2", x2)
             .attr("y2", y2)
             .attr("stroke", col)
-            .attr("stroke-width", isSel ? 1.1 : 0.85)
-            .attr("stroke-opacity", isSel ? 0.5 : 0.22)
-            .attr("stroke-dasharray", "4 6");
+            .attr("stroke-width", lineStyle.width)
+            .attr("stroke-opacity", lineStyle.opacity)
+            .attr("stroke-dasharray", isSel || !selectedId ? "5 5" : "4 6")
+            .style("pointer-events", lineStyle.opacity > 0 ? "stroke" : "none");
         }
       }
 
@@ -446,34 +487,16 @@ function WorldMap({
     });
 
     applyObMarkerStyles(mg, selectedId);
-
-    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-opacity", function () {
-      const id = d3.select(this).attr("data-outbreak-id");
-      return id === selectedId ? 0.5 : 0.22;
-    });
-    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-width", function () {
-      const id = d3.select(this).attr("data-outbreak-id");
-      return id === selectedId ? 1.1 : 0.85;
-    });
   }, []);
 
-  const updateSelectionOnly = useCallback((selectedId: string | null) => {
-    const ctx = mapCtxRef.current;
-    if (!ctx) return;
-    const { markersG, linesG } = ctx;
-    applyObMarkerStyles(
-      markersG.selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker"),
-      selectedId,
-    );
-    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-opacity", function () {
-      const id = d3.select(this).attr("data-outbreak-id");
-      return id === selectedId ? 0.5 : 0.22;
-    });
-    linesG.selectAll<SVGLineElement, unknown>("line.ob-line").attr("stroke-width", function () {
-      const id = d3.select(this).attr("data-outbreak-id");
-      return id === selectedId ? 1.1 : 0.85;
-    });
-  }, []);
+  const updateSelectionOnly = useCallback(
+    (selectedId: string | null) => {
+      const ctx = mapCtxRef.current;
+      if (!ctx) return;
+      paintMarkers(ctx, selectedId);
+    },
+    [paintMarkers],
+  );
 
   const paintBase = useCallback(() => {
     const svgEl = svgRef.current;
@@ -661,6 +684,20 @@ function WorldMap({
           <div style={{fontSize:8,color:"#3a5040",marginTop:6}}>Click to open</div>
         </div>
       )}
+      <div
+        style={{
+          fontFamily: FONT,
+          fontSize: 9,
+          color: "#3a5040",
+          letterSpacing: 1.2,
+          marginTop: 6,
+          lineHeight: 1.5,
+        }}
+      >
+        {selected
+          ? `◈ ${selected.disease.toUpperCase()} — spread lines from origin to affected regions`
+          : "◈ Dashed lines show spread from origin · select an outbreak to isolate its network"}
+      </div>
     </div>
   );
 }
@@ -1372,10 +1409,13 @@ export default function OutbreakTracker() {
             <Link href="/" style={{fontSize:10,color:"#5a8068",textDecoration:"none",letterSpacing:2,border:"1px solid #1a3320",padding:"4px 10px",borderRadius:3}}>← FEED</Link>
           </div>
           <div className="intel-page-nav-divider" style={{width:1,height:20,background:"#1a3320",flexShrink:0}}/>
-          <div className="intel-page-nav-brand" style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2,flexShrink:0}}>THE THEORIST</div>
+          <Link href="/" className="intel-page-nav-brand" style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2,textDecoration:"none",textShadow:"0 0 14px rgba(0,255,136,0.3)",flexShrink:0}}>THE THEORIST</Link>
           <div className="intel-page-nav-divider" style={{width:1,height:20,background:"#1a3320",flexShrink:0}}/>
           <div className="intel-page-nav-section" style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:2,flexShrink:0}}>OUTBREAK TRACKER</div>
-          <div className="ob-nav-time intel-page-nav-meta" style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
+          <div className="intel-page-nav-menu" style={{marginLeft:"auto",flexShrink:0}}>
+            <SiteNav />
+          </div>
+          <div className="ob-nav-time intel-page-nav-meta" style={{fontSize:10,color:"#3a5040",letterSpacing:1}}>
             WHO · GNEWS · {data?`Updated ${new Date(data.generated_at).toLocaleTimeString()}`:""}
           </div>
         </div>

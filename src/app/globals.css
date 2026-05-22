@@ -502,6 +502,10 @@ body {
   .search-header-nav {
     margin-left: auto !important;
   }
+  .intel-page-nav-menu {
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+  }
 
   /* Community page */
   .community-submit-nav {

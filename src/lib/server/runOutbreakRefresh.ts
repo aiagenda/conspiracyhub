@@ -5,7 +5,7 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 5;
+export const OUTBREAK_CACHE_VERSION = 6;
 const OUTBREAK_LOCAL_NEWS_MAX = 10;
 /** Max fresh (non-curated) RSS/feed candidates to GPT-analyse per run. */
 const OUTBREAK_FRESH_MAX = 5;
@@ -250,6 +250,78 @@ function stripHtml(s: string): string {
 
 type OutbreakRow = Record<string, unknown>;
 
+function resolveCountryCoords(country: string): [number, number] | null {
+  const c = country.toLowerCase().trim();
+  if (!c) return null;
+  let bestKey: string | null = null;
+  for (const k of Object.keys(COORDS)) {
+    if (c.includes(k) && (!bestKey || k.length > bestKey.length)) {
+      bestKey = k;
+    }
+  }
+  return bestKey ? COORDS[bestKey]! : null;
+}
+
+function mergeAffectedCountries(row: {
+  disease?: unknown;
+  origin_country?: unknown;
+  location?: unknown;
+  affected_countries?: unknown;
+}): string[] {
+  const origin = String(row.origin_country ?? row.location ?? "")
+    .toLowerCase()
+    .trim();
+  const location = String(row.location ?? "")
+    .toLowerCase()
+    .trim();
+  const fromRow = Array.isArray(row.affected_countries)
+    ? row.affected_countries.map((c) => String(c).toLowerCase().trim())
+    : [];
+  const token = diseaseSearchToken(String(row.disease ?? ""));
+  const curated = CURATED_DISEASES.find((c) => diseaseSearchToken(c.disease) === token);
+  return [...new Set([origin, location, ...fromRow, ...(curated?.affected_countries ?? [])].filter(Boolean))];
+}
+
+function buildAffectedCoords(countries: string[]): Array<{ country: string; lat: number; lng: number }> {
+  const seen = new Set<string>();
+  const out: Array<{ country: string; lat: number; lng: number }> = [];
+  for (const country of countries) {
+    const coords = resolveCountryCoords(country);
+    if (!coords) continue;
+    const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ country, lat: coords[0], lng: coords[1] });
+  }
+  return out;
+}
+
+function ensureOutbreakGeo(row: OutbreakRow): OutbreakRow {
+  const affected_countries = mergeAffectedCountries(row);
+  const origin = String(row.origin_country ?? row.location ?? "")
+    .toLowerCase()
+    .trim();
+
+  let lat = Number(row.lat);
+  let lng = Number(row.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    const oc = resolveCountryCoords(origin);
+    if (oc) {
+      lat = oc[0];
+      lng = oc[1];
+    }
+  }
+
+  return {
+    ...row,
+    origin_country: origin || row.origin_country,
+    affected_countries,
+    lat,
+    lng,
+    affectedCoords: buildAffectedCoords(affected_countries),
+  };
+}
+
 function sanitizeOutbreakRow(row: OutbreakRow): OutbreakRow {
   const keyFacts = Array.isArray(row.key_facts)
     ? row.key_facts.map((f) => cleanOutbreakBlurb(String(f))).filter(Boolean)
@@ -258,11 +330,11 @@ function sanitizeOutbreakRow(row: OutbreakRow): OutbreakRow {
     cleanOutbreakBlurb(String(row.description ?? "")) ||
     (keyFacts.length ? String(keyFacts[0]) : "") ||
     cleanOutbreakBlurb(String(row.title ?? ""));
-  return {
+  return ensureOutbreakGeo({
     ...row,
     description: description.slice(0, 300),
     key_facts: keyFacts,
-  };
+  });
 }
 
 function sanitizeOutbreakPayload(data: OutbreakPayload): OutbreakPayload {
@@ -532,17 +604,6 @@ function isAnalysisAcceptable(analysis: AnalysisRow, item: FreshItem): boolean {
   return true;
 }
 
-function buildAffectedCoords(countries: string[]): Array<{ country: string; lat: number; lng: number }> {
-  return countries
-    .map((country) => {
-      const key = Object.keys(COORDS).find((k) => country.toLowerCase().includes(k));
-      if (!key) return null;
-      const coords = COORDS[key]!;
-      return { country, lat: coords[0], lng: coords[1] };
-    })
-    .filter((ac): ac is { country: string; lat: number; lng: number } => ac !== null);
-}
-
 /**
  * Fresh items: picked from RSS (ProMED/WHO/ECDC/CDC) + feed DB.
  * Deduplicated against curated disease IDs so we don't double-show known diseases.
@@ -605,7 +666,11 @@ export function buildOutbreakPreviewPayload() {
     risk_level: item.risk_level,
     localNews: [] as LocalNewsRow[],
   }));
-  return { outbreaks: rows, generated_at: new Date().toISOString(), preview: true as const };
+  return {
+    outbreaks: rows.map((row) => sanitizeOutbreakRow(row as OutbreakRow)),
+    generated_at: new Date().toISOString(),
+    preview: true as const,
+  };
 }
 
 export type OutbreakPayload = {
@@ -677,10 +742,10 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
         if (!isAnalysisAcceptable(analysis, item)) return null;
         const country = analysis.origin_country || analysis.location;
         const localNews = await buildLocalNews(admin, analysis.disease, country);
-        const loc = analysis.location?.toLowerCase() ?? "";
-        const origin = analysis.origin_country?.toLowerCase() ?? "";
-        const ck = Object.keys(COORDS).find((k) => loc.includes(k) || origin.includes(k));
-        const [lat, lng] = ck ? COORDS[ck]! : [analysis.lat ?? 0, analysis.lng ?? 0];
+        const affected_countries = mergeAffectedCountries(analysis);
+        const origin = String(analysis.origin_country ?? analysis.location ?? "").toLowerCase();
+        const resolved = resolveCountryCoords(origin);
+        const [lat, lng] = resolved ?? [analysis.lat ?? 0, analysis.lng ?? 0];
         return {
           id: `ob-fresh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           title: item.title,
@@ -691,9 +756,10 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           published_at: item.pubDate,
           ...analysis,
           key_facts: analysis.key_facts.map((f) => cleanOutbreakBlurb(f)),
+          affected_countries,
           lat,
           lng,
-          affectedCoords: buildAffectedCoords(analysis.affected_countries ?? []),
+          affectedCoords: buildAffectedCoords(affected_countries),
           localNews,
         };
       }),

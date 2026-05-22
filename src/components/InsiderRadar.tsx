@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 import { CollapsibleSection } from "@/components/IntelAccordion";
 import { pageContentShellStyle } from "@/lib/pageShell";
 
@@ -233,10 +234,12 @@ export default function InsiderRadar() {
           <div className="intel-page-nav-section" style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2, flexShrink: 0 }}>
             INSIDER RADAR
           </div>
+          <div className="intel-page-nav-menu" style={{ marginLeft: "auto", flexShrink: 0 }}>
+            <SiteNav />
+          </div>
           <div
             className="ob-nav-time intel-page-nav-meta"
             style={{
-              marginLeft: "auto",
               fontSize: 10,
               color: "#5a8068",
               letterSpacing: 1,
