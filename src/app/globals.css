@@ -173,7 +173,12 @@ body {
   }
 }
 
-/* UAP / Outbreak — detail accordion (inline on mobile, sidebar on desktop) */
+/* Intel sub-pages (UAP, Outbreak, Insider) — sticky top nav */
+.ob-tracker-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
 .ob-detail-inline,
 .uap-detail-inline {
   display: none;
@@ -378,6 +383,43 @@ body {
     text-align: right;
     color: #3a5040 !important;
     opacity: 0.95;
+  }
+
+  .insider-hero-kicker {
+    font-size: 9px !important;
+    letter-spacing: 3px !important;
+  }
+  .insider-page-headline {
+    font-size: 22px !important;
+  }
+  .insider-hero-tagline {
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+    line-height: 1.55 !important;
+  }
+  .insider-tracker-chips {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .insider-tracker-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .insider-tracker-chips button {
+    flex-shrink: 0 !important;
+  }
+  .insider-tracker-desktop .insider-tracker-chips {
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    justify-content: center !important;
+  }
+  .insider-filter-divider {
+    display: none !important;
   }
   .ob-card-grid {
     grid-template-columns: 1fr !important;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { CollapsibleSection } from "@/components/IntelAccordion";
 import { pageContentShellStyle } from "@/lib/pageShell";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -25,6 +26,18 @@ function timeAgo(d: string) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+function useIsMobile(breakpoint = 768) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [breakpoint]);
+  return mobile;
 }
 
 function PostCard({ post }: { post: Post }) {
@@ -72,6 +85,48 @@ function PostCard({ post }: { post: Post }) {
   );
 }
 
+function TrackerChipRow({
+  trackers,
+  trackerFilter,
+  onToggle,
+}: {
+  trackers: Tracker[];
+  trackerFilter: string | null;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="insider-tracker-chips" style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+      {trackers.map((t) => {
+        const on = trackerFilter === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onToggle(t.id)}
+            title={on ? `Clear filter (${t.name})` : `Show only ${t.name}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              border: `1px solid ${on ? t.color : `${t.color}44`}`,
+              borderRadius: 3,
+              background: on ? `${t.color}22` : `${t.color}0a`,
+              cursor: "pointer",
+              transition: "all 0.15s",
+              boxShadow: on ? `0 0 12px ${t.color}33` : undefined,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>{t.avatar}</span>
+            <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 1 }}>{t.name}</span>
+            <span style={{ fontSize: 10, color: on ? t.color : "var(--muted-dim, #7aaa8a)" }}>{t.post_count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function InsiderRadar() {
   const [posts, setPosts]       = useState<Post[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
@@ -81,8 +136,8 @@ export default function InsiderRadar() {
   const [filter, setFilter]     = useState<"all" | "youtube" | "twitter">("all");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [trackerFilter, setTrackerFilter] = useState<string | null>(null);
-
   const [warmError, setWarmError] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     fetch("/api/insider-radar")
@@ -114,93 +169,154 @@ export default function InsiderRadar() {
   const cats = [...new Set(trackers.map(t => t.category))];
   const activeTracker = trackerFilter ? trackers.find(t => t.id === trackerFilter) : null;
 
+  const toggleTracker = (id: string) => {
+    setTrackerFilter((current) => (current === id ? null : id));
+  };
+
+  const signalMeta = loading
+    ? "LOADING..."
+    : refreshedAt
+      ? `${posts.length} SIGNALS · ${new Date(refreshedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+      : `${posts.length} SIGNALS`;
+
   return (
     <div style={{ minHeight: "100vh", background: "#050c07", color: "#c8e8d0", fontFamily: FONT }}>
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1 }}>
 
-        <header className="site-header" style={{ height: 48, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 20px", gap: 14, position: "sticky", top: 0, zIndex: 30 }}>
-          <Link href="/" style={{ fontSize: 11, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "5px 12px", borderRadius: 3 }}>← FEED</Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <Link href="/" style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textDecoration: "none", textShadow: "0 0 14px rgba(0,255,136,0.3)" }}>THE THEORIST</Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 12, color: "#5a8068", letterSpacing: 2 }}>INSIDER RADAR</div>
-          <div style={{ marginLeft: "auto", fontSize: 11, color: "#5a8068", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: loading ? "#3a5040" : "#00ff88", display: "inline-block" }} />
-            {loading
-              ? "LOADING..."
-              : refreshedAt
-                ? `${posts.length} SIGNALS · ${new Date(refreshedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
-                : `${posts.length} SIGNALS`}
+        <header
+          className="ob-tracker-nav intel-page-nav"
+          style={{
+            height: 44,
+            background: "#050c07",
+            borderBottom: "1px solid #1a3320",
+            display: "flex",
+            alignItems: "center",
+            padding: "0 16px",
+            gap: 12,
+          }}
+        >
+          <div className="intel-page-nav-start" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Link
+              href="/"
+              style={{
+                fontSize: 10,
+                color: "#5a8068",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #1a3320",
+                padding: "4px 10px",
+                borderRadius: 3,
+              }}
+            >
+              ← FEED
+            </Link>
+          </div>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <Link
+            href="/"
+            className="intel-page-nav-brand"
+            style={{
+              fontFamily: RAJ,
+              fontSize: 14,
+              fontWeight: 700,
+              color: "#00ff88",
+              letterSpacing: 2,
+              textDecoration: "none",
+              textShadow: "0 0 14px rgba(0,255,136,0.3)",
+              flexShrink: 0,
+            }}
+          >
+            THE THEORIST
+          </Link>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="intel-page-nav-section" style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2, flexShrink: 0 }}>
+            INSIDER RADAR
+          </div>
+          <div
+            className="ob-nav-time intel-page-nav-meta"
+            style={{
+              marginLeft: "auto",
+              fontSize: 10,
+              color: "#5a8068",
+              letterSpacing: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: loading ? "#3a5040" : "#00ff88",
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
+            {signalMeta}
           </div>
         </header>
 
         <div style={pageContentShellStyle()}>
 
           <div style={{ textAlign: "center", marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid #1a3320" }}>
-            <div style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 600, letterSpacing: 6, color: "#5a8068", marginBottom: 6, textTransform: "uppercase" }}>
+            <div className="insider-hero-kicker" style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 600, letterSpacing: 6, color: "#5a8068", marginBottom: 6, textTransform: "uppercase" }}>
               ■ CACHED INTELLIGENCE SIGNALS ■
             </div>
-            <h1 style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 18px rgba(0,255,136,0.25)", margin: "0 0 8px" }}>Insider Radar</h1>
-            <div style={{ fontSize: 11, color: "#5a8068", letterSpacing: 2, lineHeight: 1.6, maxWidth: 720, margin: "0 auto" }}>
+            <h1 className="insider-page-headline" style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 18px rgba(0,255,136,0.25)", margin: "0 0 8px" }}>Insider Radar</h1>
+            <div className="insider-hero-tagline" style={{ fontSize: 11, color: "#5a8068", letterSpacing: 2, lineHeight: 1.6, maxWidth: 720, margin: "0 auto" }}>
               UAP INSIDERS · MEDIA · GEOPOLITICS · COMMENTATORS — CACHE REFRESHED DAILY (09:00 UTC)
             </div>
           </div>
 
           {sortedTrackers.length > 0 && (
             <div style={{ marginBottom: "1.25rem" }}>
-              <div style={{ fontSize: 10, color: "var(--muted-dim, #7aaa8a)", letterSpacing: 2, textAlign: "center", marginBottom: 8 }}>
-                {trackerFilter
-                  ? <>FILTERING: <span style={{ color: activeTracker?.color ?? "#00ff88" }}>{activeTracker?.name ?? "—"}</span> · click again to clear</>
-                  : "CLICK A NAME TO FILTER POSTS"}
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                {sortedTrackers.map(t => {
-                  const on = trackerFilter === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setTrackerFilter(on ? null : t.id)}
-                      title={on ? `Clear filter (${t.name})` : `Show only ${t.name}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 12px",
-                        border: `1px solid ${on ? t.color : `${t.color}44`}`,
-                        borderRadius: 3,
-                        background: on ? `${t.color}22` : `${t.color}0a`,
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                        boxShadow: on ? `0 0 12px ${t.color}33` : undefined,
-                      }}
-                    >
-                      <span style={{ fontSize: 14 }}>{t.avatar}</span>
-                      <span style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 1 }}>{t.name}</span>
-                      <span style={{ fontSize: 10, color: on ? t.color : "var(--muted-dim, #7aaa8a)" }}>{t.post_count}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {!isMobile && (
+                <div className="insider-tracker-desktop">
+                  <div style={{ fontSize: 10, color: "var(--muted-dim, #7aaa8a)", letterSpacing: 2, textAlign: "center", marginBottom: 8 }}>
+                    {trackerFilter
+                      ? <>FILTERING: <span style={{ color: activeTracker?.color ?? "#00ff88" }}>{activeTracker?.name ?? "—"}</span> · click again to clear</>
+                      : "CLICK A NAME TO FILTER POSTS"}
+                  </div>
+                  <TrackerChipRow trackers={sortedTrackers} trackerFilter={trackerFilter} onToggle={toggleTracker} />
+                </div>
+              )}
+              {isMobile && (
+                <CollapsibleSection
+                  title="Filter by insider"
+                  count={sortedTrackers.length}
+                  accent="#ffaa00"
+                  defaultOpen={!!trackerFilter}
+                  subtitle={
+                    trackerFilter
+                      ? `Active: ${activeTracker?.name ?? "—"} · tap to change`
+                      : "Tap to browse sources"
+                  }
+                >
+                  <TrackerChipRow trackers={sortedTrackers} trackerFilter={trackerFilter} onToggle={toggleTracker} />
+                </CollapsibleSection>
+              )}
             </div>
           )}
 
-          <div className="category-filter" style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap", justifyContent: "center" }}>
+          <div className="category-filter insider-type-filter" style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap", justifyContent: "center" }}>
             {[
               { key: "all",     label: "ALL" },
               { key: "youtube", label: "▶ YOUTUBE" },
               { key: "twitter", label: "✕ X" },
             ].map(f => (
               <button key={f.key} type="button" onClick={() => setFilter(f.key as typeof filter)}
-                style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 2, cursor: "pointer", border: `1px solid ${filter === f.key ? "#00bb66" : "#1a3320"}`, background: filter === f.key ? "rgba(0,255,136,0.08)" : "transparent", color: filter === f.key ? "#00ff88" : "#5a8068" }}>
+                style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 2, cursor: "pointer", border: `1px solid ${filter === f.key ? "#00bb66" : "#1a3320"}`, background: filter === f.key ? "rgba(0,255,136,0.08)" : "transparent", color: filter === f.key ? "#00ff88" : "#5a8068", flexShrink: 0 }}>
                 {f.label}
               </button>
             ))}
-            <div style={{ width: 1, height: 32, background: "#1a3320", flexShrink: 0 }} />
+            <div className="insider-filter-divider" style={{ width: 1, height: 32, background: "#1a3320", flexShrink: 0 }} />
             {["all", ...cats].map(c => (
               <button key={c} type="button" onClick={() => setCatFilter(c)}
-                style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 2, cursor: "pointer", border: `1px solid ${catFilter === c ? "#8aa6ff" : "#1a3320"}`, background: catFilter === c ? "rgba(138,166,255,0.08)" : "transparent", color: catFilter === c ? "#8aa6ff" : "#5a8068" }}>
+                style={{ fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", padding: "6px 14px", borderRadius: 2, cursor: "pointer", border: `1px solid ${catFilter === c ? "#8aa6ff" : "#1a3320"}`, background: catFilter === c ? "rgba(138,166,255,0.08)" : "transparent", color: catFilter === c ? "#8aa6ff" : "#5a8068", flexShrink: 0 }}>
                 {c.toUpperCase()}
               </button>
             ))}
