@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signInWithEmail, signUpWithEmail } from "@/lib/auth";
+import { resetPasswordForEmail, signInWithEmail, signUpWithEmail } from "@/lib/auth";
 import { isSupabaseBrowserConfigured } from "@/lib/supabase";
 
 const RAJ = "var(--font-raj), sans-serif";
@@ -16,15 +16,16 @@ export default function AuthModal({
   onClose: () => void;
   initialTab?: "signin" | "signup";
 }) {
-  const [tab, setTab] = useState<"signin" | "signup">(initialTab);
+  const [tab, setTab] = useState<"signin" | "signup" | "forgot">(initialTab === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState<{ mode: SignupSuccessMode; email: string } | null>(null);
+  const [forgotSuccessEmail, setForgotSuccessEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    setTab(initialTab);
+    setTab(initialTab === "signup" ? "signup" : "signin");
   }, [initialTab]);
 
   useEffect(() => {
@@ -35,13 +36,42 @@ export default function AuthModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function switchTab(t: "signin" | "signup") {
+  function switchTab(t: "signin" | "signup" | "forgot") {
     setTab(t);
     setError("");
     setSignupSuccess(null);
+    setForgotSuccessEmail(null);
   }
 
   async function submit() {
+    if (tab === "forgot") {
+      if (!email.trim()) {
+        setError("Email required.");
+        return;
+      }
+      if (!isSupabaseBrowserConfigured()) {
+        setError(
+          "Server misconfiguration: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set on the host (e.g. Vercel env), then redeploy."
+        );
+        return;
+      }
+      setError("");
+      setLoading(true);
+      try {
+        const { error: authError } = await resetPasswordForEmail(email);
+        if (authError) {
+          setError(authError.message);
+          return;
+        }
+        setForgotSuccessEmail(email.trim());
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not send reset email.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!email || !password) {
       setError("Email and password required.");
       return;
@@ -95,7 +125,7 @@ export default function AuthModal({
     transition: "border-color 0.2s",
   };
 
-  const isSuccess = signupSuccess !== null;
+  const isSuccess = signupSuccess !== null || forgotSuccessEmail !== null;
 
   return (
     <div
@@ -156,10 +186,14 @@ export default function AuthModal({
             }}
           >
             {isSuccess
-              ? signupSuccess.mode === "confirm_email"
-                ? "◈ VERIFY TRANSMISSION"
-                : "◈ ACCESS GRANTED"
-              : "◈ SECURE ACCESS"}
+              ? forgotSuccessEmail
+                ? "◈ RESET TRANSMITTED"
+                : signupSuccess!.mode === "confirm_email"
+                  ? "◈ VERIFY TRANSMISSION"
+                  : "◈ ACCESS GRANTED"
+              : tab === "forgot"
+                ? "◈ RECOVER ACCESS"
+                : "◈ SECURE ACCESS"}
           </div>
           <button
             type="button"
@@ -182,6 +216,119 @@ export default function AuthModal({
 
         {isSuccess ? (
           <div style={{ padding: "28px 24px 26px", display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
+            {forgotSuccessEmail ? (
+              <>
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: "50%",
+                    border: "1px solid rgba(0,255,136,0.35)",
+                    background: "radial-gradient(circle at 30% 30%, rgba(0,255,136,0.12), transparent 55%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 26,
+                    lineHeight: 1,
+                  }}
+                >
+                  <span style={{ animation: "authPulseDot 2s ease-in-out infinite" }}>✉</span>
+                </div>
+                <div style={{ textAlign: "center", maxWidth: 360 }}>
+                  <div
+                    style={{
+                      fontFamily: RAJ,
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: "#e8ffe8",
+                      letterSpacing: 1.5,
+                      marginBottom: 10,
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    Reset link sent
+                  </div>
+                  <p
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 11,
+                      color: "#5a8068",
+                      lineHeight: 1.75,
+                      margin: 0,
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    We sent a <strong style={{ color: "#00bb66" }}>password reset link</strong> to your inbox. Open it to
+                    set a new password.
+                  </p>
+                </div>
+                <div
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 4,
+                    border: "1px solid #1a3320",
+                    background: "rgba(0,20,10,0.45)",
+                  }}
+                >
+                  <div style={{ fontSize: 8, color: "#3a5040", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
+                    Target address
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 12,
+                      color: "#00ff88",
+                      wordBreak: "break-all",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {forgotSuccessEmail}
+                  </div>
+                </div>
+                <ul
+                  style={{
+                    margin: 0,
+                    padding: "0 0 0 18px",
+                    width: "100%",
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    color: "#4a7058",
+                    lineHeight: 1.85,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  <li>Check <strong style={{ color: "#6a9080" }}>Inbox</strong> and wait a minute for delivery.</li>
+                  <li>
+                    If nothing appears, open <strong style={{ color: "#6a9080" }}>Spam / Junk</strong> or{" "}
+                    <strong style={{ color: "#6a9080" }}>Promotions</strong>.
+                  </li>
+                  <li>The link opens a page where you choose a new password.</li>
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => switchTab("signin")}
+                  style={{
+                    marginTop: 4,
+                    width: "100%",
+                    padding: "12px 16px",
+                    background: "linear-gradient(180deg, rgba(0,255,136,0.12) 0%, rgba(0,187,102,0.06) 100%)",
+                    border: "1px solid #00bb66",
+                    color: "#00ff88",
+                    fontFamily: RAJ,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: 3,
+                    textTransform: "uppercase",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </>
+            ) : signupSuccess ? (
+              <>
             <div
               style={{
                 width: 56,
@@ -316,9 +463,103 @@ export default function AuthModal({
             <div style={{ fontSize: 8, color: "#2a4030", letterSpacing: 1.2, textAlign: "center" }}>
               LINK EXPIRES PER SUPABASE POLICY · RESEND FROM LOGIN IF NEEDED
             </div>
+              </>
+            ) : null}
           </div>
         ) : (
           <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+            {tab === "forgot" ? (
+              <>
+                <p
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    color: "#5a8068",
+                    lineHeight: 1.65,
+                    margin: 0,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  Enter your account email. We&apos;ll send a secure link to set a new password.
+                </p>
+                <div>
+                  <label
+                    style={{
+                      fontSize: 9,
+                      color: "#5a8068",
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      display: "block",
+                      marginBottom: 5,
+                    }}
+                  >
+                    EMAIL
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void submit()}
+                    placeholder="operative@theorist.io"
+                    style={inp}
+                    autoFocus
+                  />
+                </div>
+                {error ? (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#ff3333",
+                      padding: "8px 10px",
+                      border: "1px solid rgba(255,51,51,0.3)",
+                      borderRadius: 3,
+                      background: "rgba(255,51,51,0.05)",
+                    }}
+                  >
+                    [ERROR] {error}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void submit()}
+                  disabled={loading}
+                  style={{
+                    padding: "10px",
+                    background: "transparent",
+                    border: "1px solid #00bb66",
+                    color: "#00ff88",
+                    fontFamily: RAJ,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: 3,
+                    textTransform: "uppercase",
+                    borderRadius: 3,
+                    cursor: "pointer",
+                    opacity: loading ? 0.5 : 1,
+                  }}
+                >
+                  {loading ? "SENDING..." : "SEND RESET LINK ▶"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchTab("signin")}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#5a8068",
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    letterSpacing: 1,
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  ← Back to sign in
+                </button>
+              </>
+            ) : (
+              <>
             {/* TABS */}
             <div style={{ display: "flex", gap: 6 }}>
               {(["signin", "signup"] as const).map((t) => (
@@ -422,6 +663,27 @@ export default function AuthModal({
                     (e.target as HTMLInputElement).style.borderColor = "#1a3320";
                   }}
                 />
+                {tab === "signin" ? (
+                  <button
+                    type="button"
+                    onClick={() => switchTab("forgot")}
+                    style={{
+                      marginTop: 8,
+                      background: "transparent",
+                      border: "none",
+                      color: "#5a8068",
+                      fontFamily: MONO,
+                      fontSize: 9,
+                      letterSpacing: 1,
+                      cursor: "pointer",
+                      padding: 0,
+                      textDecoration: "underline",
+                      textUnderlineOffset: 3,
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -468,6 +730,8 @@ export default function AuthModal({
             <div style={{ fontSize: 9, color: "#3a5040", lineHeight: 1.7, textAlign: "center", letterSpacing: 1 }}>
               CREDENTIALS ARE ENCRYPTED · NEVER SHARED
             </div>
+              </>
+            )}
           </div>
         )}
       </div>

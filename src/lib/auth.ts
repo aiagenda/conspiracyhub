@@ -28,6 +28,18 @@ export function signOut() {
   return getSupabaseBrowserClient().auth.signOut();
 }
 
+export function resetPasswordForEmail(email: string) {
+  const client = getSupabaseBrowserClient();
+  const origin = typeof window !== "undefined" ? window.location.origin : null;
+  return client.auth.resetPasswordForEmail(email.trim(), {
+    ...(origin ? { redirectTo: `${origin}/auth/reset-password` } : {}),
+  });
+}
+
+export function updatePassword(password: string) {
+  return getSupabaseBrowserClient().auth.updateUser({ password });
+}
+
 export async function getCurrentUser() {
   if (!isSupabaseBrowserConfigured()) return null;
   try {
