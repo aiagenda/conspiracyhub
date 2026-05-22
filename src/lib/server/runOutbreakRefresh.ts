@@ -1,11 +1,11 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
-import { plainTextFromHtml } from "@/lib/plainText";
+import { cleanOutbreakBlurb, plainTextFromHtml } from "@/lib/plainText";
 import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 4;
+export const OUTBREAK_CACHE_VERSION = 5;
 const OUTBREAK_LOCAL_NEWS_MAX = 10;
 /** Max fresh (non-curated) RSS/feed candidates to GPT-analyse per run. */
 const OUTBREAK_FRESH_MAX = 5;
@@ -248,6 +248,31 @@ function stripHtml(s: string): string {
   return plainTextFromHtml(s);
 }
 
+type OutbreakRow = Record<string, unknown>;
+
+function sanitizeOutbreakRow(row: OutbreakRow): OutbreakRow {
+  const keyFacts = Array.isArray(row.key_facts)
+    ? row.key_facts.map((f) => cleanOutbreakBlurb(String(f))).filter(Boolean)
+    : [];
+  const description =
+    cleanOutbreakBlurb(String(row.description ?? "")) ||
+    (keyFacts.length ? String(keyFacts[0]) : "") ||
+    cleanOutbreakBlurb(String(row.title ?? ""));
+  return {
+    ...row,
+    description: description.slice(0, 300),
+    key_facts: keyFacts,
+  };
+}
+
+function sanitizeOutbreakPayload(data: OutbreakPayload): OutbreakPayload {
+  if (!Array.isArray(data.outbreaks)) return data;
+  return {
+    ...data,
+    outbreaks: data.outbreaks.map((row) => sanitizeOutbreakRow(row as OutbreakRow)),
+  };
+}
+
 function hasKnownDiseaseSignature(text: string): boolean {
   const t = text.toLowerCase();
   return DISEASE_SIGNATURES.some((d) => t.includes(d));
@@ -315,11 +340,9 @@ async function parseRssItems(feedUrl: string): Promise<FreshItem[]> {
     for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
       const x = m[1];
       const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
-      const desc =
-        x
-          .match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]
-          ?.replace(/<[^>]+>/g, " ")
-          .trim() ?? "";
+      const descRaw =
+        x.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]?.trim() ?? "";
+      const desc = stripHtml(descRaw);
       const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
       const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
       if (title && link && !isWeakRssTitle(title) && isStrictOutbreakCandidate(title, desc)) {
@@ -621,7 +644,11 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
       if (c && Date.now() - new Date(c.created_at).getTime() < OUTBREAK_CACHE_TTL_MS) {
         const data = c.data as OutbreakPayload;
         if ((data.cache_version ?? 1) >= OUTBREAK_CACHE_VERSION) {
-          return { ok: true, status: 200, payload: { ...data, cached: true } };
+          return {
+            ok: true,
+            status: 200,
+            payload: { ...sanitizeOutbreakPayload(data), cached: true },
+          };
         }
       }
     } catch {
@@ -657,10 +684,13 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
         return {
           id: `ob-fresh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           title: item.title,
-          description: item.description,
+          description: cleanOutbreakBlurb(
+            analysis.key_facts?.slice(0, 2).join(" ") || item.description,
+          ).slice(0, 300),
           source_url: item.link,
           published_at: item.pubDate,
           ...analysis,
+          key_facts: analysis.key_facts.map((f) => cleanOutbreakBlurb(f)),
           lat,
           lng,
           affectedCoords: buildAffectedCoords(analysis.affected_countries ?? []),
@@ -718,12 +748,12 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
 
     const outbreaksSorted = sortByPublishedAtDesc(allOutbreaks);
 
-    const payload: OutbreakPayload = {
-      outbreaks: outbreaksSorted,
+    const payload: OutbreakPayload = sanitizeOutbreakPayload({
+      outbreaks: outbreaksSorted.map((row) => sanitizeOutbreakRow(row as OutbreakRow)),
       generated_at: new Date().toISOString(),
       cache_version: OUTBREAK_CACHE_VERSION,
       cached: false,
-    };
+    });
 
     try {
       await admin.from("outbreak_cache").insert({ data: payload });

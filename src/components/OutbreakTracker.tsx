@@ -6,7 +6,7 @@ import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import { pageContentShellStyle } from "@/lib/pageShell";
-import { plainTextFromHtml } from "@/lib/plainText";
+import { cleanOutbreakBlurb } from "@/lib/plainText";
 import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -668,7 +668,7 @@ function WorldMap({
 function OutbreakCard({o,selected,onClick}:{o:Outbreak;selected:boolean;onClick:()=>void}) {
   const col = RISK_COL(o.risk_level, o.conspiracy_score);
   const vs  = VERDICT_STYLE(o.verdict);
-  const desc = plainTextFromHtml(o.description);
+  const desc = cleanOutbreakBlurb(o.description);
   return (
     <div onClick={onClick} style={{border:`1px solid ${selected?col:"#1a3320"}`,borderRadius:4,background:selected?"rgba(0,0,0,0.5)":"#090f0b",padding:"13px 15px",cursor:"pointer",transition:"border-color 0.15s"}}
       onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
@@ -705,7 +705,7 @@ function OutbreakCard({o,selected,onClick}:{o:Outbreak;selected:boolean;onClick:
 function OutbreakDetail({o}:{o:Outbreak}) {
   const col = RISK_COL(o.risk_level, o.conspiracy_score);
   const vs  = VERDICT_STYLE(o.verdict);
-  const desc = plainTextFromHtml(o.description);
+  const desc = cleanOutbreakBlurb(o.description);
 
   return (
     <div style={{border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
@@ -741,7 +741,7 @@ function OutbreakDetail({o}:{o:Outbreak}) {
             <div style={{fontSize:10,color:"#5a8068",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Key Facts</div>
             {o.key_facts.map((f,i)=>(
               <div key={i} style={{display:"flex",gap:8,color:"#7aaa8a",fontSize:12,marginBottom:6,lineHeight:1.6,alignItems:"flex-start",minWidth:0}}>
-                <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span className="ob-plain-text">{plainTextFromHtml(f)}</span>
+                <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span className="ob-plain-text">{cleanOutbreakBlurb(f)}</span>
               </div>
             ))}
           </div>
