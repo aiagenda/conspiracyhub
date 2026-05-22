@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { fetchWithSupabaseAuth } from "@/lib/authFetch";
 import { ARTICLE_THREAD_STARTER_FP } from "@/lib/articleThreadStarters";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import SiteNav from "@/components/SiteNav";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -641,6 +642,38 @@ function NewThreadForm({
 }
 
 // ── MAIN COMMUNITY BOARD ───────────────────────────────────────
+function SubmitIntelButton({
+  showNew,
+  onClick,
+  className,
+}: {
+  showNew: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      style={{
+        padding: "6px 16px",
+        background: showNew ? "rgba(0,255,136,0.08)" : "transparent",
+        border: "1px solid #00bb66",
+        color: "#00ff88",
+        fontFamily: RAJ,
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: 2,
+        borderRadius: 3,
+        cursor: "pointer",
+      }}
+    >
+      {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
+    </button>
+  );
+}
+
 export default function CommunityBoard() {
   const searchParams = useSearchParams();
   const articleParam = searchParams.get("article");
@@ -798,21 +831,62 @@ export default function CommunityBoard() {
       <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* NAV */}
-        <div style={{ height: 44, background: "#050c07", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
-          <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3 }}>← FEED</Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2 }}>COMMUNITY INTELLIGENCE</div>
-          <div style={{ marginLeft: "auto" }}>
-            {!articleBundleId && signedIn && (
-            <button onClick={() => setShowNew(s => !s)}
-              style={{ padding: "6px 16px", background: showNew ? "rgba(0,255,136,0.08)" : "transparent", border: "1px solid #00bb66", color: "#00ff88", fontFamily: RAJ, fontSize: 11, fontWeight: 700, letterSpacing: 2, borderRadius: 3, cursor: "pointer" }}>
-              {showNew ? "✕ CANCEL" : "+ SUBMIT INTELLIGENCE"}
-            </button>
-            )}
+        <header
+          className="ob-tracker-nav intel-page-nav community-page-nav"
+          style={{
+            height: 44,
+            background: "#050c07",
+            borderBottom: "1px solid #1a3320",
+            display: "flex",
+            alignItems: "center",
+            padding: "0 16px",
+            gap: 12,
+          }}
+        >
+          <div className="intel-page-nav-start" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Link
+              href="/"
+              style={{
+                fontSize: 10,
+                color: "#5a8068",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #1a3320",
+                padding: "4px 10px",
+                borderRadius: 3,
+              }}
+            >
+              ← FEED
+            </Link>
           </div>
-        </div>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div
+            className="intel-page-nav-brand"
+            style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2, flexShrink: 0 }}
+          >
+            THE THEORIST
+          </div>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div
+            className="intel-page-nav-section"
+            style={{ fontFamily: RAJ, fontSize: 11, color: "#5a8068", letterSpacing: 2, flexShrink: 0 }}
+          >
+            COMMUNITY INTELLIGENCE
+          </div>
+          <div
+            className="community-header-actions"
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}
+          >
+            {!articleBundleId && signedIn ? (
+              <div className="community-submit-nav" style={{ flexShrink: 0 }}>
+                <SubmitIntelButton showNew={showNew} onClick={() => setShowNew((s) => !s)} />
+              </div>
+            ) : null}
+            <div className="community-header-nav" style={{ flexShrink: 0 }}>
+              <SiteNav />
+            </div>
+          </div>
+        </header>
 
         {!signedIn && (
           <div
@@ -837,11 +911,17 @@ export default function CommunityBoard() {
         <div style={pageContentShellStyle()}>
 
           {/* HEADER */}
-          <div style={{ marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
-            <div style={{ fontFamily: RAJ, fontSize: 10, letterSpacing: 5, color: "#5a8068", marginBottom: 5, textTransform: "uppercase" }}>■ OPEN SOURCE INTELLIGENCE ■</div>
-            <h1 style={{ fontFamily: RAJ, fontSize: 24, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 16px rgba(0,255,136,0.2)", margin: "0 0 4px" }}>Community Intelligence</h1>
-            <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>REPORT SIGHTINGS · SHARE DOCUMENTS · INVOKE ORACLE AI · INVESTIGATE TOGETHER</div>
+          <div className="community-page-hero" style={{ marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
+            <div className="community-hero-kicker" style={{ fontFamily: RAJ, fontSize: 10, letterSpacing: 5, color: "#5a8068", marginBottom: 5, textTransform: "uppercase" }}>■ OPEN SOURCE INTELLIGENCE ■</div>
+            <h1 className="community-page-headline" style={{ fontFamily: RAJ, fontSize: 24, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 16px rgba(0,255,136,0.2)", margin: "0 0 4px" }}>Community Intelligence</h1>
+            <div className="community-hero-tagline" style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2 }}>REPORT SIGHTINGS · SHARE DOCUMENTS · INVOKE ORACLE AI · INVESTIGATE TOGETHER</div>
           </div>
+
+          {!articleBundleId && signedIn ? (
+            <div className="community-submit-mobile">
+              <SubmitIntelButton showNew={showNew} onClick={() => setShowNew((s) => !s)} />
+            </div>
+          ) : null}
 
           {showNew && !articleBundleId && (
             <div style={{ marginBottom: "1.5rem" }}>
