@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { plainTextFromHtml } from "@/lib/plainText";
 import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
@@ -244,7 +245,7 @@ const CURATED_DISEASES: CuratedItem[] = [
 ];
 
 function stripHtml(s: string): string {
-  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return plainTextFromHtml(s);
 }
 
 function hasKnownDiseaseSignature(text: string): boolean {

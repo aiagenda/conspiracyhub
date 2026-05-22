@@ -173,6 +173,12 @@ body {
   }
 }
 
+/* UAP / Outbreak — detail accordion (inline on mobile, sidebar on desktop) */
+.ob-detail-inline,
+.uap-detail-inline {
+  display: none;
+}
+
 /* ── MOBILE RESPONSIVE ─────────────────────────────────────── */
 @media (max-width: 768px) {
   /* Hide desktop nav links on mobile */
@@ -312,6 +318,8 @@ body {
   .ob-tracker-main {
     grid-template-columns: 1fr !important;
     gap: 1.1rem !important;
+    overflow-x: hidden !important;
+    max-width: 100% !important;
   }
   .ob-tracker-nav {
     height: auto !important;
@@ -504,6 +512,8 @@ body {
     display: flex !important;
     flex-direction: column !important;
     gap: 1.25rem !important;
+    overflow-x: hidden !important;
+    max-width: 100% !important;
   }
   .uap-people-grid {
     grid-template-columns: 1fr !important;
@@ -578,9 +588,41 @@ body {
     right: max(12px, env(safe-area-inset-right, 0px)) !important;
   }
 
-  .ob-stat-row > div {
+  .ob-stat-row > div,
+  .intel-stat-row > div {
     flex: 1 1 calc(50% - 6px) !important;
     min-width: 0 !important;
+    padding: 6px 10px !important;
+  }
+  .intel-stat-row .intel-stat-value {
+    font-size: 17px !important;
+    line-height: 1.1 !important;
+  }
+  .intel-stat-row .intel-stat-label {
+    font-size: 8px !important;
+    letter-spacing: 1.5px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .ob-detail-sidebar,
+  .uap-detail-sidebar {
+    display: none !important;
+  }
+  .ob-detail-inline,
+  .uap-detail-inline {
+    display: block !important;
+  }
+
+  .ob-card-grid > div,
+  .ob-tracker-main,
+  .ob-card-grid {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .ob-plain-text,
+  .uap-plain-text {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
   }
 }
 

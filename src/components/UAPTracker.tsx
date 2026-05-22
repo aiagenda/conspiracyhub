@@ -951,6 +951,13 @@ export default function UAPTracker() {
     loadSightings();
   },[loadSightings]);
 
+  useEffect(() => {
+    if (!selected?.id || tab !== "incidents" || typeof window === "undefined" || window.innerWidth > 768) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`uap-incident-${selected.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [selected?.id, tab]);
+
   if (loading) return (
     <div style={{minHeight:"100vh",background:"#030806",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
       <style>{`@keyframes uap-blink{0%,100%{opacity:1}50%{opacity:0}}.uap-blink{animation:uap-blink 0.9s step-end infinite}`}</style>
@@ -1010,7 +1017,7 @@ export default function UAPTracker() {
           </div>
 
           {/* STATS */}
-          <div style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
+          <div className="intel-stat-row" style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
             {([
               {label:"INCIDENTS",value:data.incidents.length,col:"#00ff88"},
               {label:"DECLASSIFIED",value:data.incidents.filter(i=>i.classification==="DECLASSIFIED"||i.classification==="CONFIRMED").length,col:"#00bb66"},
@@ -1031,10 +1038,11 @@ export default function UAPTracker() {
                   border:`1px solid ${onPress&&(label==="NUFORC SIGHTINGS"||label==="LATEST NEWS")?(label==="LATEST NEWS"?"#00bb6655":`${SIGHTING_COL}55`):"#1a3320"}`,
                   borderRadius:3,padding:"8px 14px",background:onPress&&(label==="NUFORC SIGHTINGS"||label==="LATEST NEWS")?(label==="LATEST NEWS"?"rgba(0,255,136,0.04)":"rgba(255,204,0,0.04)"):"#090f0b",
                   cursor:onPress?"pointer":undefined,
+                  minWidth:0,
                 }}
               >
-                <div style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}{onPress?" · click":""}</div>
-                <div style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
+                <div className="intel-stat-label" style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}{onPress?" · click":""}</div>
+                <div className="intel-stat-value" style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
               </div>
             ))}
           </div>
@@ -1116,7 +1124,8 @@ export default function UAPTracker() {
                     const col=CLASS_COL[inc.classification]??"#5a8068";
                     const isSel=selected?.id===inc.id;
                     return (
-                      <div key={inc.id} onClick={()=>setSelected(inc)}
+                      <div key={inc.id} id={`uap-incident-${inc.id}`} style={{ minWidth: 0 }}>
+                      <div onClick={()=>setSelected(inc)}
                         style={{border:`1px solid ${isSel?col:"#1a3320"}`,borderRadius:4,background:isSel?`${col}0a`:"#090f0b",cursor:"pointer",transition:"all 0.15s",overflow:"hidden"}}
                         onMouseEnter={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
                         onMouseLeave={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor="#1a3320";}}>
@@ -1128,7 +1137,7 @@ export default function UAPTracker() {
                         <div style={{padding:"10px 12px"}}>
                           <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#e8ffe8",lineHeight:1.3,marginBottom:3}}>{inc.name}</div>
                           <div style={{fontSize:11,color:"#5a8068",letterSpacing:1,marginBottom:7}}>{inc.location}</div>
-                          <div style={{fontSize:12,color:"#7aaa8a",lineHeight:1.65,marginBottom:8}}>{inc.description.slice(0,110)}...</div>
+                          <div className="uap-plain-text" style={{fontSize:12,color:"#7aaa8a",lineHeight:1.65,marginBottom:8,minWidth:0}}>{inc.description.slice(0,110)}...</div>
                           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
                             {inc.tags.slice(0,4).map(t=><span key={t} style={{fontSize:8,color:"#2a4030",border:"1px solid #0d1a10",padding:"1px 5px",borderRadius:1,letterSpacing:0.5}}>{t}</span>)}
                             <Link href={`/uap/${inc.id}`} onClick={e=>e.stopPropagation()} style={{marginLeft:"auto",fontSize:9,color:col,border:`1px solid ${col}`,padding:"3px 10px",borderRadius:2,textDecoration:"none",letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0,background:`${col}10`}}>
@@ -1136,6 +1145,23 @@ export default function UAPTracker() {
                             </Link>
                           </div>
                         </div>
+                      </div>
+                      {isSel ? (
+                        <div className="uap-detail-inline" style={{ marginTop: 10 }}>
+                          <div style={{padding:"10px 14px",marginBottom:"0.75rem",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b"}}>
+                            <div style={{fontFamily:RAJ,fontSize:17,fontWeight:700,color:"#e8ffe8",marginBottom:6}}>{inc.name}</div>
+                            <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+                              <span style={{fontSize:10,color:CLASS_COL[inc.classification as Classification]??"#5a8068",border:`1px solid ${CLASS_COL[inc.classification as Classification]??"#5a8068"}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>{inc.classification}</span>
+                              <span style={{fontSize:10,color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>EVIDENCE: {inc.evidenceLevel}</span>
+                            </div>
+                            <div style={{fontSize:12,color:"#5a8068",letterSpacing:1,marginBottom:8}}>{inc.date} · {inc.location}</div>
+                            <Link href={`/uap/${inc.id}`} style={{display:"block",padding:"10px",background:"rgba(0,255,136,0.06)",border:"1px solid #00bb66",borderRadius:3,textAlign:"center",textDecoration:"none",fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#00ff88",letterSpacing:2}}>
+                              ◈ OPEN INVESTIGATION BOARD ▶
+                            </Link>
+                          </div>
+                          <IncidentDetail incident={inc} people={data.people} orgs={data.organizations} docs={data.documents}/>
+                        </div>
+                      ) : null}
                       </div>
                     );
                   })}
@@ -1292,9 +1318,9 @@ export default function UAPTracker() {
               )}
             </div>
 
-            {/* RIGHT: Detail panel */}
+            {/* RIGHT: Detail panel (desktop sidebar) */}
             {!sightingReadMode && (
-            <div>
+            <div className="uap-detail-sidebar">
               {selected&&tab==="incidents"&&(
                 <div>
                   <div style={{padding:"10px 14px",marginBottom:"0.75rem",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b"}}>

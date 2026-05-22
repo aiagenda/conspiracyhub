@@ -6,6 +6,7 @@ import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { plainTextFromHtml } from "@/lib/plainText";
 import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 const FONT = "var(--font-share-tech-mono), monospace";
@@ -667,6 +668,7 @@ function WorldMap({
 function OutbreakCard({o,selected,onClick}:{o:Outbreak;selected:boolean;onClick:()=>void}) {
   const col = RISK_COL(o.risk_level, o.conspiracy_score);
   const vs  = VERDICT_STYLE(o.verdict);
+  const desc = plainTextFromHtml(o.description);
   return (
     <div onClick={onClick} style={{border:`1px solid ${selected?col:"#1a3320"}`,borderRadius:4,background:selected?"rgba(0,0,0,0.5)":"#090f0b",padding:"13px 15px",cursor:"pointer",transition:"border-color 0.15s"}}
       onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
@@ -682,8 +684,8 @@ function OutbreakCard({o,selected,onClick}:{o:Outbreak;selected:boolean;onClick:
           {o.localNews&&o.localNews.length>0&&<span style={{fontSize:11,color:"#00bb66",border:"1px solid rgba(0,187,102,0.3)",padding:"2px 7px",borderRadius:2,letterSpacing:1}}>◉ {o.localNews.length} LOCAL NEWS</span>}
         </div>
       </div>
-      <div style={{fontSize:11,color:"#5a8068",lineHeight:1.65,marginBottom:9}}>
-        {o.description.slice(0,110)}{o.description.length>110?"...":""}
+      <div className="ob-plain-text" style={{fontSize:11,color:"#5a8068",lineHeight:1.65,marginBottom:9,minWidth:0}}>
+        {desc.slice(0,110)}{desc.length>110?"...":""}
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{fontSize:10,color:"#3a5040",letterSpacing:1,flexShrink:0}}>THREAT</div>
@@ -703,6 +705,7 @@ function OutbreakCard({o,selected,onClick}:{o:Outbreak;selected:boolean;onClick:
 function OutbreakDetail({o}:{o:Outbreak}) {
   const col = RISK_COL(o.risk_level, o.conspiracy_score);
   const vs  = VERDICT_STYLE(o.verdict);
+  const desc = plainTextFromHtml(o.description);
 
   return (
     <div style={{border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
@@ -715,7 +718,7 @@ function OutbreakDetail({o}:{o:Outbreak}) {
         </div>
       </div>
 
-      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:14,maxHeight:580,overflowY:"auto"}}>
+      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:14,maxHeight:"min(580px, 70vh)",overflowY:"auto",minWidth:0}}>
 
         {/* Score */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -730,15 +733,15 @@ function OutbreakDetail({o}:{o:Outbreak}) {
           </div>
         </div>
 
-        <div style={{fontSize:12,color:"#7aaa8a",lineHeight:1.7}}>{o.description}</div>
+        <div className="ob-plain-text" style={{fontSize:12,color:"#7aaa8a",lineHeight:1.7,minWidth:0}}>{desc}</div>
 
         {/* Key facts */}
         {o.key_facts?.length>0&&(
           <div>
             <div style={{fontSize:10,color:"#5a8068",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Key Facts</div>
             {o.key_facts.map((f,i)=>(
-              <div key={i} style={{display:"flex",gap:8,color:"#7aaa8a",fontSize:12,marginBottom:6,lineHeight:1.6,alignItems:"flex-start"}}>
-                <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span>{f}</span>
+              <div key={i} style={{display:"flex",gap:8,color:"#7aaa8a",fontSize:12,marginBottom:6,lineHeight:1.6,alignItems:"flex-start",minWidth:0}}>
+                <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span className="ob-plain-text">{plainTextFromHtml(f)}</span>
               </div>
             ))}
           </div>
@@ -872,6 +875,13 @@ export default function OutbreakTracker() {
   }, []);
 
   useEffect(() => {
+    if (!selected?.id || typeof window === "undefined" || window.innerWidth > 768) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`ob-card-${selected.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [selected?.id]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const loadPreview = async (): Promise<boolean> => {
@@ -958,16 +968,16 @@ export default function OutbreakTracker() {
 
           {/* STATS */}
           {data&&(
-            <div className="ob-stat-row" style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
+            <div className="ob-stat-row intel-stat-row" style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
               {[
                 {label:"ACTIVE OUTBREAKS",value:outbreaks.length,col:"#00ff88"},
                 {label:"HIGH/CRITICAL",value:outbreaks.filter(o=>o.risk_level==="HIGH"||o.risk_level==="CRITICAL").length,col:"#ff3333"},
                 {label:"CONSPIRACY FLAGS",value:outbreaks.filter(o=>o.has_conspiracy).length,col:"#c94dff"},
                 {label:"LOCAL NEWS FEEDS",value:outbreaks.reduce((a,o)=>a+(o.localNews?.length??0),0),col:"#00bb66"},
               ].map(({label,value,col})=>(
-                <div key={label} style={{border:"1px solid #1a3320",borderRadius:3,padding:"8px 14px",background:"#090f0b"}}>
-                  <div style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
-                  <div style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
+                <div key={label} style={{border:"1px solid #1a3320",borderRadius:3,padding:"8px 14px",background:"#090f0b",minWidth:0}}>
+                  <div className="intel-stat-label" style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}</div>
+                  <div className="intel-stat-value" style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
                 </div>
               ))}
             </div>
@@ -1025,13 +1035,20 @@ export default function OutbreakTracker() {
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
                 <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={selectOutbreak} />
-                <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 12 }}>
                   {visible.map(o=>(
-                    <OutbreakCard key={o.id} o={o} selected={selected?.id===o.id} onClick={()=>selectOutbreak(o)}/>
+                    <div key={o.id} id={`ob-card-${o.id}`} style={{ minWidth: 0 }}>
+                      <OutbreakCard o={o} selected={selected?.id===o.id} onClick={()=>selectOutbreak(o)}/>
+                      {selected?.id === o.id ? (
+                        <div className="ob-detail-inline" style={{ marginTop: 10 }}>
+                          <OutbreakDetail o={o} />
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               </div>
-              <div>
+              <div className="ob-detail-sidebar">
                 {selected
                   ? <OutbreakDetail o={selected}/>
                   : <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"2rem",textAlign:"center",color:"#3a5040",fontSize:12,letterSpacing:2}}>SELECT AN OUTBREAK<br/>ON THE MAP OR LIST</div>
