@@ -198,26 +198,62 @@ export default function SearchPage() {
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1 }}>
 
-        {/* ── HEADER BAR — matches feed / article header ──────────── */}
-        <header style={{
-          height: 48,
-          background: "#050c07",
-          borderBottom: "1px solid #1a3320",
-          display: "flex",
-          alignItems: "center",
-          padding: "0 20px",
-          gap: 14,
-          flexShrink: 0,
-        }}>
-          <Link href="/" style={{ fontSize: 10, color: "#5a8068", textDecoration: "none", letterSpacing: 2, border: "1px solid #1a3320", padding: "4px 10px", borderRadius: 3, whiteSpace: "nowrap" }}>
-            ← FEED
-          </Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
-          <div style={{ fontFamily: RAJ, fontSize: 16, fontWeight: 700, color: "#00ff88", letterSpacing: 3, textTransform: "uppercase", textShadow: "0 0 14px rgba(0,255,136,0.3)", whiteSpace: "nowrap" }}>
-            THE THEORIST
+        {/* ── HEADER BAR — unified intel sub-page nav ─────────────── */}
+        <header
+          className="ob-tracker-nav intel-page-nav search-page-nav"
+          style={{
+            height: 44,
+            background: "#050c07",
+            borderBottom: "1px solid #1a3320",
+            display: "flex",
+            alignItems: "center",
+            padding: "0 16px",
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <div className="intel-page-nav-start" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Link
+              href="/"
+              style={{
+                fontSize: 10,
+                color: "#5a8068",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #1a3320",
+                padding: "4px 10px",
+                borderRadius: 3,
+                whiteSpace: "nowrap",
+              }}
+            >
+              ← FEED
+            </Link>
           </div>
-          <div className="search-header-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
-          <div className="search-header-subtitle site-header-subtitle" style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, whiteSpace: "nowrap" }}>INTELLIGENCE SEARCH</div>
+          <div className="intel-page-nav-divider search-header-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <Link
+            href="/"
+            className="intel-page-nav-brand"
+            style={{
+              fontFamily: RAJ,
+              fontSize: 14,
+              fontWeight: 700,
+              color: "#00ff88",
+              letterSpacing: 2,
+              textDecoration: "none",
+              textShadow: "0 0 14px rgba(0,255,136,0.3)",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            THE THEORIST
+          </Link>
+          <div className="intel-page-nav-divider search-header-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div
+            className="search-header-subtitle intel-page-nav-section site-header-subtitle"
+            style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, whiteSpace: "nowrap" }}
+          >
+            INTELLIGENCE SEARCH
+          </div>
           <div className="search-header-nav" style={{ marginLeft: "auto", flexShrink: 0 }}>
             <SiteNav />
           </div>
@@ -227,16 +263,16 @@ export default function SearchPage() {
         <div style={pageContentShellStyle()}>
 
         {/* Section title */}
-        <div style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
-          <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
+        <div className="search-page-hero" style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
+          <div className="search-page-hero-title" style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
             INTELLIGENCE SEARCH
           </div>
-          <div style={{ fontSize: 12, color: C.faint, letterSpacing: 1.5 }}>
+          <div className="search-page-hero-tagline" style={{ fontSize: 12, color: C.faint, letterSpacing: 1.5, lineHeight: 1.6 }}>
             CONSPIRACY THEORIES · PATENTS · PEOPLE · URL ANALYSIS · REFERENCE INDEX
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, marginBottom: "1.5rem", flexWrap: "wrap" }}>
+        <div className="search-tab-row" style={{ display: "flex", gap: 6, marginBottom: "1.5rem", flexWrap: "wrap" }}>
           {[
             { key: "search", label: "◈ SEARCH DATABASE" },
             { key: "url", label: "◈ ANALYZE URL" },
@@ -267,7 +303,7 @@ export default function SearchPage() {
 
         {tab === "search" && (
           <div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <div className="search-input-row" style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "stretch" }}>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -297,8 +333,8 @@ export default function SearchPage() {
               </button>
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: "1.5rem" }}>
-              <div style={{ display: "flex", gap: 4 }}>
+            <div className="search-filter-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: "1.5rem" }}>
+              <div className="search-type-filters category-filter" style={{ display: "flex", gap: 4 }}>
                 {TYPE_FILTERS.map((f) => (
                   <button
                     key={f.value}
@@ -322,8 +358,8 @@ export default function SearchPage() {
                   </button>
                 ))}
               </div>
-              <div style={{ width: 1, background: "#1a3320" }} />
-              <div style={{ display: "flex", gap: 4 }}>
+              <div className="search-filter-divider" style={{ width: 1, background: "#1a3320" }} />
+              <div className="search-threat-filters category-filter" style={{ display: "flex", gap: 4 }}>
                 {THREAT_FILTERS.map((f) => (
                   <button
                     key={f.value || "any"}
@@ -350,11 +386,11 @@ export default function SearchPage() {
             </div>
 
             {!results && !searching && (
-              <div style={{ marginBottom: "2rem" }}>
+              <div className="search-browse-block" style={{ marginBottom: "2rem" }}>
                 <div style={{ fontSize: T.sectionLabel, color: C.dim, letterSpacing: 1.5, marginBottom: 12, textTransform: "uppercase" }}>
                   ◈ BROWSE — POPULAR TOPICS
                 </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div className="search-browse-topics" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {BROWSE_TOPICS.map((t) => (
                     <button
                       key={t}
@@ -617,7 +653,7 @@ export default function SearchPage() {
               <strong style={{ color: "#ffaa00" }}>Pro feature.</strong>
             </div>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: "1.5rem" }}>
+            <div className="search-input-row" style={{ display: "flex", gap: 8, marginBottom: "1.5rem", alignItems: "stretch" }}>
               <input
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
