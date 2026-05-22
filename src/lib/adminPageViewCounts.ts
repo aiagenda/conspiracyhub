@@ -5,6 +5,35 @@ type RpcRow = { path: string; view_count: number | string; unique_viewers?: numb
 
 export type PathPageViewStats = { totalLoads: number; uniqueReaders: number };
 
+export type CountryPageViewStats = {
+  country_code: string;
+  view_count: number;
+  unique_viewers: number;
+};
+
+/** Per-country hits + distinct fingerprints since `sinceAt` (RPC). */
+export async function pageViewsByCountrySince(
+  db: SupabaseClient,
+  sinceAt: string,
+): Promise<CountryPageViewStats[]> {
+  const exclude = analyticsExcludedFingerprints();
+  const { data, error } = await db.rpc("admin_page_views_by_country", {
+    since_at: sinceAt,
+    exclude_fingerprints: exclude.length > 0 ? exclude : null,
+  });
+  if (error) {
+    console.warn("[admin_page_views_by_country]", error.message);
+    return [];
+  }
+  return ((data ?? []) as { country_code: string; view_count: number | string; unique_viewers: number | string }[]).map(
+    (row) => ({
+      country_code: row.country_code,
+      view_count: Number(row.view_count),
+      unique_viewers: Number(row.unique_viewers),
+    }),
+  );
+}
+
 /** Per-path hits + distinct fingerprints from page_views (RPC); respects ANALYTICS_EXCLUDE_* fingerprints. */
 export async function pageViewStatsByPaths(
   db: SupabaseClient,

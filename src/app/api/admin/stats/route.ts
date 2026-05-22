@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { analyticsExcludedFingerprints } from "@/lib/analyticsExclude";
+import { pageViewsByCountrySince } from "@/lib/adminPageViewCounts";
 
 function admin() {
   return createClient(
@@ -130,6 +131,13 @@ export async function GET() {
   });
   const viewsHourly = Object.entries(hourBuckets).map(([hour, count]) => ({ hour, count }));
 
+  const topCountriesRaw = await pageViewsByCountrySince(db, since7d);
+  const topCountries = topCountriesRaw.slice(0, 15).map((c) => ({
+    country: c.country_code,
+    views: c.view_count,
+    unique: c.unique_viewers,
+  }));
+
   return NextResponse.json({
     pageViews: {
       last24h: views24h.count ?? 0,
@@ -160,6 +168,7 @@ export async function GET() {
       viewsHourly,
       topPaths: topPathsSorted,
       topRoutes: topRoutesSorted,
+      topCountries,
     },
   });
 }

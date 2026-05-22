@@ -41,6 +41,7 @@ interface Stats {
     viewsHourly: { hour: string; count: number }[];
     topPaths: { path: string; count: number }[];
     topRoutes: { route: string; total: number; errors: number }[];
+    topCountries: { country: string; views: number; unique: number }[];
   };
 }
 
@@ -147,6 +148,23 @@ function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
       ))}
     </div>
   );
+}
+
+function countryCodeToFlag(code: string): string {
+  const c = code.trim().toUpperCase();
+  if (!c || c === "XX" || c.length !== 2) return "🌐";
+  const pts = [...c].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65);
+  return String.fromCodePoint(...pts);
+}
+
+function countryLabel(code: string): string {
+  const c = code.trim().toUpperCase();
+  if (!c || c === "XX") return "Unknown";
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(c) ?? c;
+  } catch {
+    return c;
+  }
 }
 
 function StatTile({
@@ -1577,7 +1595,8 @@ export default function AdminPage() {
                     </p>
                     <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
                       API route logs populate when requests are recorded to <code className="text-[var(--green-dim)]">api_request_logs</code>.
-                      Page views come from <code className="text-[var(--green-dim)]">/api/track</code> on navigation.
+                      Page views come from <code className="text-[var(--green-dim)]">/api/track</code> on navigation
+                      (country from Vercel edge headers when deployed).
                     </p>
                     <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
                       Error rate (24h):{" "}
@@ -1656,7 +1675,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-2" style={{ minHeight: 280 }}>
+                <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3" style={{ minHeight: 280 }}>
                   <TableShell title="Top pages (7 days)">
                     <table className="w-full border-collapse text-left text-[13px]">
                       <thead>
@@ -1684,6 +1703,50 @@ export default function AdminPage() {
                           <tr>
                             <td colSpan={2} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
                               No path data yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </TableShell>
+
+                  <TableShell title="Top countries (7 days)">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Country
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Views
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Unique
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(stats.charts.topCountries ?? []).map((c) => (
+                          <tr key={c.country} className="hover:bg-[#0f1510]">
+                            <td className="border-b px-4 py-4" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              <span className="mr-2" aria-hidden>{countryCodeToFlag(c.country)}</span>
+                              <span>{countryLabel(c.country)}</span>
+                              {c.country !== "XX" ? (
+                                <span className="ml-1.5 font-mono text-[10px]" style={{ color: muted }}>{c.country}</span>
+                              ) : null}
+                            </td>
+                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
+                              {c.views}
+                            </td>
+                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: muted }}>
+                              {c.unique}
+                            </td>
+                          </tr>
+                        ))}
+                        {(stats.charts.topCountries ?? []).length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
+                              No country data yet — geo is recorded on Vercel after the migration is applied
                             </td>
                           </tr>
                         )}

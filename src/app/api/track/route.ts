@@ -4,6 +4,7 @@ import {
   analyticsExcludedFingerprints,
   pageViewFingerprintFromRequest,
 } from "@/lib/analyticsExclude";
+import { pageViewGeoFromRequest } from "@/lib/pageViewGeo";
 
 function anon() {
   return createClient(
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const { path } = (await req.json()) as { path: string };
     const fingerprint = pageViewFingerprintFromRequest(req);
+    const { country_code, region } = pageViewGeoFromRequest(req);
     const excluded = analyticsExcludedFingerprints();
     if (excluded.includes(fingerprint)) {
       return NextResponse.json({ ok: true, skipped: true });
@@ -24,6 +26,8 @@ export async function POST(req: NextRequest) {
     await anon().from("page_views").insert({
       path: (path ?? "/").slice(0, 200),
       fingerprint,
+      country_code,
+      region,
     });
 
     return NextResponse.json({ ok: true });
