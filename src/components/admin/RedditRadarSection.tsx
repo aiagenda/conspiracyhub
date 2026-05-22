@@ -141,7 +141,7 @@ export function RedditRadarSection() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
-          Two-way scan: Reddit hot/new feeds + search driven by your feed, UAP dossiers, outbreaks, and blog articles.
+          Two-way scan: Reddit hot/new feeds + search driven by your feed, UAP dossiers, outbreaks, blog articles, and Oracle investigation boards (verdict, nodes, theories get priority).
           Generates comment drafts — paste manually (no auto-spam).
           {pendingCount > 0 ? (
             <span className="ml-2 font-mono text-[11px]" style={{ color: "#ff6600" }}>

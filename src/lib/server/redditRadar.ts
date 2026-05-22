@@ -59,6 +59,8 @@ const MIN_MATCH_SCORE = 45;
 const MIN_SEARCH_MATCH_SCORE = 40;
 const MAX_POST_AGE_DAYS = 7;
 const LOOKBACK_DAYS = 21;
+const ORACLE_LOOKBACK_DAYS = 45;
+const ORACLE_PRIORITY_BOOST = 25;
 const RSS_LIMIT = 10;
 const SEARCH_CANDIDATE_MAX = 24;
 const SEARCH_RESULTS_PER_QUERY = 8;
@@ -234,6 +236,118 @@ function buildSearchQuery(title: string): string {
   return words.join(" ");
 }
 
+type OracleRow = {
+  news_id?: string | null;
+  generated_article_id?: string | null;
+  nodes?: Array<{ label?: string }>;
+  theories?: Array<{ name?: string; summary?: string }>;
+  conclusion?: string;
+  verdict?: string;
+};
+
+type OracleSnippet = {
+  conclusion: string;
+  verdict: string;
+  nodeLabels: string[];
+  theoryNames: string[];
+};
+
+function parseOracleSnippet(row: OracleRow): OracleSnippet {
+  const nodes = Array.isArray(row.nodes) ? row.nodes : [];
+  const theories = Array.isArray(row.theories) ? row.theories : [];
+  return {
+    conclusion: String(row.conclusion ?? "").trim(),
+    verdict: String(row.verdict ?? "").trim(),
+    nodeLabels: nodes.map((n) => String(n.label ?? "").trim()).filter(Boolean),
+    theoryNames: theories.map((t) => String(t.name ?? "").trim()).filter(Boolean),
+  };
+}
+
+function oracleBlobExtra(snippet: OracleSnippet): string {
+  return [
+    snippet.verdict,
+    snippet.conclusion,
+    ...snippet.nodeLabels.slice(0, 14),
+    ...snippet.theoryNames.slice(0, 8),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildSearchQueryWithOracle(title: string, snippet: OracleSnippet | null): string {
+  const base = buildSearchQuery(title);
+  if (!snippet) return base;
+  const extras = [
+    ...snippet.nodeLabels.flatMap((l) => tokenize(l).filter((w) => w.length >= 4)),
+    ...snippet.theoryNames.flatMap((n) => tokenize(n).filter((w) => w.length >= 4)),
+  ].slice(0, 3);
+  return [base, ...extras].filter(Boolean).join(" ").slice(0, 90).trim();
+}
+
+async function loadRecentOracleMaps(
+  admin: SupabaseClient,
+  sinceIso: string,
+): Promise<{ byNews: Map<string, OracleSnippet>; byGen: Map<string, OracleSnippet> }> {
+  const byNews = new Map<string, OracleSnippet>();
+  const byGen = new Map<string, OracleSnippet>();
+  const { data } = await admin
+    .from("oracle_analyses")
+    .select("news_id, generated_article_id, nodes, theories, conclusion, verdict, created_at")
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(120);
+
+  for (const row of data ?? []) {
+    const snippet = parseOracleSnippet(row as OracleRow);
+    const nid = row.news_id ? String(row.news_id) : "";
+    const gid = row.generated_article_id ? String(row.generated_article_id) : "";
+    if (nid && !byNews.has(nid)) byNews.set(nid, snippet);
+    if (gid && !byGen.has(gid)) byGen.set(gid, snippet);
+  }
+  return { byNews, byGen };
+}
+
+async function oracleDraftContext(
+  admin: SupabaseClient,
+  matchType: string,
+  matchedId: string | null,
+): Promise<string> {
+  if (!matchedId || (matchType !== "news_item" && matchType !== "generated_article")) return "";
+
+  const base = admin
+    .from("oracle_analyses")
+    .select("nodes, theories, conclusion, verdict")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const { data } = await (
+    matchType === "news_item"
+      ? base.eq("news_id", matchedId)
+      : base.eq("generated_article_id", matchedId)
+  ).maybeSingle();
+  if (!data) return "";
+
+  const snip = parseOracleSnippet(data as OracleRow);
+  const theories = Array.isArray(data.theories)
+    ? (data.theories as Array<{ name?: string; summary?: string }>)
+    : [];
+  const nodeLines = snip.nodeLabels.slice(0, 10).map((l) => `- ${l}`).join("\n");
+  const theoryLines = theories
+    .slice(0, 4)
+    .map((t) => `- ${String(t.name ?? "").trim()}: ${String(t.summary ?? "").slice(0, 140)}`)
+    .join("\n");
+
+  return [
+    "Oracle investigation board:",
+    snip.verdict ? `Verdict: ${snip.verdict}` : "",
+    snip.conclusion ? `Conclusion: ${snip.conclusion.slice(0, 450)}` : "",
+    nodeLines ? `Key nodes:\n${nodeLines}` : "",
+    theoryLines ? `Theories:\n${theoryLines}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function parseRssEntries(xml: string, defaults: Partial<RedditPostRow>): RedditPostRow[] {
   const items: RedditPostRow[] = [];
   for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
@@ -354,7 +468,42 @@ async function loadOutbreakCandidates(): Promise<SiteMatchCandidate[]> {
 
 async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandidate[]> {
   const cutoff = new Date(Date.now() - LOOKBACK_DAYS * 24 * 3600_000).toISOString();
+  const oracleCutoff = new Date(Date.now() - ORACLE_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
+  const { byNews, byGen } = await loadRecentOracleMaps(admin, oracleCutoff);
   const out: SiteMatchCandidate[] = [];
+
+  const pushNewsRow = (row: {
+    id: string;
+    title?: string | null;
+    summary?: string | null;
+    angle?: string | null;
+    section?: string | null;
+    score?: number | null;
+  }) => {
+    const title = String(row.title ?? "").trim();
+    if (!title) return;
+    const oracle = byNews.get(String(row.id));
+    const hasOracle = Boolean(oracle);
+    const score = Number(row.score ?? 0);
+    const blob = [
+      title,
+      row.summary,
+      row.angle,
+      row.section,
+      hasOracle && oracle ? oracleBlobExtra(oracle) : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    out.push({
+      match_type: "news_item",
+      matched_id: String(row.id),
+      matched_title: title,
+      site_url: `${SITE_URL}/board/${row.id}`,
+      blob,
+      search_query: buildSearchQueryWithOracle(title, oracle ?? null),
+      priority: (hasOracle ? Math.max(score, 55) : score) + (hasOracle ? ORACLE_PRIORITY_BOOST : 0),
+    });
+  };
 
   const { data: news } = await admin
     .from("news_items")
@@ -365,20 +514,19 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     .order("published_at", { ascending: false })
     .limit(120);
 
+  const seenNewsIds = new Set<string>();
   for (const row of news ?? []) {
-    const title = String(row.title ?? "").trim();
-    if (!title) continue;
-    const score = Number(row.score ?? 0);
-    const blob = [title, row.summary, row.angle, row.section].filter(Boolean).join(" ");
-    out.push({
-      match_type: "news_item",
-      matched_id: String(row.id),
-      matched_title: title,
-      site_url: `${SITE_URL}/board/${row.id}`,
-      blob,
-      search_query: buildSearchQuery(title),
-      priority: score,
-    });
+    seenNewsIds.add(String(row.id));
+    pushNewsRow(row);
+  }
+
+  const missingOracleNewsIds = [...byNews.keys()].filter((id) => !seenNewsIds.has(id));
+  if (missingOracleNewsIds.length) {
+    const { data: oracleNews } = await admin
+      .from("news_items")
+      .select("id, title, summary, angle, section, score")
+      .in("id", missingOracleNewsIds.slice(0, 40));
+    for (const row of oracleNews ?? []) pushNewsRow(row);
   }
 
   const { data: uap } = await admin
@@ -410,19 +558,41 @@ async function loadSiteCandidates(admin: SupabaseClient): Promise<SiteMatchCandi
     .order("created_at", { ascending: false })
     .limit(30);
 
-  for (const row of blog ?? []) {
+  const seenGenIds = new Set<string>();
+  const pushBlogRow = (row: {
+    id: string;
+    title?: string | null;
+    slug?: string | null;
+    excerpt?: string | null;
+  }) => {
     const title = String(row.title ?? "").trim();
     const slug = String(row.slug ?? "").trim();
-    if (!title || !slug) continue;
+    if (!title || !slug) return;
+    const oracle = byGen.get(String(row.id));
+    const hasOracle = Boolean(oracle);
     out.push({
       match_type: "generated_article",
       matched_id: String(row.id),
       matched_title: title,
       site_url: `${SITE_URL}/blog/${slug}`,
-      blob: [title, row.excerpt].filter(Boolean).join(" "),
-      search_query: buildSearchQuery(title),
-      priority: 62,
+      blob: [title, row.excerpt, hasOracle && oracle ? oracleBlobExtra(oracle) : ""].filter(Boolean).join(" "),
+      search_query: buildSearchQueryWithOracle(title, oracle ?? null),
+      priority: (hasOracle ? 72 : 62) + (hasOracle ? ORACLE_PRIORITY_BOOST : 0),
     });
+  };
+
+  for (const row of blog ?? []) {
+    seenGenIds.add(String(row.id));
+    pushBlogRow(row);
+  }
+
+  const missingOracleGenIds = [...byGen.keys()].filter((id) => !seenGenIds.has(id));
+  if (missingOracleGenIds.length) {
+    const { data: oracleBlog } = await admin
+      .from("generated_articles")
+      .select("id, title, slug, excerpt")
+      .in("id", missingOracleGenIds.slice(0, 20));
+    for (const row of oracleBlog ?? []) pushBlogRow(row);
   }
 
   const outbreak = await loadOutbreakCandidates();
@@ -788,6 +958,11 @@ export async function generateRedditDraft(matchId: string): Promise<{
       .eq("id", match.matched_id)
       .maybeSingle();
     if (art) context = `Our investigative report:\nTitle: ${art.title}\nExcerpt: ${art.excerpt}`;
+  }
+
+  const oracleCtx = await oracleDraftContext(admin, match.match_type, match.matched_id);
+  if (oracleCtx) {
+    context = context ? `${context}\n\n${oracleCtx}` : oracleCtx;
   }
 
   const result = await callOpenAIJSON<{
