@@ -1051,6 +1051,7 @@ export default function UAPTracker() {
   const [sightingsLoading, setSightingsLoading] = useState(false);
   const [selectedSighting, setSelectedSighting] = useState<Sighting|null>(null);
   const [showSightings, setShowSightings] = useState(true);
+  const [mapOpen, setMapOpen] = useState(false);
 
   const loadSightings = useCallback(() => {
     setSightingsLoading(true);
@@ -1151,30 +1152,31 @@ export default function UAPTracker() {
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
-            <div style={{fontFamily:RAJ,fontSize:10,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ UNIDENTIFIED AERIAL PHENOMENA — INTELLIGENCE DATABASE ■</div>
-            <h1 style={{fontFamily:RAJ,fontSize:24,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>UAP Intelligence</h1>
-            <div style={{fontSize:9,color:"#3a5040",letterSpacing:2}}>
+            <div className="page-hero-kicker" style={{fontFamily:RAJ,fontSize:10,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ UNIDENTIFIED AERIAL PHENOMENA — INTELLIGENCE DATABASE ■</div>
+            <h1 className="page-hero-title" style={{fontFamily:RAJ,fontSize:24,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>UAP Intelligence</h1>
+            <div className="page-hero-tagline" style={{fontSize:9,color:"#3a5040",letterSpacing:2}}>
               DECLASSIFIED DOCUMENTS · CONGRESSIONAL TESTIMONY · WHISTLEBLOWER REPORTS · LATEST NEWS
-              <span style={{display:"block",marginTop:6,color:SIGHTING_COL,letterSpacing:1}}>
-                ◈ On <strong style={{color:"#5a8068"}}>INCIDENTS</strong> the map shows curated cases + optional NUFORC overlay. On <strong style={{color:SIGHTING_COL}}>SIGHTINGS</strong> the map shows <strong style={{color:SIGHTING_COL}}>NUFORC pins only</strong> (geocoded). {sightings.length} sightings in DB.
-              </span>
+            </div>
+            <div className="uap-map-hint desktop-only" style={{fontSize:9,color:SIGHTING_COL,letterSpacing:1,marginTop:6,lineHeight:1.55}}>
+              ◈ On <strong style={{color:"#5a8068"}}>INCIDENTS</strong> the map shows curated cases + optional NUFORC overlay. On <strong style={{color:SIGHTING_COL}}>SIGHTINGS</strong> the map shows NUFORC pins only. {sightings.length} sightings in DB.
             </div>
           </div>
 
           {/* STATS */}
           <div className="intel-stat-row" style={{display:"flex",gap:10,marginBottom:"1.25rem",flexWrap:"wrap"}}>
             {([
-              {label:"INCIDENTS",value:data.incidents.length,col:"#00ff88"},
-              {label:"DECLASSIFIED",value:data.incidents.filter(i=>i.classification==="DECLASSIFIED"||i.classification==="CONFIRMED").length,col:"#00bb66"},
-              {label:"HIGH EVIDENCE",value:data.incidents.filter(i=>i.evidenceLevel==="HIGH").length,col:"#ff3333"},
-              {label:"KEY WITNESSES",value:data.people.length,col:"#ffaa00"},
+              {label:"INCIDENTS",value:data.incidents.length,col:"#00ff88",priority:true},
+              {label:"DECLASSIFIED",value:data.incidents.filter(i=>i.classification==="DECLASSIFIED"||i.classification==="CONFIRMED").length,col:"#00bb66",priority:true},
+              {label:"HIGH EVIDENCE",value:data.incidents.filter(i=>i.evidenceLevel==="HIGH").length,col:"#ff3333",priority:true},
+              {label:"KEY WITNESSES",value:data.people.length,col:"#ffaa00",priority:true},
               {label:"DOCUMENTS",value:data.documents.length,col:"#c94dff"},
               {label:"LATEST NEWS",value:data.news.length,col:"#00bb66",onPress:()=>{setTab("news");}},
               {label:"NUFORC SIGHTINGS",value:sightings.length,col:SIGHTING_COL,onPress:()=>{setTab("sightings");}},
               {label:"FOIA/BLACKVAULT",value:((data as UAPData).stats?.blackvault_items??0)+((data as UAPData).stats?.muckrock_items??0),col:"#c94dff"},
-            ] as Array<{label:string;value:number;col:string;onPress?:()=>void}>).map(({label,value,col,onPress})=>(
+            ] as Array<{label:string;value:number;col:string;priority?:boolean;onPress?:()=>void}>).map(({label,value,col,priority,onPress})=>(
               <div
                 key={label}
+                className={priority ? undefined : "intel-stat-secondary"}
                 role={onPress?"button":undefined}
                 tabIndex={onPress?0:undefined}
                 onClick={onPress}
@@ -1186,7 +1188,7 @@ export default function UAPTracker() {
                   minWidth:0,
                 }}
               >
-                <div className="intel-stat-label" style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}{onPress?" · click":""}</div>
+                <div className="intel-stat-label" style={{fontSize:9,color:"#3a5040",letterSpacing:2,marginBottom:3}}>{label}{onPress?" · tap":""}</div>
                 <div className="intel-stat-value" style={{fontFamily:RAJ,fontSize:22,fontWeight:700,color:col,lineHeight:1}}>{value}</div>
               </div>
             ))}
@@ -1194,8 +1196,21 @@ export default function UAPTracker() {
 
           {/* WORLD MAP */}
           {!sightingReadMode && (
-          <div style={{marginBottom:"1.25rem"}}>
-            <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+          <div className="uap-map-section" style={{marginBottom:"1.25rem"}}>
+            {/* Mobile map toggle row */}
+            <button
+              type="button"
+              className="uap-map-toggle"
+              onClick={()=>setMapOpen(o=>!o)}
+              style={{display:"none",width:"100%",background:"transparent",border:"1px solid #1a3320",borderRadius:3,padding:"8px 12px",color:"#5a8068",fontFamily:FONT,fontSize:10,letterSpacing:2,cursor:"pointer",textAlign:"left",marginBottom:8,alignItems:"center",gap:8}}
+            >
+              <span style={{color:"#00ff88",fontSize:11}}>{mapOpen?"▼":"▶"}</span>
+              {mapOpen ? "HIDE MAP" : "◈ SHOW WORLD MAP"}
+              <span style={{marginLeft:"auto",fontSize:9,color:"#3a5040"}}>{tab==="sightings"?`${sightings.filter(s=>s.lat!=null&&s.lng!=null).length} pins`:`${data.incidents.length} incidents`}</span>
+            </button>
+
+            {/* Desktop map header (always visible on desktop, hidden by CSS on mobile) */}
+            <div className="uap-map-header desktop-only" style={{display:"flex",gap:12,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
               <div style={{fontFamily:FONT,fontSize:10,color:"#5a8068",letterSpacing:2}}>
                 {tab==="sightings"
                   ? "◈ NUFORC MAP · geocoded reports only · ZOOM: scroll/pinch or +/−"
@@ -1227,14 +1242,18 @@ export default function UAPTracker() {
                 )}
               </div>
             </div>
-            <UAPMap
-              incidents={data.incidents} selected={selected}
-              onSelect={s=>{selectIncident(s);setSelectedSighting(null);setTab("incidents");}}
-              sightings={sightings} showSightings={showSightings}
-              onSelectSighting={s=>{setSelectedSighting(s);setTab("sightings");}}
-              mapTab={tab}
-              selectedSighting={selectedSighting}
-            />
+
+            {/* Map itself: always shown on desktop, toggled on mobile */}
+            <div className={mapOpen ? "uap-map-body uap-map-body--open" : "uap-map-body"}>
+              <UAPMap
+                incidents={data.incidents} selected={selected}
+                onSelect={s=>{selectIncident(s);setSelectedSighting(null);setTab("incidents");}}
+                sightings={sightings} showSightings={showSightings}
+                onSelectSighting={s=>{setSelectedSighting(s);setTab("sightings");}}
+                mapTab={tab}
+                selectedSighting={selectedSighting}
+              />
+            </div>
           </div>
           )}
 

@@ -1384,9 +1384,9 @@ export default function OutbreakTracker() {
 
           {/* HEADER */}
           <div style={{marginBottom:"1.25rem",paddingBottom:"1rem",borderBottom:"1px solid #1a3320"}}>
-            <div style={{fontFamily:RAJ,fontSize:11,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ AI-POWERED GLOBAL DISEASE SURVEILLANCE ■</div>
-            <h1 className="ob-page-headline" style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>Outbreak Tracker</h1>
-            <div className="ob-page-tagline" style={{fontSize:11,color:"#3a5040",letterSpacing:2}}>WHO FEED · LOCAL NEWS EARLY SIGNALS · CONSPIRACY PATTERN DETECTION · USPTO PATENTS</div>
+            <div className="page-hero-kicker" style={{fontFamily:RAJ,fontSize:11,letterSpacing:5,color:"#5a8068",marginBottom:5,textTransform:"uppercase"}}>■ AI-POWERED GLOBAL DISEASE SURVEILLANCE ■</div>
+            <h1 className="ob-page-headline page-hero-title" style={{fontFamily:RAJ,fontSize:26,fontWeight:700,color:"#00ff88",letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 16px rgba(0,255,136,0.2)",margin:"0 0 4px"}}>Outbreak Tracker</h1>
+            <div className="ob-page-tagline page-hero-tagline" style={{fontSize:11,color:"#3a5040",letterSpacing:2}}>WHO FEED · LOCAL NEWS EARLY SIGNALS · CONSPIRACY PATTERN DETECTION · USPTO PATENTS</div>
           </div>
 
           {/* STATS */}

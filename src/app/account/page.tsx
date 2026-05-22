@@ -307,47 +307,56 @@ export default function AccountPage() {
       <div className="scanline" />
       <div style={{ position: "relative", zIndex: 1 }}>
         <header
+          className="ob-tracker-nav intel-page-nav"
           style={{
-            height: 48,
+            height: 44,
             background: "#050c07",
             borderBottom: "1px solid #1a3320",
             display: "flex",
             alignItems: "center",
-            padding: "0 20px",
-            gap: 14,
+            padding: "0 16px",
+            gap: 12,
           }}
         >
-          <Link
-            href="/"
-            style={{
-              fontSize: 10,
-              color: "#5a8068",
-              textDecoration: "none",
-              letterSpacing: 2,
-              border: "1px solid #1a3320",
-              padding: "4px 10px",
-              borderRadius: 3,
-            }}
-          >
-            ← FEED
-          </Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
+          <div className="intel-page-nav-start" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Link
+              href="/"
+              style={{
+                fontSize: 10,
+                color: "#5a8068",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #1a3320",
+                padding: "4px 10px",
+                borderRadius: 3,
+              }}
+            >
+              ← FEED
+            </Link>
+          </div>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
           <div
+            className="intel-page-nav-brand"
             style={{
               fontFamily: "var(--font-raj), sans-serif",
               fontSize: 14,
               fontWeight: 700,
               color: "#00ff88",
               letterSpacing: 2,
+              flexShrink: 0,
             }}
           >
             ACCOUNT
           </div>
+          <div className="ob-nav-time intel-page-nav-meta" style={{ marginLeft: "auto", fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>
+            PROFILE & BILLING
+          </div>
         </header>
 
         <div style={pageContentShellStyle()}>
-          <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
             <div
+              className="page-hero-kicker"
               style={{
                 fontFamily: "var(--font-raj), sans-serif",
                 fontSize: 10,
@@ -360,6 +369,7 @@ export default function AccountPage() {
               ■ PROFILE & BILLING ■
             </div>
             <h1
+              className="page-hero-title"
               style={{
                 fontFamily: "var(--font-raj), sans-serif",
                 fontSize: 22,
@@ -372,9 +382,8 @@ export default function AccountPage() {
             >
               YOUR ACCOUNT
             </h1>
-            <p style={{ fontSize: 11, color: "#5a8068", marginTop: 8, maxWidth: 520, lineHeight: 1.6 }}>
-              Plan status, renewal countdown, Stripe billing (card, invoices, cancel). After checkout we refresh
-              automatically for a short window while the webhook syncs.
+            <p className="page-hero-tagline" style={{ fontSize: 11, color: "#5a8068", marginTop: 8, maxWidth: 520, lineHeight: 1.6 }}>
+              Plan status, renewal countdown, Stripe billing (card, invoices, cancel).
             </p>
           </div>
 

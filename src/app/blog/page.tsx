@@ -75,7 +75,8 @@ export default async function BlogPage() {
         }
       `}</style>
       <div style={{ position: "relative", zIndex: 1 }}>
-        <div
+        <header
+          className="ob-tracker-nav intel-page-nav"
           style={{
             height: 44,
             background: "#050c07",
@@ -86,24 +87,30 @@ export default async function BlogPage() {
             gap: 12,
           }}
         >
-          <Link
-            href="/"
-            style={{
-              fontSize: 10,
-              color: "#5a8068",
-              textDecoration: "none",
-              letterSpacing: 2,
-              border: "1px solid #1a3320",
-              padding: "4px 10px",
-              borderRadius: 3,
-            }}
-          >
-            ← FEED
-          </Link>
-          <div style={{ width: 1, height: 20, background: "#1a3320" }} />
-          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2 }}>THE THEORIST</div>
-          <div style={{ marginLeft: "auto", fontFamily: FONT, fontSize: 10, color: "#5a8068", letterSpacing: 2 }}>ANALYSIS INDEX</div>
-        </div>
+          <div className="intel-page-nav-start" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Link
+              href="/"
+              style={{
+                fontSize: 10,
+                color: "#5a8068",
+                textDecoration: "none",
+                letterSpacing: 2,
+                border: "1px solid #1a3320",
+                padding: "4px 10px",
+                borderRadius: 3,
+              }}
+            >
+              ← FEED
+            </Link>
+          </div>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="intel-page-nav-brand" style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 2, flexShrink: 0 }}>THE THEORIST</div>
+          <div className="intel-page-nav-divider" style={{ width: 1, height: 20, background: "#1a3320", flexShrink: 0 }} />
+          <div className="intel-page-nav-section" style={{ fontFamily: FONT, fontSize: 10, color: "#5a8068", letterSpacing: 2 }}>ANALYSIS INDEX</div>
+          <div className="ob-nav-time intel-page-nav-meta" style={{ marginLeft: "auto", fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>
+            {articles.length} REPORTS
+          </div>
+        </header>
 
         <div
           style={{
@@ -112,10 +119,10 @@ export default async function BlogPage() {
             }),
           }}
         >
-          <div style={{ marginBottom: "2rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
-            <div style={{ fontFamily: RAJ, fontSize: 10, letterSpacing: 5, color: "#5a8068", marginBottom: 10, textTransform: "uppercase" }}>■ INVESTIGATION REPORTS ■</div>
-            <h1 style={{ fontFamily: RAJ, fontSize: 30, fontWeight: 700, color: "#00ff88", letterSpacing: 2, margin: "0 0 8px", lineHeight: 1.28 }}>Deep-Dive Analysis</h1>
-            <p style={{ fontFamily: FONT, fontSize: 12, color: "#5a8068", letterSpacing: 0.5, margin: 0, lineHeight: 1.65 }}>AI-generated investigation reports on conspiracy theories, declassified programs, and hidden agendas.</p>
+          <div style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid #1a3320" }}>
+            <div className="page-hero-kicker" style={{ fontFamily: RAJ, fontSize: 10, letterSpacing: 5, color: "#5a8068", marginBottom: 8, textTransform: "uppercase" }}>■ INVESTIGATION REPORTS ■</div>
+            <h1 className="page-hero-title" style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: "#00ff88", letterSpacing: 2, margin: "0 0 8px", lineHeight: 1.28 }}>Deep-Dive Analysis</h1>
+            <p className="page-hero-tagline" style={{ fontFamily: FONT, fontSize: 12, color: "#5a8068", letterSpacing: 0.5, margin: 0, lineHeight: 1.65 }}>AI-generated investigation reports on conspiracy theories, declassified programs, and hidden agendas.</p>
           </div>
 
           {articles.length === 0 && (
