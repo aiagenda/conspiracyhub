@@ -59,7 +59,7 @@ type IbTouchGesture =
       origY: number;
       origScale: number;
     }
-  | { kind: "node"; nodeId: string; offsetX: number; offsetY: number };
+  | { kind: "node"; nodeId: string; offsetX: number; offsetY: number; startClientX: number; startClientY: number; moved: boolean };
 
 /** Detail drawer width — synced via --ib-panel-w on .ib-root */
 const IB_PANEL_W = "clamp(400px, 40vw, 480px)";
@@ -761,7 +761,21 @@ function DetailPanel({
     <>
     <div
       className={`ib-detail-panel${overlay ? " ib-detail-overlay" : ""}`}
-      style={{
+      style={overlay ? {
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        maxHeight: "82dvh",
+        background: "#06110a",
+        borderTop: `2px solid ${c.border}`,
+        borderRadius: "20px 20px 0 0",
+        display: "flex",
+        flexDirection: "column",
+        animation: "slideUp 0.32s cubic-bezier(0.32,0.72,0,1)",
+        zIndex: 50,
+        boxShadow: "0 -16px 48px rgba(0,0,0,0.7)",
+      } : {
         position: "absolute",
         right: 0,
         top: 0,
@@ -776,26 +790,50 @@ function DetailPanel({
         boxShadow: "-8px 0 32px rgba(0,0,0,0.35)",
       }}
     >
-      <div
-        style={{
-          padding: "14px 16px",
-          borderBottom: "1px solid #1a3320",
-          background: "#050c07",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <div style={{ fontFamily: FONT, fontSize: 10, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
-          <div style={{ ...IB_TYPE.panelTitle, color: c.text, marginTop: 3 }}>{node.label}</div>
+      {overlay ? (
+        <>
+          {/* Drag handle */}
+          <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
+          </div>
+          {/* Bottom sheet header */}
+          <div style={{ padding: "4px 16px 10px", flexShrink: 0, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", background: c.glow, border: `1px solid ${c.border}`, borderRadius: 3, marginBottom: 6 }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: c.text, opacity: 0.8 }} />
+                <span style={{ fontFamily: FONT, fontSize: 9, color: c.text, letterSpacing: 2, textTransform: "uppercase" }}>{TYPE_LABELS[node.type] ?? "NODE"}</span>
+              </div>
+              <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: c.text, lineHeight: 1.2, letterSpacing: 0.5 }}>{node.label}</div>
+              {d?.threat !== undefined ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
+                  <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66", lineHeight: 1 }}>{d.threat}%</div>
+                  <div style={{ flex: 1, height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${d.threat}%`, background: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66", borderRadius: 2, transition: "width 0.4s ease" }} />
+                  </div>
+                  <span style={{ fontFamily: FONT, fontSize: 8, color: "#5a8068", letterSpacing: 1.5, flexShrink: 0 }}>{node.type === "theory" ? "PLAUSIBILITY" : "THREAT"}</span>
+                </div>
+              ) : null}
+            </div>
+            <button type="button" data-export-ignore onClick={onClose} style={{ flexShrink: 0, width: 36, height: 36, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#7aaa8a", fontFamily: FONT, fontSize: 16, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+              ✕
+            </button>
+          </div>
+          <div style={{ height: 1, background: `linear-gradient(to right, transparent, ${c.border}, transparent)`, flexShrink: 0 }} />
+        </>
+      ) : (
+        /* Desktop side panel header */
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a3320", background: "#050c07", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontFamily: FONT, fontSize: 10, color: c.text, letterSpacing: 3, opacity: 0.7 }}>{TYPE_LABELS[node.type] ?? "NODE"}</div>
+            <div style={{ ...IB_TYPE.panelTitle, color: c.text, marginTop: 3 }}>{node.label}</div>
+          </div>
+          <button type="button" data-export-ignore onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 11, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
+            ✕
+          </button>
         </div>
-        <button type="button" data-export-ignore onClick={onClose} style={{ background: "transparent", border: "1px solid #1a3320", color: "#5a8068", fontFamily: FONT, fontSize: 11, padding: "4px 10px", borderRadius: 3, cursor: "pointer", letterSpacing: 1 }}>
-          ✕
-        </button>
-      </div>
+      )}
 
-      <div className="ib-detail-panel-scroll" style={{ flex: 1, overflowY: "auto", padding: "18px 20px" }}>
+      <div className="ib-detail-panel-scroll" style={overlay ? { flex: 1, overflowY: "auto", padding: "16px 16px 36px", WebkitOverflowScrolling: "touch" } as React.CSSProperties : { flex: 1, overflowY: "auto", padding: "18px 20px" }}>
         {node.type === "theory" ? (
           <div style={{ marginBottom: 12 }}>
             {/* Theory header badge */}
@@ -1192,28 +1230,29 @@ function DetailPanel({
         />
       </div>
 
-      <div style={{ padding: "12px 14px", borderTop: "1px solid #1a3320" }}>
+      <div style={{ padding: "12px 14px", borderTop: "1px solid #1a3320", flexShrink: 0, paddingBottom: overlay ? "max(14px, env(safe-area-inset-bottom, 0px))" : "12px" }}>
         <button
           type="button"
           data-export-ignore
           onClick={() => setShowFullAnalysis(true)}
           style={{
             width: "100%",
-            padding: "9px",
-            background: "transparent",
+            padding: overlay ? "13px" : "9px",
+            background: overlay ? c.bg : "transparent",
             border: `1px solid ${c.border}`,
             color: c.text,
             fontFamily: RAJ,
-            fontSize: 12,
+            fontSize: overlay ? 14 : 12,
             fontWeight: 700,
             letterSpacing: 2,
             textTransform: "uppercase",
-            borderRadius: 3,
+            borderRadius: overlay ? 8 : 3,
             cursor: "pointer",
             transition: "all 0.15s",
+            boxShadow: overlay ? `0 0 12px ${c.glow}` : "none",
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${c.bg}`; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = overlay ? c.bg : "transparent"; }}
         >
           ◈ FULL ANALYSIS ▶
         </button>
@@ -1381,8 +1420,14 @@ export default function InvestigationBoard({
   const transformRef = useRef(transform);
   const localNodesRef = useRef(localNodes);
   const touchGestureRef = useRef<IbTouchGesture | null>(null);
+  const handleNodeClickRef = useRef<(node: Node) => void>(() => {});
   transformRef.current = transform;
   localNodesRef.current = localNodes;
+  handleNodeClickRef.current = (node: Node) => {
+    const next = internalSelected?.id === node.id ? null : node;
+    setInternalSelected(next);
+    onNodeClick(next);
+  };
   const dragState = useRef<{ type: "pan" | "node"; nodeId?: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [svgDragActive, setSvgDragActive] = useState(false);
 
@@ -1565,6 +1610,9 @@ export default function InvestigationBoard({
             nodeId,
             offsetX: pt.graphX - node.x,
             offsetY: pt.graphY - node.y,
+            startClientX: touch.clientX,
+            startClientY: touch.clientY,
+            moved: false,
           };
           e.preventDefault();
           return;
@@ -1621,14 +1669,19 @@ export default function InvestigationBoard({
       }
 
       if (g.kind === "node") {
-        const pt = clientToSvgPoint(touch.clientX, touch.clientY, rect, t);
-        setLocalNodes((prev) =>
-          prev.map((n) =>
-            n.id === g.nodeId
-              ? { ...n, x: pt.graphX - g.offsetX, y: pt.graphY - g.offsetY }
-              : n,
-          ),
-        );
+        const dx = touch.clientX - g.startClientX;
+        const dy = touch.clientY - g.startClientY;
+        if (Math.hypot(dx, dy) > 6) {
+          g.moved = true;
+          const pt = clientToSvgPoint(touch.clientX, touch.clientY, rect, t);
+          setLocalNodes((prev) =>
+            prev.map((n) =>
+              n.id === g.nodeId
+                ? { ...n, x: pt.graphX - g.offsetX, y: pt.graphY - g.offsetY }
+                : n,
+            ),
+          );
+        }
       }
     };
 
@@ -1647,6 +1700,14 @@ export default function InvestigationBoard({
         };
         setSvgDragActive(true);
         return;
+      }
+      // Tap on node — fire click handler if finger barely moved
+      if (touchGestureRef.current?.kind === "node" && !touchGestureRef.current.moved) {
+        const tappedId = touchGestureRef.current.nodeId;
+        const tappedNode = localNodesRef.current.find((n) => n.id === tappedId);
+        if (tappedNode) {
+          handleNodeClickRef.current(tappedNode);
+        }
       }
       touchGestureRef.current = null;
       setSvgDragActive(false);
@@ -2199,7 +2260,7 @@ export default function InvestigationBoard({
               setInternalSelected(null);
               onNodeClick(null);
             }}
-            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 25 }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 49 }}
           />
         ) : null}
 
