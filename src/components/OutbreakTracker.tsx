@@ -1367,13 +1367,15 @@ export default function OutbreakTracker() {
       <div style={{position:"relative",zIndex:1}}>
 
         {/* NAV */}
-        <div className="ob-tracker-nav" style={{height:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"0 16px",gap:12}}>
-          <Link href="/" style={{fontSize:10,color:"#5a8068",textDecoration:"none",letterSpacing:2,border:"1px solid #1a3320",padding:"4px 10px",borderRadius:3}}>← FEED</Link>
-          <div style={{width:1,height:20,background:"#1a3320"}}/>
-          <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2}}>THE THEORIST</div>
-          <div style={{width:1,height:20,background:"#1a3320"}}/>
-          <div style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:2}}>OUTBREAK TRACKER</div>
-          <div className="ob-nav-time" style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
+        <div className="ob-tracker-nav intel-page-nav" style={{height:44,background:"#050c07",borderBottom:"1px solid #1a3320",display:"flex",alignItems:"center",padding:"0 16px",gap:12}}>
+          <div className="intel-page-nav-start" style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+            <Link href="/" style={{fontSize:10,color:"#5a8068",textDecoration:"none",letterSpacing:2,border:"1px solid #1a3320",padding:"4px 10px",borderRadius:3}}>← FEED</Link>
+          </div>
+          <div className="intel-page-nav-divider" style={{width:1,height:20,background:"#1a3320",flexShrink:0}}/>
+          <div className="intel-page-nav-brand" style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#00ff88",letterSpacing:2,flexShrink:0}}>THE THEORIST</div>
+          <div className="intel-page-nav-divider" style={{width:1,height:20,background:"#1a3320",flexShrink:0}}/>
+          <div className="intel-page-nav-section" style={{fontFamily:RAJ,fontSize:11,color:"#5a8068",letterSpacing:2,flexShrink:0}}>OUTBREAK TRACKER</div>
+          <div className="ob-nav-time intel-page-nav-meta" style={{marginLeft:"auto",fontSize:10,color:"#3a5040",letterSpacing:1}}>
             WHO · GNEWS · {data?`Updated ${new Date(data.generated_at).toLocaleTimeString()}`:""}
           </div>
         </div>

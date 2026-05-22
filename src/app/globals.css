@@ -351,7 +351,26 @@ body {
     background: linear-gradient(180deg, #050c07 0%, #060f0a 100%) !important;
     border-bottom-color: rgba(0, 187, 102, 0.18) !important;
   }
-  .ob-tracker-nav .ob-nav-time {
+  .intel-page-nav-section,
+  .intel-page-nav-divider {
+    display: none !important;
+  }
+  .intel-page-nav-brand {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    font-size: 13px !important;
+    letter-spacing: 1.5px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .intel-page-nav-start a {
+    font-size: 9px !important;
+    padding: 4px 8px !important;
+    letter-spacing: 1.5px !important;
+  }
+  .ob-tracker-nav .ob-nav-time,
+  .ob-tracker-nav .intel-page-nav-meta {
     width: 100%;
     margin-left: 0 !important;
     font-size: 9px !important;
