@@ -757,6 +757,80 @@ body {
   }
   .ib-main-svg {
     width: 100% !important;
+    touch-action: none !important;
+  }
+  .ib-board-canvas {
+    touch-action: none !important;
+  }
+  .ib-zoom-hint {
+    font-size: 8px !important;
+    letter-spacing: 1px !important;
+    max-width: 92vw;
+    text-align: center;
+    white-space: normal !important;
+    line-height: 1.45 !important;
+    bottom: 8px !important;
+  }
+  .ib-zoom-controls button {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 18px !important;
+  }
+  .ib-connection-legend {
+    display: none !important;
+  }
+  .ib-connection-legend.ib-connection-legend--open {
+    display: flex !important;
+    bottom: 64px !important;
+    left: 12px !important;
+    right: 12px !important;
+    max-width: none !important;
+    z-index: 22 !important;
+  }
+  .ib-legend-toggle {
+    display: block !important;
+    left: 62px !important;
+    bottom: 16px !important;
+    padding: 10px 12px !important;
+    font-size: 10px !important;
+  }
+  .ib-connection-legend.ib-connection-legend--open span {
+    font-size: 11px !important;
+  }
+  .ib-board-stats--overview {
+    top: 10px !important;
+    bottom: auto !important;
+    right: 10px !important;
+    gap: 6px !important;
+  }
+  .ib-board-stats--overview > div {
+    padding: 6px 8px !important;
+  }
+  .ib-board-stats--overview > div > div:first-child {
+    font-size: 16px !important;
+  }
+  .ib-board-stats--selected {
+    bottom: 8px !important;
+    right: 8px !important;
+    left: 8px !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+  }
+  .ib-verdict-bar {
+    padding: 8px 12px !important;
+    gap: 8px !important;
+  }
+  .ib-verdict-conclusion {
+    flex-basis: 100% !important;
+    font-size: 11px !important;
+    line-height: 1.5 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ib-board-canvas {
+    min-height: 52vh !important;
   }
 
   .board-vote-wrap {
@@ -833,6 +907,15 @@ body {
     height: 40px;
     pointer-events: none;
     background: linear-gradient(to bottom, transparent, #090f0b);
+  }
+}
+
+@media (max-width: 1023px) {
+  .ib-connection-legend:not(.ib-connection-legend--open) {
+    display: none !important;
+  }
+  .ib-connection-legend.ib-connection-legend--open {
+    display: flex !important;
   }
 }
 

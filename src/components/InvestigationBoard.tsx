@@ -10,6 +10,57 @@ import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 const FONT = "'Share Tech Mono', monospace";
 const RAJ = "'Rajdhani', sans-serif";
 
+const IB_ZOOM_MIN = 0.3;
+const IB_ZOOM_MAX = 4;
+
+function clampIbScale(scale: number): number {
+  return Math.max(IB_ZOOM_MIN, Math.min(IB_ZOOM_MAX, scale));
+}
+
+function zoomTransformAtPoint(
+  t: { x: number; y: number; scale: number },
+  mx: number,
+  my: number,
+  newScale: number,
+) {
+  const scale = clampIbScale(newScale);
+  const factor = scale / t.scale;
+  return {
+    x: mx + (t.x - mx) * factor,
+    y: my + (t.y - my) * factor,
+    scale,
+  };
+}
+
+function clientToSvgPoint(
+  clientX: number,
+  clientY: number,
+  rect: DOMRect,
+  t: { x: number; y: number; scale: number },
+) {
+  const sx = ((clientX - rect.left) / rect.width) * 1000;
+  const sy = ((clientY - rect.top) / rect.height) * 640;
+  return {
+    svgX: sx,
+    svgY: sy,
+    graphX: (sx - t.x) / t.scale,
+    graphY: (sy - t.y) / t.scale,
+  };
+}
+
+type IbTouchGesture =
+  | { kind: "pan"; startX: number; startY: number; origX: number; origY: number }
+  | {
+      kind: "pinch";
+      startDist: number;
+      midX: number;
+      midY: number;
+      origX: number;
+      origY: number;
+      origScale: number;
+    }
+  | { kind: "node"; nodeId: string; offsetX: number; offsetY: number };
+
 /** Detail drawer width — synced via --ib-panel-w on .ib-root */
 const IB_PANEL_W = "clamp(400px, 40vw, 480px)";
 
@@ -211,6 +262,50 @@ function truncate(str: string, max: number) {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
 }
 
+function graphNodeDimensions(node: Node, mobile: boolean) {
+  const m = mobile ? 1.5 : 1;
+  const isCenter = node.id === "center";
+  const isTheory = node.type === "theory";
+  const labelLen = (node.label || "").length;
+  const w = (isCenter ? 148 : isTheory ? 156 : Math.max(118, Math.min(156, labelLen * 7.8))) * m;
+  const h = (isCenter ? 68 : isTheory ? 66 : 58) * m;
+  return { w, h, isCenter, isTheory, m };
+}
+
+function computeFitTransform(
+  nodes: Node[],
+  mobile: boolean,
+): { x: number; y: number; scale: number } {
+  if (!nodes.length) return { x: 0, y: 0, scale: 1 };
+  const viewW = 1000;
+  const viewH = 640;
+  const padding = mobile ? 24 : 40;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    const { w, h } = graphNodeDimensions(n, mobile);
+    minX = Math.min(minX, n.x - w / 2);
+    maxX = Math.max(maxX, n.x + w / 2);
+    minY = Math.min(minY, n.y - h / 2);
+    maxY = Math.max(maxY, n.y + h / 2);
+  }
+  const graphW = Math.max(maxX - minX, 80);
+  const graphH = Math.max(maxY - minY, 80);
+  const fitScale = Math.min((viewW - padding * 2) / graphW, (viewH - padding * 2) / graphH);
+  const scale = clampIbScale(
+    mobile ? Math.min(fitScale * 1.15, 3.8) : Math.min(fitScale, 1.12),
+  );
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  return {
+    x: viewW / 2 - cx * scale,
+    y: viewH / 2 - cy * scale,
+    scale,
+  };
+}
+
 /** Compact Polymarket block for the node detail drawer (selected node + article context). */
 function PolymarketInline({
   articleTitle,
@@ -329,42 +424,53 @@ function PolymarketInlineFetch({ q }: { q: string }) {
   );
 }
 
-function GraphNode({ node, onClick, selected, pulse }: { node: Node; onClick: (node: Node) => void; selected: boolean; pulse: boolean }) {
+function GraphNode({
+  node,
+  onClick,
+  selected,
+  pulse,
+  mobile = false,
+}: {
+  node: Node;
+  onClick: (node: Node) => void;
+  selected: boolean;
+  pulse: boolean;
+  mobile?: boolean;
+}) {
   const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
-  const isCenter = node.id === "center";
-  const isTheory = node.type === "theory";
+  const { w, h, isCenter, isTheory } = graphNodeDimensions(node, mobile);
 
-  // Dynamic width based on label length
-  const labelLen = (node.label || "").length;
-  const w = isCenter ? 140 : isTheory ? 148 : Math.max(110, Math.min(148, labelLen * 7.5));
-  const h = isCenter ? 64 : isTheory ? 62 : 54;
-
-  // Truncate labels to fit box
-  const maxLabelChars = Math.floor(w / 6.5);
+  const maxLabelChars = Math.floor(w / (mobile ? 5.8 : 6.5));
   const displayLabel = truncate(node.label || "", maxLabelChars);
 
-  // Sub text — max 2 lines, truncated
-  const subLines = (node.sub || "").split("\n").slice(0, 2).map(l => truncate(l, Math.floor(w / 5.5)));
+  const subLines = (node.sub || "")
+    .split("\n")
+    .slice(0, 2)
+    .map((l) => truncate(l, Math.floor(w / (mobile ? 5 : 5.5))));
+
+  const typeSize = mobile ? 11 : 8;
+  const labelSize = (isCenter ? 15 : 13) * (mobile ? 1.05 : 1);
+  const subSize = mobile ? 11 : 8;
 
   return (
     <g transform={`translate(${node.x}, ${node.y})`} onClick={() => onClick(node)} style={{ cursor: "pointer" }}>
       <ellipse cx={0} cy={0} rx={w * 0.6} ry={h * 0.7} fill={c.glow} style={{ animation: selected || (isCenter && pulse) ? "glowPulse 1.5s ease-in-out infinite" : "none" }} filter="blur(8px)" />
-      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} ry={4} fill={c.bg} stroke={c.border} strokeWidth={selected ? 2 : isCenter ? 1.5 : 1} strokeOpacity={selected ? 1 : 0.7} />
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={mobile ? 6 : 4} ry={mobile ? 6 : 4} fill={c.bg} stroke={c.border} strokeWidth={selected ? (mobile ? 2.5 : 2) : isCenter ? 1.5 : 1} strokeOpacity={selected ? 1 : 0.7} />
       {[[-w / 2, -h / 2, 1], [-w / 2 + 10, -h / 2, 1], [w / 2, -h / 2, -1], [w / 2 - 10, -h / 2, -1]].map(([x, y, dx], i) => (
-        <line key={i} x1={Number(x)} y1={Number(y)} x2={Number(x) + Number(dx) * 8} y2={Number(y)} stroke={c.border} strokeWidth={1.5} strokeOpacity={0.5} />
+        <line key={i} x1={Number(x)} y1={Number(y)} x2={Number(x) + Number(dx) * 8} y2={Number(y)} stroke={c.border} strokeWidth={mobile ? 2 : 1.5} strokeOpacity={0.5} />
       ))}
-      <text x={0} y={-h / 2 + 11} textAnchor="middle" fill={c.text} opacity={0.55} style={{ fontFamily: FONT, fontSize: 8, letterSpacing: 1.5 }}>
+      <text x={0} y={-h / 2 + (mobile ? 14 : 11)} textAnchor="middle" fill={c.text} opacity={0.55} style={{ fontFamily: FONT, fontSize: typeSize, letterSpacing: 1.5 }}>
         {TYPE_LABELS[node.type] ?? "NODE"}
       </text>
-      <text x={0} y={isCenter ? 3 : 1} textAnchor="middle" fill={c.text} style={{ fontFamily: RAJ, fontSize: isCenter ? 13 : isTheory ? 11 : 11, fontWeight: 700, letterSpacing: 0.5 }}>
+      <text x={0} y={isCenter ? 4 : 2} textAnchor="middle" fill={c.text} style={{ fontFamily: RAJ, fontSize: labelSize, fontWeight: 700, letterSpacing: 0.5 }}>
         {displayLabel}
       </text>
       {subLines.map((line, i) => (
-        <text key={i} x={0} y={(isCenter ? 15 : 13) + i * 11} textAnchor="middle" fill={c.text} opacity={0.5} style={{ fontFamily: FONT, fontSize: 8 }}>
+        <text key={i} x={0} y={(isCenter ? 18 : 16) + i * (mobile ? 13 : 11)} textAnchor="middle" fill={c.text} opacity={0.62} style={{ fontFamily: FONT, fontSize: subSize }}>
           {line}
         </text>
       ))}
-      {selected && <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} ry={4} fill="none" stroke={c.border} strokeWidth={3} strokeOpacity={0.4} style={{ animation: "glowPulse 1s ease-in-out infinite" }} />}
+      {selected && <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={mobile ? 6 : 4} ry={mobile ? 6 : 4} fill="none" stroke={c.border} strokeWidth={mobile ? 3.5 : 3} strokeOpacity={0.4} style={{ animation: "glowPulse 1s ease-in-out infinite" }} />}
     </g>
   );
 }
@@ -1142,6 +1248,7 @@ export default function InvestigationBoard({
   const shareMenuRef = useRef<HTMLDivElement>(null);
 
   const narrowPanel = useNarrowPanel();
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const shareText = conclusion
     ? `Investigation: "${conclusion.slice(0, 120)}${conclusion.length > 120 ? "…" : ""}" — The Theorist`
@@ -1271,6 +1378,11 @@ export default function InvestigationBoard({
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
   const svgRef = useRef<SVGSVGElement>(null);
+  const transformRef = useRef(transform);
+  const localNodesRef = useRef(localNodes);
+  const touchGestureRef = useRef<IbTouchGesture | null>(null);
+  transformRef.current = transform;
+  localNodesRef.current = localNodes;
   const dragState = useRef<{ type: "pan" | "node"; nodeId?: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [svgDragActive, setSvgDragActive] = useState(false);
 
@@ -1290,6 +1402,15 @@ export default function InvestigationBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
   }, [graphStructureKey]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!nodes.length) return;
+    if (narrowPanel) {
+      setTransform(computeFitTransform(nodes, true));
+    } else {
+      setTransform({ x: 0, y: 0, scale: 1 });
+    }
+  }, [graphStructureKey, narrowPanel, nodes]);
 
   // Convert screen coords → SVG coords accounting for transform
   function screenToSvg(screenX: number, screenY: number) {
@@ -1353,9 +1474,13 @@ export default function InvestigationBoard({
     setSvgDragActive(false);
   }
 
-  function resetView() {
-    setTransform({ x: 0, y: 0, scale: 1 });
-  }
+  const resetView = useCallback(() => {
+    if (narrowPanel && localNodes.length) {
+      setTransform(computeFitTransform(localNodes, true));
+    } else {
+      setTransform({ x: 0, y: 0, scale: 1 });
+    }
+  }, [narrowPanel, localNodes]);
 
   const selectedEdges = useMemo(() => {
     if (!internalSelected) return new Set<string>();
@@ -1389,18 +1514,154 @@ export default function InvestigationBoard({
       const rect = svg.getBoundingClientRect();
       const mx = ((e.clientX - rect.left) / rect.width) * 1000;
       const my = ((e.clientY - rect.top) / rect.height) * 640;
-      setTransform((t) => {
-        const newScale = Math.max(0.3, Math.min(4, t.scale * delta));
-        const factor = newScale / t.scale;
-        return {
-          x: mx + (t.x - mx) * factor,
-          y: my + (t.y - my) * factor,
-          scale: newScale,
-        };
-      });
+      setTransform((t) => zoomTransformAtPoint(t, mx, my, t.scale * delta));
     };
     svg.addEventListener("wheel", wheelHandler, { passive: false });
     return () => svg.removeEventListener("wheel", wheelHandler);
+  }, []);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const touchDist = (a: Touch, b: Touch) =>
+      Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const t = transformRef.current;
+        const [a, b] = [e.touches[0], e.touches[1]];
+        const mid = clientToSvgPoint((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, rect, t);
+        touchGestureRef.current = {
+          kind: "pinch",
+          startDist: touchDist(a, b),
+          midX: mid.svgX,
+          midY: mid.svgY,
+          origX: t.x,
+          origY: t.y,
+          origScale: t.scale,
+        };
+        dragState.current = null;
+        setSvgDragActive(false);
+        return;
+      }
+
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const hit = document.elementFromPoint(touch.clientX, touch.clientY);
+      const nodeGroup = hit?.closest?.("[data-node]") as SVGGElement | null;
+      const rect = svg.getBoundingClientRect();
+      const t = transformRef.current;
+      const pt = clientToSvgPoint(touch.clientX, touch.clientY, rect, t);
+
+      if (nodeGroup) {
+        const nodeId = nodeGroup.getAttribute("data-node-id");
+        const node = localNodesRef.current.find((n) => n.id === nodeId);
+        if (nodeId && node) {
+          touchGestureRef.current = {
+            kind: "node",
+            nodeId,
+            offsetX: pt.graphX - node.x,
+            offsetY: pt.graphY - node.y,
+          };
+          e.preventDefault();
+          return;
+        }
+      }
+
+      touchGestureRef.current = {
+        kind: "pan",
+        startX: touch.clientX,
+        startY: touch.clientY,
+        origX: t.x,
+        origY: t.y,
+      };
+      setSvgDragActive(true);
+      e.preventDefault();
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const g = touchGestureRef.current;
+      if (!g) return;
+      e.preventDefault();
+
+      if (g.kind === "pinch" && e.touches.length >= 2) {
+        const rect = svg.getBoundingClientRect();
+        const [a, b] = [e.touches[0], e.touches[1]];
+        const dist = touchDist(a, b);
+        if (g.startDist <= 0) return;
+        const newScale = clampIbScale(g.origScale * (dist / g.startDist));
+        const factor = newScale / g.origScale;
+        setTransform({
+          x: g.midX + (g.origX - g.midX) * factor,
+          y: g.midY + (g.origY - g.midY) * factor,
+          scale: newScale,
+        });
+        return;
+      }
+
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const rect = svg.getBoundingClientRect();
+      const t = transformRef.current;
+
+      if (g.kind === "pan") {
+        const dx = touch.clientX - g.startX;
+        const dy = touch.clientY - g.startY;
+        const scaleX = 1000 / rect.width;
+        const scaleY = 640 / rect.height;
+        setTransform((prev) => ({
+          ...prev,
+          x: g.origX + dx * scaleX,
+          y: g.origY + dy * scaleY,
+        }));
+        return;
+      }
+
+      if (g.kind === "node") {
+        const pt = clientToSvgPoint(touch.clientX, touch.clientY, rect, t);
+        setLocalNodes((prev) =>
+          prev.map((n) =>
+            n.id === g.nodeId
+              ? { ...n, x: pt.graphX - g.offsetX, y: pt.graphY - g.offsetY }
+              : n,
+          ),
+        );
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length >= 2) return;
+      if (e.touches.length === 1 && touchGestureRef.current?.kind === "pinch") {
+        const touch = e.touches[0];
+        const rect = svg.getBoundingClientRect();
+        const t = transformRef.current;
+        touchGestureRef.current = {
+          kind: "pan",
+          startX: touch.clientX,
+          startY: touch.clientY,
+          origX: t.x,
+          origY: t.y,
+        };
+        setSvgDragActive(true);
+        return;
+      }
+      touchGestureRef.current = null;
+      setSvgDragActive(false);
+    };
+
+    svg.addEventListener("touchstart", onTouchStart, { passive: false });
+    svg.addEventListener("touchmove", onTouchMove, { passive: false });
+    svg.addEventListener("touchend", onTouchEnd);
+    svg.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      svg.removeEventListener("touchstart", onTouchStart);
+      svg.removeEventListener("touchmove", onTouchMove);
+      svg.removeEventListener("touchend", onTouchEnd);
+      svg.removeEventListener("touchcancel", onTouchEnd);
+    };
   }, []);
 
   useEffect(() => {
@@ -1508,6 +1769,7 @@ export default function InvestigationBoard({
 
       {conclusion || verdict ? (
         <div
+          className="ib-verdict-bar"
           style={{
             minHeight: 34,
             background: "#030804",
@@ -1522,7 +1784,7 @@ export default function InvestigationBoard({
           <span style={{ fontFamily: FONT, fontSize: 9, color: "#c94dff", letterSpacing: 2 }}>VERDICT</span>
           <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: "#00ff88" }}>{formatVerdictShort(verdict)}</span>
           {conclusion ? (
-            <span style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", flex: 1, minWidth: 0, lineHeight: 1.55 }}>{conclusion}</span>
+            <span className="ib-verdict-conclusion" style={{ fontFamily: FONT, fontSize: 10, color: "#7aaa8a", flex: 1, minWidth: 0, lineHeight: 1.55 }}>{conclusion}</span>
           ) : null}
         </div>
       ) : null}
@@ -1540,7 +1802,7 @@ export default function InvestigationBoard({
         </div>
       </div>
 
-      <div ref={boardRef} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+      <div ref={boardRef} className="ib-board-canvas" style={{ flex: 1, position: "relative", overflow: "hidden", touchAction: "none" }}>
         <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.3 }}>
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -1680,7 +1942,7 @@ export default function InvestigationBoard({
         </div>
         {/* Zoom controls — bottom-left when no panel; with panel, grouped with stats (see cluster below) */}
         {!internalSelected ? (
-          <div data-export-ignore style={{ position: "absolute", bottom: 16, left: 16, zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+          <div data-export-ignore className="ib-zoom-controls" style={{ position: "absolute", bottom: 16, left: 16, zIndex: 20, display: "flex", flexDirection: "column", gap: 4 }}>
             {[
               { label: "+", action: () => setTransform((t) => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
               { label: "−", action: () => setTransform((t) => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
@@ -1723,15 +1985,15 @@ export default function InvestigationBoard({
         ) : null}
 
         {/* Zoom level indicator */}
-        <div data-export-ignore style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontSize: 9, color: "#2a4030", letterSpacing: 2, zIndex: 20, fontFamily: FONT }}>
-          {Math.round(transform.scale * 100)}% · SCROLL TO ZOOM · DRAG TO PAN
+        <div data-export-ignore className="ib-zoom-hint" style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontSize: 9, color: "#2a4030", letterSpacing: 2, zIndex: 20, fontFamily: FONT }}>
+          {Math.round(transform.scale * 100)}% · {narrowPanel ? "PINCH TO ZOOM · DRAG TO PAN" : "PINCH OR +/- TO ZOOM · DRAG TO PAN"}
         </div>
 
         <svg
           className="ib-main-svg"
           ref={svgRef}
           viewBox="0 0 1000 640"
-          style={{ width: internalSelected && !narrowPanel ? "calc(100% - var(--ib-panel-w))" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab" }}
+          style={{ width: internalSelected && !narrowPanel ? "calc(100% - var(--ib-panel-w))" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab", touchAction: "none" }}
           preserveAspectRatio="xMidYMid meet"
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
@@ -1744,8 +2006,8 @@ export default function InvestigationBoard({
           ))}
 
           {localNodes.map((node) => (
-            <g key={node.id} data-node="true" onMouseDown={(e) => handleNodeMouseDown(e, node.id)} style={{ cursor: "grab" }}>
-              <GraphNode node={node} onClick={handleNodeClick} selected={internalSelected?.id === node.id} pulse={pulse} />
+            <g key={node.id} data-node="true" data-node-id={node.id} onMouseDown={(e) => handleNodeMouseDown(e, node.id)} style={{ cursor: "grab" }}>
+              <GraphNode node={node} onClick={handleNodeClick} selected={internalSelected?.id === node.id} pulse={pulse} mobile={narrowPanel} />
             </g>
           ))}
 
@@ -1764,7 +2026,7 @@ export default function InvestigationBoard({
                     return (
                       <>
                         <rect x={mx - bw/2} y={my - 10} width={bw} height={16} rx={2} fill="#040b06" stroke={e.color} strokeWidth={0.5} strokeOpacity={0.6} />
-                        <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.9} style={{ fontFamily: FONT, fontSize: 9, letterSpacing: 0.5 }}>
+                        <text x={mx} y={my + 2} textAnchor="middle" fill={e.color} opacity={0.9} style={{ fontFamily: FONT, fontSize: narrowPanel ? 11 : 9, letterSpacing: 0.5 }}>
                           {lbl}
                         </text>
                       </>
@@ -1776,7 +2038,37 @@ export default function InvestigationBoard({
           </g>
         </svg>
 
-        <div style={{ position: "absolute", bottom: 16, left: 16, display: "flex", flexDirection: "column", gap: 5, background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "10px 12px" }}>
+        {narrowPanel ? (
+          <button
+            type="button"
+            data-export-ignore
+            className="ib-legend-toggle"
+            onClick={() => setLegendOpen((o) => !o)}
+            style={{
+              position: "absolute",
+              bottom: 16,
+              left: 56,
+              zIndex: 20,
+              background: legendOpen ? "rgba(0,255,136,0.08)" : "rgba(4,11,6,0.9)",
+              border: `1px solid ${legendOpen ? "#00bb66" : "#1a3320"}`,
+              color: legendOpen ? "#00ff88" : "#5a8068",
+              fontFamily: FONT,
+              fontSize: 9,
+              letterSpacing: 1.5,
+              padding: "8px 10px",
+              borderRadius: 3,
+              cursor: "pointer",
+            }}
+          >
+            {legendOpen ? "HIDE LEGEND" : "LEGEND"}
+          </button>
+        ) : null}
+
+        <div
+          data-export-ignore
+          className={`ib-connection-legend${legendOpen ? " ib-connection-legend--open" : ""}`}
+          style={{ position: "absolute", bottom: 16, left: 16, display: "flex", flexDirection: "column", gap: 5, background: "rgba(4,11,6,0.85)", border: "1px solid #1a3320", borderRadius: 4, padding: "10px 12px" }}
+        >
           <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 4, textTransform: "uppercase" }}>Connection types</div>
           {[
             ["#ff3333", "Direct evidence"],
@@ -1795,6 +2087,7 @@ export default function InvestigationBoard({
         {internalSelected ? (
           <div
             data-export-ignore
+            className="ib-board-stats ib-board-stats--selected"
             style={{
               position: "absolute",
               bottom: 16,
@@ -1827,7 +2120,7 @@ export default function InvestigationBoard({
                 </div>
               ))}
             </div>
-            <div data-export-ignore style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+            <div data-export-ignore className="ib-zoom-controls" style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
               {[
                 { label: "+", action: () => setTransform((t) => ({ ...t, scale: Math.min(4, t.scale * 1.2) })) },
                 { label: "−", action: () => setTransform((t) => ({ ...t, scale: Math.max(0.3, t.scale * 0.83) })) },
@@ -1869,7 +2162,7 @@ export default function InvestigationBoard({
             </div>
           </div>
         ) : (
-          <div data-export-ignore style={{ position: "absolute", bottom: 16, right: 16, display: "flex", gap: 12, zIndex: 20 }}>
+          <div data-export-ignore className="ib-board-stats ib-board-stats--overview" style={{ position: "absolute", bottom: 16, right: 16, display: "flex", gap: 12, zIndex: 20 }}>
             {[
               [String(nodes.length), "NODES"],
               [String(edges.length), "EDGES"],
