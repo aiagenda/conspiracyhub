@@ -1,11 +1,12 @@
 "use client";
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import { CollapsibleSection, IntelExpandBar, IntelSectionChips } from "@/components/IntelAccordion";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { sortByPubDateDesc } from "@/lib/sortByPubDate";
 import {
@@ -766,13 +767,34 @@ function IncidentGraph({ incident, orgs }: { incident: Incident; orgs: Org[] }) 
 }
 
 // ── INCIDENT DETAIL ────────────────────────────────────────────
-function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; people:Person[]; orgs:Org[]; docs:Document[] }) {
+type IncidentDetailVariant = "sidebar" | "inline-preview" | "inline-full";
+
+function IncidentDetail({
+  incident,
+  people,
+  orgs,
+  docs,
+  variant = "sidebar",
+  onExpand,
+  onCollapse,
+}: {
+  incident: Incident;
+  people: Person[];
+  orgs: Org[];
+  docs: Document[];
+  variant?: IncidentDetailVariant;
+  onExpand?: () => void;
+  onCollapse?: () => void;
+}) {
   const [analysis, setAnalysis] = useState<{summary:string;conspiracy_angle:string;probability:number;key_connections:string[];verdict:string}|null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const col = CLASS_COL[incident.classification]??"#5a8068";
   const evdCol = EVD_COL[incident.evidenceLevel];
   const relPeople = people.filter(p=>p.linkedIncidents.includes(incident.id));
   const relDocs = docs.filter(d=>incident.documents.some(name=>name.toLowerCase().includes(d.name.toLowerCase().split(" ")[0].toLowerCase())));
+  const isInline = variant.startsWith("inline");
+  const isPreview = variant === "inline-preview";
+  const useCollapsible = variant === "inline-full";
 
   async function analyze() {
     setAnalyzing(true);
@@ -784,126 +806,195 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
     setAnalyzing(false);
   }
 
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {/* Header */}
-      <div style={{border:`1px solid ${col}`,borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>
-        <div style={{display:"flex",gap:8,marginBottom:6,flexWrap:"wrap"}}>
-          <span style={classStyle(incident.classification)}>{incident.classification}</span>
-          <span style={{...classStyle("REPORTED" as Classification),color:evdCol,border:`1px solid ${evdCol}`}}>EVIDENCE: {incident.evidenceLevel}</span>
-          {incident.tags.slice(0,3).map(t=>(
-            <span key={t} style={{fontSize:9,color:"#5a8068",border:"1px solid #1a3320",padding:"1px 6px",borderRadius:2}}>{t}</span>
+  const sectionChips = [
+    incident.witnesses.length ? { label: `◈ ${incident.witnesses.length} WITNESSES`, color: "#00bb66" } : null,
+    incident.documents.length ? { label: `◈ ${incident.documents.length} DOCUMENTS`, color: "#c94dff" } : null,
+  ].filter((c): c is { label: string; color: string } => c != null);
+
+  const witnessesBlock = (
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {incident.witnesses.map(w=>{
+        const person = relPeople.find(p=>p.name===w);
+        return (
+          <div key={w} style={{padding:"4px 10px",border:`1px solid ${person?"#00bb66":"#1a3320"}`,borderRadius:3,background:person?"rgba(0,187,102,0.06)":"transparent"}}>
+            <div style={{fontFamily:RAJ,fontSize:11,fontWeight:700,color:person?"#00ff88":"#c8e8d0"}}>{w}</div>
+            {person&&<div style={{fontSize:9,color:"#5a8068"}}>{person.role}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const documentsBlock = incident.documents.length > 0 ? (
+    <>
+      {incident.documents.map((d,i)=>{
+        const doc = relDocs.find(rd=>d.toLowerCase().includes(rd.name.toLowerCase().split(" ")[0].toLowerCase()));
+        return (
+          <div key={i} style={{marginBottom:7}}>
+            {doc
+              ? <a href={doc.url} target="_blank" rel="noreferrer" style={{display:"flex",gap:8,color:"#c94dff",textDecoration:"none",fontSize:11,padding:"5px 8px",border:"1px solid rgba(201,77,255,0.2)",borderRadius:3,background:"rgba(20,8,28,0.5)"}}>
+                  <span style={{flexShrink:0}}>↗</span><span>{d}</span>
+                </a>
+              : <div style={{display:"flex",gap:8,color:"#5a8068",fontSize:11,padding:"4px 0"}}>
+                  <span style={{color:"#3a3040"}}>⟨{i+1}⟩</span><span>{d}</span>
+                </div>
+            }
+          </div>
+        );
+      })}
+    </>
+  ) : null;
+
+  const analysisBlock = (
+    <div style={{border:"1px solid #1a3320",borderRadius:4,overflow:"hidden"}}>
+      {!analysis&&!analyzing&&(
+        <button onClick={analyze} style={{width:"100%",padding:"12px",background:"transparent",border:"none",color:"#5a8068",fontFamily:RAJ,fontSize:12,fontWeight:700,letterSpacing:2,cursor:"pointer",textTransform:"uppercase",transition:"all 0.15s"}}
+          onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color="#00ff88";(e.currentTarget as HTMLButtonElement).style.background="rgba(0,255,136,0.04)";}}
+          onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color="#5a8068";(e.currentTarget as HTMLButtonElement).style.background="transparent";}}>
+          ◈ RUN ORACLE ANALYSIS ▶
+        </button>
+      )}
+      {analyzing&&(
+        <div style={{padding:14,textAlign:"center"}}>
+          <div style={{fontSize:10,color:"#00bb66",letterSpacing:2,marginBottom:8}}>[ ANALYZING INCIDENT... ]</div>
+          {["> Cross-referencing CIA FOIA...","> Evaluating witness credibility...","> Pattern analysis running..."].map((l,i)=>(
+            <div key={i} style={{fontSize:10,color:"#3a5040",marginBottom:4}}>{l}</div>
           ))}
         </div>
-        <div style={{fontFamily:FONT,fontSize:12,color:"#5a8068",marginBottom:8,letterSpacing:1}}>{incident.date} · {incident.location}</div>
-        <ReadableProse
-          text={incident.description}
-          softBreak
-          style={{ fontFamily: FONT, fontSize: 14, color: "#c8e8d0" }}
-        />
-      </div>
-
-      {/* Investigation graph */}
-      <IncidentGraph incident={incident} orgs={orgs} />
-
-      {/* Witnesses */}
-      <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>
-        <div style={{fontFamily:FONT,fontSize:9,color:"#00bb66",letterSpacing:2,marginBottom:8}}>◈ WITNESSES ({incident.witnesses.length})</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {incident.witnesses.map(w=>{
-            const person = relPeople.find(p=>p.name===w);
-            return (
-              <div key={w} style={{padding:"4px 10px",border:`1px solid ${person?"#00bb66":"#1a3320"}`,borderRadius:3,background:person?"rgba(0,187,102,0.06)":"transparent"}}>
-                <div style={{fontFamily:RAJ,fontSize:11,fontWeight:700,color:person?"#00ff88":"#c8e8d0"}}>{w}</div>
-                {person&&<div style={{fontSize:9,color:"#5a8068"}}>{person.role}</div>}
+      )}
+      {analysis&&(
+        <div style={{padding:"12px 14px"}}>
+          <div style={{fontFamily:FONT,fontSize:9,color:"#00ff88",letterSpacing:2,marginBottom:10}}>◈ ORACLE ANALYSIS</div>
+          <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:3}}>NON-HUMAN PROBABILITY</div>
+              <div style={{fontFamily:RAJ,fontSize:36,fontWeight:700,color:analysis.probability>=50?"#ff3333":analysis.probability>=30?"#ffaa00":"#00bb66",lineHeight:1}}>{analysis.probability}%</div>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{height:4,background:"#1a3320",borderRadius:2,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${analysis.probability}%`,background:analysis.probability>=50?"#ff3333":analysis.probability>=30?"#ffaa00":"#00bb66",borderRadius:2}}/>
               </div>
-            );
-          })}
+              <div style={{marginTop:6,fontSize:9,color:"#3a5040",letterSpacing:1,padding:"2px 7px",border:"1px solid #1a3320",borderRadius:2,display:"inline-block"}}>{analysis.verdict?.replace(/_/g," ")}</div>
+            </div>
+          </div>
+          <ReadableProse text={analysis.summary} softBreak style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", marginBottom: 10 }} />
+          <div style={{padding:"8px 10px",background:"rgba(201,77,255,0.06)",border:"1px solid rgba(201,77,255,0.2)",borderRadius:3,marginBottom:10}}>
+            <div style={{fontSize:9,color:"#c94dff",letterSpacing:2,marginBottom:4}}>CONSPIRACY ANGLE</div>
+            <ReadableProse text={analysis.conspiracy_angle} softBreak style={{ fontFamily: FONT, fontSize: 10, color: "#e9b3ff" }} />
+          </div>
+          {analysis.key_connections?.length>0&&(
+            <div>
+              <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:6}}>KEY CONNECTIONS</div>
+              {analysis.key_connections.map((c,i)=>(
+                <div key={i} style={{display:"flex",gap:7,color:"#7aaa8a",fontSize:10,marginBottom:4,lineHeight:1.6}}>
+                  <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span>{c}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
+    </div>
+  );
 
-      {/* Documents */}
-      {incident.documents.length>0&&(
+  if (isPreview) {
+    return (
+      <div style={{ border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", overflow: "hidden", padding: "14px 16px" }}>
+        <div className="intel-preview-panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="uap-plain-text intel-preview-clamp">
+            <ReadableProse
+              text={incident.description}
+              softBreak
+              style={{ fontFamily: FONT, fontSize: 12, color: "#7aaa8a", lineHeight: 1.65, maxWidth: "none" }}
+            />
+          </div>
+          <IntelSectionChips chips={sectionChips} />
+          <Link
+            href={`/uap/${incident.id}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: "block",
+              padding: "10px",
+              background: "rgba(0,255,136,0.06)",
+              border: "1px solid #00bb66",
+              borderRadius: 3,
+              textAlign: "center",
+              textDecoration: "none",
+              fontFamily: RAJ,
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#00ff88",
+              letterSpacing: 2,
+            }}
+          >
+            ◈ OPEN INVESTIGATION BOARD ▶
+          </Link>
+        </div>
+        <IntelExpandBar expanded={false} onToggle={() => onExpand?.()} expandLabel="▼ EXPAND FULL DOSSIER" />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {variant === "inline-full" ? (
+        <IntelExpandBar expanded onToggle={() => onCollapse?.()} collapseLabel="▲ SHOW LESS" />
+      ) : null}
+
+      {!isInline ? (
+        <div style={{border:`1px solid ${col}`,borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>
+          <div style={{display:"flex",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+            <span style={classStyle(incident.classification)}>{incident.classification}</span>
+            <span style={{...classStyle("REPORTED" as Classification),color:evdCol,border:`1px solid ${evdCol}`}}>EVIDENCE: {incident.evidenceLevel}</span>
+            {incident.tags.slice(0,3).map(t=>(
+              <span key={t} style={{fontSize:9,color:"#5a8068",border:"1px solid #1a3320",padding:"1px 6px",borderRadius:2}}>{t}</span>
+            ))}
+          </div>
+          <div style={{fontFamily:FONT,fontSize:12,color:"#5a8068",marginBottom:8,letterSpacing:1}}>{incident.date} · {incident.location}</div>
+          <ReadableProse text={incident.description} softBreak style={{ fontFamily: FONT, fontSize: 14, color: "#c8e8d0" }} />
+        </div>
+      ) : null}
+
+      {useCollapsible ? (
+        <CollapsibleSection title="Investigation graph" accent="#ffaa00" subtitle="Tap to view entity connections">
+          <IncidentGraph incident={incident} orgs={orgs} />
+        </CollapsibleSection>
+      ) : (
+        <IncidentGraph incident={incident} orgs={orgs} />
+      )}
+
+      {useCollapsible ? (
+        <CollapsibleSection title="Witnesses" count={incident.witnesses.length} accent="#00bb66" subtitle="Tap to view witness list">
+          {witnessesBlock}
+        </CollapsibleSection>
+      ) : (
         <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>
-          <div style={{fontFamily:FONT,fontSize:9,color:"#c94dff",letterSpacing:2,marginBottom:8}}>◈ DOCUMENTS & EVIDENCE</div>
-          {incident.documents.map((d,i)=>{
-            const doc = relDocs.find(rd=>d.toLowerCase().includes(rd.name.toLowerCase().split(" ")[0].toLowerCase()));
-            return (
-              <div key={i} style={{marginBottom:7}}>
-                {doc
-                  ? <a href={doc.url} target="_blank" rel="noreferrer" style={{display:"flex",gap:8,color:"#c94dff",textDecoration:"none",fontSize:11,padding:"5px 8px",border:"1px solid rgba(201,77,255,0.2)",borderRadius:3,background:"rgba(20,8,28,0.5)"}}>
-                      <span style={{flexShrink:0}}>↗</span><span>{d}</span>
-                    </a>
-                  : <div style={{display:"flex",gap:8,color:"#5a8068",fontSize:11,padding:"4px 0"}}>
-                      <span style={{color:"#3a3040"}}>⟨{i+1}⟩</span><span>{d}</span>
-                    </div>
-                }
-              </div>
-            );
-          })}
+          <div style={{fontFamily:FONT,fontSize:9,color:"#00bb66",letterSpacing:2,marginBottom:8}}>◈ WITNESSES ({incident.witnesses.length})</div>
+          {witnessesBlock}
         </div>
       )}
 
-      {/* AI Analysis */}
-      <div style={{border:"1px solid #1a3320",borderRadius:4,overflow:"hidden"}}>
-        {!analysis&&!analyzing&&(
-          <button onClick={analyze} style={{width:"100%",padding:"12px",background:"transparent",border:"none",color:"#5a8068",fontFamily:RAJ,fontSize:12,fontWeight:700,letterSpacing:2,cursor:"pointer",textTransform:"uppercase",transition:"all 0.15s"}}
-            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color="#00ff88";(e.currentTarget as HTMLButtonElement).style.background="rgba(0,255,136,0.04)";}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color="#5a8068";(e.currentTarget as HTMLButtonElement).style.background="transparent";}}>
-            ◈ RUN ORACLE ANALYSIS ▶
-          </button>
-        )}
-        {analyzing&&(
-          <div style={{padding:14,textAlign:"center"}}>
-            <div style={{fontSize:10,color:"#00bb66",letterSpacing:2,marginBottom:8}}>[ ANALYZING INCIDENT... ]</div>
-            {["> Cross-referencing CIA FOIA...","> Evaluating witness credibility...","> Pattern analysis running..."].map((l,i)=>(
-              <div key={i} style={{fontSize:10,color:"#3a5040",marginBottom:4}}>{l}</div>
-            ))}
+      {incident.documents.length > 0 ? (
+        useCollapsible ? (
+          <CollapsibleSection title="Documents & evidence" count={incident.documents.length} accent="#c94dff" subtitle="Tap to view linked documents">
+            {documentsBlock}
+          </CollapsibleSection>
+        ) : (
+          <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"12px 14px",background:"#090f0b"}}>
+            <div style={{fontFamily:FONT,fontSize:9,color:"#c94dff",letterSpacing:2,marginBottom:8}}>◈ DOCUMENTS & EVIDENCE</div>
+            {documentsBlock}
           </div>
-        )}
-        {analysis&&(
-          <div style={{padding:"12px 14px"}}>
-            <div style={{fontFamily:FONT,fontSize:9,color:"#00ff88",letterSpacing:2,marginBottom:10}}>◈ ORACLE ANALYSIS</div>
-            <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:10}}>
-              <div>
-                <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:3}}>NON-HUMAN PROBABILITY</div>
-                <div style={{fontFamily:RAJ,fontSize:36,fontWeight:700,color:analysis.probability>=50?"#ff3333":analysis.probability>=30?"#ffaa00":"#00bb66",lineHeight:1}}>{analysis.probability}%</div>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{height:4,background:"#1a3320",borderRadius:2,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${analysis.probability}%`,background:analysis.probability>=50?"#ff3333":analysis.probability>=30?"#ffaa00":"#00bb66",borderRadius:2}}/>
-                </div>
-                <div style={{marginTop:6,fontSize:9,color:"#3a5040",letterSpacing:1,padding:"2px 7px",border:"1px solid #1a3320",borderRadius:2,display:"inline-block"}}>{analysis.verdict?.replace(/_/g," ")}</div>
-              </div>
-            </div>
-            <ReadableProse
-              text={analysis.summary}
-              softBreak
-              style={{ fontFamily: FONT, fontSize: 11, color: "#7aaa8a", marginBottom: 10 }}
-            />
-            <div style={{padding:"8px 10px",background:"rgba(201,77,255,0.06)",border:"1px solid rgba(201,77,255,0.2)",borderRadius:3,marginBottom:10}}>
-              <div style={{fontSize:9,color:"#c94dff",letterSpacing:2,marginBottom:4}}>CONSPIRACY ANGLE</div>
-              <ReadableProse
-                text={analysis.conspiracy_angle}
-                softBreak
-                style={{ fontFamily: FONT, fontSize: 10, color: "#e9b3ff" }}
-              />
-            </div>
-            {analysis.key_connections?.length>0&&(
-              <div>
-                <div style={{fontSize:9,color:"#5a8068",letterSpacing:2,marginBottom:6}}>KEY CONNECTIONS</div>
-                {analysis.key_connections.map((c,i)=>(
-                  <div key={i} style={{display:"flex",gap:7,color:"#7aaa8a",fontSize:10,marginBottom:4,lineHeight:1.6}}>
-                    <span style={{color:"#00bb66",flexShrink:0}}>▸</span><span>{c}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        )
+      ) : null}
 
-      {/* Polymarket */}
+      {useCollapsible ? (
+        <CollapsibleSection title="Oracle analysis" accent="#00ff88" subtitle="Tap to run or view AI analysis">
+          {analysisBlock}
+        </CollapsibleSection>
+      ) : (
+        analysisBlock
+      )}
+
       <PolymarketWidget
         query={`${incident.name} UFO UAP`}
         context={
@@ -920,6 +1011,29 @@ function IncidentDetail({ incident, people, orgs, docs }:{ incident:Incident; pe
             .slice(0, 2000) || undefined
         }
       />
+
+      {isInline ? (
+        <Link
+          href={`/uap/${incident.id}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "block",
+            padding: "10px",
+            background: "rgba(0,255,136,0.06)",
+            border: "1px solid #00bb66",
+            borderRadius: 3,
+            textAlign: "center",
+            textDecoration: "none",
+            fontFamily: RAJ,
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#00ff88",
+            letterSpacing: 2,
+          }}
+        >
+          ◈ OPEN INVESTIGATION BOARD ▶
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -930,6 +1044,7 @@ export default function UAPTracker() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab]       = useState<"incidents"|"sightings"|"people"|"orgs"|"documents"|"news">("news");
   const [selected, setSelected] = useState<Incident|null>(null);
+  const [incidentDetailLevel, setIncidentDetailLevel] = useState<"preview" | "full">("preview");
 
   // Sightings state
   const [sightings, setSightings] = useState<Sighting[]>([]);
@@ -957,6 +1072,32 @@ export default function UAPTracker() {
       document.getElementById(`uap-incident-${selected.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   }, [selected?.id, tab]);
+
+  const handleIncidentClick = useCallback(
+    (inc: Incident) => {
+      startTransition(() => {
+        if (selected?.id !== inc.id) {
+          setSelected(inc);
+          setIncidentDetailLevel("preview");
+          return;
+        }
+        if (incidentDetailLevel === "preview") {
+          setIncidentDetailLevel("full");
+          return;
+        }
+        setSelected(null);
+        setIncidentDetailLevel("preview");
+      });
+    },
+    [selected?.id, incidentDetailLevel],
+  );
+
+  const selectIncident = useCallback((inc: Incident) => {
+    startTransition(() => {
+      setSelected(inc);
+      setIncidentDetailLevel("preview");
+    });
+  }, []);
 
   if (loading) return (
     <div style={{minHeight:"100vh",background:"#030806",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
@@ -1084,7 +1225,7 @@ export default function UAPTracker() {
             </div>
             <UAPMap
               incidents={data.incidents} selected={selected}
-              onSelect={s=>{setSelected(s);setSelectedSighting(null);setTab("incidents");}}
+              onSelect={s=>{selectIncident(s);setSelectedSighting(null);setTab("incidents");}}
               sightings={sightings} showSightings={showSightings}
               onSelectSighting={s=>{setSelectedSighting(s);setTab("sightings");}}
               mapTab={tab}
@@ -1125,7 +1266,7 @@ export default function UAPTracker() {
                     const isSel=selected?.id===inc.id;
                     return (
                       <div key={inc.id} id={`uap-incident-${inc.id}`} style={{ minWidth: 0 }}>
-                      <div onClick={()=>setSelected(inc)}
+                      <div onClick={()=>handleIncidentClick(inc)}
                         style={{border:`1px solid ${isSel?col:"#1a3320"}`,borderRadius:4,background:isSel?`${col}0a`:"#090f0b",cursor:"pointer",transition:"all 0.15s",overflow:"hidden"}}
                         onMouseEnter={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor=col;}}
                         onMouseLeave={e=>{if(!isSel)(e.currentTarget as HTMLDivElement).style.borderColor="#1a3320";}}>
@@ -1133,6 +1274,11 @@ export default function UAPTracker() {
                           <span style={{fontSize:10,color:col,border:`1px solid ${col}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>{inc.classification}</span>
                           <span style={{fontSize:10,color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,padding:"1px 7px",borderRadius:2,letterSpacing:1,fontFamily:RAJ,fontWeight:700,flexShrink:0}}>EVD: {inc.evidenceLevel}</span>
                           <span style={{fontSize:10,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{inc.date}</span>
+                          {isSel ? (
+                            <span style={{ fontSize: 12, color: col, lineHeight: 1 }}>
+                              {incidentDetailLevel === "full" ? "▴" : "▾"}
+                            </span>
+                          ) : null}
                         </div>
                         <div style={{padding:"10px 12px"}}>
                           <div style={{fontFamily:RAJ,fontSize:15,fontWeight:700,color:"#e8ffe8",lineHeight:1.3,marginBottom:3}}>{inc.name}</div>
@@ -1144,22 +1290,24 @@ export default function UAPTracker() {
                               ◈ BOARD ▶
                             </Link>
                           </div>
+                          {isSel ? (
+                            <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1.5, marginTop: 8, textAlign: "right" }}>
+                              {incidentDetailLevel === "full" ? "TAP TO CLOSE" : "TAP TO EXPAND"}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                       {isSel ? (
                         <div className="uap-detail-inline" style={{ marginTop: 10 }}>
-                          <div style={{padding:"10px 14px",marginBottom:"0.75rem",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b"}}>
-                            <div style={{fontFamily:RAJ,fontSize:17,fontWeight:700,color:"#e8ffe8",marginBottom:6}}>{inc.name}</div>
-                            <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
-                              <span style={{fontSize:10,color:CLASS_COL[inc.classification as Classification]??"#5a8068",border:`1px solid ${CLASS_COL[inc.classification as Classification]??"#5a8068"}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>{inc.classification}</span>
-                              <span style={{fontSize:10,color:EVD_COL[inc.evidenceLevel],border:`1px solid ${EVD_COL[inc.evidenceLevel]}`,padding:"2px 8px",borderRadius:2,fontFamily:RAJ,fontWeight:700}}>EVIDENCE: {inc.evidenceLevel}</span>
-                            </div>
-                            <div style={{fontSize:12,color:"#5a8068",letterSpacing:1,marginBottom:8}}>{inc.date} · {inc.location}</div>
-                            <Link href={`/uap/${inc.id}`} style={{display:"block",padding:"10px",background:"rgba(0,255,136,0.06)",border:"1px solid #00bb66",borderRadius:3,textAlign:"center",textDecoration:"none",fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#00ff88",letterSpacing:2}}>
-                              ◈ OPEN INVESTIGATION BOARD ▶
-                            </Link>
-                          </div>
-                          <IncidentDetail incident={inc} people={data.people} orgs={data.organizations} docs={data.documents}/>
+                          <IncidentDetail
+                            incident={inc}
+                            people={data.people}
+                            orgs={data.organizations}
+                            docs={data.documents}
+                            variant={incidentDetailLevel === "full" ? "inline-full" : "inline-preview"}
+                            onExpand={() => setIncidentDetailLevel("full")}
+                            onCollapse={() => setIncidentDetailLevel("preview")}
+                          />
                         </div>
                       ) : null}
                       </div>

@@ -179,6 +179,26 @@ body {
   display: none;
 }
 
+.intel-preview-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.intel-preview-panel {
+  position: relative;
+}
+
+.intel-expand-bar:hover {
+  background: rgba(0, 255, 136, 0.08) !important;
+  border-color: rgba(0, 187, 102, 0.55) !important;
+}
+
+.intel-collapsible-trigger:hover {
+  background: rgba(0, 255, 136, 0.03) !important;
+}
+
 /* ── MOBILE RESPONSIVE ─────────────────────────────────────── */
 @media (max-width: 768px) {
   /* Hide desktop nav links on mobile */
@@ -623,6 +643,17 @@ body {
   .uap-plain-text {
     overflow-wrap: anywhere !important;
     word-break: break-word !important;
+  }
+
+  .intel-preview-panel::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 40px;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, #090f0b);
   }
 }
 
