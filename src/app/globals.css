@@ -873,14 +873,20 @@ body {
     display: none !important;
   }
 
-  /* UAP: map section — toggle button visible, map body hidden until open */
-  .uap-map-toggle {
+  /* Intel tracker maps — toggle visible on mobile, body hidden until open */
+  .intel-map-toggle,
+  .uap-map-toggle,
+  .ob-map-toggle {
     display: flex !important;
   }
-  .uap-map-body {
+  .intel-map-body,
+  .uap-map-body,
+  .ob-map-body {
     display: none !important;
   }
-  .uap-map-body.uap-map-body--open {
+  .intel-map-body.intel-map-body--open,
+  .uap-map-body.uap-map-body--open,
+  .ob-map-body.ob-map-body--open {
     display: block !important;
   }
 

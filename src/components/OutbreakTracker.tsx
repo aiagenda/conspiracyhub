@@ -14,6 +14,10 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
 
+function isMobileViewport(): boolean {
+  return typeof window !== "undefined" && window.innerWidth <= 768;
+}
+
 type Theory   = { name:string; summary:string; probability:number; sources:string[] };
 type Patent   = { number:string; title:string; assignee:string; url:string };
 type LocalNews= { title:string; url:string; source:string; pubDate:string };
@@ -1305,11 +1309,13 @@ export default function OutbreakTracker() {
   const [selected, setSelected] = useState<Outbreak|null>(null);
   const [detailLevel, setDetailLevel] = useState<"preview" | "full">("preview");
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
+  const [mapOpen, setMapOpen]   = useState(false);
 
   const selectOutbreak = useCallback((o: Outbreak) => {
     startTransition(() => {
       setSelected(o);
       setDetailLevel("preview");
+      if (isMobileViewport()) setMapOpen(true);
     });
   }, []);
 
@@ -1319,6 +1325,7 @@ export default function OutbreakTracker() {
         if (selected?.id !== o.id) {
           setSelected(o);
           setDetailLevel("preview");
+          if (isMobileViewport()) setMapOpen(true);
           return;
         }
         if (detailLevel === "preview") {
@@ -1497,7 +1504,45 @@ export default function OutbreakTracker() {
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
-                <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={selectOutbreak} />
+                <div className="ob-map-section intel-map-section" style={{ marginBottom: 0 }}>
+                  <button
+                    type="button"
+                    className="intel-map-toggle ob-map-toggle"
+                    onClick={() => setMapOpen((o) => !o)}
+                    style={{
+                      display: "none",
+                      width: "100%",
+                      background: "transparent",
+                      border: "1px solid #1a3320",
+                      borderRadius: 3,
+                      padding: "8px 12px",
+                      color: "#5a8068",
+                      fontFamily: FONT,
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      marginBottom: 8,
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ color: "#00ff88", fontSize: 11 }}>{mapOpen ? "▼" : "▶"}</span>
+                    {mapOpen ? "HIDE MAP" : "◈ SHOW OUTBREAK MAP"}
+                    <span style={{ marginLeft: "auto", fontSize: 9, color: "#3a5040" }}>
+                      {selected ? selected.disease : `${mapOutbreaks.length} active`}
+                    </span>
+                  </button>
+                  <div
+                    className={
+                      mapOpen
+                        ? "intel-map-body ob-map-body intel-map-body--open ob-map-body--open"
+                        : "intel-map-body ob-map-body"
+                    }
+                  >
+                    <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={selectOutbreak} />
+                  </div>
+                </div>
                 <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 12 }}>
                   {visible.map(o=>(
                     <div key={o.id} id={`ob-card-${o.id}`} style={{ minWidth: 0 }}>

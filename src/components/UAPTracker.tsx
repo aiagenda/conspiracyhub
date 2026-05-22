@@ -25,6 +25,10 @@ import {
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
 
+function isMobileViewport(): boolean {
+  return typeof window !== "undefined" && window.innerWidth <= 768;
+}
+
 interface UAPData {
   incidents: Incident[]; people: Person[]; organizations: Org[];
   documents: Document[]; news: News[]; stats?: Record<string,number>; generated_at: string;
@@ -1081,6 +1085,7 @@ export default function UAPTracker() {
         if (selected?.id !== inc.id) {
           setSelected(inc);
           setIncidentDetailLevel("preview");
+          if (isMobileViewport()) setMapOpen(true);
           return;
         }
         if (incidentDetailLevel === "preview") {
@@ -1098,6 +1103,7 @@ export default function UAPTracker() {
     startTransition(() => {
       setSelected(inc);
       setIncidentDetailLevel("preview");
+      if (isMobileViewport()) setMapOpen(true);
     });
   }, []);
 
@@ -1199,11 +1205,11 @@ export default function UAPTracker() {
 
           {/* WORLD MAP */}
           {!sightingReadMode && (
-          <div className="uap-map-section" style={{marginBottom:"1.25rem"}}>
+          <div className="uap-map-section intel-map-section" style={{marginBottom:"1.25rem"}}>
             {/* Mobile map toggle row */}
             <button
               type="button"
-              className="uap-map-toggle"
+              className="intel-map-toggle uap-map-toggle"
               onClick={()=>setMapOpen(o=>!o)}
               style={{display:"none",width:"100%",background:"transparent",border:"1px solid #1a3320",borderRadius:3,padding:"8px 12px",color:"#5a8068",fontFamily:FONT,fontSize:10,letterSpacing:2,cursor:"pointer",textAlign:"left",marginBottom:8,alignItems:"center",gap:8}}
             >
@@ -1247,7 +1253,7 @@ export default function UAPTracker() {
             </div>
 
             {/* Map itself: always shown on desktop, toggled on mobile */}
-            <div className={mapOpen ? "uap-map-body uap-map-body--open" : "uap-map-body"}>
+            <div className={mapOpen ? "intel-map-body uap-map-body intel-map-body--open uap-map-body--open" : "intel-map-body uap-map-body"}>
               <UAPMap
                 incidents={data.incidents} selected={selected}
                 onSelect={s=>{selectIncident(s);setSelectedSighting(null);setTab("incidents");}}
