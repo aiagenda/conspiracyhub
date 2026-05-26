@@ -5,8 +5,8 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 6;
-const OUTBREAK_LOCAL_NEWS_MAX = 10;
+export const OUTBREAK_CACHE_VERSION = 7;
+const OUTBREAK_LOCAL_NEWS_MAX = 15;
 /** Max fresh (non-curated) RSS/feed candidates to GPT-analyse per run. */
 const OUTBREAK_FRESH_MAX = 5;
 const FEED_OUTBREAK_LOOKBACK_DAYS = 21;
@@ -343,6 +343,117 @@ function sanitizeOutbreakPayload(data: OutbreakPayload): OutbreakPayload {
     ...data,
     outbreaks: data.outbreaks.map((row) => sanitizeOutbreakRow(row as OutbreakRow)),
   };
+}
+
+const RISK_ORDER: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+
+/**
+ * Collapse duplicate disease entries into one canonical row.
+ * Fresh GPT rows (richer data) take precedence; curated baseline fills in gaps.
+ */
+function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
+  const byToken = new Map<string, OutbreakRow[]>();
+
+  for (const o of outbreaks) {
+    const token =
+      diseaseSearchToken(String(o.disease ?? "")) ??
+      String(o.disease ?? "").toLowerCase().replace(/\s+/g, "_").slice(0, 14);
+    if (!token) continue;
+    const arr = byToken.get(token) ?? [];
+    arr.push(o);
+    byToken.set(token, arr);
+  }
+
+  const merged: OutbreakRow[] = [];
+  for (const [, group] of byToken) {
+    if (group.length === 1) {
+      merged.push(group[0]);
+      continue;
+    }
+
+    // Fresh (GPT-analysed) rows beat curated-only stubs
+    const fresh = group.filter((o) => String(o.id ?? "").startsWith("ob-fresh"));
+    const base = fresh.length > 0 ? fresh[0] : group[0];
+
+    // Union of all affected countries
+    const allCountries = [
+      ...new Set(
+        group.flatMap((o) =>
+          Array.isArray(o.affected_countries)
+            ? (o.affected_countries as string[])
+            : [],
+        ),
+      ),
+    ];
+
+    // Merge local news, dedup by URL
+    const seenUrls = new Set<string>();
+    const allNews: LocalNewsRow[] = [];
+    for (const o of group) {
+      const news = Array.isArray(o.localNews) ? (o.localNews as LocalNewsRow[]) : [];
+      for (const n of news) {
+        if (!seenUrls.has(n.url)) {
+          seenUrls.add(n.url);
+          allNews.push(n);
+          if (allNews.length >= OUTBREAK_LOCAL_NEWS_MAX) break;
+        }
+      }
+      if (allNews.length >= OUTBREAK_LOCAL_NEWS_MAX) break;
+    }
+
+    // Best risk_level
+    const bestRisk = group.reduce<string>((best, o) => {
+      const level = String(o.risk_level ?? "LOW");
+      return (RISK_ORDER[level] ?? 0) > (RISK_ORDER[best] ?? 0) ? level : best;
+    }, "LOW");
+
+    // Highest conspiracy_score
+    const bestScore = Math.max(...group.map((o) => Number(o.conspiracy_score ?? 0)));
+
+    // Merge theories dedup by name
+    const seenTheories = new Set<string>();
+    const allTheories: unknown[] = [];
+    for (const o of group) {
+      for (const t of (Array.isArray(o.theories) ? (o.theories as Array<{ name?: string }>) : [])) {
+        const k = String(t.name ?? "").toLowerCase().slice(0, 40);
+        if (!k || seenTheories.has(k)) continue;
+        seenTheories.add(k);
+        allTheories.push(t);
+      }
+    }
+
+    // Merge patents dedup by number
+    const seenPatents = new Set<string>();
+    const allPatents: unknown[] = [];
+    for (const o of group) {
+      for (const p of (Array.isArray(o.patents) ? (o.patents as Array<{ number?: string }>) : [])) {
+        const k = String(p.number ?? "").toLowerCase().slice(0, 20);
+        if (!k || seenPatents.has(k)) continue;
+        seenPatents.add(k);
+        allPatents.push(p);
+      }
+    }
+
+    // Most recent published_at
+    const dates = group.map((o) => String(o.published_at ?? "")).filter(Boolean);
+    const latestDate = [...dates].sort().reverse()[0] ?? "";
+
+    merged.push({
+      ...base,
+      affected_countries: allCountries,
+      affectedCoords: buildAffectedCoords(allCountries),
+      localNews: allNews,
+      risk_level: bestRisk,
+      conspiracy_score: bestScore,
+      has_conspiracy: bestScore > 0 || Boolean(base.has_conspiracy),
+      theories: allTheories,
+      patents: allPatents,
+      published_at: latestDate || base.published_at,
+      merged_count: group.length,
+    });
+  }
+
+  return merged;
 }
 
 function hasKnownDiseaseSignature(text: string): boolean {
@@ -812,10 +923,11 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
       ...curatedOutbreaks.filter((o): o is NonNullable<typeof o> => o != null),
     ];
 
-    const outbreaksSorted = sortByPublishedAtDesc(allOutbreaks);
+    const mergedOutbreaks = mergeOutbreaksByDisease(allOutbreaks as OutbreakRow[]);
+    const outbreaksSorted = sortByPublishedAtDesc(mergedOutbreaks);
 
     const payload: OutbreakPayload = sanitizeOutbreakPayload({
-      outbreaks: outbreaksSorted.map((row) => sanitizeOutbreakRow(row as OutbreakRow)),
+      outbreaks: outbreaksSorted.map((row) => sanitizeOutbreakRow(row)),
       generated_at: new Date().toISOString(),
       cache_version: OUTBREAK_CACHE_VERSION,
       cached: false,
