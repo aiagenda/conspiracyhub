@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  clearStaleRedditMatches,
   generateRedditDraft,
   listRedditMatches,
   runRedditRadarScan,
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest) {
     if (action === "scan") {
       const result = await runRedditRadarScan();
       return NextResponse.json(result);
+    }
+
+    if (action === "clear_stale") {
+      const cleared = await clearStaleRedditMatches(3);
+      const data = await listRedditMatches(30);
+      return NextResponse.json({ ok: true, cleared, ...data });
     }
 
     const matchId = String(body.matchId ?? body.id ?? "");

@@ -61,9 +61,11 @@ const MAX_POST_AGE_DAYS = 7;
 const LOOKBACK_DAYS = 21;
 const ORACLE_LOOKBACK_DAYS = 45;
 const ORACLE_PRIORITY_BOOST = 25;
-const RSS_LIMIT = 10;
+const JSON_FEED_LIMIT = 15;
 const SEARCH_CANDIDATE_MAX = 24;
 const SEARCH_RESULTS_PER_QUERY = 8;
+const FETCH_DELAY_MS = 350;
+const STALE_QUEUE_DAYS = 7;
 
 const STOP_WORDS = new Set([
   "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -112,6 +114,16 @@ export type RedditMatchRow = {
   created_at: string;
 };
 
+export type RedditFetchTelemetry = {
+  feed_requests: number;
+  feed_ok: number;
+  feed_failed: number;
+  search_requests: number;
+  search_ok: number;
+  search_failed: number;
+  fetch_errors: string[];
+};
+
 export type RedditScanStats = {
   candidates_count: number;
   feed_posts: number;
@@ -124,7 +136,55 @@ export type RedditScanStats = {
   below_threshold: number;
   insert_errors: number;
   purged: number;
+  feed_requests: number;
+  feed_ok: number;
+  feed_failed: number;
+  search_requests: number;
+  search_ok: number;
+  search_failed: number;
+  fetch_errors: string[];
 };
+
+function createFetchTelemetry(): RedditFetchTelemetry {
+  return {
+    feed_requests: 0,
+    feed_ok: 0,
+    feed_failed: 0,
+    search_requests: 0,
+    search_ok: 0,
+    search_failed: 0,
+    fetch_errors: [],
+  };
+}
+
+function telemetryToStats(t: RedditFetchTelemetry): Pick<
+  RedditScanStats,
+  | "feed_requests"
+  | "feed_ok"
+  | "feed_failed"
+  | "search_requests"
+  | "search_ok"
+  | "search_failed"
+  | "fetch_errors"
+> {
+  return {
+    feed_requests: t.feed_requests,
+    feed_ok: t.feed_ok,
+    feed_failed: t.feed_failed,
+    search_requests: t.search_requests,
+    search_ok: t.search_ok,
+    search_failed: t.search_failed,
+    fetch_errors: t.fetch_errors,
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function pushFetchError(telemetry: RedditFetchTelemetry, msg: string): void {
+  if (telemetry.fetch_errors.length < 6) telemetry.fetch_errors.push(msg);
+}
 
 function filterVisibleMatches(rows: RedditMatchRow[]): RedditMatchRow[] {
   return rows.filter(
@@ -348,58 +408,118 @@ async function oracleDraftContext(
     .join("\n");
 }
 
-function parseRssEntries(xml: string, defaults: Partial<RedditPostRow>): RedditPostRow[] {
-  const items: RedditPostRow[] = [];
-  for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
-    const x = m[1];
-    const title = x.match(/<title[^>]*>(.*?)<\/title>/)?.[1]?.trim() ?? "";
-    const link = x.match(/href="(https:\/\/www\.reddit\.com\/r\/[^"]+)"/)?.[1] ?? "";
-    const pub = x.match(/<updated>(.*?)<\/updated>/)?.[1] ?? "";
-    const summary =
-      x
-        .match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1]
-        ?.replace(/<[^>]+>/g, " ")
-        .trim()
-        .slice(0, 300) ?? "";
-    if (title && link) {
-      items.push({
-        title,
-        url: link,
-        subreddit: parseSubreddit(link) || defaults.subreddit || "unknown",
-        pubDate: pub,
-        summary,
-        source: defaults.source ?? "feed_hot",
-        searchQuery: defaults.searchQuery,
-        linkedCandidate: defaults.linkedCandidate,
-      });
-    }
-  }
-  return items;
+type RedditListingResponse = {
+  data?: {
+    children?: Array<{
+      data?: {
+        title?: string;
+        permalink?: string;
+        subreddit?: string;
+        created_utc?: number;
+        selftext?: string;
+        stickied?: boolean;
+      };
+    }>;
+  };
+};
+
+function normalizeRedditThreadUrl(permalink: string): string {
+  const path = permalink.startsWith("http")
+    ? permalink.replace(/^https?:\/\/(www\.|old\.|new\.)?reddit\.com/i, "")
+    : permalink;
+  const clean = path.split("?")[0];
+  return `https://www.reddit.com${clean.startsWith("/") ? clean : `/${clean}`}`;
 }
 
-async function fetchRss(url: string): Promise<string | null> {
+async function fetchRedditJson(
+  url: string,
+  kind: "feed" | "search",
+  telemetry: RedditFetchTelemetry,
+): Promise<RedditListingResponse | null> {
+  if (kind === "feed") telemetry.feed_requests++;
+  else telemetry.search_requests++;
+
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/atom+xml, application/rss+xml, */*" },
-      signal: AbortSignal.timeout(9000),
+      headers: { "User-Agent": UA, Accept: "application/json" },
+      signal: AbortSignal.timeout(12000),
+      cache: "no-store",
     });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
+    if (!res.ok) {
+      if (kind === "feed") telemetry.feed_failed++;
+      else telemetry.search_failed++;
+      pushFetchError(telemetry, `${kind} HTTP ${res.status}`);
+      return null;
+    }
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("json")) {
+      if (kind === "feed") telemetry.feed_failed++;
+      else telemetry.search_failed++;
+      pushFetchError(telemetry, `${kind} non-JSON response`);
+      return null;
+    }
+    const json = (await res.json()) as RedditListingResponse;
+    if (kind === "feed") telemetry.feed_ok++;
+    else telemetry.search_ok++;
+    return json;
+  } catch (e) {
+    if (kind === "feed") telemetry.feed_failed++;
+    else telemetry.search_failed++;
+    pushFetchError(telemetry, `${kind} ${e instanceof Error ? e.message : "fetch failed"}`);
     return null;
   }
 }
 
-/** Subreddit hot + new feeds. */
-export async function fetchRedditSubFeeds(): Promise<RedditPostRow[]> {
+function parseListingPosts(
+  json: RedditListingResponse,
+  defaults: Partial<RedditPostRow>,
+): RedditPostRow[] {
+  const items: RedditPostRow[] = [];
+  for (const child of json.data?.children ?? []) {
+    const d = child.data;
+    if (!d?.title || !d.permalink) continue;
+    if (d.stickied) continue;
+
+    const url = normalizeRedditThreadUrl(String(d.permalink));
+    const selftext = String(d.selftext ?? "").trim();
+    const summary =
+      selftext && selftext !== "[removed]" && selftext !== "[deleted]"
+        ? selftext.slice(0, 300)
+        : String(d.title).slice(0, 300);
+    const pubDate =
+      typeof d.created_utc === "number" && Number.isFinite(d.created_utc)
+        ? new Date(d.created_utc * 1000).toISOString()
+        : "";
+
+    items.push({
+      title: String(d.title).trim(),
+      url,
+      subreddit: String(d.subreddit ?? defaults.subreddit ?? "unknown"),
+      pubDate,
+      summary,
+      source: defaults.source ?? "feed_hot",
+      searchQuery: defaults.searchQuery,
+      linkedCandidate: defaults.linkedCandidate,
+    });
+  }
+  return items;
+}
+
+/** Subreddit hot + new feeds via public JSON API (RSS often blocked on server IPs). */
+export async function fetchRedditSubFeeds(telemetry: RedditFetchTelemetry): Promise<RedditPostRow[]> {
   const out: RedditPostRow[] = [];
   const seen = new Set<string>();
 
   for (const sub of REDDIT_RADAR_SUBS) {
     for (const sort of ["hot", "new"] as const) {
-      const xml = await fetchRss(`https://www.reddit.com/r/${sub}/${sort}.rss?limit=${RSS_LIMIT}`);
-      if (!xml) continue;
-      for (const item of parseRssEntries(xml, {
+      await sleep(FETCH_DELAY_MS);
+      const json = await fetchRedditJson(
+        `https://www.reddit.com/r/${encodeURIComponent(sub)}/${sort}.json?limit=${JSON_FEED_LIMIT}&raw_json=1`,
+        "feed",
+        telemetry,
+      );
+      if (!json) continue;
+      for (const item of parseListingPosts(json, {
         subreddit: sub,
         source: sort === "hot" ? "feed_hot" : "feed_new",
       })) {
@@ -415,23 +535,45 @@ export async function fetchRedditSubFeeds(): Promise<RedditPostRow[]> {
 }
 
 /** Site topic → Reddit search (reverse direction). */
-async function fetchRedditSearchForCandidate(candidate: SiteMatchCandidate): Promise<RedditPostRow[]> {
-  // Restrict search to investigation subs + last week only
+async function fetchRedditSearchForCandidate(
+  candidate: SiteMatchCandidate,
+  telemetry: RedditFetchTelemetry,
+): Promise<RedditPostRow[]> {
   const subFilter = REDDIT_RADAR_SUBS.slice(0, 8)
     .map((s) => `subreddit:${s}`)
     .join(" OR ");
   const q = encodeURIComponent(`${candidate.search_query} (${subFilter})`);
-  const xml = await fetchRss(
-    `https://www.reddit.com/search.rss?q=${q}&sort=new&t=week&limit=${SEARCH_RESULTS_PER_QUERY}`,
+  const json = await fetchRedditJson(
+    `https://www.reddit.com/search.json?q=${q}&sort=new&t=week&limit=${SEARCH_RESULTS_PER_QUERY}&raw_json=1`,
+    "search",
+    telemetry,
   );
-  if (!xml) return [];
-  return parseRssEntries(xml, {
+  if (!json) return [];
+  return parseListingPosts(json, {
     source: "search",
     searchQuery: candidate.search_query,
     linkedCandidate: candidate,
   })
     .filter((p) => !isBlockedSubreddit(p.subreddit) && isFreshPost(p.pubDate))
     .slice(0, SEARCH_RESULTS_PER_QUERY);
+}
+
+async function fetchRedditSearchBatch(
+  candidates: SiteMatchCandidate[],
+  telemetry: RedditFetchTelemetry,
+): Promise<RedditPostRow[]> {
+  const out: RedditPostRow[] = [];
+  const batchSize = 4;
+
+  for (let i = 0; i < candidates.length; i += batchSize) {
+    const batch = candidates.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map((c) => fetchRedditSearchForCandidate(c, telemetry)),
+    );
+    out.push(...results.flat());
+    if (i + batchSize < candidates.length) await sleep(FETCH_DELAY_MS * 2);
+  }
+  return out;
 }
 
 async function loadOutbreakCandidates(): Promise<SiteMatchCandidate[]> {
@@ -662,10 +804,11 @@ async function purgeInsiderPostMatches(admin: SupabaseClient): Promise<number> {
 /** Auto-dismiss existing pending matches that fail current quality gates. */
 async function purgeIrrelevantMatches(admin: SupabaseClient): Promise<number> {
   const insiderPurged = await purgeInsiderPostMatches(admin);
+  const staleQueueCutoff = Date.now() - STALE_QUEUE_DAYS * 24 * 3600_000;
 
   const { data: rows } = await admin
     .from("reddit_matches")
-    .select("id, reddit_title, subreddit, match_score, reddit_published_at, match_type")
+    .select("id, reddit_title, subreddit, match_score, reddit_published_at, match_type, status, created_at")
     .in("status", ["pending", "drafted"])
     .limit(200);
 
@@ -675,7 +818,12 @@ async function purgeIrrelevantMatches(admin: SupabaseClient): Promise<number> {
     const title = String(row.reddit_title ?? "");
     const score = Number(row.match_score ?? 0);
     const pub = row.reddit_published_at ? String(row.reddit_published_at) : "";
+    const createdTs = row.created_at ? Date.parse(String(row.created_at)) : NaN;
 
+    if (row.status === "pending" && Number.isFinite(createdTs) && createdTs < staleQueueCutoff) {
+      toDismiss.push(row.id);
+      continue;
+    }
     if (isBlockedSubreddit(sub)) {
       toDismiss.push(row.id);
       continue;
@@ -706,22 +854,42 @@ async function purgeIrrelevantMatches(admin: SupabaseClient): Promise<number> {
   return insiderPurged + toDismiss.length;
 }
 
+/** Manually clear pending/drafted matches older than maxQueueDays (default 3). */
+export async function clearStaleRedditMatches(maxQueueDays = 3): Promise<number> {
+  const admin = adminClient();
+  const cutoff = new Date(Date.now() - maxQueueDays * 24 * 3600_000).toISOString();
+  const { data: rows } = await admin
+    .from("reddit_matches")
+    .select("id")
+    .in("status", ["pending", "drafted"])
+    .lt("created_at", cutoff)
+    .limit(200);
+
+  const ids = (rows ?? []).map((r) => r.id);
+  if (ids.length === 0) return 0;
+
+  for (let i = 0; i < ids.length; i += 50) {
+    await admin
+      .from("reddit_matches")
+      .update({ status: "dismissed" })
+      .in("id", ids.slice(i, i + 50));
+  }
+  return ids.length;
+}
+
 export async function runRedditRadarScan(): Promise<{
   ok: boolean;
   stats: RedditScanStats;
   payload: { matches: RedditMatchRow[] };
 }> {
   const admin = adminClient();
+  const telemetry = createFetchTelemetry();
   const purged = await purgeIrrelevantMatches(admin);
   const candidates = await loadSiteCandidates(admin);
   const searchCandidates = pickSearchCandidates(candidates);
 
-  const [feedPosts, ...searchBatches] = await Promise.all([
-    fetchRedditSubFeeds(),
-    ...searchCandidates.map((c) => fetchRedditSearchForCandidate(c)),
-  ]);
-
-  const searchPosts = searchBatches.flat();
+  const feedPosts = await fetchRedditSubFeeds(telemetry);
+  const searchPosts = await fetchRedditSearchBatch(searchCandidates, telemetry);
   const allPosts: RedditPostRow[] = [];
   const seenUrls = new Set<string>();
 
@@ -830,6 +998,7 @@ export async function runRedditRadarScan(): Promise<{
     below_threshold: belowThreshold,
     insert_errors: insertErrors,
     purged,
+    ...telemetryToStats(telemetry),
   };
 
   return {

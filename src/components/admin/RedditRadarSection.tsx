@@ -42,6 +42,13 @@ type ScanStats = {
   below_threshold: number;
   insert_errors: number;
   purged?: number;
+  feed_requests?: number;
+  feed_ok?: number;
+  feed_failed?: number;
+  search_requests?: number;
+  search_ok?: number;
+  search_failed?: number;
+  fetch_errors?: string[];
 };
 
 export function RedditRadarSection() {
@@ -49,6 +56,7 @@ export function RedditRadarSection() {
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [draftingId, setDraftingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
@@ -96,6 +104,27 @@ export function RedditRadarSection() {
       setError(String(e));
     }
     setScanning(false);
+  }
+
+  async function clearStale() {
+    setClearing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/reddit-radar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear_stale" }),
+      });
+      const d = await res.json();
+      if (d.error) setError(d.error);
+      else {
+        setMatches(d.matches ?? []);
+        setPendingCount(d.pending_count ?? 0);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+    setClearing(false);
   }
 
   async function generateDraft(id: string) {
@@ -161,6 +190,19 @@ export function RedditRadarSection() {
           </button>
           <button
             type="button"
+            onClick={() => void clearStale()}
+            disabled={clearing || matches.length === 0}
+            className="rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest"
+            style={{
+              borderColor: "#1a3320",
+              color: muted,
+              opacity: clearing || matches.length === 0 ? 0.5 : 1,
+            }}
+          >
+            {clearing ? "Clearing…" : "Clear stale"}
+          </button>
+          <button
+            type="button"
             onClick={() => void scan()}
             disabled={scanning}
             className="rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest transition-all"
@@ -191,7 +233,24 @@ export function RedditRadarSection() {
             {(lastScan.revived_matches ?? 0) > 0 ? ` · revived ${lastScan.revived_matches}` : ""}
             {(lastScan.purged ?? 0) > 0 ? ` · purged ${lastScan.purged}` : ""}
             {lastScan.insert_errors > 0 ? ` · insert errors ${lastScan.insert_errors} (run supabase db push?)` : ""}
+            {(lastScan.feed_requests ?? 0) > 0 ? (
+              <>
+                {" "}
+                · API feed {lastScan.feed_ok ?? 0}/{lastScan.feed_requests} ok
+                · search {lastScan.search_ok ?? 0}/{lastScan.search_requests} ok
+              </>
+            ) : null}
           </div>
+          {(lastScan.fetch_errors?.length ?? 0) > 0 ? (
+            <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#ff5555" }}>
+              Fetch errors: {lastScan.fetch_errors!.join(" · ")}
+            </div>
+          ) : null}
+          {lastScan.total_reddit_posts === 0 && (lastScan.feed_failed ?? 0) + (lastScan.search_failed ?? 0) > 0 ? (
+            <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#ffaa00" }}>
+              Reddit returned no posts — check fetch errors above (rate limit or blocked IP).
+            </div>
+          ) : null}
         </div>
       )}
 
