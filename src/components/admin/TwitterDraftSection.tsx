@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
 
 const STYLE_COLORS: Record<string, string> = {
@@ -35,21 +35,38 @@ export function TwitterDraftSection() {
   const [picks, setPicks] = useState<TweetPick[]>([]);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [fromCache, setFromCache] = useState(false);
 
-  async function generate() {
+  const loadDrafts = useCallback(async (refresh = false) => {
     setLoading(true);
     setError("");
-    setPicks([]);
+    if (refresh) {
+      setPicks([]);
+      setCachedAt(null);
+      setFromCache(false);
+    }
     try {
-      const res = await fetch("/api/admin/twitter-draft");
+      const url = refresh ? "/api/admin/twitter-draft?refresh=1" : "/api/admin/twitter-draft";
+      const res = await fetch(url);
       const d = await res.json();
-      if (d.error) setError(d.error);
-      else setPicks(d.picks ?? []);
+      if (d.error) {
+        setError(d.hint ? `${d.error}: ${d.hint}` : d.error);
+        if (refresh) setPicks([]);
+      } else {
+        setPicks(d.picks ?? []);
+        setFromCache(Boolean(d.cached));
+        setCachedAt(d.cached_at ?? null);
+      }
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    void loadDrafts(false);
+  }, [loadDrafts]);
 
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text);
@@ -61,11 +78,11 @@ export function TwitterDraftSection() {
     <div>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
-          Picks up to 5 articles — high-score feed items plus Oracle investigation boards — and generates 3 post-ready variants each.
+          Up to 5 articles (score ≥55, last 7 days, or Oracle boards) — skips articles drafted in the last 14 days.
         </p>
         <button
           type="button"
-          onClick={() => void generate()}
+          onClick={() => void loadDrafts(true)}
           disabled={loading}
           className="rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest transition-all"
           style={{
@@ -76,9 +93,15 @@ export function TwitterDraftSection() {
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Generating..." : "◈ Generate Drafts"}
+          {loading ? "Generating…" : "◈ New drafts"}
         </button>
       </div>
+
+      {fromCache && cachedAt ? (
+        <p className="mb-3 font-mono text-[10px]" style={{ color: "var(--green-dim)" }}>
+          Showing cached batch from {new Date(cachedAt).toLocaleString("en-GB")} — click New drafts for fresh picks.
+        </p>
+      ) : null}
 
       {error && (
         <div
@@ -86,15 +109,20 @@ export function TwitterDraftSection() {
           style={{ border: "1px solid rgba(255,51,51,0.3)", color: "#ff5555", background: "rgba(255,51,51,0.05)" }}
         >
           {error === "no_article_found"
-            ? "No eligible articles in the last 48h (65%+ score or Oracle analysis in 7 days). Try again later."
+            ? "No eligible articles right now (score ≥55 in last 7d, or Oracle in 7d, excluding recent drafts). Run news ingest or click New drafts later."
             : error}
         </div>
       )}
+
+      {loading && picks.length === 0 ? (
+        <p className="font-mono text-[11px]" style={{ color: muted }}>Loading drafts…</p>
+      ) : null}
 
       {picks.length > 0 && (
         <div className="space-y-8">
           <p className="font-mono text-[10px] uppercase tracking-widest" style={{ color: muted }}>
             {picks.length} article{picks.length === 1 ? "" : "s"} ready
+            {fromCache ? " (cached)" : ""}
           </p>
 
           {picks.map((data) => (

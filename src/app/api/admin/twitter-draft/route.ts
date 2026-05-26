@@ -6,9 +6,15 @@ export const maxDuration = 120;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 const MAX_PICKS = 5;
-const HIGH_SCORE_MIN = 65;
-const HIGH_SCORE_LOOKBACK_HOURS = 48;
+const HIGH_SCORE_MIN = 55;
+const HIGH_SCORE_LOOKBACK_DAYS = 7;
 const ORACLE_LOOKBACK_DAYS = 7;
+const DRAFT_EXCLUDE_DAYS = 14;
+const DRAFT_CACHE_TTL_HOURS = 24;
+
+function articleKey(kind: TwitterCandidate["kind"], id: string): string {
+  return kind === "generated_article" ? `gen:${id}` : id;
+}
 
 function getAdmin() {
   return createClient(
@@ -114,8 +120,52 @@ async function loadOracleByGenerated(admin: SupabaseClient, sinceIso: string) {
   return map;
 }
 
-async function loadCandidates(admin: SupabaseClient): Promise<TwitterCandidate[]> {
-  const highScoreSince = new Date(Date.now() - HIGH_SCORE_LOOKBACK_HOURS * 3600_000).toISOString();
+async function loadExcludedArticleKeys(admin: SupabaseClient): Promise<Set<string>> {
+  const since = new Date(Date.now() - DRAFT_EXCLUDE_DAYS * 24 * 3600_000).toISOString();
+  const { data } = await admin
+    .from("twitter_draft_batches")
+    .select("article_keys")
+    .gte("created_at", since)
+    .limit(200);
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    for (const key of row.article_keys ?? []) {
+      if (key) out.add(String(key));
+    }
+  }
+  return out;
+}
+
+async function loadLatestCachedBatch(admin: SupabaseClient) {
+  const since = new Date(Date.now() - DRAFT_CACHE_TTL_HOURS * 3600_000).toISOString();
+  const { data } = await admin
+    .from("twitter_draft_batches")
+    .select("picks, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.picks || !Array.isArray(data.picks)) return null;
+  return {
+    picks: data.picks,
+    cached_at: data.created_at as string,
+  };
+}
+
+async function saveDraftBatch(
+  admin: SupabaseClient,
+  picks: ReturnType<typeof mapVariants>[],
+  candidates: TwitterCandidate[],
+) {
+  const article_keys = candidates.map((c) => articleKey(c.kind, c.id));
+  await admin.from("twitter_draft_batches").insert({
+    picks,
+    article_keys,
+  });
+}
+
+async function loadCandidates(admin: SupabaseClient, excludeKeys: Set<string>): Promise<TwitterCandidate[]> {
+  const highScoreSince = new Date(Date.now() - HIGH_SCORE_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
   const oracleSince = new Date(Date.now() - ORACLE_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
   const byId = new Map<string, TwitterCandidate>();
 
@@ -205,6 +255,7 @@ async function loadCandidates(admin: SupabaseClient): Promise<TwitterCandidate[]
 
   return [...byId.values()]
     .filter((c) => c.title.trim())
+    .filter((c) => !excludeKeys.has(articleKey(c.kind, c.id)))
     .sort((a, b) => b.priority - a.priority)
     .slice(0, MAX_PICKS);
 }
@@ -344,6 +395,23 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const articleId = searchParams.get("id");
+  const refresh = searchParams.get("refresh") === "1";
+  const latestOnly = searchParams.get("latest") === "1";
+
+  if (!articleId && !refresh) {
+    const cached = await loadLatestCachedBatch(admin);
+    if (cached) {
+      return NextResponse.json({
+        picks: cached.picks,
+        count: cached.picks.length,
+        cached: true,
+        cached_at: cached.cached_at,
+      });
+    }
+    if (latestOnly) {
+      return NextResponse.json({ error: "no_cached_drafts" }, { status: 404 });
+    }
+  }
 
   let candidates: TwitterCandidate[];
   if (articleId) {
@@ -353,16 +421,25 @@ export async function GET(req: NextRequest) {
     }
     candidates = [one];
   } else {
-    candidates = await loadCandidates(admin);
+    const excludeKeys = await loadExcludedArticleKeys(admin);
+    candidates = await loadCandidates(admin, excludeKeys);
     if (candidates.length === 0) {
-      return NextResponse.json({ error: "no_article_found" }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: "no_article_found",
+          hint: `No new eligible articles (score ≥${HIGH_SCORE_MIN}, last ${HIGH_SCORE_LOOKBACK_DAYS}d, or Oracle ${ORACLE_LOOKBACK_DAYS}d) outside the ${DRAFT_EXCLUDE_DAYS}-day draft window. Try refresh after more ingest or wait for exclusions to expire.`,
+        },
+        { status: 404 },
+      );
     }
   }
 
   const picks = [];
+  const usedCandidates: TwitterCandidate[] = [];
   for (const candidate of candidates) {
     try {
       picks.push(await generateForCandidate(candidate, apiKey));
+      usedCandidates.push(candidate);
     } catch (e) {
       console.error("[twitter-draft] generate failed", candidate.id, e);
     }
@@ -372,5 +449,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "generation_failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ picks, count: picks.length });
+  if (!articleId) {
+    try {
+      await saveDraftBatch(admin, picks, usedCandidates);
+    } catch (e) {
+      console.warn("[twitter-draft] cache save failed", e);
+    }
+  }
+
+  return NextResponse.json({ picks, count: picks.length, cached: false });
 }
