@@ -72,6 +72,11 @@ type Theory   = { name:string; summary:string; probability:number; sources:strin
 type Patent   = { number:string; title:string; assignee:string; url:string };
 type LocalNews= { title:string; url:string; source:string; pubDate:string; country?:string };
 type AffectedCoord = { country:string; lat:number; lng:number };
+type OutbreakStats = {
+  confirmed_cases: number | null;
+  deaths: number | null;
+  case_fatality_rate: string | null;
+};
 type Outbreak = {
   id:string; title:string; description:string; source_url:string; published_at:string;
   disease:string; location:string; origin_country:string; affected_countries?:string[];
@@ -81,6 +86,7 @@ type Outbreak = {
   verdict:string; risk_level:string;
   localNews?: LocalNews[];
   merged_count?: number;
+  stats?: OutbreakStats;
 };
 
 function outbreakOrigin(o: Outbreak): string {
@@ -1026,7 +1032,11 @@ function OutbreakCard({
 // ── OUTBREAK DETAIL ────────────────────────────────────────────
 type OutbreakDetailVariant = "sidebar" | "inline-preview" | "inline-full";
 
+const LOCAL_NEWS_INITIAL = 2;
+
 function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: string | null }) {
+  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set());
+
   if (!o.localNews?.length) return null;
 
   const origin = outbreakOrigin(o);
@@ -1046,6 +1056,15 @@ function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: st
     const arr = grouped.get(key) ?? [];
     arr.push(n);
     grouped.set(key, arr);
+  }
+
+  function toggleCountry(country: string) {
+    setExpandedCountries((prev) => {
+      const next = new Set(prev);
+      if (next.has(country)) next.delete(country);
+      else next.add(country);
+      return next;
+    });
   }
 
   const renderArticle = (n: LocalNews, i: number) => (
@@ -1102,6 +1121,10 @@ function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: st
         if (!items?.length) return null;
         const isOrigin = country === origin;
         const isFocused = country === focus;
+        const sorted = sortByPubDateDesc(items);
+        const isExpanded = expandedCountries.has(country);
+        const visible = isExpanded ? sorted : sorted.slice(0, LOCAL_NEWS_INITIAL);
+        const hidden = sorted.length - LOCAL_NEWS_INITIAL;
         return (
           <div key={country} style={{ marginBottom: 16 }}>
             <div
@@ -1135,7 +1158,37 @@ function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: st
                 {items.length} article{items.length === 1 ? "" : "s"}
               </span>
             </div>
-            {sortByPubDateDesc(items).map(renderArticle)}
+            {visible.map(renderArticle)}
+            {hidden > 0 && (
+              <button
+                type="button"
+                onClick={() => toggleCountry(country)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: "none",
+                  border: "1px solid #1a3320",
+                  borderRadius: 3,
+                  padding: "5px 10px",
+                  cursor: "pointer",
+                  color: "#00bb66",
+                  fontFamily: FONT,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  marginTop: 2,
+                  width: "100%",
+                  justifyContent: "center",
+                  transition: "border-color 0.15s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320"; }}
+              >
+                {isExpanded
+                  ? <>▲ Collapse</>
+                  : <>▼ {hidden} more article{hidden === 1 ? "" : "s"}</>}
+              </button>
+            )}
           </div>
         );
       })}
@@ -1367,6 +1420,43 @@ function OutbreakDetail({
                   </span>
                   );
                 })}
+              </div>
+            );
+          })()}
+          {/* Stats bar — cases / deaths / CFR */}
+          {(() => {
+            const s = o.stats;
+            if (!s) return null;
+            const hasCases = s.confirmed_cases != null;
+            const hasDeaths = s.deaths != null;
+            const hasCfr = s.case_fatality_rate != null;
+            if (!hasCases && !hasDeaths && !hasCfr) return null;
+            const fmt = (n: number) =>
+              n >= 1_000_000
+                ? `${(n / 1_000_000).toFixed(1)}M`
+                : n >= 1_000
+                ? `${(n / 1_000).toFixed(1)}K`
+                : String(n);
+            return (
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                {hasCases && (
+                  <div style={{ flex: 1, minWidth: 72, background: "rgba(0,187,102,0.06)", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, padding: "7px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>CONFIRMED CASES</div>
+                    <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00bb66", lineHeight: 1 }}>{fmt(s.confirmed_cases!)}</div>
+                  </div>
+                )}
+                {hasDeaths && (
+                  <div style={{ flex: 1, minWidth: 72, background: "rgba(255,85,85,0.06)", border: "1px solid rgba(255,85,85,0.2)", borderRadius: 3, padding: "7px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>DEATHS</div>
+                    <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#ff5555", lineHeight: 1 }}>{fmt(s.deaths!)}</div>
+                  </div>
+                )}
+                {hasCfr && (
+                  <div style={{ flex: 1, minWidth: 72, background: "rgba(255,170,0,0.06)", border: "1px solid rgba(255,170,0,0.2)", borderRadius: 3, padding: "7px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>CASE FATALITY</div>
+                    <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#ffaa00", lineHeight: 1 }}>{s.case_fatality_rate}</div>
+                  </div>
+                )}
               </div>
             );
           })()}

@@ -5,7 +5,7 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 9;
+export const OUTBREAK_CACHE_VERSION = 10;
 const OUTBREAK_LOCAL_NEWS_MAX = 40;
 const OUTBREAK_LOCAL_NEWS_PER_COUNTRY = 8;
 const OUTBREAK_LOCAL_NEWS_COUNTRY_MAX = 6;
@@ -803,11 +803,17 @@ Otherwise return ONLY valid JSON:
   "key_facts":["fact1","fact2","fact3"],
   "verdict":"NATURAL",
   "risk_level":"MEDIUM",
-  "origin_country":"lowercase country name where outbreak originated"
+  "origin_country":"lowercase country name where outbreak originated",
+  "stats":{
+    "confirmed_cases":null,
+    "deaths":null,
+    "case_fatality_rate":null
+  }
 }
 affected_countries: array of ALL currently affected countries (lowercase), up to 8.
 verdict: NATURAL|SUSPICIOUS|HIGHLY_SUSPICIOUS|UNKNOWN
 risk_level: LOW|MEDIUM|HIGH|CRITICAL
+stats: Extract from the article ONLY if explicitly stated. confirmed_cases = integer or null. deaths = integer or null. case_fatality_rate = string like "38%" or null. Do NOT invent numbers. If not mentioned, use null.
 theories: ONLY include entries when you can cite at least one real, verifiable https URL from the source article or a known news/research domain. Each theory MUST have sources with working URLs. If no documented conspiracy narrative exists in the input, return "theories":[] and set has_conspiracy:false and conspiracy_score:0.
 patents: ONLY include real USPTO/Google Patents entries with valid patent numbers. If none found, return "patents":[].
 NEVER invent URLs, NEVER use example.com, placeholder.com, or generic https:// links.
@@ -829,6 +835,11 @@ type AnalysisRow = {
   verdict: string;
   risk_level: string;
   origin_country: string;
+  stats?: {
+    confirmed_cases: number | null;
+    deaths: number | null;
+    case_fatality_rate: string | null;
+  };
 };
 
 function isAnalysisAcceptable(analysis: AnalysisRow, item: FreshItem): boolean {
@@ -1036,6 +1047,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           key_facts: [c.description.slice(0, 200)],
           verdict: "NATURAL",
           risk_level: c.risk_level,
+          stats: { confirmed_cases: null, deaths: null, case_fatality_rate: null },
           localNews: [] as LocalNewsRow[],
         };
       }),
