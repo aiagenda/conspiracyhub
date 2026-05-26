@@ -49,6 +49,7 @@ type ScanStats = {
   search_ok?: number;
   search_failed?: number;
   fetch_errors?: string[];
+  reddit_auth?: "oauth" | "oauth_failed" | "public" | "none";
 };
 
 export function RedditRadarSection() {
@@ -248,7 +249,14 @@ export function RedditRadarSection() {
           ) : null}
           {lastScan.total_reddit_posts === 0 && (lastScan.feed_failed ?? 0) + (lastScan.search_failed ?? 0) > 0 ? (
             <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#ffaa00" }}>
-              Reddit returned no posts — check fetch errors above (rate limit or blocked IP).
+              {lastScan.reddit_auth === "oauth" || lastScan.reddit_auth === "oauth_failed"
+                ? "Reddit returned no posts — OAuth may be misconfigured (check REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET in Vercel)."
+                : "Reddit blocks datacenter IPs (401/403). Add REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in Vercel: reddit.com/prefs/apps → create “script” app → copy ID + secret."}
+            </div>
+          ) : null}
+          {lastScan.reddit_auth === "oauth" ? (
+            <div className="col-span-2 sm:col-span-4 text-[9px]" style={{ color: "#00bb66" }}>
+              Reddit OAuth active
             </div>
           ) : null}
         </div>

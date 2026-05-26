@@ -1,5 +1,11 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import {
+  getRedditOAuthToken,
+  redditOAuthConfigured,
+  redditOAuthGet,
+  redditPublicGet,
+} from "@/lib/server/redditApiClient";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
 const UA = "TheTheorist/1.0 (reddit-radar; +https://www.the-theorist.com)";
@@ -143,6 +149,7 @@ export type RedditScanStats = {
   search_ok: number;
   search_failed: number;
   fetch_errors: string[];
+  reddit_auth: "oauth" | "oauth_failed" | "public" | "none";
 };
 
 function createFetchTelemetry(): RedditFetchTelemetry {
@@ -432,19 +439,20 @@ function normalizeRedditThreadUrl(permalink: string): string {
 }
 
 async function fetchRedditJson(
-  url: string,
+  oauthPath: string,
+  publicUrl: string,
   kind: "feed" | "search",
   telemetry: RedditFetchTelemetry,
+  accessToken: string | null,
 ): Promise<RedditListingResponse | null> {
   if (kind === "feed") telemetry.feed_requests++;
   else telemetry.search_requests++;
 
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/json" },
-      signal: AbortSignal.timeout(12000),
-      cache: "no-store",
-    });
+    const res = accessToken
+      ? await redditOAuthGet(oauthPath, accessToken)
+      : await redditPublicGet(publicUrl);
+
     if (!res.ok) {
       if (kind === "feed") telemetry.feed_failed++;
       else telemetry.search_failed++;
@@ -505,18 +513,24 @@ function parseListingPosts(
   return items;
 }
 
-/** Subreddit hot + new feeds via public JSON API (RSS often blocked on server IPs). */
-export async function fetchRedditSubFeeds(telemetry: RedditFetchTelemetry): Promise<RedditPostRow[]> {
+/** Subreddit hot + new feeds via OAuth API (public JSON blocked on many server IPs). */
+export async function fetchRedditSubFeeds(
+  telemetry: RedditFetchTelemetry,
+  accessToken: string | null,
+): Promise<RedditPostRow[]> {
   const out: RedditPostRow[] = [];
   const seen = new Set<string>();
 
   for (const sub of REDDIT_RADAR_SUBS) {
     for (const sort of ["hot", "new"] as const) {
       await sleep(FETCH_DELAY_MS);
+      const encSub = encodeURIComponent(sub);
       const json = await fetchRedditJson(
-        `https://www.reddit.com/r/${encodeURIComponent(sub)}/${sort}.json?limit=${JSON_FEED_LIMIT}&raw_json=1`,
+        `/r/${encSub}/${sort}?limit=${JSON_FEED_LIMIT}&raw_json=1`,
+        `https://www.reddit.com/r/${encSub}/${sort}.json?limit=${JSON_FEED_LIMIT}&raw_json=1`,
         "feed",
         telemetry,
+        accessToken,
       );
       if (!json) continue;
       for (const item of parseListingPosts(json, {
@@ -538,15 +552,19 @@ export async function fetchRedditSubFeeds(telemetry: RedditFetchTelemetry): Prom
 async function fetchRedditSearchForCandidate(
   candidate: SiteMatchCandidate,
   telemetry: RedditFetchTelemetry,
+  accessToken: string | null,
 ): Promise<RedditPostRow[]> {
   const subFilter = REDDIT_RADAR_SUBS.slice(0, 8)
     .map((s) => `subreddit:${s}`)
     .join(" OR ");
-  const q = encodeURIComponent(`${candidate.search_query} (${subFilter})`);
+  const query = `${candidate.search_query} (${subFilter})`;
+  const q = encodeURIComponent(query);
   const json = await fetchRedditJson(
+    `/search?q=${q}&sort=new&t=week&limit=${SEARCH_RESULTS_PER_QUERY}&raw_json=1`,
     `https://www.reddit.com/search.json?q=${q}&sort=new&t=week&limit=${SEARCH_RESULTS_PER_QUERY}&raw_json=1`,
     "search",
     telemetry,
+    accessToken,
   );
   if (!json) return [];
   return parseListingPosts(json, {
@@ -561,6 +579,7 @@ async function fetchRedditSearchForCandidate(
 async function fetchRedditSearchBatch(
   candidates: SiteMatchCandidate[],
   telemetry: RedditFetchTelemetry,
+  accessToken: string | null,
 ): Promise<RedditPostRow[]> {
   const out: RedditPostRow[] = [];
   const batchSize = 4;
@@ -568,7 +587,7 @@ async function fetchRedditSearchBatch(
   for (let i = 0; i < candidates.length; i += batchSize) {
     const batch = candidates.slice(i, i + batchSize);
     const results = await Promise.all(
-      batch.map((c) => fetchRedditSearchForCandidate(c, telemetry)),
+      batch.map((c) => fetchRedditSearchForCandidate(c, telemetry, accessToken)),
     );
     out.push(...results.flat());
     if (i + batchSize < candidates.length) await sleep(FETCH_DELAY_MS * 2);
@@ -888,8 +907,23 @@ export async function runRedditRadarScan(): Promise<{
   const candidates = await loadSiteCandidates(admin);
   const searchCandidates = pickSearchCandidates(candidates);
 
-  const feedPosts = await fetchRedditSubFeeds(telemetry);
-  const searchPosts = await fetchRedditSearchBatch(searchCandidates, telemetry);
+  const oauth = await getRedditOAuthToken();
+  let redditAuth: RedditScanStats["reddit_auth"] = "none";
+  if (oauth.token) {
+    redditAuth = "oauth";
+  } else if (redditOAuthConfigured()) {
+    redditAuth = "oauth_failed";
+    pushFetchError(telemetry, oauth.error ?? "OAuth token failed");
+  } else {
+    redditAuth = "public";
+    pushFetchError(
+      telemetry,
+      "Set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in Vercel (reddit.com/prefs/apps → script app)",
+    );
+  }
+
+  const feedPosts = await fetchRedditSubFeeds(telemetry, oauth.token);
+  const searchPosts = await fetchRedditSearchBatch(searchCandidates, telemetry, oauth.token);
   const allPosts: RedditPostRow[] = [];
   const seenUrls = new Set<string>();
 
@@ -998,6 +1032,7 @@ export async function runRedditRadarScan(): Promise<{
     below_threshold: belowThreshold,
     insert_errors: insertErrors,
     purged,
+    reddit_auth: redditAuth,
     ...telemetryToStats(telemetry),
   };
 
