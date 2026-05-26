@@ -361,6 +361,72 @@ function obLineStyle(
   return { opacity: 0, width: 0 };
 }
 
+const OB_ARROW_BASE = 5;
+const OB_ZOOM_THIN = 0.55;
+
+function obZoomK(k: number): number {
+  return k > 0 ? k : 1;
+}
+
+/** Target on-screen stroke width — thins as the user zooms in. */
+function obSpreadVisualWidth(baseWidth: number, k: number): number {
+  return baseWidth / Math.max(1, Math.pow(obZoomK(k), OB_ZOOM_THIN));
+}
+
+/** SVG stroke-width inside scaled geoG (divided by k to cancel transform scale). */
+function obSpreadStrokeAttr(baseWidth: number, k: number): number {
+  return obSpreadVisualWidth(baseWidth, k) / obZoomK(k);
+}
+
+function obSpreadArrowVisual(k: number): number {
+  return OB_ARROW_BASE / Math.max(1, Math.pow(obZoomK(k), OB_ZOOM_THIN));
+}
+
+function obSpreadArrowAttr(k: number): number {
+  return obSpreadArrowVisual(k) / obZoomK(k);
+}
+
+function obMarkerLabelVisible(
+  d: { o: Outbreak; isPrimary: boolean; isOrigin: boolean; country: string },
+  selectedId: string | null,
+  focusCountry: string | null,
+  k: number,
+): boolean {
+  const isSel = d.o.id === selectedId;
+  const isFocused = isSel && focusCountry != null && d.country === focusCountry;
+  if (isFocused) return true;
+  if (d.isPrimary && (isSel || !selectedId || d.o.conspiracy_score >= 65)) return true;
+  if (k >= 2 && isSel) return true;
+  return false;
+}
+
+function applyObSpreadScale(
+  svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+  linesG: d3.Selection<SVGGElement, unknown, null, undefined>,
+  k: number,
+) {
+  linesG
+    .selectAll<SVGPathElement, unknown>("path.ob-line")
+    .attr("stroke-width", function () {
+      const base = Number(d3.select(this).attr("data-base-width")) || 1;
+      return obSpreadStrokeAttr(base, k);
+    })
+    .attr("stroke-dasharray", function () {
+      if (d3.select(this).attr("data-dashed") !== "1") return null;
+      const dashAttr = obSpreadVisualWidth(5, k) / obZoomK(k);
+      return `${dashAttr} ${dashAttr}`;
+    });
+
+  const arrowAttr = obSpreadArrowAttr(k);
+  const refX = arrowAttr * (8 / OB_ARROW_BASE);
+  svg
+    .selectAll<SVGMarkerElement, unknown>("marker[id^='ob-arrow-']")
+    .attr("markerUnits", "userSpaceOnUse")
+    .attr("markerWidth", arrowAttr)
+    .attr("markerHeight", arrowAttr)
+    .attr("refX", refX);
+}
+
 function outbreakMapVisible(outbreakId: string, selectedId: string | null): boolean {
   if (!selectedId) return true;
   return outbreakId === selectedId;
@@ -370,6 +436,7 @@ function applyObMarkerStyles(
   g: d3.Selection<SVGGElement, ObMarkerDatum, SVGGElement, unknown>,
   selectedId: string | null,
   focusCountry: string | null,
+  k: number,
 ) {
   g.each(function (d) {
     const isSel = d.o.id === selectedId;
@@ -389,10 +456,7 @@ function applyObMarkerStyles(
       .select(".ob-label")
       .style(
         "display",
-        isFocused ||
-          (d.isPrimary && (isSel || !selectedId || d.o.conspiracy_score >= 65))
-          ? "block"
-          : "none",
+        obMarkerLabelVisible(d, selectedId, focusCountry, k) ? "block" : "none",
       );
   });
 }
@@ -435,7 +499,7 @@ function WorldMap({
   }, []);
 
   const paintMarkers = useCallback((ctx: ObMapCtx, selectedId: string | null, focus: string | null) => {
-    const { linesG, markersG, proj } = ctx;
+    const { linesG, markersG, proj, svg } = ctx;
     const list = outbreaksRef.current;
 
     linesG.selectAll("*").remove();
@@ -455,6 +519,9 @@ function WorldMap({
       const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
       const lineStyle = obLineStyle(o.id, selectedId);
 
+      const lineWidth = isSel ? lineStyle.width + 0.4 : lineStyle.width;
+      const zoomK = zoomTransformRef.current.k || 1;
+
       const slots = collectSpreadMarkerSlots(o, proj);
       if (!slots.length) continue;
 
@@ -469,19 +536,21 @@ function WorldMap({
           const len = Math.sqrt(dx * dx + dy * dy) || 1;
           const perpX = -dy / len;
           const perpY = dx / len;
-          const curve = Math.min(len * 0.16, 22);
+          const curve = Math.min(len * 0.16, 22 / Math.sqrt(zoomK));
           const qx = mx + perpX * curve;
           const qy = my + perpY * curve;
           linesG
             .append("path")
             .attr("class", "ob-line")
             .attr("data-outbreak-id", o.id)
+            .attr("data-base-width", lineWidth)
+            .attr("data-dashed", isSel ? "0" : "1")
             .attr("d", `M${x1},${y1} Q${qx},${qy} ${x2},${y2}`)
             .attr("fill", "none")
             .attr("stroke", col)
-            .attr("stroke-width", isSel ? lineStyle.width + 0.4 : lineStyle.width)
+            .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
             .attr("stroke-opacity", lineStyle.opacity)
-            .attr("stroke-dasharray", isSel ? "none" : "5 5")
+            .attr("stroke-dasharray", isSel ? null : `${obSpreadVisualWidth(5, zoomK) / zoomK} ${obSpreadVisualWidth(5, zoomK) / zoomK}`)
             .attr("marker-end", lineStyle.opacity > 0 ? `url(#${arrowMarkerId(col)})` : "none")
             .style("pointer-events", lineStyle.opacity > 0 ? "stroke" : "none");
         }
@@ -517,6 +586,7 @@ function WorldMap({
     }
 
     const markerData: ObMarkerDatum[] = markerQueue.map((m) => ({ ...m }));
+    const k = zoomTransformRef.current.k || 1;
 
     const mg = markersG
       .selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker")
@@ -524,10 +594,7 @@ function WorldMap({
       .join("g")
       .attr("class", "ob-marker")
       .attr("data-outbreak-id", (d) => d.o.id)
-      .attr("transform", (d) => {
-        const k = zoomTransformRef.current.k || 1;
-        return `translate(${d.x},${d.y}) scale(${1 / k})`;
-      });
+      .attr("transform", (d) => `translate(${d.x},${d.y}) scale(${1 / k})`);
 
     mg.each(function (d) {
       const group = d3.select(this);
@@ -603,14 +670,12 @@ function WorldMap({
         .text(labelText)
         .style(
           "display",
-          (focus === d.country && d.isSel) ||
-            (d.isPrimary && (d.isSel || !selectedId || d.o.conspiracy_score >= 65))
-            ? "block"
-            : "none",
+          obMarkerLabelVisible(d, selectedId, focus, k) ? "block" : "none",
         );
     });
 
-    applyObMarkerStyles(mg, selectedId, focus);
+    applyObMarkerStyles(mg, selectedId, focus, k);
+    applyObSpreadScale(ctx.svg, linesG, k);
   }, []);
 
   const updateSelectionOnly = useCallback(
@@ -644,8 +709,9 @@ function WorldMap({
         .attr("viewBox", "0 -4 9 8")
         .attr("refX", 8)
         .attr("refY", 0)
-        .attr("markerWidth", 5)
-        .attr("markerHeight", 5)
+        .attr("markerUnits", "userSpaceOnUse")
+        .attr("markerWidth", OB_ARROW_BASE)
+        .attr("markerHeight", OB_ARROW_BASE)
         .attr("orient", "auto")
         .append("path")
         .attr("d", "M0,-4L9,0L0,4Z")
@@ -702,6 +768,13 @@ function WorldMap({
       markersG
         .selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker")
         .attr("transform", (d) => `translate(${d.x},${d.y}) scale(${1 / k})`);
+      applyObSpreadScale(svg, linesG, k);
+      applyObMarkerStyles(
+        markersG.selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker"),
+        selectedIdRef.current,
+        focusCountryRef.current,
+        k,
+      );
     }
 
     const zoom = d3
