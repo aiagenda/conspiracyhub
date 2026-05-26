@@ -70,12 +70,13 @@ function arrowMarkerId(col: string): string {
 
 type Theory   = { name:string; summary:string; probability:number; sources:string[] };
 type Patent   = { number:string; title:string; assignee:string; url:string };
-type LocalNews= { title:string; url:string; source:string; pubDate:string; country?:string };
+type LocalNews= { title:string; url:string; source:string; pubDate:string; country?:string; alert?: "death_update" | "case_surge" | null };
 type AffectedCoord = { country:string; lat:number; lng:number };
 type OutbreakStats = {
   confirmed_cases: number | null;
   deaths: number | null;
   case_fatality_rate: string | null;
+  as_of?: string;
 };
 type Outbreak = {
   id:string; title:string; description:string; source_url:string; published_at:string;
@@ -1034,10 +1035,133 @@ type OutbreakDetailVariant = "sidebar" | "inline-preview" | "inline-full";
 
 const LOCAL_NEWS_INITIAL = 2;
 
+function fmtOutbreakStat(n: number | null): string {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function OutbreakStatsBar({ stats, compact }: { stats?: OutbreakStats; compact?: boolean }) {
+  if (!stats) return null;
+  const hasAny =
+    stats.confirmed_cases != null || stats.deaths != null || stats.case_fatality_rate != null;
+  if (!hasAny) return null;
+
+  const fontSize = compact ? 17 : 20;
+  const labelSize = compact ? 8 : 9;
+
+  return (
+    <div style={{ marginTop: compact ? 0 : 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 72, background: "rgba(0,187,102,0.06)", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, padding: compact ? "6px 8px" : "7px 10px", textAlign: "center" }}>
+          <div style={{ fontSize: labelSize, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>CONFIRMED CASES</div>
+          <div style={{ fontFamily: RAJ, fontSize, fontWeight: 700, color: stats.confirmed_cases != null ? "#00bb66" : "#3a5040", lineHeight: 1 }}>
+            {fmtOutbreakStat(stats.confirmed_cases)}
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 72, background: "rgba(255,85,85,0.06)", border: "1px solid rgba(255,85,85,0.2)", borderRadius: 3, padding: compact ? "6px 8px" : "7px 10px", textAlign: "center" }}>
+          <div style={{ fontSize: labelSize, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>DEATHS</div>
+          <div style={{ fontFamily: RAJ, fontSize, fontWeight: 700, color: stats.deaths != null ? "#ff5555" : "#3a5040", lineHeight: 1 }}>
+            {fmtOutbreakStat(stats.deaths)}
+          </div>
+        </div>
+        {(stats.case_fatality_rate != null || stats.confirmed_cases != null || stats.deaths != null) && (
+          <div style={{ flex: 1, minWidth: 72, background: "rgba(255,170,0,0.06)", border: "1px solid rgba(255,170,0,0.2)", borderRadius: 3, padding: compact ? "6px 8px" : "7px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: labelSize, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>CASE FATALITY</div>
+            <div style={{ fontFamily: RAJ, fontSize, fontWeight: 700, color: stats.case_fatality_rate ? "#ffaa00" : "#3a5040", lineHeight: 1 }}>
+              {stats.case_fatality_rate ?? "—"}
+            </div>
+          </div>
+        )}
+      </div>
+      {stats.as_of ? (
+        <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1, marginTop: 6, textAlign: "center" }}>
+          {stats.as_of}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OutbreakCriticalAlerts({ news }: { news: LocalNews[] }) {
+  const alerts = sortByPubDateDesc(
+    news.filter((n) => n.alert === "death_update" || n.alert === "case_surge"),
+  );
+  if (!alerts.length) return null;
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: "#ff5555", letterSpacing: 2, marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 14 }}>⚠</span>
+        CRITICAL UPDATES
+        <span style={{ fontSize: 9, color: "#5a8068", letterSpacing: 1, textTransform: "none" }}>
+          {alerts.length} urgent signal{alerts.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      {alerts.map((n, i) => {
+        const isDeath = n.alert === "death_update";
+        const accent = isDeath ? "#ff5555" : "#ffaa00";
+        const badge = isDeath ? "DEATH UPDATE" : "CASE SURGE";
+        return (
+          <a
+            key={`alert-${n.url}-${i}`}
+            href={n.url}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "block",
+              border: `1px solid ${isDeath ? "rgba(255,85,85,0.45)" : "rgba(255,170,0,0.35)"}`,
+              borderLeft: `3px solid ${accent}`,
+              borderRadius: 3,
+              padding: "11px 12px",
+              marginBottom: 8,
+              textDecoration: "none",
+              background: isDeath ? "rgba(255,85,85,0.08)" : "rgba(255,170,0,0.06)",
+              transition: "border-color 0.15s, background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.background = isDeath
+                ? "rgba(255,85,85,0.14)"
+                : "rgba(255,170,0,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.background = isDeath
+                ? "rgba(255,85,85,0.08)"
+                : "rgba(255,170,0,0.06)";
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 8, color: accent, border: `1px solid ${accent}`, padding: "2px 6px", borderRadius: 2, letterSpacing: 1.5, fontWeight: 700 }}>
+                {badge}
+              </span>
+              {n.country ? (
+                <span style={{ fontSize: 9, color: "#7aaa8a", letterSpacing: 1 }}>
+                  {countryFlag(n.country)} {countryLabel(n.country)}
+                </span>
+              ) : null}
+            </div>
+            <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#ffe8e8", lineHeight: 1.35, marginBottom: 5 }}>
+              {n.title}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#aa7070", letterSpacing: 1 }}>{n.source}</span>
+              <span style={{ fontSize: 11, color: "#704040" }}>
+                {n.pubDate ? new Date(n.pubDate).toLocaleDateString() : ""}
+              </span>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: string | null }) {
   const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set());
 
-  if (!o.localNews?.length) return null;
+  const regularNews = (o.localNews ?? []).filter((n) => !n.alert);
+  if (!regularNews.length) return null;
 
   const origin = outbreakOrigin(o);
   const focus = (focusCountry ?? origin).toLowerCase();
@@ -1046,12 +1170,12 @@ function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: st
       focus,
       origin,
       ...(o.affected_countries ?? []).map((c) => c.toLowerCase()),
-      ...o.localNews.map((n) => (n.country ?? "").toLowerCase()).filter(Boolean),
+      ...regularNews.map((n) => (n.country ?? "").toLowerCase()).filter(Boolean),
     ].filter(Boolean)),
   ];
 
   const grouped = new Map<string, LocalNews[]>();
-  for (const n of o.localNews) {
+  for (const n of regularNews) {
     const key = (n.country ?? (origin || "global")).toLowerCase();
     const arr = grouped.get(key) ?? [];
     arr.push(n);
@@ -1114,7 +1238,7 @@ function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: st
   return (
     <>
       <div style={{ fontSize: 11, color: "#3a5040", marginBottom: 10, letterSpacing: 1, lineHeight: 1.6 }}>
-        {o.localNews.length} signals from {grouped.size} region{grouped.size === 1 ? "" : "s"} — Google News · site feed · WHO/CDC sources
+        {regularNews.length} regional signal{regularNews.length === 1 ? "" : "s"} from {grouped.size} region{grouped.size === 1 ? "" : "s"} — Google News · site feed · WHO/CDC sources
       </div>
       {countryOrder.map((country) => {
         const items = grouped.get(country);
@@ -1423,43 +1547,7 @@ function OutbreakDetail({
               </div>
             );
           })()}
-          {/* Stats bar — cases / deaths / CFR */}
-          {(() => {
-            const s = o.stats;
-            if (!s) return null;
-            const hasCases = s.confirmed_cases != null;
-            const hasDeaths = s.deaths != null;
-            const hasCfr = s.case_fatality_rate != null;
-            if (!hasCases && !hasDeaths && !hasCfr) return null;
-            const fmt = (n: number) =>
-              n >= 1_000_000
-                ? `${(n / 1_000_000).toFixed(1)}M`
-                : n >= 1_000
-                ? `${(n / 1_000).toFixed(1)}K`
-                : String(n);
-            return (
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                {hasCases && (
-                  <div style={{ flex: 1, minWidth: 72, background: "rgba(0,187,102,0.06)", border: "1px solid rgba(0,187,102,0.2)", borderRadius: 3, padding: "7px 10px", textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>CONFIRMED CASES</div>
-                    <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#00bb66", lineHeight: 1 }}>{fmt(s.confirmed_cases!)}</div>
-                  </div>
-                )}
-                {hasDeaths && (
-                  <div style={{ flex: 1, minWidth: 72, background: "rgba(255,85,85,0.06)", border: "1px solid rgba(255,85,85,0.2)", borderRadius: 3, padding: "7px 10px", textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>DEATHS</div>
-                    <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#ff5555", lineHeight: 1 }}>{fmt(s.deaths!)}</div>
-                  </div>
-                )}
-                {hasCfr && (
-                  <div style={{ flex: 1, minWidth: 72, background: "rgba(255,170,0,0.06)", border: "1px solid rgba(255,170,0,0.2)", borderRadius: 3, padding: "7px 10px", textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 3 }}>CASE FATALITY</div>
-                    <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: "#ffaa00", lineHeight: 1 }}>{s.case_fatality_rate}</div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          <OutbreakStatsBar stats={o.stats} />
         </div>
       ) : null}
 
@@ -1476,6 +1564,8 @@ function OutbreakDetail({
       >
         {isPreview ? (
           <>
+            <OutbreakStatsBar stats={o.stats} compact />
+            <OutbreakCriticalAlerts news={o.localNews ?? []} />
             <div className="intel-preview-panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -1505,6 +1595,9 @@ function OutbreakDetail({
             {variant === "inline-full" ? (
               <IntelExpandBar expanded onToggle={() => onCollapse?.()} />
             ) : null}
+
+            {isInline ? <OutbreakStatsBar stats={o.stats} compact /> : null}
+            {isInline ? <OutbreakCriticalAlerts news={o.localNews ?? []} /> : null}
 
             {!isInline ? (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1566,11 +1659,15 @@ function OutbreakDetail({
               );
             })()}
 
+            {!isInline && (o.localNews?.some((n) => n.alert) ?? false) ? (
+              <OutbreakCriticalAlerts news={o.localNews ?? []} />
+            ) : null}
+
             {o.localNews && o.localNews.length > 0 ? (
               useCollapsible ? (
                 <CollapsibleSection
                   title="Intelligence — local signals"
-                  count={o.localNews.length}
+                  count={(o.localNews ?? []).filter((n) => !n.alert).length || o.localNews.length}
                   accent="#00bb66"
                   subtitle={`${o.localNews.length} articles from affected regions`}
                 >

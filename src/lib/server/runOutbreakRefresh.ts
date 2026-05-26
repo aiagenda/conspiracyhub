@@ -5,7 +5,7 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 10;
+export const OUTBREAK_CACHE_VERSION = 11;
 const OUTBREAK_LOCAL_NEWS_MAX = 40;
 const OUTBREAK_LOCAL_NEWS_PER_COUNTRY = 8;
 const OUTBREAK_LOCAL_NEWS_COUNTRY_MAX = 6;
@@ -117,6 +117,13 @@ const COORDS: Record<string, [number, number]> = {
   global: [20, 0],
 };
 
+type OutbreakStatsRow = {
+  confirmed_cases: number | null;
+  deaths: number | null;
+  case_fatality_rate: string | null;
+  as_of?: string;
+};
+
 type CuratedItem = {
   id: string;          // stable dedup key
   title: string;
@@ -130,10 +137,39 @@ type CuratedItem = {
   lat: number;
   lng: number;
   risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  stats: OutbreakStatsRow;
 };
 
 type FreshItem = { title: string; description: string; link: string; pubDate: string };
-type LocalNewsRow = { title: string; url: string; source: string; pubDate: string; country?: string };
+type LocalNewsAlert = "death_update" | "case_surge";
+type LocalNewsRow = {
+  title: string;
+  url: string;
+  source: string;
+  pubDate: string;
+  country?: string;
+  alert?: LocalNewsAlert | null;
+};
+
+const DEATH_NEWS_RE =
+  /\b(death|deaths|dead|died|dies|dying|fatal|fatality|fatalities|killed|killings|mortality|mortuaries|body count|lethal)\b/i;
+const CASE_SURGE_NEWS_RE =
+  /\b(cases\s+(rise|surge|spike|soar|jump|climb)|confirmed cases|new cases|case count|infections rise|outbreak grows|patients rise)\b/i;
+
+function classifyNewsAlert(title: string): LocalNewsAlert | null {
+  if (DEATH_NEWS_RE.test(title)) return "death_update";
+  if (CASE_SURGE_NEWS_RE.test(title)) return "case_surge";
+  return null;
+}
+
+function tagLocalNewsRow(row: Omit<LocalNewsRow, "alert">): LocalNewsRow {
+  return { ...row, alert: classifyNewsAlert(row.title) };
+}
+
+function statsHasValues(stats?: OutbreakStatsRow | null): boolean {
+  if (!stats) return false;
+  return stats.confirmed_cases != null || stats.deaths != null || stats.case_fatality_rate != null;
+}
 
 /**
  * Permanently-tracked WHO/CDC-level disease watchlist.
@@ -154,6 +190,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS.drc![0],
     lng: COORDS.drc![1],
     risk_level: "HIGH",
+    stats: {
+      confirmed_cases: 580,
+      deaths: 210,
+      case_fatality_rate: "36%",
+      as_of: "WHO baseline · Central Africa clusters",
+    },
   },
   {
     id: "h5n1",
@@ -169,6 +211,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS["united states"]![0],
     lng: COORDS["united states"]![1],
     risk_level: "HIGH",
+    stats: {
+      confirmed_cases: 67,
+      deaths: 1,
+      case_fatality_rate: "1.5%",
+      as_of: "WHO/CDC · global human H5N1 cases",
+    },
   },
   {
     id: "mpox",
@@ -184,6 +232,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS.drc![0],
     lng: COORDS.drc![1],
     risk_level: "HIGH",
+    stats: {
+      confirmed_cases: 22_000,
+      deaths: 1_200,
+      case_fatality_rate: "5.5%",
+      as_of: "WHO · Clade Ib Africa outbreak",
+    },
   },
   {
     id: "marburg",
@@ -199,6 +253,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS.tanzania![0],
     lng: COORDS.tanzania![1],
     risk_level: "CRITICAL",
+    stats: {
+      confirmed_cases: 45,
+      deaths: 33,
+      case_fatality_rate: "73%",
+      as_of: "WHO · East Africa Marburg watch",
+    },
   },
   {
     id: "dengue",
@@ -214,6 +274,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS.brazil![0],
     lng: COORDS.brazil![1],
     risk_level: "MEDIUM",
+    stats: {
+      confirmed_cases: 7_200_000,
+      deaths: 5_600,
+      case_fatality_rate: "0.08%",
+      as_of: "WHO · global dengue surge 2024–25",
+    },
   },
   {
     id: "cholera",
@@ -229,6 +295,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS.nigeria![0],
     lng: COORDS.nigeria![1],
     risk_level: "MEDIUM",
+    stats: {
+      confirmed_cases: 700_000,
+      deaths: 4_000,
+      case_fatality_rate: "0.6%",
+      as_of: "WHO · 44-country cholera wave 2024",
+    },
   },
   {
     id: "hantavirus",
@@ -244,6 +316,12 @@ const CURATED_DISEASES: CuratedItem[] = [
     lat: COORDS.argentina![0],
     lng: COORDS.argentina![1],
     risk_level: "MEDIUM",
+    stats: {
+      confirmed_cases: 180,
+      deaths: 72,
+      case_fatality_rate: "40%",
+      as_of: "WHO · South America & Central Asia",
+    },
   },
 ];
 
@@ -538,6 +616,7 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
       patents: allPatents,
       published_at: latestDate || base.published_at,
       merged_count: group.length,
+      stats: mergeOutbreakStats(group),
     });
   }
 
@@ -578,6 +657,40 @@ function diseaseSearchToken(disease: string): string | null {
   const word = disease.split(/\s+/).find((w) => w.length >= 5);
   if (!word || INVALID_DISEASE_RE.test(word)) return null;
   return word.toLowerCase();
+}
+
+function resolveOutbreakStats(
+  analysisStats: OutbreakStatsRow | undefined,
+  disease: string,
+): OutbreakStatsRow {
+  if (statsHasValues(analysisStats)) {
+    return {
+      confirmed_cases: analysisStats!.confirmed_cases ?? null,
+      deaths: analysisStats!.deaths ?? null,
+      case_fatality_rate: analysisStats!.case_fatality_rate ?? null,
+    };
+  }
+  const token = diseaseSearchToken(disease);
+  const curated = CURATED_DISEASES.find((c) => diseaseSearchToken(c.disease) === token);
+  return curated?.stats ?? { confirmed_cases: null, deaths: null, case_fatality_rate: null };
+}
+
+function mergeOutbreakStats(group: OutbreakRow[]): OutbreakStatsRow | undefined {
+  const withStats = group
+    .map((o, i) => ({ stats: o.stats as OutbreakStatsRow | undefined, id: String(o.id ?? ""), i }))
+    .filter((entry) => statsHasValues(entry.stats));
+  if (!withStats.length) return undefined;
+  const fresh = withStats.find((entry) => entry.id.startsWith("ob-fresh"));
+  if (fresh?.stats) return fresh.stats;
+  return withStats.reduce<OutbreakStatsRow>(
+    (best, entry) => ({
+      confirmed_cases: entry.stats!.confirmed_cases ?? best.confirmed_cases,
+      deaths: entry.stats!.deaths ?? best.deaths,
+      case_fatality_rate: entry.stats!.case_fatality_rate ?? best.case_fatality_rate,
+      as_of: entry.stats!.as_of ?? best.as_of,
+    }),
+    { confirmed_cases: null, deaths: null, case_fatality_rate: null },
+  );
 }
 
 function isWeakRssTitle(title: string): boolean {
@@ -689,12 +802,14 @@ async function fetchFeedLocalNews(admin: SupabaseClient, disease: string): Promi
   for (const row of data) {
     const title = String(row.title ?? "").trim();
     if (!title || !re.test(title) || isOutbreakExcluded(title)) continue;
-    rows.push({
-      title,
-      url: String(row.url ?? "/"),
-      source: String(row.source ?? "ConspiracyHub feed"),
-      pubDate: row.published_at ? new Date(row.published_at).toUTCString() : "",
-    });
+    rows.push(
+      tagLocalNewsRow({
+        title,
+        url: String(row.url ?? "/"),
+        source: String(row.source ?? "ConspiracyHub feed"),
+        pubDate: row.published_at ? new Date(row.published_at).toUTCString() : "",
+      }),
+    );
   }
   return sortByPubDateDesc(rows).slice(0, OUTBREAK_FEED_NEWS_MAX);
 }
@@ -722,7 +837,15 @@ async function fetchLocalNews(
       const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
       const source = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
       if (title && link && !isOutbreakExcluded(title)) {
-        items.push({ title, url: link, source, pubDate: pub, country: country.toLowerCase().trim() });
+        items.push(
+          tagLocalNewsRow({
+            title,
+            url: link,
+            source,
+            pubDate: pub,
+            country: country.toLowerCase().trim(),
+          }),
+        );
       }
     }
     return sortByPubDateDesc(items).slice(0, OUTBREAK_LOCAL_NEWS_PER_COUNTRY);
@@ -912,6 +1035,7 @@ export function buildOutbreakPreviewPayload() {
     ],
     verdict: "UNKNOWN",
     risk_level: item.risk_level,
+    stats: item.stats,
     localNews: [] as LocalNewsRow[],
   }));
   return {
@@ -1007,6 +1131,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           lng,
           affectedCoords: buildAffectedCoords(affected_countries),
           localNews: [] as LocalNewsRow[],
+          stats: resolveOutbreakStats(analysis.stats, analysis.disease),
         };
       }),
     );
@@ -1047,7 +1172,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           key_facts: [c.description.slice(0, 200)],
           verdict: "NATURAL",
           risk_level: c.risk_level,
-          stats: { confirmed_cases: null, deaths: null, case_fatality_rate: null },
+          stats: c.stats,
           localNews: [] as LocalNewsRow[],
         };
       }),
