@@ -974,7 +974,7 @@ function OutbreakLocalNews({ o }: { o: Outbreak }) {
 
   const grouped = new Map<string, LocalNews[]>();
   for (const n of o.localNews) {
-    const key = (n.country ?? origin || "global").toLowerCase();
+    const key = (n.country ?? (origin || "global")).toLowerCase();
     const arr = grouped.get(key) ?? [];
     arr.push(n);
     grouped.set(key, arr);
