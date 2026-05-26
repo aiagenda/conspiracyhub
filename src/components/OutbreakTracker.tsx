@@ -57,6 +57,31 @@ function mapMarkerLabel(country: string, isOrigin: boolean, disease: string): st
   return countryLabel(country).toUpperCase().slice(0, 18);
 }
 
+function ConspiracyScoreZeroHint({
+  score,
+  hasConspiracy,
+  compact,
+}: {
+  score: number;
+  hasConspiracy: boolean;
+  compact?: boolean;
+}) {
+  if (score !== 0 || hasConspiracy) return null;
+  return (
+    <div
+      style={{
+        fontSize: compact ? 9 : 10,
+        color: "#3a5040",
+        letterSpacing: 0.4,
+        marginTop: compact ? 5 : 6,
+        lineHeight: 1.45,
+      }}
+    >
+      No documented conspiracy theories · health risk from case stats and risk badge
+    </div>
+  );
+}
+
 const ARROW_IDS: Array<[string, string]> = [
   ["ob-arrow-ff3333", "#ff3333"],
   ["ob-arrow-ff6633", "#ff6633"],
@@ -1240,16 +1265,21 @@ function OutbreakCard({
         {desc.slice(0, 110)}
         {desc.length > 110 ? "..." : ""}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ fontSize: 10, color: "#3a5040", letterSpacing: 1, flexShrink: 0 }}>
-          THREAT
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+          <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 1.2, flexShrink: 0 }}>
+            CONSPIRACY SCORE
+          </div>
+          <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: col, flexShrink: 0 }}>
+            {o.conspiracy_score}%
+          </div>
         </div>
-        <div style={{ flex: 1, height: 2, background: "#1a3320", borderRadius: 1, overflow: "hidden" }}>
+        <div style={{ height: 2, background: "#1a3320", borderRadius: 1, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${o.conspiracy_score}%`, background: col, borderRadius: 1 }} />
         </div>
-        <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: col, flexShrink: 0 }}>
-          {o.conspiracy_score}%
-        </div>
+        {o.conspiracy_score === 0 && !o.has_conspiracy ? (
+          <ConspiracyScoreZeroHint score={o.conspiracy_score} hasConspiracy={o.has_conspiracy} compact />
+        ) : null}
       </div>
       <div
         style={{
@@ -1827,6 +1857,7 @@ function OutbreakDetail({
                   </div>
                 </div>
               </div>
+              <ConspiracyScoreZeroHint score={o.conspiracy_score} hasConspiracy={o.has_conspiracy} />
               <div className="ob-plain-text intel-preview-clamp" style={{ fontSize: 12, color: "#7aaa8a", lineHeight: 1.7 }}>
                 {desc}
               </div>
@@ -1860,6 +1891,9 @@ function OutbreakDetail({
                   </div>
                 </div>
               </div>
+            ) : null}
+            {!isInline ? (
+              <ConspiracyScoreZeroHint score={o.conspiracy_score} hasConspiracy={o.has_conspiracy} />
             ) : null}
 
             <div className="ob-plain-text" style={{ fontSize: 12, color: "#7aaa8a", lineHeight: 1.7, minWidth: 0 }}>
