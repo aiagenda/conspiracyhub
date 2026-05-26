@@ -28,13 +28,49 @@ export default function ResetPasswordPage() {
     const supabase = getSupabaseBrowserClient();
 
     const checkRecovery = async () => {
-      const hash = typeof window !== "undefined" ? window.location.hash : "";
+      const search = new URLSearchParams(window.location.search);
+      const code = search.get("code");
+      const tokenHash = search.get("token_hash");
+      const type = search.get("type");
+
+      // PKCE flow: email link lands with ?code=...
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          setError(exchangeError.message);
+        } else {
+          setRecovery(true);
+          window.history.replaceState({}, "", "/auth/reset-password");
+        }
+        setReady(true);
+        return;
+      }
+
+      // OTP / token_hash flow (some Supabase email templates)
+      if (tokenHash && type === "recovery") {
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (otpError) setError(otpError.message);
+        else {
+          setRecovery(true);
+          window.history.replaceState({}, "", "/auth/reset-password");
+        }
+        setReady(true);
+        return;
+      }
+
+      const hash = window.location.hash;
       const isRecoveryHash = hash.includes("type=recovery") || hash.includes("access_token=");
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session || isRecoveryHash) {
         setRecovery(true);
+        if (isRecoveryHash) {
+          window.history.replaceState({}, "", "/auth/reset-password");
+        }
       }
       setReady(true);
     };

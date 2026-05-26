@@ -30,7 +30,10 @@ export function signOut() {
 
 export function resetPasswordForEmail(email: string) {
   const client = getSupabaseBrowserClient();
-  const origin = typeof window !== "undefined" ? window.location.origin : null;
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? null);
   return client.auth.resetPasswordForEmail(email.trim(), {
     ...(origin ? { redirectTo: `${origin}/auth/reset-password` } : {}),
   });
