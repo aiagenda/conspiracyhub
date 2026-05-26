@@ -5,7 +5,7 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 8;
+export const OUTBREAK_CACHE_VERSION = 9;
 const OUTBREAK_LOCAL_NEWS_MAX = 40;
 const OUTBREAK_LOCAL_NEWS_PER_COUNTRY = 8;
 const OUTBREAK_LOCAL_NEWS_COUNTRY_MAX = 6;
@@ -333,11 +333,107 @@ function sanitizeOutbreakRow(row: OutbreakRow): OutbreakRow {
     cleanOutbreakBlurb(String(row.description ?? "")) ||
     (keyFacts.length ? String(keyFacts[0]) : "") ||
     cleanOutbreakBlurb(String(row.title ?? ""));
-  return ensureOutbreakGeo({
+  return scrubConspiracyIntel(
+    ensureOutbreakGeo({
+      ...row,
+      description: description.slice(0, 300),
+      key_facts: keyFacts,
+    }),
+  );
+}
+
+type TheoryRow = { name: string; summary: string; probability: number; sources: string[] };
+type PatentRow = { number: string; title: string; assignee: string; url: string };
+
+const BLOCKED_SOURCE_HOST =
+  /^(example\.(com|org|net|edu)|localhost|127\.0\.0\.1|0\.0\.0\.0|placeholder|test|fake|sample|domain\.(com|org))$/i;
+
+function isVerifiableSourceUrl(url: string): boolean {
+  try {
+    const trimmed = url.trim();
+    if (!trimmed || trimmed === "https://" || trimmed === "http://") return false;
+    const u = new URL(trimmed);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    if (!host.includes(".") || host.length < 4) return false;
+    if (BLOCKED_SOURCE_HOST.test(host)) return false;
+    if (/example/i.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeTheoryRow(raw: {
+  name?: unknown;
+  summary?: unknown;
+  probability?: unknown;
+  sources?: unknown;
+}): TheoryRow | null {
+  const sources = (Array.isArray(raw.sources) ? raw.sources : [])
+    .map((s) => String(s).trim())
+    .filter(isVerifiableSourceUrl);
+  if (sources.length === 0) return null;
+  const name = String(raw.name ?? "").trim();
+  const summary = cleanOutbreakBlurb(String(raw.summary ?? ""));
+  if (!name || !summary) return null;
+  return {
+    name,
+    summary,
+    probability: Math.min(100, Math.max(0, Number(raw.probability ?? 0) || 0)),
+    sources,
+  };
+}
+
+function sanitizePatentRow(raw: {
+  number?: unknown;
+  title?: unknown;
+  assignee?: unknown;
+  url?: unknown;
+}): PatentRow | null {
+  const number = String(raw.number ?? "").trim();
+  const title = String(raw.title ?? "").trim();
+  if (!number || !title || number.length < 4) return null;
+  let url = String(raw.url ?? "").trim();
+  if (!isVerifiableSourceUrl(url)) {
+    const normalized = number.replace(/[^A-Z0-9]/gi, "");
+    if (/^US\d+/i.test(normalized)) {
+      url = `https://patents.google.com/patent/${normalized}`;
+    } else {
+      return null;
+    }
+  }
+  if (!url.includes("patents.google.com") && !isVerifiableSourceUrl(url)) return null;
+  return {
+    number,
+    title,
+    assignee: String(raw.assignee ?? "").trim(),
+    url,
+  };
+}
+
+/** Drop GPT-hallucinated theories/patents; conspiracy flags only when verifiable sources remain. */
+function scrubConspiracyIntel(row: OutbreakRow): OutbreakRow {
+  const theories = (Array.isArray(row.theories) ? row.theories : [])
+    .map((t) => sanitizeTheoryRow(t as TheoryRow))
+    .filter((t): t is TheoryRow => t != null);
+
+  const patents = (Array.isArray(row.patents) ? row.patents : [])
+    .map((p) => sanitizePatentRow(p as PatentRow))
+    .filter((p): p is PatentRow => p != null);
+
+  const has_conspiracy = theories.length > 0;
+  const conspiracy_score = has_conspiracy
+    ? Math.min(100, Math.max(0, Number(row.conspiracy_score ?? 0) || 0))
+    : 0;
+
+  return {
     ...row,
-    description: description.slice(0, 300),
-    key_facts: keyFacts,
-  });
+    theories,
+    patents,
+    has_conspiracy,
+    conspiracy_score,
+  };
 }
 
 function sanitizeOutbreakPayload(data: OutbreakPayload): OutbreakPayload {
@@ -398,27 +494,31 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
     // Highest conspiracy_score
     const bestScore = Math.max(...group.map((o) => Number(o.conspiracy_score ?? 0)));
 
-    // Merge theories dedup by name
+    // Merge theories dedup by name — only keep rows with verifiable source URLs
     const seenTheories = new Set<string>();
-    const allTheories: unknown[] = [];
+    const allTheories: TheoryRow[] = [];
     for (const o of group) {
-      for (const t of (Array.isArray(o.theories) ? (o.theories as Array<{ name?: string }>) : [])) {
-        const k = String(t.name ?? "").toLowerCase().slice(0, 40);
-        if (!k || seenTheories.has(k)) continue;
+      for (const t of Array.isArray(o.theories) ? o.theories : []) {
+        const clean = sanitizeTheoryRow(t as TheoryRow);
+        if (!clean) continue;
+        const k = clean.name.toLowerCase().slice(0, 40);
+        if (seenTheories.has(k)) continue;
         seenTheories.add(k);
-        allTheories.push(t);
+        allTheories.push(clean);
       }
     }
 
     // Merge patents dedup by number
     const seenPatents = new Set<string>();
-    const allPatents: unknown[] = [];
+    const allPatents: PatentRow[] = [];
     for (const o of group) {
-      for (const p of (Array.isArray(o.patents) ? (o.patents as Array<{ number?: string }>) : [])) {
-        const k = String(p.number ?? "").toLowerCase().slice(0, 20);
-        if (!k || seenPatents.has(k)) continue;
+      for (const p of Array.isArray(o.patents) ? o.patents : []) {
+        const clean = sanitizePatentRow(p as PatentRow);
+        if (!clean) continue;
+        const k = clean.number.toLowerCase().slice(0, 20);
+        if (seenPatents.has(k)) continue;
         seenPatents.add(k);
-        allPatents.push(p);
+        allPatents.push(clean);
       }
     }
 
@@ -432,8 +532,8 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
       affectedCoords: buildAffectedCoords(allCountries),
       localNews: [] as LocalNewsRow[],
       risk_level: bestRisk,
-      conspiracy_score: bestScore,
-      has_conspiracy: bestScore > 0 || Boolean(base.has_conspiracy),
+      conspiracy_score: allTheories.length > 0 ? bestScore : 0,
+      has_conspiracy: allTheories.length > 0,
       theories: allTheories,
       patents: allPatents,
       published_at: latestDate || base.published_at,
@@ -698,8 +798,8 @@ Otherwise return ONLY valid JSON:
   "lat":0.0,"lng":0.0,
   "conspiracy_score":0,
   "has_conspiracy":false,
-  "theories":[{"name":"","summary":"2-3 sentences","probability":20,"sources":["https://"]}],
-  "patents":[{"number":"US...","title":"","assignee":"","url":"https://patents.google.com/patent/..."}],
+  "theories":[],
+  "patents":[],
   "key_facts":["fact1","fact2","fact3"],
   "verdict":"NATURAL",
   "risk_level":"MEDIUM",
@@ -708,7 +808,10 @@ Otherwise return ONLY valid JSON:
 affected_countries: array of ALL currently affected countries (lowercase), up to 8.
 verdict: NATURAL|SUSPICIOUS|HIGHLY_SUSPICIOUS|UNKNOWN
 risk_level: LOW|MEDIUM|HIGH|CRITICAL
-Only cite real patent numbers and real URLs. conspiracy_score based on documented theories only.
+theories: ONLY include entries when you can cite at least one real, verifiable https URL from the source article or a known news/research domain. Each theory MUST have sources with working URLs. If no documented conspiracy narrative exists in the input, return "theories":[] and set has_conspiracy:false and conspiracy_score:0.
+patents: ONLY include real USPTO/Google Patents entries with valid patent numbers. If none found, return "patents":[].
+NEVER invent URLs, NEVER use example.com, placeholder.com, or generic https:// links.
+conspiracy_score must be 0 when theories is empty. conspiracy_score reflects documented theories only.
 disease MUST name a real infectious agent or WHO-tracked syndrome.`;
 
 type AnalysisRow = {
