@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { analyticsExcludedFingerprints } from "@/lib/analyticsExclude";
 import { pageViewsByCountrySince } from "@/lib/adminPageViewCounts";
+import { fetchPostHogAdminStats } from "@/lib/posthogAdminStats";
 
 function admin() {
   return createClient(
@@ -138,6 +139,8 @@ export async function GET() {
     unique: c.unique_viewers,
   }));
 
+  const posthog = await fetchPostHogAdminStats();
+
   return NextResponse.json({
     pageViews: {
       last24h: views24h.count ?? 0,
@@ -170,5 +173,6 @@ export async function GET() {
       topRoutes: topRoutesSorted,
       topCountries,
     },
+    posthog,
   });
 }

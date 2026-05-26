@@ -20,6 +20,8 @@ import {
   ContentSubTabBar,
   SectionHeading,
 } from "@/components/admin/AdminTabBar";
+import { PostHogAdminSection } from "@/components/admin/PostHogAdminSection";
+import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
 import { RedditRadarSection } from "@/components/admin/RedditRadarSection";
 
@@ -43,6 +45,7 @@ interface Stats {
     topRoutes: { route: string; total: number; errors: number }[];
     topCountries: { country: string; views: number; unique: number }[];
   };
+  posthog?: PostHogAdminStats;
 }
 
 interface AdminUser {
@@ -1572,6 +1575,15 @@ export default function AdminPage() {
             <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
               Traffic &amp; API
             </h2>
+
+            {/* PostHog — live product analytics */}
+            <div className="space-y-3 rounded-lg border p-4" style={{ background: cardBg, border, borderColor: "#2a1a3a" }}>
+              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: "#c94dff" }}>
+                ◈ PostHog Analytics
+              </h3>
+              <PostHogAdminSection data={stats?.posthog ?? null} />
+            </div>
+
             {stats && (
               <>
                 <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3">
