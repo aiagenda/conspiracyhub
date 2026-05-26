@@ -51,6 +51,12 @@ function countryLabel(country: string): string {
     .join(" ");
 }
 
+/** Map label shown next to spread dots — full names up to 18 chars. */
+function mapMarkerLabel(country: string, isOrigin: boolean, disease: string): string {
+  if (isOrigin) return disease.toUpperCase().slice(0, 16);
+  return countryLabel(country).toUpperCase().slice(0, 18);
+}
+
 const ARROW_IDS: Array<[string, string]> = [
   ["ob-arrow-ff3333", "#ff3333"],
   ["ob-arrow-ff6633", "#ff6633"],
@@ -102,7 +108,7 @@ type ObMapTooltip = {
   isOrigin: boolean;
 };
 
-/** Queued for D3 paint: lines drawn first, then all markers on top. */
+/** Queued for D3 paint: markers placed first, spread lines drawn after collision resolve. */
 type ObMapMarkerDraw = {
   o: Outbreak;
   x: number;
@@ -391,23 +397,75 @@ function obSpreadArrowAttr(k: number): number {
   return obSpreadArrowVisual(k) / obZoomK(k);
 }
 
-/**
- * Shorten the bezier endpoint so the arrowhead tip lands at the dot edge,
- * not the centre. All coordinates are in geoG SVG space.
- */
-function obLineEndpoint(
-  x2: number, y2: number,
-  qx: number, qy: number,
-  dotR: number, zoomK: number,
+type SpreadLineGeo = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  originR: number;
+  destR: number;
+  curveSide: number;
+};
+
+function readSpreadLineGeo(node: Element): SpreadLineGeo {
+  const el = d3.select(node);
+  return {
+    x1: Number(el.attr("data-x1")) || 0,
+    y1: Number(el.attr("data-y1")) || 0,
+    x2: Number(el.attr("data-x2")) || 0,
+    y2: Number(el.attr("data-y2")) || 0,
+    originR: Number(el.attr("data-origin-r")) || 4,
+    destR: Number(el.attr("data-dest-r")) || 4,
+    curveSide: Number(el.attr("data-curve-side")) || 1,
+  };
+}
+
+function writeSpreadLineGeo(
+  el: d3.Selection<SVGPathElement, unknown, null, undefined>,
+  geo: SpreadLineGeo,
+) {
+  el
+    .attr("data-x1", geo.x1)
+    .attr("data-y1", geo.y1)
+    .attr("data-x2", geo.x2)
+    .attr("data-y2", geo.y2)
+    .attr("data-origin-r", geo.originR)
+    .attr("data-dest-r", geo.destR)
+    .attr("data-curve-side", geo.curveSide);
+}
+
+/** Offset a line endpoint from dot centre toward/away from the bezier control point. */
+function obLineOffsetFromCenter(
+  cx: number,
+  cy: number,
+  qx: number,
+  qy: number,
+  dotR: number,
+  zoomK: number,
+  mode: "outward" | "inward",
 ): [number, number] {
-  const dx = x2 - qx;
-  const dy = y2 - qy;
+  const dx = mode === "outward" ? qx - cx : cx - qx;
+  const dy = mode === "outward" ? qy - cy : cy - qy;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  // clearance = dot radius + a tiny gap, converted to geoG units
-  const clearance = (dotR + 2) / zoomK;
-  if (clearance >= len) return [x2, y2]; // too short to offset
-  const t = clearance / len;
-  return [x2 - dx * t, y2 - dy * t];
+  const clearance = (dotR + 2) / obZoomK(zoomK);
+  if (clearance >= len) return [cx, cy];
+  return [cx + (dx / len) * clearance, cy + (dy / len) * clearance];
+}
+
+function obSpreadPathD(geo: SpreadLineGeo, zoomK: number): string {
+  const { x1, y1, x2, y2, originR, destR, curveSide } = geo;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const perpX = -dy / len;
+  const perpY = dx / len;
+  const k = obZoomK(zoomK);
+  const curve = curveSide * Math.min(len * 0.18, 20 / Math.sqrt(k));
+  const qx = (x1 + x2) / 2 + perpX * curve;
+  const qy = (y1 + y2) / 2 + perpY * curve;
+  const [sx, sy] = obLineOffsetFromCenter(x1, y1, qx, qy, originR, k, "outward");
+  const [ex, ey] = obLineOffsetFromCenter(x2, y2, qx, qy, destR, k, "inward");
+  return `M${sx},${sy} Q${qx},${qy} ${ex},${ey}`;
 }
 
 function obMarkerLabelVisible(
@@ -429,6 +487,13 @@ function applyObSpreadScale(
   linesG: d3.Selection<SVGGElement, unknown, null, undefined>,
   k: number,
 ) {
+  const updatePath = function (this: SVGPathElement) {
+    if (!this.getAttribute("data-x1")) return;
+    d3.select(this).attr("d", obSpreadPathD(readSpreadLineGeo(this), k));
+  };
+
+  linesG.selectAll<SVGPathElement, unknown>("path[data-x1]").each(updatePath);
+
   linesG
     .selectAll<SVGPathElement, unknown>("path.ob-line")
     .attr("stroke-width", function () {
@@ -438,7 +503,7 @@ function applyObSpreadScale(
     .attr("stroke-dasharray", function () {
       if (d3.select(this).attr("data-dashed") !== "1") return null;
       const dashAttr = obSpreadVisualWidth(4, k) / obZoomK(k);
-      const gapAttr  = obSpreadVisualWidth(3, k) / obZoomK(k);
+      const gapAttr = obSpreadVisualWidth(3, k) / obZoomK(k);
       return `${dashAttr} ${gapAttr}`;
     });
 
@@ -455,10 +520,66 @@ function applyObSpreadScale(
   svg
     .selectAll<SVGMarkerElement, unknown>("marker[id^='ob-arrow-']")
     .attr("markerUnits", "userSpaceOnUse")
-    .attr("markerWidth",  arrowAttr)
+    .attr("markerWidth", arrowAttr)
     .attr("markerHeight", arrowAttr)
     .attr("refX", refX)
     .attr("refY", refY);
+}
+
+function appendSpreadLinePair(
+  linesG: d3.Selection<SVGGElement, unknown, null, undefined>,
+  geo: SpreadLineGeo,
+  opts: {
+    outbreakId: string;
+    col: string;
+    lineWidth: number;
+    opacity: number;
+    isSel: boolean;
+    zoomK: number;
+  },
+) {
+  const { outbreakId, col, lineWidth, opacity, isSel, zoomK } = opts;
+  const pathD = obSpreadPathD(geo, zoomK);
+  const dashAttr = obSpreadVisualWidth(4, zoomK) / obZoomK(zoomK);
+  const gapAttr = obSpreadVisualWidth(3, zoomK) / obZoomK(zoomK);
+  const lineId = `${outbreakId}-${geo.x2.toFixed(1)}-${geo.y2.toFixed(1)}`;
+
+  if (opacity > 0) {
+    const glow = linesG
+      .append("path")
+      .attr("class", "ob-glow")
+      .attr("data-line-id", lineId)
+      .attr("data-outbreak-id", outbreakId)
+      .attr("data-base-width", lineWidth);
+    writeSpreadLineGeo(glow, geo);
+    glow
+      .attr("d", pathD)
+      .attr("fill", "none")
+      .attr("stroke", col)
+      .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 3.5, zoomK))
+      .attr("stroke-opacity", isSel ? 0.12 : 0.06)
+      .attr("stroke-linecap", "round")
+      .style("pointer-events", "none");
+  }
+
+  const line = linesG
+    .append("path")
+    .attr("class", "ob-line")
+    .attr("data-line-id", lineId)
+    .attr("data-outbreak-id", outbreakId)
+    .attr("data-base-width", lineWidth)
+    .attr("data-dashed", isSel ? "0" : "1");
+  writeSpreadLineGeo(line, geo);
+  line
+    .attr("d", pathD)
+    .attr("fill", "none")
+    .attr("stroke", col)
+    .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
+    .attr("stroke-opacity", opacity)
+    .attr("stroke-linecap", "round")
+    .attr("stroke-dasharray", isSel ? null : `${dashAttr} ${gapAttr}`)
+    .attr("marker-end", opacity > 0 ? `url(#${arrowMarkerId(col)})` : "none")
+    .style("pointer-events", opacity > 0 ? "stroke" : "none");
 }
 
 function outbreakMapVisible(outbreakId: string, selectedId: string | null): boolean {
@@ -551,71 +672,9 @@ function WorldMap({
       const col = RISK_COL(o.risk_level, o.conspiracy_score);
       const isSel = o.id === selectedId;
       const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
-      const lineStyle = obLineStyle(o.id, selectedId);
-
-      const lineWidth = isSel ? lineStyle.width + 0.4 : lineStyle.width;
-      const zoomK = zoomTransformRef.current.k || 1;
 
       const slots = collectSpreadMarkerSlots(o, proj);
       if (!slots.length) continue;
-
-      if (slots.length > 1) {
-        const [x1, y1] = [slots[0].x, slots[0].y];
-        for (let i = 1; i < slots.length; i++) {
-          const { x: x2, y: y2, dotR: destDotR } = { ...slots[i], dotR: Math.max(4, r - 2) };
-          const mx = (x1 + x2) / 2;
-          const my = (y1 + y2) / 2;
-          const dx = x2 - x1;
-          const dy = y2 - y1;
-          const len = Math.sqrt(dx * dx + dy * dy) || 1;
-          const perpX = -dy / len;
-          const perpY = dx / len;
-          // Alternate curve side per spread index to avoid pile-up
-          const curveSide = i % 2 === 0 ? -1 : 1;
-          const curve = curveSide * Math.min(len * 0.18, 20 / Math.sqrt(zoomK));
-          const qx = mx + perpX * curve;
-          const qy = my + perpY * curve;
-
-          // Shorten endpoint so arrow tip lands at the dot edge, not the centre
-          const [ex, ey] = obLineEndpoint(x2, y2, qx, qy, destDotR, zoomK);
-
-          const pathD = `M${x1},${y1} Q${qx},${qy} ${ex},${ey}`;
-          const dashAttr = obSpreadVisualWidth(4, zoomK) / zoomK;
-          const gapAttr  = obSpreadVisualWidth(3, zoomK) / zoomK;
-
-          if (lineStyle.opacity > 0) {
-            // Glow layer underneath
-            linesG
-              .append("path")
-              .attr("class", "ob-glow")
-              .attr("data-outbreak-id", o.id)
-              .attr("data-base-width", lineWidth)
-              .attr("d", pathD)
-              .attr("fill", "none")
-              .attr("stroke", col)
-              .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 3.5, zoomK))
-              .attr("stroke-opacity", isSel ? 0.12 : 0.06)
-              .attr("stroke-linecap", "round")
-              .style("pointer-events", "none");
-          }
-
-          linesG
-            .append("path")
-            .attr("class", "ob-line")
-            .attr("data-outbreak-id", o.id)
-            .attr("data-base-width", lineWidth)
-            .attr("data-dashed", isSel ? "0" : "1")
-            .attr("d", pathD)
-            .attr("fill", "none")
-            .attr("stroke", col)
-            .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
-            .attr("stroke-opacity", lineStyle.opacity)
-            .attr("stroke-linecap", "round")
-            .attr("stroke-dasharray", isSel ? null : `${dashAttr} ${gapAttr}`)
-            .attr("marker-end", lineStyle.opacity > 0 ? `url(#${arrowMarkerId(col)})` : "none")
-            .style("pointer-events", lineStyle.opacity > 0 ? "stroke" : "none");
-        }
-      }
 
       for (let pi = 0; pi < slots.length; pi++) {
         const { x, y, country, isOrigin } = slots[pi];
@@ -625,29 +684,78 @@ function WorldMap({
       }
     }
 
-    const MIN_DIST = 18;
+    const zoomK = zoomTransformRef.current.k || 1;
+    const minDist = 18 / obZoomK(zoomK);
     for (let i = 0; i < markerQueue.length; i++) {
       for (let j = i + 1; j < markerQueue.length; j++) {
         const a = markerQueue[i];
         const b = markerQueue[j];
+        if (a.o.id !== b.o.id) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < MIN_DIST && dist > 0) {
-          const push = (MIN_DIST - dist) / 2 + 1;
+        if (dist < minDist && dist > 0) {
+          const push = (minDist - dist) / 2 + 1;
           const nx = dx / dist;
           const ny = dy / dist;
           markerQueue[i] = { ...a, x: a.x - nx * push, y: a.y - ny * push };
           markerQueue[j] = { ...b, x: b.x + nx * push, y: b.y + ny * push };
         } else if (dist === 0) {
           const angle = (j * Math.PI * 2) / markerQueue.length;
-          markerQueue[j] = { ...b, x: b.x + Math.cos(angle) * MIN_DIST, y: b.y + Math.sin(angle) * MIN_DIST };
+          markerQueue[j] = {
+            ...b,
+            x: b.x + Math.cos(angle) * minDist,
+            y: b.y + Math.sin(angle) * minDist,
+          };
         }
       }
     }
 
+    const byOutbreak = new Map<string, ObMapMarkerDraw[]>();
+    for (const m of markerQueue) {
+      const arr = byOutbreak.get(m.o.id) ?? [];
+      arr.push(m);
+      byOutbreak.set(m.o.id, arr);
+    }
+
+    for (const [outbreakId, markers] of byOutbreak) {
+      const origin = markers.find((m) => m.isOrigin);
+      if (!origin) continue;
+      const spreads = markers.filter((m) => !m.isOrigin);
+      if (!spreads.length) continue;
+
+      const lineStyle = obLineStyle(outbreakId, selectedId);
+      if (lineStyle.opacity <= 0) continue;
+      const isSel = outbreakId === selectedId;
+      const lineWidth = isSel ? lineStyle.width + 0.4 : lineStyle.width;
+
+      for (let i = 0; i < spreads.length; i++) {
+        const dest = spreads[i];
+        appendSpreadLinePair(
+          linesG,
+          {
+            x1: origin.x,
+            y1: origin.y,
+            x2: dest.x,
+            y2: dest.y,
+            originR: origin.dotR,
+            destR: dest.dotR,
+            curveSide: i % 2 === 0 ? -1 : 1,
+          },
+          {
+            outbreakId,
+            col: origin.col,
+            lineWidth,
+            opacity: lineStyle.opacity,
+            isSel,
+            zoomK,
+          },
+        );
+      }
+    }
+
     const markerData: ObMarkerDatum[] = markerQueue.map((m) => ({ ...m }));
-    const k = zoomTransformRef.current.k || 1;
+    const k = zoomK;
 
     const mg = markersG
       .selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker")
@@ -710,9 +818,7 @@ function WorldMap({
         });
 
       const labelX = d.dotR + 3 + 10;
-      const labelText = d.isOrigin
-        ? d.o.disease.toUpperCase().slice(0, 14)
-        : countryLabel(d.country).toUpperCase().slice(0, 12);
+      const labelText = mapMarkerLabel(d.country, d.isOrigin, d.o.disease);
       group
         .append("text")
         .attr("class", "ob-label")
