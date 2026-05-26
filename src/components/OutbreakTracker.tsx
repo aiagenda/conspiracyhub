@@ -83,15 +83,36 @@ type Outbreak = {
   merged_count?: number;
 };
 
+function outbreakOrigin(o: Outbreak): string {
+  return (o.origin_country || o.location || "").toLowerCase();
+}
+
+type ObMapTooltip = {
+  x: number;
+  y: number;
+  o: Outbreak;
+  country: string;
+  isOrigin: boolean;
+};
+
 /** Queued for D3 paint: lines drawn first, then all markers on top. */
 type ObMapMarkerDraw = {
   o: Outbreak;
   x: number;
   y: number;
   isPrimary: boolean;
+  country: string;
+  isOrigin: boolean;
   dotR: number;
   col: string;
   isSel: boolean;
+};
+
+type SpreadMarkerSlot = {
+  x: number;
+  y: number;
+  country: string;
+  isOrigin: boolean;
 };
 
 const RISK_COL = (risk:string, score:number) => {
@@ -297,10 +318,10 @@ function isSameGeo(aLat: number, aLng: number, bLat: number, bLng: number): bool
 }
 
 /** Origin + unique affected-country screen positions for spread lines. */
-function collectSpreadPositions(
+function collectSpreadMarkerSlots(
   o: Outbreak,
   proj: d3.GeoProjection,
-): Array<[number, number]> {
+): SpreadMarkerSlot[] {
   const lat = Number(o.lat);
   const lng = Number(o.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
@@ -308,15 +329,20 @@ function collectSpreadPositions(
   const mainPos = proj([lng, lat]);
   if (!mainPos) return [];
 
-  const positions: Array<[number, number]> = [[mainPos[0], mainPos[1]]];
+  const origin = outbreakOrigin(o);
+  const slots: SpreadMarkerSlot[] = [
+    { x: mainPos[0], y: mainPos[1], country: origin, isOrigin: true },
+  ];
+
   for (const ac of o.affectedCoords ?? []) {
     if (isSameGeo(ac.lat, lat, ac.lng, lng)) continue;
     const ap = proj([ac.lng, ac.lat]);
     if (!ap) continue;
-    const dup = positions.some(([px, py]) => Math.hypot(px - ap[0], py - ap[1]) < 6);
-    if (!dup) positions.push([ap[0], ap[1]]);
+    const country = (ac.country || "").toLowerCase();
+    const dup = slots.some((s) => Math.hypot(s.x - ap[0], s.y - ap[1]) < 6);
+    if (!dup) slots.push({ x: ap[0], y: ap[1], country, isOrigin: false });
   }
-  return positions;
+  return slots;
 }
 
 function obLineStyle(
@@ -336,34 +362,44 @@ function outbreakMapVisible(outbreakId: string, selectedId: string | null): bool
 function applyObMarkerStyles(
   g: d3.Selection<SVGGElement, ObMarkerDatum, SVGGElement, unknown>,
   selectedId: string | null,
+  focusCountry: string | null,
 ) {
   g.each(function (d) {
     const isSel = d.o.id === selectedId;
+    const isFocused = isSel && focusCountry != null && d.country === focusCountry;
     const node = d3.select(this);
     const visible = outbreakMapVisible(d.o.id, selectedId);
     node.style("display", visible ? "" : "none");
     node.style("opacity", visible ? (selectedId ? "1" : isSel ? "1" : "0.82") : "0");
     node
       .select(".ob-rim")
-      .attr("stroke-width", isSel && d.isPrimary ? 2.2 : 1.4);
+      .attr("stroke-width", isFocused ? 2.2 : isSel && d.isPrimary ? 2.2 : 1.4);
     node
       .select(".ob-dot")
-      .attr("r", isSel && d.isPrimary ? d.dotR + 1.5 : d.dotR)
-      .attr("stroke-width", isSel && d.isPrimary ? 1.4 : 1);
+      .attr("r", isFocused ? d.dotR + 1.5 : isSel && d.isPrimary ? d.dotR + 1.5 : d.dotR)
+      .attr("stroke-width", isFocused ? 1.4 : isSel && d.isPrimary ? 1.4 : 1);
     node
       .select(".ob-label")
-      .style("display", d.isPrimary && (isSel || !selectedId || d.o.conspiracy_score >= 65) ? "block" : "none");
+      .style(
+        "display",
+        isFocused ||
+          (d.isPrimary && (isSel || !selectedId || d.o.conspiracy_score >= 65))
+          ? "block"
+          : "none",
+      );
   });
 }
 
 function WorldMap({
   outbreaks,
   selected,
+  focusCountry,
   onSelect,
 }: {
   outbreaks: Outbreak[];
   selected: Outbreak | null;
-  onSelect: (o: Outbreak) => void;
+  focusCountry: string | null;
+  onSelect: (o: Outbreak, country?: string) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
@@ -371,13 +407,15 @@ function WorldMap({
   const worldRef = useRef<unknown>(null);
   const outbreaksRef = useRef(outbreaks);
   const selectedIdRef = useRef<string | null>(selected?.id ?? null);
+  const focusCountryRef = useRef<string | null>(focusCountry);
   const onSelectRef = useRef(onSelect);
-  const setTooltipRef = useRef<(t: { x: number; y: number; o: Outbreak } | null) => void>(() => {});
+  const setTooltipRef = useRef<(t: ObMapTooltip | null) => void>(() => {});
   const [world, setWorld] = useState<unknown>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; o: Outbreak } | null>(null);
+  const [tooltip, setTooltip] = useState<ObMapTooltip | null>(null);
 
   outbreaksRef.current = outbreaks;
   selectedIdRef.current = selected?.id ?? null;
+  focusCountryRef.current = focusCountry;
   onSelectRef.current = onSelect;
   setTooltipRef.current = setTooltip;
   worldRef.current = world;
@@ -389,7 +427,7 @@ function WorldMap({
       .catch(() => {});
   }, []);
 
-  const paintMarkers = useCallback((ctx: ObMapCtx, selectedId: string | null) => {
+  const paintMarkers = useCallback((ctx: ObMapCtx, selectedId: string | null, focus: string | null) => {
     const { linesG, markersG, proj } = ctx;
     const list = outbreaksRef.current;
 
@@ -410,14 +448,13 @@ function WorldMap({
       const r = Math.max(6, 5 + Math.min(7, (o.conspiracy_score || 0) / 10));
       const lineStyle = obLineStyle(o.id, selectedId);
 
-      const allPositions = collectSpreadPositions(o, proj);
-      if (!allPositions.length) continue;
+      const slots = collectSpreadMarkerSlots(o, proj);
+      if (!slots.length) continue;
 
-      if (allPositions.length > 1) {
-        for (let i = 1; i < allPositions.length; i++) {
-          const [x1, y1] = allPositions[0];
-          const [x2, y2] = allPositions[i];
-          // Curved quadratic bezier arc
+      if (slots.length > 1) {
+        const [x1, y1] = [slots[0].x, slots[0].y];
+        for (let i = 1; i < slots.length; i++) {
+          const { x: x2, y: y2 } = slots[i];
           const mx = (x1 + x2) / 2;
           const my = (y1 + y2) / 2;
           const dx = x2 - x1;
@@ -443,11 +480,11 @@ function WorldMap({
         }
       }
 
-      for (let pi = 0; pi < allPositions.length; pi++) {
-        const [x, y] = allPositions[pi];
+      for (let pi = 0; pi < slots.length; pi++) {
+        const { x, y, country, isOrigin } = slots[pi];
         const isPrimary = pi === 0;
         const dotR = isPrimary ? r : Math.max(4, r - 2);
-        markerQueue.push({ o, x, y, isPrimary, dotR, col, isSel });
+        markerQueue.push({ o, x, y, isPrimary, country, isOrigin, dotR, col, isSel });
       }
     }
 
@@ -476,7 +513,7 @@ function WorldMap({
 
     const mg = markersG
       .selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker")
-      .data(markerData, (d) => `${d.o.id}-${d.isPrimary ? "p" : "s"}`)
+      .data(markerData, (d) => `${d.o.id}-${d.country}-${d.isOrigin ? "o" : "s"}`)
       .join("g")
       .attr("class", "ob-marker")
       .attr("data-outbreak-id", (d) => d.o.id)
@@ -519,7 +556,13 @@ function WorldMap({
         .attr("stroke-width", d.isSel && d.isPrimary ? 1.4 : 1)
         .style("cursor", "pointer")
         .on("mouseenter", function (event) {
-          setTooltipRef.current({ x: event.offsetX, y: event.offsetY, o: d.o });
+          setTooltipRef.current({
+            x: event.offsetX,
+            y: event.offsetY,
+            o: d.o,
+            country: d.country,
+            isOrigin: d.isOrigin,
+          });
           d3.select(this).attr("fill-opacity", "1");
         })
         .on("mouseleave", function () {
@@ -528,10 +571,13 @@ function WorldMap({
         })
         .on("click", (event) => {
           event.stopPropagation();
-          onSelectRef.current(d.o);
+          onSelectRef.current(d.o, d.country);
         });
 
       const labelX = d.dotR + 3 + 10;
+      const labelText = d.isOrigin
+        ? d.o.disease.toUpperCase().slice(0, 14)
+        : countryLabel(d.country).toUpperCase().slice(0, 12);
       group
         .append("text")
         .attr("class", "ob-label")
@@ -547,18 +593,24 @@ function WorldMap({
         .attr("stroke", "#030806")
         .attr("stroke-width", 3)
         .attr("stroke-opacity", 0.85)
-        .text(d.o.disease.toUpperCase().slice(0, 14))
-        .style("display", d.isPrimary && (d.isSel || d.o.conspiracy_score >= 65) ? "block" : "none");
+        .text(labelText)
+        .style(
+          "display",
+          (focus === d.country && d.isSel) ||
+            (d.isPrimary && (d.isSel || !selectedId || d.o.conspiracy_score >= 65))
+            ? "block"
+            : "none",
+        );
     });
 
-    applyObMarkerStyles(mg, selectedId);
+    applyObMarkerStyles(mg, selectedId, focus);
   }, []);
 
   const updateSelectionOnly = useCallback(
-    (selectedId: string | null) => {
+    (selectedId: string | null, focus: string | null) => {
       const ctx = mapCtxRef.current;
       if (!ctx) return;
-      paintMarkers(ctx, selectedId);
+      paintMarkers(ctx, selectedId, focus);
     },
     [paintMarkers],
   );
@@ -704,7 +756,7 @@ function WorldMap({
 
     const ctx: ObMapCtx = { svg, geoG, linesG, markersG, proj, W, H, zoom };
     mapCtxRef.current = ctx;
-    paintMarkers(ctx, selectedIdRef.current);
+    paintMarkers(ctx, selectedIdRef.current, focusCountryRef.current);
   }, [paintMarkers]);
 
   useEffect(() => {
@@ -726,12 +778,12 @@ function WorldMap({
   useEffect(() => {
     const ctx = mapCtxRef.current;
     if (!ctx) return;
-    paintMarkers(ctx, selectedIdRef.current);
+    paintMarkers(ctx, selectedIdRef.current, focusCountryRef.current);
   }, [outbreaks, paintMarkers]);
 
   useEffect(() => {
-    updateSelectionOnly(selected?.id ?? null);
-  }, [selected?.id, updateSelectionOnly]);
+    updateSelectionOnly(selected?.id ?? null, focusCountry);
+  }, [selected?.id, focusCountry, updateSelectionOnly]);
 
   return (
     <div
@@ -758,14 +810,21 @@ function WorldMap({
       {tooltip && (
         <div style={{position:"absolute",left:tooltip.x+12,top:tooltip.y-20,background:"#090f0b",border:`1px solid ${RISK_COL(tooltip.o.risk_level,tooltip.o.conspiracy_score)}`,borderRadius:3,padding:"8px 10px",pointerEvents:"none",zIndex:20,maxWidth:240}}>
           <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e8ffe8",marginBottom:2}}>
-            {countryFlag(tooltip.o.origin_country || tooltip.o.location)} {tooltip.o.disease}
+            {countryFlag(tooltip.country)} {tooltip.o.disease}
           </div>
-          <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginBottom:4}}>{countryLabel(tooltip.o.origin_country || tooltip.o.location).toUpperCase()}</div>
+          <div style={{fontSize:9,color:"#5a8068",letterSpacing:1,marginBottom:4}}>{countryLabel(tooltip.country).toUpperCase()}</div>
+          {tooltip.isOrigin ? (
+            <div style={{fontSize:9,color:"#ff6633",marginBottom:5,letterSpacing:1}}>ORIGIN</div>
+          ) : (
+            <div style={{fontSize:9,color:"#3a5040",marginBottom:5,letterSpacing:0.5}}>
+              SPREAD · from {countryFlag(outbreakOrigin(tooltip.o))} {countryLabel(outbreakOrigin(tooltip.o))}
+            </div>
+          )}
           {(tooltip.o.affected_countries ?? []).length > 1 && (
             <div style={{fontSize:9,color:"#3a5040",marginBottom:5,letterSpacing:0.5}}>
-              {countryFlag(tooltip.o.origin_country||tooltip.o.location)} →{" "}
+              {countryFlag(outbreakOrigin(tooltip.o))} →{" "}
               {(tooltip.o.affected_countries ?? [])
-                .filter(c => c !== (tooltip.o.origin_country||tooltip.o.location))
+                .filter(c => c !== outbreakOrigin(tooltip.o))
                 .slice(0,3)
                 .map(c => countryFlag(c))
                 .join(" ")}
@@ -792,7 +851,14 @@ function WorldMap({
         }}
       >
         {selected
-          ? `◈ ${selected.disease.toUpperCase()} — ${countryLabel(selected.origin_country || selected.location)} origin · curved arrows show spread direction`
+          ? (() => {
+              const origin = outbreakOrigin(selected);
+              const focus = (focusCountry ?? origin).toLowerCase();
+              const isOrigin = focus === origin;
+              return isOrigin
+                ? `◈ ${selected.disease.toUpperCase()} — ${countryLabel(origin)} origin · curved arrows show spread direction`
+                : `◈ ${selected.disease.toUpperCase()} — ${countryLabel(focus)} · spread from ${countryLabel(origin)}`;
+            })()
           : "◈ Curved arrows show spread direction from origin · click any dot to isolate its network"}
       </div>
     </div>
@@ -960,12 +1026,14 @@ function OutbreakCard({
 // ── OUTBREAK DETAIL ────────────────────────────────────────────
 type OutbreakDetailVariant = "sidebar" | "inline-preview" | "inline-full";
 
-function OutbreakLocalNews({ o }: { o: Outbreak }) {
+function OutbreakLocalNews({ o, focusCountry }: { o: Outbreak; focusCountry?: string | null }) {
   if (!o.localNews?.length) return null;
 
-  const origin = (o.origin_country || o.location || "").toLowerCase();
+  const origin = outbreakOrigin(o);
+  const focus = (focusCountry ?? origin).toLowerCase();
   const countryOrder = [
     ...new Set([
+      focus,
       origin,
       ...(o.affected_countries ?? []).map((c) => c.toLowerCase()),
       ...o.localNews.map((n) => (n.country ?? "").toLowerCase()).filter(Boolean),
@@ -1033,6 +1101,7 @@ function OutbreakLocalNews({ o }: { o: Outbreak }) {
         const items = grouped.get(country);
         if (!items?.length) return null;
         const isOrigin = country === origin;
+        const isFocused = country === focus;
         return (
           <div key={country} style={{ marginBottom: 16 }}>
             <div
@@ -1042,16 +1111,24 @@ function OutbreakLocalNews({ o }: { o: Outbreak }) {
                 gap: 6,
                 marginBottom: 8,
                 paddingBottom: 6,
-                borderBottom: "1px solid #1a3320",
+                borderBottom: isFocused ? "1px solid rgba(255,102,51,0.35)" : "1px solid #1a3320",
+                background: isFocused ? "rgba(255,102,51,0.04)" : undefined,
+                borderRadius: isFocused ? 3 : undefined,
+                padding: isFocused ? "6px 8px" : undefined,
               }}
             >
               <span style={{ fontSize: 16 }}>{countryFlag(country)}</span>
-              <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: isOrigin ? "#ff9966" : "#7aaa8a" }}>
+              <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: isOrigin ? "#ff9966" : isFocused ? "#e8ffe8" : "#7aaa8a" }}>
                 {countryLabel(country)}
               </span>
               {isOrigin && (
                 <span style={{ fontSize: 9, color: "#ff6633", border: "1px solid rgba(255,102,51,0.35)", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>
                   ORIGIN
+                </span>
+              )}
+              {!isOrigin && isFocused && (
+                <span style={{ fontSize: 9, color: "#ffaa00", border: "1px solid rgba(255,170,0,0.35)", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>
+                  SELECTED
                 </span>
               )}
               <span style={{ marginLeft: "auto", fontSize: 10, color: "#3a5040", fontFamily: FONT }}>
@@ -1164,11 +1241,13 @@ function OutbreakPatents({ o }: { o: Outbreak }) {
 
 function OutbreakDetail({
   o,
+  focusCountry,
   variant = "sidebar",
   onExpand,
   onCollapse,
 }: {
   o: Outbreak;
+  focusCountry?: string | null;
   variant?: OutbreakDetailVariant;
   onExpand?: () => void;
   onCollapse?: () => void;
@@ -1179,6 +1258,9 @@ function OutbreakDetail({
   const isInline = variant.startsWith("inline");
   const isPreview = variant === "inline-preview";
   const useCollapsible = variant === "inline-full";
+  const origin = outbreakOrigin(o);
+  const focus = (focusCountry ?? origin).toLowerCase();
+  const isFocusOrigin = focus === origin;
 
   const sectionChips = [
     o.localNews?.length ? { label: `◉ ${o.localNews.length} LOCAL NEWS`, color: "#00bb66" } : null,
@@ -1226,10 +1308,20 @@ function OutbreakDetail({
       {!isInline ? (
         <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a3320", background: "#050c07" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 22 }}>{countryFlag(o.origin_country || o.location)}</span>
+            <span style={{ fontSize: 22 }}>{countryFlag(focus)}</span>
             <div>
               <div style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#e8ffe8", lineHeight: 1.2 }}>
                 {o.disease}
+              </div>
+              <div style={{ fontSize: 11, color: isFocusOrigin ? "#ff9966" : "#7aaa8a", letterSpacing: 1, marginTop: 2 }}>
+                {countryLabel(focus)}
+                {isFocusOrigin ? (
+                  <span style={{ fontSize: 9, color: "#ff6633", marginLeft: 8, letterSpacing: 2 }}>ORIGIN</span>
+                ) : (
+                  <span style={{ fontSize: 9, color: "#5a8068", marginLeft: 8, letterSpacing: 1 }}>
+                    SPREAD from {countryFlag(origin)} {countryLabel(origin)}
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 9, color: "#3a5040", letterSpacing: 2, textTransform: "uppercase" }}>
                 WHO DISEASE DOSSIER
@@ -1256,22 +1348,25 @@ function OutbreakDetail({
           </div>
           {/* Spread chain header */}
           {(() => {
-            const origin = (o.origin_country || o.location || "").toLowerCase();
-            const spread = (o.affected_countries ?? []).filter((c) => c !== origin);
+            const spread = (o.affected_countries ?? []).filter((c) => c.toLowerCase() !== origin);
             if (!spread.length) return null;
             return (
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", padding: "8px 10px", background: "rgba(255,102,51,0.04)", border: "1px solid rgba(255,102,51,0.12)", borderRadius: 3 }}>
                 <span style={{ fontSize: 9, color: "#ff6633", letterSpacing: 2, marginRight: 4 }}>SPREAD</span>
                 <span style={{ fontSize: 13 }}>{countryFlag(origin)}</span>
-                <span style={{ fontSize: 11, color: "#ff6633", fontFamily: RAJ }}>{countryLabel(origin)}</span>
+                <span style={{ fontSize: 11, color: origin === focus ? "#ff9966" : "#ff6633", fontFamily: RAJ, fontWeight: origin === focus ? 700 : 400 }}>{countryLabel(origin)}</span>
                 <span style={{ color: "#ff6633", fontSize: 12, opacity: 0.5, marginInline: 2 }}>→</span>
-                {spread.map((c, i) => (
+                {spread.map((c, i) => {
+                  const ck = c.toLowerCase();
+                  const isFocused = ck === focus;
+                  return (
                   <span key={c} style={{ display: "flex", alignItems: "center", gap: 3 }}>
                     {i > 0 && <span style={{ color: "#1a3320", fontSize: 11 }}>·</span>}
                     <span style={{ fontSize: 13 }}>{countryFlag(c)}</span>
-                    <span style={{ fontSize: 11, color: "#7aaa8a", fontFamily: RAJ }}>{countryLabel(c)}</span>
+                    <span style={{ fontSize: 11, color: isFocused ? "#e8ffe8" : "#7aaa8a", fontFamily: RAJ, fontWeight: isFocused ? 700 : 400 }}>{countryLabel(c)}</span>
                   </span>
-                ))}
+                  );
+                })}
               </div>
             );
           })()}
@@ -1347,33 +1442,34 @@ function OutbreakDetail({
 
             {/* Spread Network diagram (full body, not just header) */}
             {(() => {
-              const origin = (o.origin_country || o.location || "").toLowerCase();
-              const spread = (o.affected_countries ?? []).filter((c) => c !== origin);
+              const spread = (o.affected_countries ?? []).filter((c) => c.toLowerCase() !== origin);
               if (!spread.length) return null;
+              const originFocused = isFocusOrigin;
               return (
                 <div>
                   <div style={{ fontSize: 10, color: "#ff6633", letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>
                     ◈ Spread Network — {(o.affected_countries ?? []).length} affected countries
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {/* Origin node */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "rgba(255,102,51,0.06)", border: "1px solid rgba(255,102,51,0.2)", borderRadius: 3 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: originFocused ? "rgba(255,102,51,0.12)" : "rgba(255,102,51,0.06)", border: originFocused ? "1px solid rgba(255,102,51,0.45)" : "1px solid rgba(255,102,51,0.2)", borderRadius: 3 }}>
                       <span style={{ fontSize: 9, color: "#ff6633", border: "1px solid rgba(255,102,51,0.4)", padding: "1px 5px", borderRadius: 2, letterSpacing: 1, flexShrink: 0 }}>ORIGIN</span>
                       <span style={{ fontSize: 18 }}>{countryFlag(origin)}</span>
                       <span style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#ff9966" }}>{countryLabel(origin)}</span>
                     </div>
-                    {/* Vertical connector */}
                     <div style={{ paddingLeft: 18, display: "flex", flexDirection: "column", gap: 0, borderLeft: "1px dashed rgba(255,102,51,0.2)", marginLeft: 16 }}>
-                      {spread.map((c, i) => (
+                      {spread.map((c) => {
+                        const ck = c.toLowerCase();
+                        const isFocused = ck === focus;
+                        return (
                         <div key={c} style={{ position: "relative" }}>
-                          {i < spread.length - 1 ? null : null}
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", marginBottom: 4, background: "rgba(90,128,104,0.04)", border: "1px solid #1a3320", borderRadius: 3, marginLeft: -1 }}>
-                            <span style={{ fontSize: 9, color: "#5a8068", border: "1px solid #1a3320", padding: "1px 5px", borderRadius: 2, letterSpacing: 1, flexShrink: 0 }}>→ SPREAD</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", marginBottom: 4, background: isFocused ? "rgba(255,170,0,0.08)" : "rgba(90,128,104,0.04)", border: isFocused ? "1px solid rgba(255,170,0,0.35)" : "1px solid #1a3320", borderRadius: 3, marginLeft: -1 }}>
+                            <span style={{ fontSize: 9, color: isFocused ? "#ffaa00" : "#5a8068", border: `1px solid ${isFocused ? "rgba(255,170,0,0.35)" : "#1a3320"}`, padding: "1px 5px", borderRadius: 2, letterSpacing: 1, flexShrink: 0 }}>→ SPREAD</span>
                             <span style={{ fontSize: 16 }}>{countryFlag(c)}</span>
-                            <span style={{ fontFamily: RAJ, fontSize: 12, color: "#7aaa8a" }}>{countryLabel(c)}</span>
+                            <span style={{ fontFamily: RAJ, fontSize: 12, color: isFocused ? "#e8ffe8" : "#7aaa8a", fontWeight: isFocused ? 700 : 400 }}>{countryLabel(c)}</span>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1388,14 +1484,14 @@ function OutbreakDetail({
                   accent="#00bb66"
                   subtitle={`${o.localNews.length} articles from affected regions`}
                 >
-                  <OutbreakLocalNews o={o} />
+                  <OutbreakLocalNews o={o} focusCountry={focus} />
                 </CollapsibleSection>
               ) : (
                 <div>
                   <div style={{ fontSize: 10, color: "#00bb66", letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>
                     ◉ INTELLIGENCE — {o.localNews.length} ARTICLES FROM AFFECTED REGIONS
                   </div>
-                  <OutbreakLocalNews o={o} />
+                  <OutbreakLocalNews o={o} focusCountry={focus} />
                 </div>
               )
             ) : null}
@@ -1524,13 +1620,16 @@ export default function OutbreakTracker() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
   const [selected, setSelected] = useState<Outbreak|null>(null);
+  const [focusCountry, setFocusCountry] = useState<string | null>(null);
   const [detailLevel, setDetailLevel] = useState<"preview" | "full">("preview");
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
   const [mapOpen, setMapOpen]   = useState(false);
 
-  const selectOutbreak = useCallback((o: Outbreak) => {
+  const selectOutbreak = useCallback((o: Outbreak, country?: string) => {
+    const origin = outbreakOrigin(o);
     startTransition(() => {
       setSelected(o);
+      setFocusCountry((country ?? origin).toLowerCase());
       setDetailLevel("preview");
       if (isMobileViewport()) setMapOpen(true);
     });
@@ -1541,6 +1640,7 @@ export default function OutbreakTracker() {
       startTransition(() => {
         if (selected?.id !== o.id) {
           setSelected(o);
+          setFocusCountry(outbreakOrigin(o));
           setDetailLevel("preview");
           if (isMobileViewport()) setMapOpen(true);
           return;
@@ -1550,6 +1650,7 @@ export default function OutbreakTracker() {
           return;
         }
         setSelected(null);
+        setFocusCountry(null);
         setDetailLevel("preview");
       });
     },
@@ -1571,7 +1672,10 @@ export default function OutbreakTracker() {
       const pd = await parseOutbreakJson(pr);
       if (cancelled || !isOutbreakPayload(pd)) return false;
       setData(pd);
-      if (pd.outbreaks.length) setSelected(pd.outbreaks[0]);
+      if (pd.outbreaks.length) {
+        setSelected(pd.outbreaks[0]);
+        setFocusCountry(outbreakOrigin(pd.outbreaks[0]));
+      }
       return true;
     };
 
@@ -1585,7 +1689,10 @@ export default function OutbreakTracker() {
 
         if (isOutbreakPayload(d)) {
           setData(d);
-          if (d.outbreaks.length) setSelected(d.outbreaks[0]);
+          if (d.outbreaks.length) {
+            setSelected(d.outbreaks[0]);
+            setFocusCountry(outbreakOrigin(d.outbreaks[0]));
+          }
           return;
         }
 
@@ -1757,7 +1864,7 @@ export default function OutbreakTracker() {
                         : "intel-map-body ob-map-body"
                     }
                   >
-                    <WorldMap outbreaks={mapOutbreaks} selected={selected} onSelect={selectOutbreak} />
+                    <WorldMap outbreaks={mapOutbreaks} selected={selected} focusCountry={focusCountry} onSelect={selectOutbreak} />
                   </div>
                 </div>
                 <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 12 }}>
@@ -1773,6 +1880,7 @@ export default function OutbreakTracker() {
                         <div className="ob-detail-inline" style={{ marginTop: 10 }}>
                           <OutbreakDetail
                             o={o}
+                            focusCountry={focusCountry}
                             variant={detailLevel === "full" ? "inline-full" : "inline-preview"}
                             onExpand={() => setDetailLevel("full")}
                             onCollapse={() => setDetailLevel("preview")}
@@ -1785,7 +1893,7 @@ export default function OutbreakTracker() {
               </div>
               <div className="ob-detail-sidebar">
                 {selected
-                  ? <OutbreakDetail o={selected}/>
+                  ? <OutbreakDetail o={selected} focusCountry={focusCountry}/>
                   : <div style={{border:"1px solid #1a3320",borderRadius:4,padding:"2rem",textAlign:"center",color:"#3a5040",fontSize:12,letterSpacing:2}}>SELECT AN OUTBREAK<br/>ON THE MAP OR LIST</div>
                 }
               </div>
