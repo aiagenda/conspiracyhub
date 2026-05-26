@@ -520,17 +520,23 @@ function applyObSpreadScale(
   linesG.selectAll<SVGPathElement, unknown>("path[data-x1]").each(updatePath);
 
   linesG
-    .selectAll<SVGPathElement, unknown>("path.ob-line")
+    .selectAll<SVGPathElement, unknown>("path.ob-line, path.ob-line-track")
     .attr("stroke-width", function () {
       const base = Number(d3.select(this).attr("data-base-width")) || 1;
       return obSpreadStrokeAttr(base, k);
     })
     .attr("stroke-dasharray", function () {
+      if (d3.select(this).classed("ob-line-track") || d3.select(this).classed("ob-line-flow")) return null;
       if (d3.select(this).attr("data-dashed") !== "1") return null;
       const dashAttr = obSpreadVisualWidth(4, k) / obZoomK(k);
       const gapAttr = obSpreadVisualWidth(3, k) / obZoomK(k);
       return `${dashAttr} ${gapAttr}`;
     });
+
+  linesG.selectAll<SVGPathElement, unknown>("path.ob-line-flow").each(function () {
+    const idx = Number(d3.select(this).attr("data-flow-index")) || 0;
+    applySpreadFlowDash(this, k, idx);
+  });
 
   linesG
     .selectAll<SVGPathElement, unknown>("path.ob-glow")
@@ -551,6 +557,22 @@ function applyObSpreadScale(
     .attr("refY", refY);
 }
 
+/** Animated dash segment traveling origin → destination along the spread path. */
+function applySpreadFlowDash(pathEl: SVGPathElement, k: number, flowIndex: number) {
+  const len = pathEl.getTotalLength();
+  if (!Number.isFinite(len) || len < 2) return;
+  const dash = Math.max(3.5, obSpreadVisualWidth(11, k));
+  const gap = Math.max(len - dash, dash * 2.5);
+  const total = dash + gap;
+  const duration = 3.6 + (flowIndex % 6) * 0.4;
+  d3.select(pathEl)
+    .attr("stroke-dasharray", `${dash} ${gap}`)
+    .attr("stroke-dashoffset", "0")
+    .style("--ob-flow-total", String(total))
+    .style("animation", `ob-spread-flow ${duration}s linear infinite`)
+    .style("animation-delay", `${(flowIndex % 5) * 0.28}s`);
+}
+
 function appendSpreadLinePair(
   linesG: d3.Selection<SVGGElement, unknown, null, undefined>,
   geo: SpreadLineGeo,
@@ -561,9 +583,10 @@ function appendSpreadLinePair(
     opacity: number;
     isSel: boolean;
     zoomK: number;
+    flowIndex: number;
   },
 ) {
-  const { outbreakId, col, lineWidth, opacity, isSel, zoomK } = opts;
+  const { outbreakId, col, lineWidth, opacity, isSel, zoomK, flowIndex } = opts;
   const pathD = obSpreadPathD(geo, zoomK);
   const dashAttr = obSpreadVisualWidth(4, zoomK) / obZoomK(zoomK);
   const gapAttr = obSpreadVisualWidth(3, zoomK) / obZoomK(zoomK);
@@ -582,9 +605,49 @@ function appendSpreadLinePair(
       .attr("fill", "none")
       .attr("stroke", col)
       .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 3.5, zoomK))
-      .attr("stroke-opacity", isSel ? 0.12 : 0.06)
+      .attr("stroke-opacity", isSel ? 0.14 : 0.06)
       .attr("stroke-linecap", "round")
       .style("pointer-events", "none");
+  }
+
+  if (isSel && opacity > 0) {
+    const track = linesG
+      .append("path")
+      .attr("class", "ob-line ob-line-track")
+      .attr("data-line-id", lineId)
+      .attr("data-outbreak-id", outbreakId)
+      .attr("data-base-width", lineWidth)
+      .attr("data-dashed", "0");
+    writeSpreadLineGeo(track, geo);
+    track
+      .attr("d", pathD)
+      .attr("fill", "none")
+      .attr("stroke", col)
+      .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
+      .attr("stroke-opacity", 0.3)
+      .attr("stroke-linecap", "round")
+      .attr("marker-end", `url(#${arrowMarkerId(col)})`)
+      .style("pointer-events", "stroke");
+
+    const flow = linesG
+      .append("path")
+      .attr("class", "ob-line-flow")
+      .attr("data-line-id", lineId)
+      .attr("data-outbreak-id", outbreakId)
+      .attr("data-base-width", lineWidth)
+      .attr("data-flow-index", flowIndex);
+    writeSpreadLineGeo(flow, geo);
+    flow
+      .attr("d", pathD)
+      .attr("fill", "none")
+      .attr("stroke", col)
+      .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 1.2, zoomK))
+      .attr("stroke-opacity", 0.95)
+      .attr("stroke-linecap", "round")
+      .style("pointer-events", "none");
+    const flowNode = flow.node();
+    if (flowNode) applySpreadFlowDash(flowNode, zoomK, flowIndex);
+    return;
   }
 
   const line = linesG
@@ -593,7 +656,7 @@ function appendSpreadLinePair(
     .attr("data-line-id", lineId)
     .attr("data-outbreak-id", outbreakId)
     .attr("data-base-width", lineWidth)
-    .attr("data-dashed", isSel ? "0" : "1");
+    .attr("data-dashed", "1");
   writeSpreadLineGeo(line, geo);
   line
     .attr("d", pathD)
@@ -602,7 +665,7 @@ function appendSpreadLinePair(
     .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
     .attr("stroke-opacity", opacity)
     .attr("stroke-linecap", "round")
-    .attr("stroke-dasharray", isSel ? null : `${dashAttr} ${gapAttr}`)
+    .attr("stroke-dasharray", `${dashAttr} ${gapAttr}`)
     .attr("marker-end", opacity > 0 ? `url(#${arrowMarkerId(col)})` : "none")
     .style("pointer-events", opacity > 0 ? "stroke" : "none");
 }
@@ -774,6 +837,7 @@ function WorldMap({
             opacity: lineStyle.opacity,
             isSel,
             zoomK,
+            flowIndex: i,
           },
         );
       }
@@ -1072,6 +1136,18 @@ function WorldMap({
         flexShrink: 0,
       }}
     >
+      <style>{`
+        @keyframes ob-spread-flow {
+          to { stroke-dashoffset: calc(-1 * var(--ob-flow-total, 120px)); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ob-line-flow {
+            animation: none !important;
+            stroke-dasharray: none !important;
+            stroke-opacity: 0.45 !important;
+          }
+        }
+      `}</style>
       <svg
         ref={svgRef}
         style={{
@@ -1133,7 +1209,7 @@ function WorldMap({
               const focus = (focusCountry ?? origin).toLowerCase();
               const isOrigin = focus === origin;
               return isOrigin
-                ? `◈ ${selected.disease.toUpperCase()} — ${countryLabel(origin)} origin · curved arrows show spread direction`
+                ? `◈ ${selected.disease.toUpperCase()} — ${countryLabel(origin)} origin · animated spread from origin`
                 : `◈ ${selected.disease.toUpperCase()} — ${countryLabel(focus)} · spread from ${countryLabel(origin)}`;
             })()
           : "◈ Curved arrows show spread direction from origin · click any dot to isolate its network"}
