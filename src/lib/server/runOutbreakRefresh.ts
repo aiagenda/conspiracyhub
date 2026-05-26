@@ -5,8 +5,11 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 7;
-const OUTBREAK_LOCAL_NEWS_MAX = 15;
+export const OUTBREAK_CACHE_VERSION = 8;
+const OUTBREAK_LOCAL_NEWS_MAX = 40;
+const OUTBREAK_LOCAL_NEWS_PER_COUNTRY = 8;
+const OUTBREAK_LOCAL_NEWS_COUNTRY_MAX = 6;
+const OUTBREAK_FEED_NEWS_MAX = 12;
 /** Max fresh (non-curated) RSS/feed candidates to GPT-analyse per run. */
 const OUTBREAK_FRESH_MAX = 5;
 const FEED_OUTBREAK_LOOKBACK_DAYS = 21;
@@ -130,7 +133,7 @@ type CuratedItem = {
 };
 
 type FreshItem = { title: string; description: string; link: string; pubDate: string };
-type LocalNewsRow = { title: string; url: string; source: string; pubDate: string };
+type LocalNewsRow = { title: string; url: string; source: string; pubDate: string; country?: string };
 
 /**
  * Permanently-tracked WHO/CDC-level disease watchlist.
@@ -386,21 +389,6 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
       ),
     ];
 
-    // Merge local news, dedup by URL
-    const seenUrls = new Set<string>();
-    const allNews: LocalNewsRow[] = [];
-    for (const o of group) {
-      const news = Array.isArray(o.localNews) ? (o.localNews as LocalNewsRow[]) : [];
-      for (const n of news) {
-        if (!seenUrls.has(n.url)) {
-          seenUrls.add(n.url);
-          allNews.push(n);
-          if (allNews.length >= OUTBREAK_LOCAL_NEWS_MAX) break;
-        }
-      }
-      if (allNews.length >= OUTBREAK_LOCAL_NEWS_MAX) break;
-    }
-
     // Best risk_level
     const bestRisk = group.reduce<string>((best, o) => {
       const level = String(o.risk_level ?? "LOW");
@@ -442,7 +430,7 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
       ...base,
       affected_countries: allCountries,
       affectedCoords: buildAffectedCoords(allCountries),
-      localNews: allNews,
+      localNews: [] as LocalNewsRow[],
       risk_level: bestRisk,
       conspiracy_score: bestScore,
       has_conspiracy: bestScore > 0 || Boolean(base.has_conspiracy),
@@ -608,57 +596,92 @@ async function fetchFeedLocalNews(admin: SupabaseClient, disease: string): Promi
       pubDate: row.published_at ? new Date(row.published_at).toUTCString() : "",
     });
   }
-  return sortByPubDateDesc(rows).slice(0, OUTBREAK_LOCAL_NEWS_MAX);
+  return sortByPubDateDesc(rows).slice(0, OUTBREAK_FEED_NEWS_MAX);
 }
 
 async function fetchLocalNews(
   disease: string,
   country: string,
-): Promise<Array<{ title: string; url: string; source: string; pubDate: string }>> {
+): Promise<LocalNewsRow[]> {
   if (!isValidDiseaseName(disease)) return [];
   try {
     const searchTerm = diseaseSearchToken(disease) ?? disease.split(/\s+/).slice(0, 2).join(" ");
     const query = encodeURIComponent(`${searchTerm} outbreak ${country}`);
-    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en&num=${OUTBREAK_LOCAL_NEWS_MAX}`;
+    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en&num=${OUTBREAK_LOCAL_NEWS_PER_COUNTRY}`;
     const res = await fetch(url, {
       headers: { "User-Agent": "TheTheorist/1.0" },
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return [];
     const xml = await res.text();
-    const items: Array<{ title: string; url: string; source: string; pubDate: string }> = [];
+    const items: LocalNewsRow[] = [];
     for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
       const x = m[1];
       const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
       const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
       const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
       const source = x.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.trim() ?? "";
-      if (title && link && !isOutbreakExcluded(title)) items.push({ title, url: link, source, pubDate: pub });
+      if (title && link && !isOutbreakExcluded(title)) {
+        items.push({ title, url: link, source, pubDate: pub, country: country.toLowerCase().trim() });
+      }
     }
-    return sortByPubDateDesc(items).slice(0, OUTBREAK_LOCAL_NEWS_MAX);
+    return sortByPubDateDesc(items).slice(0, OUTBREAK_LOCAL_NEWS_PER_COUNTRY);
   } catch {
     return [];
   }
 }
 
-async function buildLocalNews(
+/** Google News per affected country + site feed — tagged by country for UI grouping. */
+async function buildLocalNewsMultiCountry(
   admin: SupabaseClient,
   disease: string,
-  country: string,
+  originCountry: string,
+  affectedCountries: string[],
 ): Promise<LocalNewsRow[]> {
-  const [googleNews, feedNews] = await Promise.all([
-    fetchLocalNews(disease, country),
-    fetchFeedLocalNews(admin, disease),
-  ]);
+  if (!isValidDiseaseName(disease)) return [];
+
+  const origin = originCountry.toLowerCase().trim();
+  const countries = [
+    ...new Set([origin, ...affectedCountries.map((c) => c.toLowerCase().trim())].filter(Boolean)),
+  ].slice(0, OUTBREAK_LOCAL_NEWS_COUNTRY_MAX);
+
   const seenUrls = new Set<string>();
-  const localNews: LocalNewsRow[] = [];
-  for (const row of [...feedNews, ...googleNews]) {
+  const out: LocalNewsRow[] = [];
+
+  const feedNews = await fetchFeedLocalNews(admin, disease);
+  for (const row of feedNews) {
     if (seenUrls.has(row.url)) continue;
     seenUrls.add(row.url);
-    localNews.push(row);
-    if (localNews.length >= OUTBREAK_LOCAL_NEWS_MAX) break;
+    out.push({ ...row, country: origin || "feed" });
+    if (out.length >= OUTBREAK_LOCAL_NEWS_MAX) return sortByPubDateDesc(out);
   }
-  return localNews;
+
+  const ordered = [origin, ...countries.filter((c) => c !== origin)];
+  const batches = await Promise.allSettled(ordered.map((country) => fetchLocalNews(disease, country)));
+
+  for (let ci = 0; ci < batches.length; ci++) {
+    const country = ordered[ci];
+    const batch = batches[ci];
+    if (batch.status !== "fulfilled") continue;
+    for (const row of batch.value) {
+      if (seenUrls.has(row.url)) continue;
+      seenUrls.add(row.url);
+      out.push(row.country ? row : { ...row, country });
+      if (out.length >= OUTBREAK_LOCAL_NEWS_MAX) return sortByPubDateDesc(out);
+    }
+  }
+
+  return sortByPubDateDesc(out);
+}
+
+async function enrichOutbreakLocalNews(admin: SupabaseClient, row: OutbreakRow): Promise<OutbreakRow> {
+  const disease = String(row.disease ?? "");
+  const origin = String(row.origin_country ?? row.location ?? "").toLowerCase();
+  const affected = Array.isArray(row.affected_countries)
+    ? (row.affected_countries as string[])
+    : [];
+  const localNews = await buildLocalNewsMultiCountry(admin, disease, origin, affected);
+  return { ...row, localNews };
 }
 
 const SYS = `You are a disease outbreak intelligence analyst. Analyze the outbreak for conspiracy relevance, patents, and geopolitical context.
@@ -851,8 +874,6 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           maxAttempts: 2,
         });
         if (!isAnalysisAcceptable(analysis, item)) return null;
-        const country = analysis.origin_country || analysis.location;
-        const localNews = await buildLocalNews(admin, analysis.disease, country);
         const affected_countries = mergeAffectedCountries(analysis);
         const origin = String(analysis.origin_country ?? analysis.location ?? "").toLowerCase();
         const resolved = resolveCountryCoords(origin);
@@ -871,7 +892,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           lat,
           lng,
           affectedCoords: buildAffectedCoords(affected_countries),
-          localNews,
+          localNews: [] as LocalNewsRow[],
         };
       }),
     );
@@ -892,7 +913,6 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
         // Skip if fresh items already have this disease covered from RSS
         if (freshDiseasesSeen.has(diseaseToken)) return null;
 
-        const localNews = await buildLocalNews(admin, c.disease, c.origin_country);
         return {
           id: `ob-curated-${c.id}-${Date.now()}`,
           title: c.title,
@@ -913,7 +933,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           key_facts: [c.description.slice(0, 200)],
           verdict: "NATURAL",
           risk_level: c.risk_level,
-          localNews,
+          localNews: [] as LocalNewsRow[],
         };
       }),
     );
@@ -924,7 +944,12 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
     ];
 
     const mergedOutbreaks = mergeOutbreaksByDisease(allOutbreaks as OutbreakRow[]);
-    const outbreaksSorted = sortByPublishedAtDesc(mergedOutbreaks);
+
+    const outbreaksWithNews = await Promise.all(
+      mergedOutbreaks.map((row) => enrichOutbreakLocalNews(admin, row)),
+    );
+
+    const outbreaksSorted = sortByPublishedAtDesc(outbreaksWithNews);
 
     const payload: OutbreakPayload = sanitizeOutbreakPayload({
       outbreaks: outbreaksSorted.map((row) => sanitizeOutbreakRow(row)),

@@ -70,7 +70,7 @@ function arrowMarkerId(col: string): string {
 
 type Theory   = { name:string; summary:string; probability:number; sources:string[] };
 type Patent   = { number:string; title:string; assignee:string; url:string };
-type LocalNews= { title:string; url:string; source:string; pubDate:string };
+type LocalNews= { title:string; url:string; source:string; pubDate:string; country?:string };
 type AffectedCoord = { country:string; lat:number; lng:number };
 type Outbreak = {
   id:string; title:string; description:string; source_url:string; published_at:string;
@@ -962,54 +962,106 @@ type OutbreakDetailVariant = "sidebar" | "inline-preview" | "inline-full";
 
 function OutbreakLocalNews({ o }: { o: Outbreak }) {
   if (!o.localNews?.length) return null;
+
+  const origin = (o.origin_country || o.location || "").toLowerCase();
+  const countryOrder = [
+    ...new Set([
+      origin,
+      ...(o.affected_countries ?? []).map((c) => c.toLowerCase()),
+      ...o.localNews.map((n) => (n.country ?? "").toLowerCase()).filter(Boolean),
+    ].filter(Boolean)),
+  ];
+
+  const grouped = new Map<string, LocalNews[]>();
+  for (const n of o.localNews) {
+    const key = (n.country ?? origin || "global").toLowerCase();
+    const arr = grouped.get(key) ?? [];
+    arr.push(n);
+    grouped.set(key, arr);
+  }
+
+  const renderArticle = (n: LocalNews, i: number) => (
+    <a
+      key={`${n.url}-${i}`}
+      href={n.url}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: "block",
+        border: "1px solid #1a3320",
+        borderRadius: 3,
+        padding: "10px 12px",
+        marginBottom: 7,
+        textDecoration: "none",
+        background: "rgba(0,255,136,0.02)",
+        transition: "border-color 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
+      }}
+    >
+      <div
+        style={{
+          fontFamily: RAJ,
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#c8e8d0",
+          lineHeight: 1.35,
+          marginBottom: 5,
+        }}
+      >
+        {n.title}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1 }}>{n.source}</span>
+        <span style={{ fontSize: 11, color: "#3a5040" }}>
+          {n.pubDate ? new Date(n.pubDate).toLocaleDateString() : ""}
+        </span>
+      </div>
+    </a>
+  );
+
   return (
     <>
-      <div style={{ fontSize: 11, color: "#3a5040", marginBottom: 8, letterSpacing: 1, lineHeight: 1.6 }}>
-        Early signals from affected regions — WHO · CDC · Google News · site feed
+      <div style={{ fontSize: 11, color: "#3a5040", marginBottom: 10, letterSpacing: 1, lineHeight: 1.6 }}>
+        {o.localNews.length} signals from {grouped.size} region{grouped.size === 1 ? "" : "s"} — Google News · site feed · WHO/CDC sources
       </div>
-      {sortByPubDateDesc(o.localNews).map((n, i) => (
-        <a
-          key={i}
-          href={n.url}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "block",
-            border: "1px solid #1a3320",
-            borderRadius: 3,
-            padding: "10px 12px",
-            marginBottom: 7,
-            textDecoration: "none",
-            background: "rgba(0,255,136,0.02)",
-            transition: "border-color 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
-          }}
-        >
-          <div
-            style={{
-              fontFamily: RAJ,
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#c8e8d0",
-              lineHeight: 1.35,
-              marginBottom: 5,
-            }}
-          >
-            {n.title}
+      {countryOrder.map((country) => {
+        const items = grouped.get(country);
+        if (!items?.length) return null;
+        const isOrigin = country === origin;
+        return (
+          <div key={country} style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 8,
+                paddingBottom: 6,
+                borderBottom: "1px solid #1a3320",
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{countryFlag(country)}</span>
+              <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: isOrigin ? "#ff9966" : "#7aaa8a" }}>
+                {countryLabel(country)}
+              </span>
+              {isOrigin && (
+                <span style={{ fontSize: 9, color: "#ff6633", border: "1px solid rgba(255,102,51,0.35)", padding: "1px 5px", borderRadius: 2, letterSpacing: 1 }}>
+                  ORIGIN
+                </span>
+              )}
+              <span style={{ marginLeft: "auto", fontSize: 10, color: "#3a5040", fontFamily: FONT }}>
+                {items.length} article{items.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            {sortByPubDateDesc(items).map(renderArticle)}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#5a8068", letterSpacing: 1 }}>{n.source}</span>
-            <span style={{ fontSize: 11, color: "#3a5040" }}>
-              {n.pubDate ? new Date(n.pubDate).toLocaleDateString() : ""}
-            </span>
-          </div>
-        </a>
-      ))}
+        );
+      })}
     </>
   );
 }
