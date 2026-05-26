@@ -6,6 +6,8 @@ import {
 } from "@/lib/server/scraperScheduler";
 import { createClient } from "@supabase/supabase-js";
 
+export const maxDuration = 300;
+
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;

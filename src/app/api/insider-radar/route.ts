@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { isXApiConfigured } from "@/lib/server/xApi";
 import {
   readInsiderRadarCache,
@@ -9,21 +9,15 @@ import {
 import { INSIDER_TRACKERS } from "@/lib/insiderTrackers";
 
 export const maxDuration = 300;
-
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 let warmInFlight: Promise<{
   payload: InsiderRadarPayload | null;
   error?: string;
 }> | null = null;
 
-let twitterInFlight: Promise<{
-  payload: InsiderRadarPayload | null;
-  error?: string;
-}> | null = null;
-
 function emptyResponse(extra?: { warm_error?: string }) {
-  return NextResponse.json({
+  return jsonResponse({
     posts: [],
     trackers: INSIDER_TRACKERS.map((t) => ({
       id: t.id,
@@ -35,14 +29,13 @@ function emptyResponse(extra?: { warm_error?: string }) {
       post_count: 0,
     })),
     generated_at: new Date().toISOString(),
-    refreshed_at: null,
+    refreshed_at: new Date().toISOString(),
     x_source: "cache_empty",
     x_twitter_posts: 0,
     cached: false,
-    x_configured: isXApiConfigured(),
-    hint: "Could not load feed. Admin → Automation → Insider Radar → Run now, or wait for daily 09:00 UTC job.",
+    hint: "Could not load feed. Admin → Automation → Insider Radar → Run now, or use Refresh on this page.",
     ...extra,
-  });
+  } as InsiderRadarPayload & { hint?: string });
 }
 
 async function warmYoutubeOnce(): Promise<{ payload: InsiderRadarPayload | null; error?: string }> {
@@ -66,58 +59,66 @@ async function warmYoutubeOnce(): Promise<{ payload: InsiderRadarPayload | null;
   return warmInFlight;
 }
 
-async function refreshTwitterOnce(): Promise<{ payload: InsiderRadarPayload | null; error?: string }> {
-  if (!twitterInFlight) {
-    twitterInFlight = (async () => {
-      try {
-        const result = await runInsiderRadarTwitterRefresh();
-        if (result.ok) return { payload: result.payload as InsiderRadarPayload };
-        const err =
-          typeof result.payload === "object" && result.payload !== null && "error" in result.payload
-            ? String((result.payload as { error: string }).error)
-            : "twitter_refresh_failed";
-        return { payload: null, error: err };
-      } catch (e) {
-        return { payload: null, error: e instanceof Error ? e.message : String(e) };
-      } finally {
-        twitterInFlight = null;
-      }
-    })();
-  }
-  return twitterInFlight;
-}
-
-function jsonResponse(payload: InsiderRadarPayload, extra?: Record<string, unknown>) {
+function jsonResponse(payload: InsiderRadarPayload | Record<string, unknown>, extra?: Record<string, unknown>) {
   return NextResponse.json(
     { ...payload, x_configured: isXApiConfigured(), ...extra },
-    { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } },
+    {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        "CDN-Cache-Control": "no-store",
+        "Vercel-CDN-Cache-Control": "no-store",
+      },
+    },
   );
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    let cached = await readInsiderRadarCache();
+    const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
 
-    if (cached && cached.x_twitter_posts > 0) {
-      return jsonResponse(cached);
+    if (forceRefresh) {
+      const result = await runInsiderRadarTwitterRefresh();
+      if (result.ok) {
+        return jsonResponse(result.payload as InsiderRadarPayload, { live_refresh: true });
+      }
+      const err =
+        typeof result.payload === "object" && result.payload !== null && "error" in result.payload
+          ? String((result.payload as { error: string }).error)
+          : "refresh_failed";
+      const cached = await readInsiderRadarCache();
+      if (cached?.posts.length) {
+        return jsonResponse(cached, { refresh_error: err, live_refresh: false });
+      }
+      return jsonResponse(
+        {
+          posts: [],
+          trackers: INSIDER_TRACKERS.map((t) => ({
+            id: t.id,
+            name: t.name,
+            type: t.type,
+            color: t.color,
+            avatar: t.avatar,
+            category: t.category,
+            post_count: 0,
+          })),
+          generated_at: new Date().toISOString(),
+          refreshed_at: new Date().toISOString(),
+          x_source: "refresh_failed",
+          x_twitter_posts: 0,
+          cached: false,
+        } satisfies InsiderRadarPayload,
+        { refresh_error: err, hint: `Refresh failed: ${err}` },
+      );
     }
+
+    let cached = await readInsiderRadarCache();
 
     if (!cached || cached.posts.length === 0) {
       const yt = await warmYoutubeOnce();
       cached = yt.payload ?? (await readInsiderRadarCache());
-    }
-
-    if (cached && cached.x_twitter_posts === 0) {
-      const tw = await refreshTwitterOnce();
-      if (tw.payload && tw.payload.x_twitter_posts > 0) {
-        return jsonResponse(tw.payload, { twitter_refreshed: true });
+      if (!cached?.posts.length && yt.error) {
+        return emptyResponse({ warm_error: yt.error });
       }
-      return jsonResponse(cached, {
-        hint: isXApiConfigured()
-          ? `X API active but no tweets cached yet.${tw.error ? ` (${tw.error})` : ""} Try Admin → Run now on Insider Radar job.`
-          : `X API not configured on server — set X_BEARER_TOKEN on Vercel.${tw.error ? ` ${tw.error}` : ""}`,
-        warm_error: tw.error,
-      });
     }
 
     if (cached && cached.posts.length > 0) {

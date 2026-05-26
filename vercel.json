@@ -11,6 +11,9 @@
     },
     "src/app/api/insider-radar/refresh/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/admin/scrapers/route.ts": {
+      "maxDuration": 300
     }
   }
 }

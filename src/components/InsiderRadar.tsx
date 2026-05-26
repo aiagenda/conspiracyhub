@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
 import { CollapsibleSection } from "@/components/IntelAccordion";
@@ -132,6 +132,7 @@ export default function InsiderRadar() {
   const [posts, setPosts]       = useState<Post[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [cacheHint, setCacheHint] = useState<string | null>(null);
   const [filter, setFilter]     = useState<"all" | "youtube" | "twitter">("all");
@@ -140,24 +141,38 @@ export default function InsiderRadar() {
   const [warmError, setWarmError] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
-  useEffect(() => {
-    fetch("/api/insider-radar")
-      .then(r => r.json())
-      .then(d => {
-        setPosts(d.posts ?? []);
-        setTrackers(d.trackers ?? []);
-        setRefreshedAt(d.refreshed_at ?? null);
-        const hint =
-          d.hint ??
-          ((d.x_twitter_posts ?? 0) === 0
-            ? "X posts not loaded yet — Admin → Automation → Insider Radar → Run now, or reload after daily refresh."
-            : null);
-        setCacheHint(hint ?? d.warm_error ?? null);
-        setWarmError(d.warm_error ?? d.error ?? null);
-      })
-      .catch(() => setWarmError("Network error loading feed"))
-      .finally(() => setLoading(false));
+  const loadFeed = useCallback(async (opts?: { liveRefresh?: boolean }) => {
+    if (opts?.liveRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const qs = new URLSearchParams();
+      if (opts?.liveRefresh) qs.set("refresh", "1");
+      qs.set("_", String(Date.now()));
+      const res = await fetch(`/api/insider-radar?${qs.toString()}`, { cache: "no-store" });
+      const d = await res.json();
+      setPosts(d.posts ?? []);
+      setTrackers(d.trackers ?? []);
+      setRefreshedAt(d.refreshed_at ?? null);
+      const hint =
+        d.hint ??
+        d.refresh_error ??
+        ((d.x_twitter_posts ?? 0) === 0
+          ? "X posts not loaded yet — use Refresh below or Admin → Automation → Insider Radar → Run now."
+          : null);
+      setCacheHint(hint ?? d.warm_error ?? null);
+      setWarmError(d.warm_error ?? d.refresh_error ?? d.error ?? null);
+    } catch {
+      setWarmError("Network error loading feed");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadFeed();
+  }, [loadFeed]);
 
   const visible = posts.filter(p => {
     if (trackerFilter && p.tracker_id !== trackerFilter) return false;
@@ -270,9 +285,30 @@ export default function InsiderRadar() {
               ■ CACHED INTELLIGENCE SIGNALS ■
             </div>
             <h1 className="insider-page-headline" style={{ fontFamily: RAJ, fontSize: 26, fontWeight: 700, color: "#00ff88", letterSpacing: 2, textTransform: "uppercase", textShadow: "0 0 18px rgba(0,255,136,0.25)", margin: "0 0 8px" }}>Insider Radar</h1>
-            <div className="insider-hero-tagline" style={{ fontSize: 11, color: "#5a8068", letterSpacing: 2, lineHeight: 1.6, maxWidth: 720, margin: "0 auto" }}>
-              UAP INSIDERS · MEDIA · GEOPOLITICS · COMMENTATORS — CACHE REFRESHED DAILY (09:00 UTC)
+            <div className="insider-hero-tagline" style={{ fontSize: 11, color: "#5a8068", letterSpacing: 2, lineHeight: 1.6, maxWidth: 720, margin: "0 auto 12px" }}>
+              UAP INSIDERS · MEDIA · GEOPOLITICS · COMMENTATORS — AUTO REFRESH 09:00 & 21:00 UTC
             </div>
+            <button
+              type="button"
+              disabled={loading || refreshing}
+              onClick={() => void loadFeed({ liveRefresh: true })}
+              style={{
+                fontFamily: RAJ,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                padding: "7px 16px",
+                borderRadius: 3,
+                border: "1px solid #ffaa00",
+                background: "rgba(255,170,0,0.06)",
+                color: refreshing ? "#5a8068" : "#ffaa00",
+                cursor: loading || refreshing ? "not-allowed" : "pointer",
+                opacity: loading || refreshing ? 0.6 : 1,
+              }}
+            >
+              {refreshing ? "◈ Refreshing X + YouTube…" : "↻ Refresh signals"}
+            </button>
           </div>
 
           {sortedTrackers.length > 0 && (
