@@ -5,13 +5,15 @@ import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
 export const OUTBREAK_CACHE_TTL_MS = 3_600_000;
 /** Bump when pipeline changes so stale JSON blobs are ignored. */
-export const OUTBREAK_CACHE_VERSION = 12;
+export const OUTBREAK_CACHE_VERSION = 13;
 const OUTBREAK_LOCAL_NEWS_MAX = 40;
 const OUTBREAK_LOCAL_NEWS_PER_COUNTRY = 8;
-const OUTBREAK_LOCAL_NEWS_COUNTRY_MAX = 6;
+const OUTBREAK_LOCAL_NEWS_COUNTRY_MAX = 10;
 const OUTBREAK_FEED_NEWS_MAX = 12;
 /** Max fresh (non-curated) RSS/feed candidates to GPT-analyse per run. */
-const OUTBREAK_FRESH_MAX = 5;
+const OUTBREAK_FRESH_MAX = 10;
+/** Allow multiple RSS articles per known disease so curated rows get enriched on manual refresh. */
+const OUTBREAK_FRESH_MAX_PER_DISEASE = 3;
 const FEED_OUTBREAK_LOOKBACK_DAYS = 21;
 
 /**
@@ -589,9 +591,10 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
       continue;
     }
 
-    // Fresh (GPT-analysed) rows beat curated-only stubs
+    // Curated watchlist rows are the canonical baseline; fresh RSS/GPT layers enrich on top.
     const fresh = group.filter((o) => String(o.id ?? "").startsWith("ob-fresh"));
-    const base = fresh.length > 0 ? fresh[0] : group[0];
+    const curated = group.filter((o) => String(o.id ?? "").startsWith("ob-curated"));
+    const base = curated[0] ?? fresh[0] ?? group[0];
 
     // Union of all affected countries
     const allCountries = [
@@ -645,6 +648,18 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
     const dates = group.map((o) => String(o.published_at ?? "")).filter(Boolean);
     const latestDate = [...dates].sort().reverse()[0] ?? "";
 
+    const seenFacts = new Set<string>();
+    const allKeyFacts: string[] = [];
+    for (const o of group) {
+      for (const f of Array.isArray(o.key_facts) ? (o.key_facts as string[]) : []) {
+        const clean = cleanOutbreakBlurb(String(f)).slice(0, 200);
+        const k = clean.toLowerCase().slice(0, 60);
+        if (!clean || seenFacts.has(k)) continue;
+        seenFacts.add(k);
+        allKeyFacts.push(clean);
+      }
+    }
+
     merged.push({
       ...base,
       affected_countries: allCountries,
@@ -655,6 +670,7 @@ function mergeOutbreaksByDisease(outbreaks: OutbreakRow[]): OutbreakRow[] {
       has_conspiracy: allTheories.length > 0,
       theories: allTheories,
       patents: allPatents,
+      key_facts: allKeyFacts.slice(0, 5),
       published_at: latestDate || base.published_at,
       merged_count: group.length,
       stats: mergeOutbreakStats(group),
@@ -718,12 +734,18 @@ function resolveOutbreakStats(
 
 function mergeOutbreakStats(group: OutbreakRow[]): OutbreakStatsRow | undefined {
   const withStats = group
-    .map((o, i) => ({ stats: o.stats as OutbreakStatsRow | undefined, id: String(o.id ?? ""), i }))
+    .map((o) => ({ stats: o.stats as OutbreakStatsRow | undefined, id: String(o.id ?? "") }))
     .filter((entry) => statsHasValues(entry.stats));
   if (!withStats.length) return undefined;
-  const fresh = withStats.find((entry) => entry.id.startsWith("ob-fresh"));
-  if (fresh?.stats) return fresh.stats;
-  return withStats.reduce<OutbreakStatsRow>(
+
+  // Combine curated baseline + fresh GPT extractions (prefer non-null from any source).
+  const curatedFirst = [...withStats].sort((a, b) => {
+    const aCur = a.id.startsWith("ob-curated") ? 0 : 1;
+    const bCur = b.id.startsWith("ob-curated") ? 0 : 1;
+    return aCur - bCur;
+  });
+
+  return curatedFirst.reduce<OutbreakStatsRow>(
     (best, entry) => ({
       confirmed_cases: entry.stats!.confirmed_cases ?? best.confirmed_cases,
       deaths: entry.stats!.deaths ?? best.deaths,
@@ -744,13 +766,43 @@ function isWeakRssTitle(title: string): boolean {
   );
 }
 
-/** RSS/feed dedup by known disease signature OR full title prefix. */
-function freshItemSignature(title: string): string {
-  const t = title.toLowerCase();
+function freshItemTitleKey(title: string): string {
+  return title.toLowerCase().trim().slice(0, 80);
+}
+
+function freshItemDiseaseToken(title: string, description = ""): string | null {
+  const t = `${title} ${description}`.toLowerCase();
   for (const d of DISEASE_SIGNATURES) {
     if (t.includes(d)) return d;
   }
-  return `title:${t.slice(0, 56)}`;
+  return null;
+}
+
+/**
+ * Dedup by exact title; allow up to OUTBREAK_FRESH_MAX_PER_DISEASE articles per known pathogen
+ * so manual refresh can enrich curated watchlist rows (e.g. hantavirus + Canada news).
+ */
+function collectFreshItems(items: FreshItem[], max: number): FreshItem[] {
+  const merged: FreshItem[] = [];
+  const seenTitles = new Set<string>();
+  const diseaseCounts = new Map<string, number>();
+
+  for (const item of sortByPubDateDesc(items)) {
+    const titleKey = freshItemTitleKey(item.title);
+    if (seenTitles.has(titleKey)) continue;
+
+    const diseaseToken = freshItemDiseaseToken(item.title, item.description);
+    if (diseaseToken) {
+      const n = diseaseCounts.get(diseaseToken) ?? 0;
+      if (n >= OUTBREAK_FRESH_MAX_PER_DISEASE) continue;
+      diseaseCounts.set(diseaseToken, n + 1);
+    }
+
+    seenTitles.add(titleKey);
+    merged.push(item);
+    if (merged.length >= max) break;
+  }
+  return merged;
 }
 
 async function parseRssItems(feedUrl: string): Promise<FreshItem[]> {
@@ -782,18 +834,12 @@ async function parseRssItems(feedUrl: string): Promise<FreshItem[]> {
 
 async function fetchFreshRssItems(): Promise<FreshItem[]> {
   const batches = await Promise.allSettled(OUTBREAK_RSS_FEEDS.map((url) => parseRssItems(url)));
-  const merged: FreshItem[] = [];
-  const seen = new Set<string>();
+  const raw: FreshItem[] = [];
   for (const b of batches) {
     if (b.status !== "fulfilled") continue;
-    for (const item of b.value) {
-      const sig = freshItemSignature(item.title);
-      if (seen.has(sig)) continue;
-      seen.add(sig);
-      merged.push(item);
-    }
+    raw.push(...b.value);
   }
-  return sortByPubDateDesc(merged);
+  return collectFreshItems(raw, OUTBREAK_FRESH_MAX);
 }
 
 async function fetchFeedOutbreakCandidates(admin: SupabaseClient): Promise<FreshItem[]> {
@@ -974,7 +1020,7 @@ Otherwise return ONLY valid JSON:
     "case_fatality_rate":null
   }
 }
-affected_countries: array of ALL currently affected countries (lowercase), up to 8.
+affected_countries: array of ALL currently affected countries (lowercase), up to 12.
 verdict: NATURAL|SUSPICIOUS|HIGHLY_SUSPICIOUS|UNKNOWN
 risk_level: LOW|MEDIUM|HIGH|CRITICAL
 stats: Extract from the article ONLY if explicitly stated. confirmed_cases = integer or null. deaths = integer or null. case_fatality_rate = string like "38%" or null. Do NOT invent numbers. If not mentioned, use null.
@@ -1018,28 +1064,14 @@ function isAnalysisAcceptable(analysis: AnalysisRow, item: FreshItem): boolean {
 
 /**
  * Fresh items: picked from RSS (ProMED/WHO/ECDC/CDC) + feed DB.
- * Deduplicated against curated disease IDs so we don't double-show known diseases.
+ * Known diseases are NOT blocked — multiple articles per pathogen enrich curated rows on merge.
  */
-async function fetchFreshCandidates(
-  admin: SupabaseClient,
-  curatedIds: Set<string>,
-): Promise<FreshItem[]> {
+async function fetchFreshCandidates(admin: SupabaseClient): Promise<FreshItem[]> {
   const [rss, feed] = await Promise.all([
     fetchFreshRssItems(),
     fetchFeedOutbreakCandidates(admin),
   ]);
-
-  const merged: FreshItem[] = [];
-  const seen = new Set<string>(curatedIds);
-
-  for (const item of sortByPubDateDesc([...rss, ...feed])) {
-    const sig = freshItemSignature(item.title);
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    merged.push(item);
-    if (merged.length >= OUTBREAK_FRESH_MAX) break;
-  }
-  return merged;
+  return collectFreshItems([...rss, ...feed], OUTBREAK_FRESH_MAX);
 }
 
 export function buildOutbreakPreviewPayload() {
@@ -1137,10 +1169,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
   try {
     const apiKey = process.env.OPENAI_API_KEY!;
 
-    const curatedIds = new Set(CURATED_DISEASES.map((c) => c.id));
-
-    // ── 1. GPT-analyse fresh RSS/feed items (parallel, up to OUTBREAK_FRESH_MAX) ──
-    const freshItems = await fetchFreshCandidates(admin, curatedIds);
+    const freshItems = await fetchFreshCandidates(admin);
 
     const freshSettled = await Promise.allSettled(
       freshItems.map(async (item) => {
@@ -1181,48 +1210,32 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
       .map((r) => (r.status === "fulfilled" ? r.value : null))
       .filter((r): r is NonNullable<typeof r> => r != null);
 
-    // Track which diseases are already covered by fresh items
-    const freshDiseasesSeen = new Set(
-      freshOutbreaks.map((o) => diseaseSearchToken(o.disease) ?? o.disease.toLowerCase().slice(0, 12)),
-    );
+    // ── 2. Always include all curated diseases (merged with fresh RSS/GPT on same token) ──
+    const curatedOutbreaks = CURATED_DISEASES.map((c) => ({
+      id: `ob-curated-${c.id}-${Date.now()}`,
+      title: c.title,
+      description: c.description,
+      source_url: c.link,
+      published_at: c.pubDate,
+      disease: c.disease,
+      location: c.location,
+      origin_country: c.origin_country,
+      affected_countries: c.affected_countries,
+      lat: c.lat,
+      lng: c.lng,
+      affectedCoords: buildAffectedCoords(c.affected_countries),
+      conspiracy_score: 0,
+      has_conspiracy: false,
+      theories: [] as AnalysisRow["theories"],
+      patents: [] as AnalysisRow["patents"],
+      key_facts: [c.description.slice(0, 200)],
+      verdict: "NATURAL",
+      risk_level: c.risk_level,
+      stats: c.stats,
+      localNews: [] as LocalNewsRow[],
+    }));
 
-    // ── 2. Always include all curated diseases with fresh local news ──
-    const curatedOutbreaks = await Promise.all(
-      CURATED_DISEASES.map(async (c) => {
-        const diseaseToken = diseaseSearchToken(c.disease) ?? c.disease.toLowerCase().slice(0, 12);
-        // Skip if fresh items already have this disease covered from RSS
-        if (freshDiseasesSeen.has(diseaseToken)) return null;
-
-        return {
-          id: `ob-curated-${c.id}-${Date.now()}`,
-          title: c.title,
-          description: c.description,
-          source_url: c.link,
-          published_at: c.pubDate,
-          disease: c.disease,
-          location: c.location,
-          origin_country: c.origin_country,
-          affected_countries: c.affected_countries,
-          lat: c.lat,
-          lng: c.lng,
-          affectedCoords: buildAffectedCoords(c.affected_countries),
-          conspiracy_score: 0,
-          has_conspiracy: false,
-          theories: [] as AnalysisRow["theories"],
-          patents: [] as AnalysisRow["patents"],
-          key_facts: [c.description.slice(0, 200)],
-          verdict: "NATURAL",
-          risk_level: c.risk_level,
-          stats: c.stats,
-          localNews: [] as LocalNewsRow[],
-        };
-      }),
-    );
-
-    const allOutbreaks = [
-      ...freshOutbreaks,
-      ...curatedOutbreaks.filter((o): o is NonNullable<typeof o> => o != null),
-    ];
+    const allOutbreaks = [...freshOutbreaks, ...curatedOutbreaks];
 
     const mergedOutbreaks = mergeOutbreaksByDisease(allOutbreaks as OutbreakRow[]);
 
