@@ -361,8 +361,13 @@ function obLineStyle(
   return { opacity: 0, width: 0 };
 }
 
-const OB_ARROW_BASE = 5;
-const OB_ZOOM_THIN = 0.55;
+/** Arrow viewBox: 0 0 10 10, tip at (10,5). Path is a slim open chevron. */
+const OB_ARROW_VIEWBOX = "0 0 10 10";
+const OB_ARROW_PATH    = "M1,1 L9,5 L1,9";        // open chevron, tip at x=9
+const OB_ARROW_REFX    = 9;                        // tip x in viewBox
+const OB_ARROW_REFY    = 5;                        // tip y in viewBox (centred)
+const OB_ARROW_BASE    = 6;                        // default visual size in px
+const OB_ZOOM_THIN     = 0.5;
 
 function obZoomK(k: number): number {
   return k > 0 ? k : 1;
@@ -384,6 +389,25 @@ function obSpreadArrowVisual(k: number): number {
 
 function obSpreadArrowAttr(k: number): number {
   return obSpreadArrowVisual(k) / obZoomK(k);
+}
+
+/**
+ * Shorten the bezier endpoint so the arrowhead tip lands at the dot edge,
+ * not the centre. All coordinates are in geoG SVG space.
+ */
+function obLineEndpoint(
+  x2: number, y2: number,
+  qx: number, qy: number,
+  dotR: number, zoomK: number,
+): [number, number] {
+  const dx = x2 - qx;
+  const dy = y2 - qy;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  // clearance = dot radius + a tiny gap, converted to geoG units
+  const clearance = (dotR + 2) / zoomK;
+  if (clearance >= len) return [x2, y2]; // too short to offset
+  const t = clearance / len;
+  return [x2 - dx * t, y2 - dy * t];
 }
 
 function obMarkerLabelVisible(
@@ -413,18 +437,28 @@ function applyObSpreadScale(
     })
     .attr("stroke-dasharray", function () {
       if (d3.select(this).attr("data-dashed") !== "1") return null;
-      const dashAttr = obSpreadVisualWidth(5, k) / obZoomK(k);
-      return `${dashAttr} ${dashAttr}`;
+      const dashAttr = obSpreadVisualWidth(4, k) / obZoomK(k);
+      const gapAttr  = obSpreadVisualWidth(3, k) / obZoomK(k);
+      return `${dashAttr} ${gapAttr}`;
+    });
+
+  linesG
+    .selectAll<SVGPathElement, unknown>("path.ob-glow")
+    .attr("stroke-width", function () {
+      const base = Number(d3.select(this).attr("data-base-width")) || 1;
+      return obSpreadStrokeAttr(base * 3.5, k);
     });
 
   const arrowAttr = obSpreadArrowAttr(k);
-  const refX = arrowAttr * (8 / OB_ARROW_BASE);
+  const refX = OB_ARROW_REFX * (arrowAttr / OB_ARROW_BASE);
+  const refY = OB_ARROW_REFY * (arrowAttr / OB_ARROW_BASE);
   svg
     .selectAll<SVGMarkerElement, unknown>("marker[id^='ob-arrow-']")
     .attr("markerUnits", "userSpaceOnUse")
-    .attr("markerWidth", arrowAttr)
+    .attr("markerWidth",  arrowAttr)
     .attr("markerHeight", arrowAttr)
-    .attr("refX", refX);
+    .attr("refX", refX)
+    .attr("refY", refY);
 }
 
 function outbreakMapVisible(outbreakId: string, selectedId: string | null): boolean {
@@ -528,7 +562,7 @@ function WorldMap({
       if (slots.length > 1) {
         const [x1, y1] = [slots[0].x, slots[0].y];
         for (let i = 1; i < slots.length; i++) {
-          const { x: x2, y: y2 } = slots[i];
+          const { x: x2, y: y2, dotR: destDotR } = { ...slots[i], dotR: Math.max(4, r - 2) };
           const mx = (x1 + x2) / 2;
           const my = (y1 + y2) / 2;
           const dx = x2 - x1;
@@ -536,21 +570,48 @@ function WorldMap({
           const len = Math.sqrt(dx * dx + dy * dy) || 1;
           const perpX = -dy / len;
           const perpY = dx / len;
-          const curve = Math.min(len * 0.16, 22 / Math.sqrt(zoomK));
+          // Alternate curve side per spread index to avoid pile-up
+          const curveSide = i % 2 === 0 ? -1 : 1;
+          const curve = curveSide * Math.min(len * 0.18, 20 / Math.sqrt(zoomK));
           const qx = mx + perpX * curve;
           const qy = my + perpY * curve;
+
+          // Shorten endpoint so arrow tip lands at the dot edge, not the centre
+          const [ex, ey] = obLineEndpoint(x2, y2, qx, qy, destDotR, zoomK);
+
+          const pathD = `M${x1},${y1} Q${qx},${qy} ${ex},${ey}`;
+          const dashAttr = obSpreadVisualWidth(4, zoomK) / zoomK;
+          const gapAttr  = obSpreadVisualWidth(3, zoomK) / zoomK;
+
+          if (lineStyle.opacity > 0) {
+            // Glow layer underneath
+            linesG
+              .append("path")
+              .attr("class", "ob-glow")
+              .attr("data-outbreak-id", o.id)
+              .attr("data-base-width", lineWidth)
+              .attr("d", pathD)
+              .attr("fill", "none")
+              .attr("stroke", col)
+              .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 3.5, zoomK))
+              .attr("stroke-opacity", isSel ? 0.12 : 0.06)
+              .attr("stroke-linecap", "round")
+              .style("pointer-events", "none");
+          }
+
           linesG
             .append("path")
             .attr("class", "ob-line")
             .attr("data-outbreak-id", o.id)
             .attr("data-base-width", lineWidth)
             .attr("data-dashed", isSel ? "0" : "1")
-            .attr("d", `M${x1},${y1} Q${qx},${qy} ${x2},${y2}`)
+            .attr("d", pathD)
             .attr("fill", "none")
             .attr("stroke", col)
             .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
             .attr("stroke-opacity", lineStyle.opacity)
-            .attr("stroke-dasharray", isSel ? null : `${obSpreadVisualWidth(5, zoomK) / zoomK} ${obSpreadVisualWidth(5, zoomK) / zoomK}`)
+            .attr("stroke-linecap", "round")
+            .attr("stroke-dasharray", isSel ? null : `${dashAttr} ${gapAttr}`)
             .attr("marker-end", lineStyle.opacity > 0 ? `url(#${arrowMarkerId(col)})` : "none")
             .style("pointer-events", lineStyle.opacity > 0 ? "stroke" : "none");
         }
@@ -701,22 +762,27 @@ function WorldMap({
     svg.selectAll("*").remove();
     mapCtxRef.current = null;
 
-    // Arrow marker defs for each risk color
+    // Arrow marker defs for each risk color — open chevron, tip at (9,5) in 10×10 viewBox
     const defs = svg.append("defs");
     for (const [id, col] of ARROW_IDS) {
-      defs.append("marker")
+      const marker = defs.append("marker")
         .attr("id", id)
-        .attr("viewBox", "0 -4 9 8")
-        .attr("refX", 8)
-        .attr("refY", 0)
+        .attr("viewBox", OB_ARROW_VIEWBOX)
+        .attr("refX", OB_ARROW_REFX)
+        .attr("refY", OB_ARROW_REFY)
         .attr("markerUnits", "userSpaceOnUse")
-        .attr("markerWidth", OB_ARROW_BASE)
+        .attr("markerWidth",  OB_ARROW_BASE)
         .attr("markerHeight", OB_ARROW_BASE)
-        .attr("orient", "auto")
-        .append("path")
-        .attr("d", "M0,-4L9,0L0,4Z")
-        .attr("fill", col)
-        .attr("opacity", "0.8");
+        .attr("orient", "auto-start-reverse");
+      // Slim open chevron — more elegant than filled triangle
+      marker.append("path")
+        .attr("d", OB_ARROW_PATH)
+        .attr("fill", "none")
+        .attr("stroke", col)
+        .attr("stroke-width", "2.2")
+        .attr("stroke-linecap", "round")
+        .attr("stroke-linejoin", "round")
+        .attr("opacity", "0.92");
     }
 
     const proj = d3.geoNaturalEarth1();
