@@ -7,7 +7,7 @@ import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
-import TodayTopThreatCard from "@/components/TodayTopThreatCard";
+import HighestImpactCard from "@/components/HighestImpactCard";
 import ContinueReadingBanner from "@/components/ContinueReadingBanner";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
@@ -78,12 +78,12 @@ export default function FeedScreen({
   initialItems,
   feedNotice,
   feedPagination,
-  topThreat,
+  highestImpact,
 }: {
   initialItems: NewsItem[];
   feedNotice?: FeedNotice;
   feedPagination?: FeedPagination;
-  topThreat?: NewsItem | null;
+  highestImpact?: NewsItem | null;
 }) {
   const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
   const [showAuth, setShowAuth] = useState(false);
@@ -265,8 +265,8 @@ export default function FeedScreen({
             </div>
           </div>
 
-          {(!feedPagination || feedPagination.page === 1) && topThreat ? (
-            <TodayTopThreatCard item={topThreat} />
+          {(!feedPagination || feedPagination.page === 1) && highestImpact ? (
+            <HighestImpactCard item={highestImpact} />
           ) : null}
 
           {(!feedPagination || feedPagination.page === 1) ? <ContinueReadingBanner /> : null}

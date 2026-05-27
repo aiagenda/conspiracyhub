@@ -9,7 +9,7 @@ function scoreColor(s: number) {
   return "#00bb66";
 }
 
-export default function TodayTopThreatCard({ item }: { item: NewsItem }) {
+export default function HighestImpactCard({ item }: { item: NewsItem }) {
   const color = scoreColor(item.score);
 
   return (
@@ -18,23 +18,26 @@ export default function TodayTopThreatCard({ item }: { item: NewsItem }) {
         marginBottom: "1.5rem",
         border: `1px solid ${color}55`,
         borderRadius: 4,
-        background: "linear-gradient(135deg, rgba(255,51,51,0.08) 0%, rgba(5,12,7,0.95) 55%)",
+        background: `linear-gradient(135deg, ${color}14 0%, rgba(5,12,7,0.95) 55%)`,
         overflow: "hidden",
       }}
     >
-      <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid rgba(255,51,51,0.15)" }}>
+      <div style={{ padding: "14px 16px 12px", borderBottom: `1px solid ${color}22` }}>
         <div
           style={{
             fontFamily: "var(--font-raj), sans-serif",
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: 3,
-            color: color,
+            color,
             textTransform: "uppercase",
             marginBottom: 8,
           }}
         >
-          ◈ Today&apos;s top threat
+          ◈ Highest impact signal
+        </div>
+        <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>
+          Top priority score · last 7 days
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div
