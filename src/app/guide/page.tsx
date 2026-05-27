@@ -233,7 +233,7 @@ export default function GuidePage() {
           {/* PRO */}
           <Section icon="◐" title="Free vs. PRO" color="#c94dff">
             <Row label="FREE" color="#5a8068">Browse feed, Insider Radar, outbreaks, UAP files, view cached Oracle analyses, 3 @oracle triggers/day, top-3 article highlights, community access.</Row>
-            <Row label="TRIAL" color="#ffaa00">New accounts may receive a <strong style={{ color: "#c8e8d0" }}>30-day Analyst Pass</strong> (full PRO, no card). Legacy users can claim once from Account if eligible. Trial status and days left appear on <code style={{ color: "#3a5040" }}>/account</code>.</Row>
+            <Row label="TRIAL" color="#ffaa00">New accounts receive an <strong style={{ color: "#c8e8d0" }}>Analyst Pass</strong> (full PRO, no card): <strong style={{ color: "#c8e8d0" }}>90 days</strong> for the first 100 founding operatives, then <strong style={{ color: "#c8e8d0" }}>30 days</strong>. Legacy users can claim once from Account if eligible. Trial status and days left appear on <code style={{ color: "#3a5040" }}>/account</code>.</Row>
             <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full article highlights, Polymarket real-time odds, URL analyzer, email alerts at 75%+ threat, board PNG export, unlimited Investigation Boards.</Row>
             <Note>Sign in via the SIGN IN button. Upgrade via PRO ▶ — payment handled by Stripe. Manage subscription from your Account page.</Note>
           </Section>

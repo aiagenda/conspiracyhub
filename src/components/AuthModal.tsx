@@ -10,6 +10,13 @@ const MONO = "var(--font-share-tech-mono), monospace";
 
 type SignupSuccessMode = "confirm_email" | "signed_in";
 
+type SignupSuccess = {
+  mode: SignupSuccessMode;
+  email: string;
+  foundingMember?: boolean;
+  trialDays?: number;
+};
+
 export default function AuthModal({
   onClose,
   initialTab = "signin",
@@ -22,7 +29,7 @@ export default function AuthModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState<{ mode: SignupSuccessMode; email: string } | null>(null);
+  const [signupSuccess, setSignupSuccess] = useState<SignupSuccess | null>(null);
   const [forgotSuccessEmail, setForgotSuccessEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,9 +117,32 @@ export default function AuthModal({
         email: email.trim(),
         signup_mode: hasSession ? "signed_in" : "confirm_email",
       });
+
+      let foundingMember = false;
+      let trialDays = 30;
+      if (hasSession && data?.session?.access_token) {
+        try {
+          const accRes = await fetch("/api/account", {
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+          });
+          if (accRes.ok) {
+            const acc = (await accRes.json()) as {
+              founding_member?: boolean;
+              analyst_pass_trial_days?: number | null;
+            };
+            foundingMember = Boolean(acc.founding_member);
+            trialDays = acc.analyst_pass_trial_days ?? (foundingMember ? 90 : 30);
+          }
+        } catch {
+          /* profile may load on next visit */
+        }
+      }
+
       setSignupSuccess({
         mode: hasSession ? "signed_in" : "confirm_email",
         email: email.trim(),
+        foundingMember,
+        trialDays,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Authentication failed.");
@@ -390,8 +420,12 @@ export default function AuthModal({
                   </>
                 ) : (
                   <>
-                    Your account is live with a <strong style={{ color: "#00bb66" }}>30-day Analyst Pass</strong> — full
-                    PRO (Oracle, URL analysis, highlights). Open Account anytime to see days remaining.
+                    Your account is live with a{" "}
+                    <strong style={{ color: "#00bb66" }}>
+                      {signupSuccess.trialDays ?? 30}-day Analyst Pass
+                    </strong>
+                    {signupSuccess.foundingMember ? " (founding operative)" : ""} — full PRO (Oracle, URL
+                    analysis, highlights). Open Account anytime to see days remaining.
                   </>
                 )}
               </p>
@@ -436,6 +470,7 @@ export default function AuthModal({
                     letterSpacing: 0.2,
                   }}
                 >
+                  <li>Early operatives may receive a <strong style={{ color: "#6a9080" }}>90-day Analyst Pass</strong> after confirming.</li>
                   <li>Check <strong style={{ color: "#6a9080" }}>Inbox</strong> and wait a minute for delivery.</li>
                   <li>
                     If nothing appears, open <strong style={{ color: "#6a9080" }}>Spam / Junk</strong> or{" "}
@@ -611,8 +646,8 @@ export default function AuthModal({
                   letterSpacing: 0.3,
                 }}
               >
-                <strong style={{ color: "#00ff88" }}>30-day Analyst Pass</strong> included — full PRO after signup
-                (Oracle, URL analyzer, all highlights). No credit card required for the trial.
+                <strong style={{ color: "#00ff88" }}>90-day Analyst Pass</strong> for early operatives (then 30-day) —
+                full PRO after signup (Oracle, URL analyzer, all highlights). No credit card required for the trial.
               </div>
             )}
 

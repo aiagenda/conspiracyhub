@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { nicknameFromAuthMetadata, parseNicknameInput } from "@/lib/nickname";
 import { toAccountJson, type AccountProfileRow } from "@/lib/accountResponse";
 import { buildSignupTrialPatch, canClaimLegacyTrial } from "@/lib/userPlan";
-import { mergeTrialIntoInsert } from "@/lib/server/proTrial";
+import { buildNewProfileInsert } from "@/lib/server/proTrial";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,7 +13,7 @@ function getAdmin() {
 }
 
 const PROFILE_SELECT =
-  "email, nickname, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, pro_trial_ends_at, pro_trial_granted_at, pro_trial_redeemed, created_at, email_weekly_briefing, email_high_threat_alerts";
+  "email, nickname, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, pro_trial_ends_at, pro_trial_granted_at, pro_trial_redeemed, created_at, email_weekly_briefing, email_high_threat_alerts, founding_member, founding_slot";
 
 async function loadOrCreateProfile(
   admin: ReturnType<typeof getAdmin>,
@@ -30,13 +30,12 @@ async function loadOrCreateProfile(
   if (!profile) {
     const email = user.email ?? "";
     const nickname = nicknameFromAuthMetadata(user.user_metadata);
-    const { error: insErr } = await admin.from("user_profiles").insert(
-      mergeTrialIntoInsert({
-        id: user.id,
-        email,
-        ...(nickname ? { nickname } : {}),
-      }),
-    );
+    const insertRow = await buildNewProfileInsert(admin, user.id, {
+      id: user.id,
+      email,
+      ...(nickname ? { nickname } : {}),
+    });
+    const { error: insErr } = await admin.from("user_profiles").insert(insertRow);
     if (insErr) throw new Error(insErr.message);
 
     const again = await admin.from("user_profiles").select(PROFILE_SELECT).eq("id", user.id).single();
@@ -164,13 +163,12 @@ export async function PATCH(req: NextRequest) {
       if (!email) {
         return NextResponse.json({ error: "profile_missing_email" }, { status: 400 });
       }
-      const { error: insErr } = await admin.from("user_profiles").insert(
-        mergeTrialIntoInsert({
-          id: user.id,
-          email,
-          nickname: parsed.value,
-        }),
-      );
+      const insertRow = await buildNewProfileInsert(admin, user.id, {
+        id: user.id,
+        email,
+        nickname: parsed.value,
+      });
+      const { error: insErr } = await admin.from("user_profiles").insert(insertRow);
       if (insErr) {
         return NextResponse.json({ error: insErr.message }, { status: 500 });
       }

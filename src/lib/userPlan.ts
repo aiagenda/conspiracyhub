@@ -8,7 +8,13 @@ export type UserProfilePlanRow = {
   pro_trial_redeemed?: boolean | null;
 };
 
-export const PRO_TRIAL_DAYS = 30;
+/** Standard signup trial after founding slots are full. */
+export const STANDARD_TRIAL_DAYS = 30;
+/** First 100 founding operatives (see claim_founding_operative). */
+export const FOUNDING_TRIAL_DAYS = 90;
+export const FOUNDING_MEMBER_LIMIT = 100;
+/** @deprecated Use STANDARD_TRIAL_DAYS */
+export const PRO_TRIAL_DAYS = STANDARD_TRIAL_DAYS;
 export const PROMO_DISMISS_KEY = "theorist_analyst_pass_dismissed_until";
 
 const PAID_STRIPE_STATUSES = new Set(["active", "trialing", "past_due"]);
@@ -47,9 +53,9 @@ export function proTrialDaysLeft(endsAt: string | null | undefined): number | nu
   return Math.max(0, Math.ceil((t - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
-export function buildSignupTrialPatch(now = new Date()) {
+export function buildSignupTrialPatch(now = new Date(), days = STANDARD_TRIAL_DAYS) {
   const ends = new Date(now);
-  ends.setUTCDate(ends.getUTCDate() + PRO_TRIAL_DAYS);
+  ends.setUTCDate(ends.getUTCDate() + days);
   return {
     plan: "pro" as const,
     pro_trial_ends_at: ends.toISOString(),

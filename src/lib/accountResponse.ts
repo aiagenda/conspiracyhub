@@ -15,7 +15,16 @@ export type AccountProfileRow = UserProfilePlanRow & {
   created_at?: string | null;
   email_weekly_briefing?: boolean | null;
   email_high_threat_alerts?: boolean | null;
+  founding_member?: boolean | null;
+  founding_slot?: number | null;
 };
+
+function analystPassTrialDaysGranted(profile: AccountProfileRow): number | null {
+  const g = profile.pro_trial_granted_at ? Date.parse(profile.pro_trial_granted_at) : NaN;
+  const e = profile.pro_trial_ends_at ? Date.parse(profile.pro_trial_ends_at) : NaN;
+  if (Number.isNaN(g) || Number.isNaN(e) || e <= g) return null;
+  return Math.max(1, Math.round((e - g) / (24 * 60 * 60 * 1000)));
+}
 
 export function toAccountJson(profile: AccountProfileRow) {
   const effective = isEffectivePro(profile);
@@ -43,5 +52,7 @@ export function toAccountJson(profile: AccountProfileRow) {
     member_since: profile.created_at ?? null,
     email_weekly_briefing: profile.email_weekly_briefing !== false,
     email_high_threat_alerts: profile.email_high_threat_alerts !== false,
+    founding_member: Boolean(profile.founding_member),
+    analyst_pass_trial_days: analystPassTrialDaysGranted(profile),
   };
 }

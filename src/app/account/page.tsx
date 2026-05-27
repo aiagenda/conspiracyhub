@@ -27,6 +27,8 @@ type AccountPayload = {
   member_since: string | null;
   email_weekly_briefing?: boolean;
   email_high_threat_alerts?: boolean;
+  founding_member?: boolean;
+  analyst_pass_trial_days?: number | null;
 };
 
 function accessPeriodHint(iso: string | null, cancelAtEnd: boolean): string | null {
@@ -617,7 +619,7 @@ export default function AccountPage() {
                           letterSpacing: 2,
                         }}
                       >
-                        ANALYST PASS · TRIAL
+                        {data.founding_member ? "FOUNDING OPERATIVE · " : ""}ANALYST PASS · TRIAL
                       </span>
                     ) : cancelingSubscription ? (
                       <span
@@ -782,7 +784,7 @@ export default function AccountPage() {
                       <>
                         Upgrade to <strong style={{ color: "#00ff88" }}>PRO</strong> for unlimited Oracle triggers, full
                         article highlights, Polymarket real-time odds, URL analyzer and board export. New accounts include a
-                        30-day Analyst Pass at signup.
+                        New accounts: <strong style={{ color: "#00ff88" }}>90-day Analyst Pass</strong> for founding operatives, then 30-day standard trial at signup.
                       </>
                     )}
                   </div>

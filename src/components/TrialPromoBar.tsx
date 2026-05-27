@@ -104,8 +104,8 @@ export default function TrialPromoBar() {
           <span style={{ fontFamily: RAJ, fontWeight: 700, color: "#00ff88", letterSpacing: 2, marginRight: 8 }}>
             ◈ NEW
           </span>
-          Register free — get a <strong style={{ color: "#ffe8a0" }}>30-day Analyst Pass</strong> (full PRO).
-          Run the Oracle, analyze URLs, unlock all article signals. No credit card.
+          Register free — first operatives get a <strong style={{ color: "#ffe8a0" }}>90-day Analyst Pass</strong> (full PRO).
+          Then 30-day access for new accounts. Oracle, URL analysis, all highlights. No credit card.
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
           <Link

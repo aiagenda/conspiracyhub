@@ -413,7 +413,7 @@ function BoardAccessGate({
                 textAlign: "center",
               }}
             >
-              REGISTER — 30-DAY ANALYST PASS FREE
+              REGISTER — 90-DAY ANALYST PASS (EARLY OPERATIVES)
             </Link>
           )}
           {backHref && (

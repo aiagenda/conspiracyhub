@@ -741,7 +741,7 @@ export default function ArticleReader({
                       ⚠ {hlTotal - highlights.length} SIGNAL{hlTotal - highlights.length > 1 ? "S" : ""} HIDDEN
                     </div>
                     <div style={{ fontFamily: FONT, fontSize: 10, color: "#8a7a60", letterSpacing: 0.5, lineHeight: 1.55, marginBottom: 10 }}>
-                      Register for a <strong style={{ color: "#ffcc66" }}>30-day Analyst Pass</strong> — unlock all {hlTotal} signals with full notes.
+                      Register for an <strong style={{ color: "#ffcc66" }}>Analyst Pass</strong> — up to 90 days for early operatives — unlock all {hlTotal} signals with full notes.
                     </div>
                     <a
                       href="/?auth=signup"
