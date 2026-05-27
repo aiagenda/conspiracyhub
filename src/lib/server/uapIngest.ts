@@ -33,7 +33,8 @@ function parsePubDate(raw: string): string | null {
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
-function feedDocId(url: string): string {
+function feedDocId(url: string, externalId?: string): string {
+  if (externalId) return `pursue-${externalId}`;
   return `feed-${createHash("sha256").update(url).digest("hex").slice(0, 16)}`;
 }
 
@@ -42,13 +43,28 @@ function yearFromPubDate(pubDate: string): number {
   return Number.isFinite(y) && y > 1950 ? y : new Date().getFullYear();
 }
 
+function documentTypeLabel(item: UapNewsItem): string {
+  switch (item.type) {
+    case "foia":
+      return "FOIA Release";
+    case "video":
+      return "Sensor Video";
+    case "audio":
+      return "Audio Recording";
+    case "photo":
+      return "Photograph";
+    default:
+      return "Archive";
+  }
+}
+
 function feedItemToDocument(item: UapNewsItem): UapDocument {
   const pub = item.pubDate || new Date().toISOString();
   return {
-    id: feedDocId(item.url),
+    id: feedDocId(item.url, item.externalId),
     name: item.title.slice(0, 200),
     year: yearFromPubDate(pub),
-    type: item.type === "foia" ? "FOIA Release" : "Archive",
+    type: documentTypeLabel(item),
     classification: "PUBLIC",
     url: item.url,
     description: `Auto-ingested from ${item.source}. Published ${pub.slice(0, 10)}.`,
@@ -187,6 +203,9 @@ export async function runPursueDocumentIngest(): Promise<{
   warGovCount: number;
   newsFallbackCount: number;
   pursueDocumentsInDb: number;
+  catalogSource: string;
+  catalogTotal: number;
+  manifestFetchedAt?: string;
 }> {
   const admin = getUapAdmin();
   const feed = await fetchPursueFeed();
@@ -202,6 +221,9 @@ export async function runPursueDocumentIngest(): Promise<{
     warGovCount: feed.warGovCount,
     newsFallbackCount: feed.newsFallbackCount,
     pursueDocumentsInDb,
+    catalogSource: feed.catalogSource,
+    catalogTotal: feed.catalogTotal,
+    manifestFetchedAt: feed.manifestFetchedAt,
   };
 }
 

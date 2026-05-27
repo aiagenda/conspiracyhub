@@ -810,7 +810,7 @@ export default function AdminPage() {
 
   async function fetchPursueFiles() {
     setScraperBusy("pursue-fetch");
-    setUapBriefHint({ variant: "info", text: "Fetching PURSUE files (war.gov + news fallback)…" });
+    setUapBriefHint({ variant: "info", text: "Syncing PURSUE catalog (222 records from war.gov manifest)…" });
     try {
       const res = await fetch("/api/admin/scrapers", {
         method: "PATCH",
@@ -828,6 +828,9 @@ export default function AdminPage() {
             warGovCount?: number;
             newsFallbackCount?: number;
             pursueDocumentsInDb?: number;
+            catalogSource?: string;
+            catalogTotal?: number;
+            manifestFetchedAt?: string;
           };
         };
       };
@@ -840,30 +843,31 @@ export default function AdminPage() {
       const fetched = p?.fetched ?? 0;
       const upserted = p?.upserted ?? 0;
       const inDb = p?.pursueDocumentsInDb ?? 0;
-      const warGovBlocked = p?.warGovBlocked === true;
       const warGovCount = p?.warGovCount ?? 0;
-      const newsCount = p?.newsFallbackCount ?? 0;
+      const catalogSource = p?.catalogSource ?? "unknown";
+      const manifestAt = p?.manifestFetchedAt?.slice(0, 10);
 
       if (fetched === 0) {
         setUapBriefHint({
           variant: "info",
-          text: warGovBlocked
-            ? "No PURSUE items found — war.gov blocks server IPs; Google News returned nothing. Retry after the next batch release."
-            : "No PURSUE items found from war.gov or news feeds.",
+          text: "PURSUE catalog unavailable — war.gov blocked and manifest fetch failed.",
         });
         return;
       }
 
-      const sourceNote = warGovBlocked
-        ? `war.gov blocked from server · ${newsCount} from news`
-        : `${warGovCount} direct · ${newsCount} news`;
+      const sourceLabel =
+        catalogSource === "pursue_index_manifest"
+          ? `manifest${manifestAt ? ` · ${manifestAt}` : ""} · ${warGovCount} war.gov PDFs`
+          : catalogSource === "war.gov_csv"
+            ? "live war.gov CSV"
+            : catalogSource;
 
       setUapBriefHint({
         variant: upserted > 0 || inDb > 0 ? "success" : "info",
         text:
           upserted > 0
-            ? `◈ PURSUE ingest — ${upserted} new (${fetched} fetched, ${inDb} total in DB) · ${sourceNote}`
-            : `◈ PURSUE — ${fetched} fetched, 0 new (${inDb} already in DB) · ${sourceNote}`,
+            ? `◈ PURSUE — ${upserted} new · ${fetched} in catalog · ${inDb} total in DB · ${sourceLabel}`
+            : `◈ PURSUE — ${fetched} in catalog · ${inDb} in DB (already synced) · ${sourceLabel}`,
       });
     } catch (e) {
       setUapBriefHint({ variant: "error", text: `PURSUE fetch failed: ${String(e)}` });
@@ -1119,7 +1123,7 @@ export default function AdminPage() {
                     color: scraperBusy === "pursue-fetch" ? "#ffaa00" : muted,
                     background: scraperBusy === "pursue-fetch" ? "rgba(255,170,0,0.08)" : "transparent",
                   }}
-                  title="Fetch latest PURSUE batch from war.gov/UFO"
+                  title="Sync full PURSUE catalog (war.gov uap-data.csv manifest, 222 records)"
                 >
                   {scraperBusy === "pursue-fetch" ? "Fetching…" : "◈ PURSUE"}
                 </button>

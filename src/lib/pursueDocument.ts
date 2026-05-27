@@ -4,7 +4,8 @@ export function isPursueDocument(doc: {
   url?: string;
   description?: string;
   source?: string;
+  id?: string;
 }): boolean {
-  const haystack = `${doc.name ?? ""} ${doc.url ?? ""} ${doc.description ?? ""} ${doc.source ?? ""}`;
-  return /PURSUE|war\.gov\/UFO|war\.gov/i.test(haystack);
+  const haystack = `${doc.id ?? ""} ${doc.name ?? ""} ${doc.url ?? ""} ${doc.description ?? ""} ${doc.source ?? ""}`;
+  return /PURSUE|DOW-UAP|war\.gov\/UFO|war\.gov\/medialink|pursue\.report|pursueindex\.com/i.test(haystack);
 }
