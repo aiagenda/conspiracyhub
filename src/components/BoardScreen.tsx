@@ -527,7 +527,7 @@ export default function BoardScreen({
   oracleMode?: "news" | "generated";
 }) {
   const [analysis, setAnalysis] = useState<OracleAnalysis | null>(initialAnalysis);
-  const [selected, setSelected] = useState<Node | null>(analysis?.nodes?.[0] ?? MOCK_NODES[0]);
+  const [selected, setSelected] = useState<Node | null>(null);
   const [loading, setLoading] = useState(!initialAnalysis);
   const [accessBlock, setAccessBlock] = useState<BoardAccessBlock | null>(null);
 
@@ -587,7 +587,7 @@ export default function BoardScreen({
         return;
       }
       setAnalysis(payload as OracleAnalysis);
-      setSelected((payload as OracleAnalysis).nodes?.[0] ?? MOCK_NODES[0]);
+      setSelected(null);
     } catch (e) {
       setAccessBlock({
         kind: "error",
@@ -617,7 +617,7 @@ export default function BoardScreen({
   const hasTheories = withTheories.some((n) => n.type === "theory");
   const nodes = (hasTheories || needsRelayout(withTheories)) ? relayoutNodes(withTheories) : withTheories;
   const edges = appendTheoryEdges(sanitizeEdges(analysis?.edges, nodes), nodes);
-  const safeSelected = nodes.find((n) => n.id === selected?.id) ?? nodes[0];
+  const safeSelected = selected ? nodes.find((n) => n.id === selected.id) ?? null : null;
   const handleNodeClick = (node: Node | null) => {
     if (!node) {
       setSelected(null);
@@ -632,7 +632,7 @@ export default function BoardScreen({
         <InvestigationBoard
           nodes={nodes}
           edges={edges}
-          selectedNode={selected ? safeSelected : null}
+          selectedNode={safeSelected}
           onNodeClick={handleNodeClick}
           conclusion={analysis?.conclusion}
           verdict={analysis?.verdict}
