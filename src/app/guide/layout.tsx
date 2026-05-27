@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Investigation Guide",
   description:
-    "How to use The Theorist: FEED, Insider Radar, ANALYSIS reports (/blog), Investigation Board, Oracle AI, UAP files, outbreaks, community, and search.",
+    "How to use The Theorist: FEED, highest impact signal, Insider Radar, ANALYSIS reports (/blog), Investigation Board, federal spending, Oracle AI, UAP files, outbreaks, community, account, and search.",
   openGraph: {
     title: "Investigation Guide | The Theorist",
     description:
-      "Platform guide — navigation, feed, Insider Radar, Investigation Board, Oracle, Analyst Pass trial, and research tools.",
+    "Platform guide — navigation, feed, highest impact signal, Investigation Board, federal spending, Oracle AI, Analyst Pass, saved investigations, and email briefing.",
   },
 };
 

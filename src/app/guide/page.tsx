@@ -81,6 +81,7 @@ export default function GuidePage() {
             <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
             <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
             <Row label="GUIDE" color="#5a8068">This page <code style={{ color: "#3a5040" }}>/guide</code>.</Row>
+            <Row label="ACCOUNT" color="#5a8068">Profile, Analyst Pass, saved investigations, email prefs <code style={{ color: "#3a5040" }}>/account</code> — sign in from the feed first.</Row>
             <Sub>Do not confuse</Sub>
             <Row label="ANALYSIS" color="#c94dff">Product area: the <code style={{ color: "#3a5040" }}>/blog</code> report list and each report at <code style={{ color: "#3a5040" }}>/blog/[slug]</code>.</Row>
             <Row label="ORACLE" color="#00ff88">The GPT-4o investigation engine: graph + verdicts + cached analysis. Invoked from the Investigation Board (and explicitly on UAP with ◈ RUN ORACLE ANALYSIS ▶).</Row>
@@ -91,13 +92,22 @@ export default function GuidePage() {
 
           {/* FEED */}
           <Section icon="◈" title="Main Feed" color="#00ff88">
-            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority / threat score (0–100). Only articles scoring 70+ are shown.</Note>
+            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority score (0–100). Only articles scoring 70+ are shown in the main stream.</Note>
+            <Sub>Highest impact signal</Sub>
+            <Note>At the top of page 1, the hero card highlights the <strong style={{ color: "#c8e8d0" }}>highest priority score</strong> from the last 7 days — not a separate editorial pick. The percentage matches the same AI score used on news cards.</Note>
+            <Sub>Continue where you left off</Sub>
+            <Note>When you open an article, report, or board, the feed remembers your last position (browser storage; synced to your account when signed in). Page 1 shows a resume banner if you have a saved session.</Note>
+            <Sub>Pagination &amp; access</Sub>
+            <Row label="PAGE 1" color="#00ff88">Always free — no account required.</Row>
+            <Row label="PAGE 2+" color="#ffaa00">Free registered account required. Guests see a sign-in prompt instead of older archive pages.</Row>
             <Sub>News card</Sub>
-            <Row label="THREAT: 82" color="#ff3333">AI risk score. 80+ = high (red), 70–79 = elevated (red). Below 70 is hidden from the feed.</Row>
+            <Row label="82% PRIORITY" color="#ff3333">AI priority / impact score. 80+ = high (red), 70–79 = elevated. Below 70 is hidden from the feed.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
-            <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board; optional per-article live chat appears in the dock only when <code style={{ color: "#3a5040" }}>NEXT_PUBLIC_LIVE_CHAT_ENABLED=true</code> is set on deploy. Oracle runs in the board context when needed.</Row>
+            <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board; optional per-article live chat appears in the dock only when <code style={{ color: "#3a5040" }}>NEXT_PUBLIC_LIVE_CHAT_ENABLED=true</code> is set on deploy. Live chat requires sign-in.</Row>
+            <Sub>Article highlights</Sub>
+            <Note>AI marks conspiracy-relevant phrases in the article body. Guests see the top <strong style={{ color: "#c8e8d0" }}>3</strong> signals; free registered users see <strong style={{ color: "#c8e8d0" }}>5</strong>; PRO / Analyst Pass trial sees all with full notes.</Note>
             <Sub>Status bar</Sub>
-            <Note>Green dots = active data source. Yellow = degraded/idle. Red = error. DARPA: ████ is intentionally redacted — symbolises partially classified defence data.</Note>
+            <Note>Green = source active recently. Yellow [IDLE] or [DEGRADED] = stale or quiet. Red = error. UAP reflects last full refresh (daily scraper), not only new NUFORC rows. COMMUNITY shows time of the latest post, not only new threads. DARPA: ████ is intentionally redacted.</Note>
           </Section>
 
           {/* ANALYSIS / BLOG */}
@@ -116,7 +126,13 @@ export default function GuidePage() {
             <Row label="FROM FEED" color="#5a8068">Article reader → ◈ BOARD ▶ or dock ◈ OPEN INVESTIGATION BOARD ▶ → <code style={{ color: "#3a5040" }}>/board/[newsId]</code>.</Row>
             <Row label="FROM REPORT" color="#5a8068">Report reader → same BOARD controls → <code style={{ color: "#3a5040" }}>/board/[id]</code>. Back link on the board shows ← REPORT to return to the blog slug.</Row>
             <Sub>Oracle on the board</Sub>
-            <Note>For feed-sourced news, if no cached Oracle JSON exists, the board requests a new analysis after you sign in (subject to plan limits). If a cache hit exists, it loads immediately — free users can read cached runs; triggering fresh runs may require PRO where enforced.</Note>
+            <Note>For feed-sourced news, if no cached Oracle JSON exists, the board requests a new analysis after you sign in (subject to plan limits). If a cache hit exists, it loads immediately — guests and free users can read cached runs; triggering fresh runs requires effective PRO (paid or Analyst Pass trial).</Note>
+            <Sub>Federal spending panel</Sub>
+            <Note>On company, person, event, patent, and FOIA nodes (and matching agency keywords), the detail panel can show <strong style={{ color: "#c8e8d0" }}>US federal awards</strong> from USASpending.gov — recipient search, awarding agency filter, or keyword mode. Data is paginated (not capped at a handful of rows). No API key required.</Note>
+            <Sub>Node scores</Sub>
+            <Note>The centre article node uses threat-style scoring. Other node types show relevance / involvement labels instead of “threat” where appropriate.</Note>
+            <Sub>Save investigation</Sub>
+            <Row label="☆ SAVE" color="#00ff88">Top-right on the board (next to SHARE). Sign in to bookmark the board on <code style={{ color: "#3a5040" }}>/account</code> → My investigations. Free: up to 5 saved; PRO: unlimited.</Row>
             <Sub>Node colours</Sub>
             <Row label="GREEN" color="#00ff88">Article (centre), confirmed sources.</Row>
             <Row label="RED" color="#ff3333">FOIA document or high-threat connection.</Row>
@@ -191,13 +207,16 @@ export default function GuidePage() {
 
           {/* SEARCH */}
           <Section icon="⌕" title={"Search & URL Analyzer"} color="#5a8068">
-            <Note>/search uses full-text search across all articles, Oracle analyses and FOIA documents.</Note>
+            <Note><code style={{ color: "#3a5040" }}>/search</code> searches the article database plus AI enrichment when signed in.</Note>
+            <Sub>Guest vs registered</Sub>
+            <Row label="GUEST" color="#5a8068">News/article matches from the database only.</Row>
+            <Row label="SIGNED IN" color="#00ff88">Same news results plus GPT-generated theories, USPTO patents, key figures, and related events for your query.</Row>
             <Sub>Search tips</Sub>
-            <Row label="KEYWORD" color="#5a8068">Searches article summaries and Oracle text.</Row>
+            <Row label="KEYWORD" color="#5a8068">Searches article titles, summaries, and angles.</Row>
             <Row label="ORGANISATION" color="#5a8068">CIA, DARPA, Lockheed — returns related articles and boards.</Row>
             <Row label="EVENT" color="#5a8068">Roswell, Nimitz — returns UAP incidents and linked articles.</Row>
             <Sub>URL Analyzer (PRO)</Sub>
-            <Note>Paste any https:// link into the ◈ ANALYZE URL tab (second tab on /search). Supports: X/Twitter, Reddit, Bluesky, YouTube (oEmbed), and standard news sites. Short links (t.co, redd.it) are resolved first. Login-only pages may return limited content.</Note>
+            <Note>Paste any https:// link into the ◈ ANALYZE URL tab (second tab on /search). Requires sign-in and effective PRO. Supports: X/Twitter, Reddit, Bluesky, YouTube (oEmbed), and standard news sites. Short links (t.co, redd.it) are resolved first.</Note>
             <Sub>Reference Index</Sub>
             <Note>Curated A–Z list of official declassified portals: CIA Reading Room, FBI Vault, NARA, NSA FOIA, DARPA, etc. Filter by agency or letter. Links open the primary government source — PDFs are not hosted here.</Note>
           </Section>
@@ -221,7 +240,7 @@ export default function GuidePage() {
 
           {/* SHARING */}
           <Section icon="↗" title={"Share & Export"} color="#5a8068">
-            <Note>Every Investigation Board has a ◈ SHARE ▼ button top-right with these options:</Note>
+            <Note>Every Investigation Board has ◈ SHARE ▼ and ☆ SAVE top-right.</Note>
             <Row label="𝕏 X" color="#c8e8d0">Pre-filled post with Oracle conclusion and hashtags.</Row>
             <Row label="f FACEBOOK" color="#4080ff">Facebook Sharer with board URL.</Row>
             <Row label="r/ REDDIT" color="#ff6600">Reddit Submit with URL and title.</Row>
@@ -230,19 +249,32 @@ export default function GuidePage() {
             <Row label="💾 PNG" color="#ffaa00">Saves the full board as a high-res PNG (1.5× scale).</Row>
           </Section>
 
+          {/* ACCOUNT */}
+          <Section icon="◉" title="Account & email" color="#5a8068">
+            <Note><code style={{ color: "#3a5040" }}>/account</code> — profile, Analyst Pass status, billing, saved investigations, and email preferences. Sign in from the feed header first.</Note>
+            <Sub>My investigations</Sub>
+            <Note>Lists boards you saved with ☆ SAVE. Links back to the board and source article where available.</Note>
+            <Sub>Email preferences</Sub>
+            <Row label="WEEKLY" color="#00ff88">Weekly intelligence briefing — top signals, community pulse, UAP highlight (Sunday 09:00 UTC). Opt out anytime.</Row>
+            <Row label="ALERTS" color="#ff3333">High-threat alerts when a story scores 75%+ — effective PRO only, opt-in on Account.</Row>
+            <Sub>Founding operative</Sub>
+            <Note>The first 100 new accounts receive a <strong style={{ color: "#c8e8d0" }}>90-day</strong> Analyst Pass and a founding badge on Account. After that, new signups get the standard <strong style={{ color: "#c8e8d0" }}>30-day</strong> trial automatically.</Note>
+          </Section>
+
           {/* PRO */}
           <Section icon="◐" title="Free vs. PRO" color="#c94dff">
-            <Row label="FREE" color="#5a8068">Browse feed, Insider Radar, outbreaks, UAP files, view cached Oracle analyses, 3 @oracle triggers/day, top-3 article highlights, community access.</Row>
-            <Row label="TRIAL" color="#ffaa00">New accounts receive an <strong style={{ color: "#c8e8d0" }}>Analyst Pass</strong> (full PRO, no card): <strong style={{ color: "#c8e8d0" }}>90 days</strong> for the first 100 founding operatives, then <strong style={{ color: "#c8e8d0" }}>30 days</strong>. Legacy users can claim once from Account if eligible. Trial status and days left appear on <code style={{ color: "#3a5040" }}>/account</code>.</Row>
-            <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full article highlights, Polymarket real-time odds, URL analyzer, email alerts at 75%+ threat, board PNG export, unlimited Investigation Boards.</Row>
-            <Note>Sign in via the SIGN IN button. Upgrade via PRO ▶ — payment handled by Stripe. Manage subscription from your Account page.</Note>
+            <Row label="GUEST" color="#5a8068">Feed page 1, all articles, cached Oracle boards, community read-only, search news-only, 3 article highlights, no live chat.</Row>
+            <Row label="FREE" color="#5a8068">Full feed pagination, search AI enrichment, 5 article highlights, 3 @oracle/day, save up to 5 investigations, continue-reading sync.</Row>
+            <Row label="TRIAL" color="#ffaa00">New accounts receive an <strong style={{ color: "#c8e8d0" }}>Analyst Pass</strong> (full PRO, no card): <strong style={{ color: "#c8e8d0" }}>90 days</strong> for the first 100 founding operatives, then <strong style={{ color: "#c8e8d0" }}>30 days</strong>. Legacy users can claim a one-time 30-day pass from Account if eligible.</Row>
+            <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full highlights, Polymarket odds, URL analyzer, high-threat email alerts (opt-in), unlimited saved investigations, board PNG export. $7/mo via Stripe.</Row>
+            <Note>Sign in via SIGN IN on the feed. Upgrade via PRO ▶. Manage subscription and email prefs on Account.</Note>
           </Section>
 
           {/* FOOTER */}
           <div style={{ padding: "14px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "#090f0b", fontSize: 10, color: "#3a5040", lineHeight: 1.8 }}>
-            <span style={{ color: "#5a8068" }}>◈ VERSION</span>{" "}<span style={{ color: "#00ff88" }}>1.3</span>
+            <span style={{ color: "#5a8068" }}>◈ VERSION</span>{" "}<span style={{ color: "#00ff88" }}>1.4</span>
             {"  ·  "}
-            <span style={{ color: "#5a8068" }}>SOURCES</span>{" "}<span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · AARO · WHO · YouTube RSS</span>
+            <span style={{ color: "#5a8068" }}>SOURCES</span>{" "}<span style={{ color: "#c8e8d0" }}>Guardian · CIA FOIA · USPTO · USASpending · AARO · WHO · YouTube RSS</span>
             {"  ·  "}
             <span style={{ color: "#5a8068" }}>AI</span>{" "}<span style={{ color: "#c8e8d0" }}>GPT-4o</span>
             {"  ·  "}
