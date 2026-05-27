@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import posthog from "posthog-js";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 const FEATURES = [
   { icon: "◈", text: "Unlimited investigation boards — visual node graph with CIA/USPTO links" },
@@ -9,7 +10,7 @@ const FEATURES = [
   { icon: "◈", text: "URL analyzer — submit any link for Oracle investigation" },
   { icon: "▸", text: "Polymarket real-time prediction odds on every article" },
   { icon: "◈", text: "Email alerts when high-threat articles (75%+) are detected" },
-  { icon: "▸", text: "Unlimited @oracle calls in community (free tier: 3/day)" },
+  ...(SHOW_COMMUNITY ? [{ icon: "▸", text: "Unlimited @oracle calls in community (free tier: 3/day)" }] : []),
   { icon: "◈", text: "Investigation board screenshot + X share" },
 ];
 

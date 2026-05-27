@@ -15,6 +15,7 @@ import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
 import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { Session, User } from "@supabase/supabase-js";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 const TICKER_ITEMS = [
   "▸ AI-FILTERED CONSPIRACY FEED — LIVE",
@@ -213,7 +214,9 @@ export default function FeedScreen({
             { label: "SCRAPER", key: "scraper", tip: "Last news scraper job finished or started (scheduler)." },
             { label: "GPT-4o", key: "oracle", tip: "Latest oracle analysis created_at." },
             { label: "UAP", key: "uap", tip: "Last UAP full refresh (scheduler / intel cache), not last new NUFORC sighting." },
-            { label: "COMMUNITY", key: "community", tip: "Latest community post (thread reply or new thread)." },
+            ...(SHOW_COMMUNITY
+              ? [{ label: "COMMUNITY", key: "community" as const, tip: "Latest community post (thread reply or new thread)." }]
+              : []),
           ] as const).map(({ label, key, tip }) => {
             const status = health ? health[key] : null;
             const age = formatHealthAge(health?.last_at?.[key]);

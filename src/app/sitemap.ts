@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 export const revalidate = 3600; // rebuild sitemap every hour
 
@@ -8,7 +9,9 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.verc
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: SITE_URL, lastModified: new Date(), changeFrequency: "hourly", priority: 1.0 },
   { url: `${SITE_URL}/uap`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
-  { url: `${SITE_URL}/community`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.85 },
+  ...(SHOW_COMMUNITY
+    ? [{ url: `${SITE_URL}/community`, lastModified: new Date(), changeFrequency: "hourly" as const, priority: 0.85 }]
+    : []),
   { url: `${SITE_URL}/outbreaks`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
   { url: `${SITE_URL}/insider-radar`, lastModified: new Date(), changeFrequency: "daily", priority: 0.85 },
   { url: `${SITE_URL}/search`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },

@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import CommunityBoard from "@/components/CommunityBoard";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 export const metadata = {
   title: "Community Intelligence",
@@ -19,6 +21,8 @@ function CommunityFallback() {
 }
 
 export default function CommunityPage() {
+  if (!SHOW_COMMUNITY) redirect("/");
+
   return (
     <Suspense fallback={<CommunityFallback />}>
       <CommunityBoard />

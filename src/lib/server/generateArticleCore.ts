@@ -4,6 +4,7 @@ import { callOpenAIJSON } from "@/lib/openai";
 import { sanitizeSources } from "@/lib/generatedArticleSourceUrls";
 import { applyAllowlistToArticleSources, createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { enrichSourcesWithRealUrls } from "@/lib/searchSourceUrl";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -203,7 +204,7 @@ export async function runLoreDossierCore(params: LoreDossierParams): Promise<Gen
 
     const prompt = `Write a hypothesis dossier about: "${topic}"${angle ? `\nAngle / focus: "${angle}"` : ""}${seedBlock}
 
-Internal links: reference "${SITE_URL}/board" for the Investigation Board, "${SITE_URL}/community" for community discussion.`;
+Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_COMMUNITY ? `, "${SITE_URL}/community" for community discussion` : ""}.`;
 
     const allowlist = createSourceUrlAllowlist(
       mergeUrlSeeds(seedUrls, extractHttpsUrlsFromText(prompt)),

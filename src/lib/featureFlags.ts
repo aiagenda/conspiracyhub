@@ -11,3 +11,6 @@ function truthyEnv(v: string | undefined): boolean {
 export function isLiveChatEnabled(): boolean {
   return truthyEnv(process.env.NEXT_PUBLIC_LIVE_CHAT_ENABLED);
 }
+
+/** Re-enable when community launches publicly. */
+export const SHOW_COMMUNITY = false;

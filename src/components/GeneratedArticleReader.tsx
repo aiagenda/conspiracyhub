@@ -10,7 +10,7 @@ import VotePanel from "@/components/VotePanel";
 import { markArticleRead } from "@/lib/readArticles";
 import { trackContinueReading } from "@/lib/continueReading";
 import { pageContentShellStyle } from "@/lib/pageShell";
-import { isLiveChatEnabled } from "@/lib/featureFlags";
+import { isLiveChatEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
@@ -470,32 +470,34 @@ export default function GeneratedArticleReader({
                 </div>
                 <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>AI graph · patents · FOIA · theories</div>
               </Link>
-              <Link
-                href={`/community?generated_article=${item.id}`}
-                style={{
-                  display: "block",
-                  padding: "12px 14px",
-                  border: "1px solid #1a3320",
-                  borderRadius: 4,
-                  textAlign: "center",
-                  textDecoration: "none",
-                  background: "#090f0b",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "#c94dff";
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(201,77,255,0.06)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
-                  (e.currentTarget as HTMLAnchorElement).style.background = "#090f0b";
-                }}
-              >
-                <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>
-                  ▸ DISCUSS IN COMMUNITY
-                </div>
-                <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>Thread linked to this report</div>
-              </Link>
+              {SHOW_COMMUNITY ? (
+                <Link
+                  href={`/community?generated_article=${item.id}`}
+                  style={{
+                    display: "block",
+                    padding: "12px 14px",
+                    border: "1px solid #1a3320",
+                    borderRadius: 4,
+                    textAlign: "center",
+                    textDecoration: "none",
+                    background: "#090f0b",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.borderColor = "#c94dff";
+                    (e.currentTarget as HTMLAnchorElement).style.background = "rgba(201,77,255,0.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
+                    (e.currentTarget as HTMLAnchorElement).style.background = "#090f0b";
+                  }}
+                >
+                  <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>
+                    ▸ DISCUSS IN COMMUNITY
+                  </div>
+                  <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>Thread linked to this report</div>
+                </Link>
+              ) : null}
               <Link
                 href="/"
                 style={{
@@ -530,7 +532,7 @@ export default function GeneratedArticleReader({
             >
               <div style={{ fontFamily: FONT, fontSize: 10, color: "#00bb66", letterSpacing: 2, marginBottom: 6 }}>◈ SIGNALS</div>
               <div style={{ fontSize: 10, color: "#5a8068", lineHeight: 1.55 }}>
-                Community votes and theory picks are in the panel below. Open the Investigation Board for the Oracle graph and evidence nodes.
+                Reader votes and theory picks are in the panel below. Open the Investigation Board for the Oracle graph and evidence nodes.
               </div>
             </div>
             <VotePanel generatedArticleId={item.id} aiScore={item.score} theories={voteTheories} />

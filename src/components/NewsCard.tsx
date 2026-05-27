@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import ReaderReactionVote from "@/components/ReaderReactionVote";
-import { isLiveChatEnabled } from "@/lib/featureFlags";
+import { isLiveChatEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import type { NewsItem } from "@/types";
 
 function scoreColor(s: number) {
@@ -192,35 +192,37 @@ export default function NewsCard({
           >
             ◈ READ & INVESTIGATE ▶
           </button>
-          <Link
-            href={`/community?article=${item.id}`}
-            className="news-card-action-link"
-            style={{
-              display: "block",
-              textAlign: "center",
-              textDecoration: "none",
-              background: "transparent",
-              border: "1px solid #1a3320",
-              borderRadius: 3,
-              padding: "10px 14px",
-              fontFamily: "var(--font-raj), sans-serif",
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
-              (e.currentTarget as HTMLAnchorElement).style.color = "var(--muted-dim, #7aaa8a)";
-            }}
-          >
-            ▸ DISCUSS IN COMMUNITY
-          </Link>
+          {SHOW_COMMUNITY ? (
+            <Link
+              href={`/community?article=${item.id}`}
+              className="news-card-action-link"
+              style={{
+                display: "block",
+                textAlign: "center",
+                textDecoration: "none",
+                background: "transparent",
+                border: "1px solid #1a3320",
+                borderRadius: 3,
+                padding: "10px 14px",
+                fontFamily: "var(--font-raj), sans-serif",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
+                (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
+                (e.currentTarget as HTMLAnchorElement).style.color = "var(--muted-dim, #7aaa8a)";
+              }}
+            >
+              ▸ DISCUSS IN COMMUNITY
+            </Link>
+          ) : null}
           {showLiveChat ? (
           <Link
             href={`/article/${item.id}?chat=1`}

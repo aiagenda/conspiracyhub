@@ -639,30 +639,6 @@ export default function ArticleReader({
                 <div style={{ fontFamily: RAJ, fontSize: 14, fontWeight: 700, color: "#00ff88", letterSpacing: 3, marginBottom: 4 }}>◈ OPEN INVESTIGATION BOARD ▶</div>
                 <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>AI-generated node graph · CIA FOIA · USPTO patents · conspiracy theories</div>
               </Link>
-              <Link
-                href={`/community?article=${item.id}`}
-                style={{
-                  display: "block",
-                  padding: "12px 14px",
-                  border: "1px solid #1a3320",
-                  borderRadius: 4,
-                  textAlign: "center",
-                  textDecoration: "none",
-                  background: "#090f0b",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "#c94dff";
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(201,77,255,0.06)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
-                  (e.currentTarget as HTMLAnchorElement).style.background = "#090f0b";
-                }}
-              >
-                <div style={{ fontFamily: RAJ, fontSize: 13, fontWeight: 700, color: "#c94dff", letterSpacing: 2, marginBottom: 3 }}>▸ DISCUSS IN COMMUNITY</div>
-                <div style={{ fontSize: 10, color: "#5a8068", letterSpacing: 1 }}>Thread linked to this article · Oracle · replies</div>
-              </Link>
             </div>
           </div>
 

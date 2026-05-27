@@ -105,7 +105,7 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
       {/* Header */}
       <div style={{ padding: "10px 14px", borderBottom: "1px solid #1a3320", display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", animation: "bannerDot 2s infinite" }} />
-        <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2 }}>◈ COMMUNITY INTELLIGENCE</div>
+        <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", letterSpacing: 2 }}>◈ READER VOTES</div>
         {totalVoters > 0 && (
           <span style={{ marginLeft: "auto", fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>{totalVoters} VOTERS</span>
         )}
@@ -124,7 +124,7 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
             </div>
             {/* Community score */}
             <div style={{ flex: 1, border: `1px solid ${communityScore ? "#00bb66" : "#1a3320"}`, borderRadius: 3, padding: "8px 10px" }}>
-              <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginBottom: 4 }}>COMMUNITY</div>
+              <div style={{ fontSize: 8, color: "#5a8068", letterSpacing: 2, marginBottom: 4 }}>READERS</div>
               {loading ? (
                 <div style={{ fontFamily: RAJ, fontSize: 24, fontWeight: 700, color: "#3a5040", lineHeight: 1 }}>—</div>
               ) : communityScore ? (

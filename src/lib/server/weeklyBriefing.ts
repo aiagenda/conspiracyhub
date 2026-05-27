@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { callOpenAIJSON } from "@/lib/openai";
 import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insiderRadarIngest";
 import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
 
@@ -209,7 +210,7 @@ export async function gatherWeeklyBriefingContent(admin: SupabaseClient): Promis
       .gte("published_at", cutoffIso)
       .order("score", { ascending: false })
       .limit(5),
-    fetchActiveCommunityThread(admin, cutoffIso),
+    SHOW_COMMUNITY ? fetchActiveCommunityThread(admin, cutoffIso) : Promise.resolve(null),
     fetchRecentUap(admin, cutoffIso),
     fetchOutbreakHighlight(admin),
     readInsiderRadarCache(),
@@ -293,10 +294,11 @@ function renderBriefingHtml(content: WeeklyBriefingContent, isPro: boolean): str
        <p style="margin:4px 0"><a href="${base}/insider-radar" style="color:#5a8068;font-size:11px">View all trackers →</a></p>`
     : "";
 
-  const threadHtml = content.thread
-    ? `<h2 style="color:#c94dff;font-size:13px;letter-spacing:1px;margin-top:20px">COMMUNITY PULSE</h2>
+  const threadHtml =
+    SHOW_COMMUNITY && content.thread
+      ? `<h2 style="color:#c94dff;font-size:13px;letter-spacing:1px;margin-top:20px">COMMUNITY PULSE</h2>
        <p style="margin:8px 0"><a href="${base}/community?id=${content.thread.id}" style="color:#00ff88">${escapeHtml(content.thread.title)}</a> · ${content.thread.post_count} posts · ${content.thread.upvotes} upvotes</p>`
-    : "";
+      : "";
 
   const uapHtml = content.uap
     ? `<h2 style="color:#00bb66;font-size:13px;letter-spacing:1px;margin-top:20px">UAP RADAR</h2>

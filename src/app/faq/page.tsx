@@ -34,11 +34,11 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I submit a tip or article?",
-    a: "Paste any public URL into Search → Analyze URL and Oracle will analyse it on demand. You can also post tips, links and documents directly in the Community section without an account.",
+    a: "Paste any public URL into Search → Analyze URL and Oracle will analyse it on demand.",
   },
   {
-    q: "How does community voting work?",
-    a: "On each article and investigation report page you can vote on the AI threat score, pick the most credible Oracle theory (after an analysis exists), and mark if you witnessed something similar. Votes are anonymous, deduplicated per browser fingerprint, and shown as a live community consensus alongside the AI score. The Investigation Board is for exploring the graph and sources.",
+    q: "How does reader voting work?",
+    a: "On each article and investigation report page you can vote on the AI threat score, pick the most credible Oracle theory (after an analysis exists), and mark if you witnessed something similar. Votes are anonymous, deduplicated per browser fingerprint, and shown as a live reader consensus alongside the AI score. The Investigation Board is for exploring the graph and sources.",
   },
   {
     q: "What do I get with PRO?",
@@ -50,7 +50,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Is my data private?",
-    a: "Yes. We collect only anonymised usage data and optional contact messages. Community posts are pseudonymous — no login required. Full details are in the Privacy Policy.",
+    a: "Yes. We collect only anonymised usage data and optional contact messages. Full details are in the Privacy Policy.",
   },
   {
     q: "Is The Theorist affiliated with any government?",

@@ -1573,15 +1573,6 @@ export default function UAPTracker() {
           </div>
         </div>
 
-        {/* COMMUNITY CTA */}
-        <div style={{margin:"1.5rem 1.25rem",padding:"14px 18px",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-          <div style={{flex:1}}>
-            <div style={{fontFamily:RAJ,fontSize:12,fontWeight:700,color:"#c8e8d0",letterSpacing:2,marginBottom:4}}>SEEN SOMETHING? SHARE IT.</div>
-            <div style={{fontFamily:FONT,fontSize:11,color:"#5a8068",lineHeight:1.6}}>Report a sighting, upload a document or tag <span style={{color:"#00ff88"}}>@oracle</span> for AI analysis in the community intelligence board.</div>
-          </div>
-          <a href="/community" style={{fontFamily:RAJ,fontSize:11,fontWeight:700,letterSpacing:2,textTransform:"uppercase",padding:"9px 18px",border:"1px solid #00bb66",background:"rgba(0,255,136,0.06)",color:"#00ff88",borderRadius:3,textDecoration:"none",flexShrink:0}}>◈ DISCUSS IN COMMUNITY ▸</a>
-        </div>
-
       </div>
     </div>
   );

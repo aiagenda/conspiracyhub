@@ -565,7 +565,7 @@ export default function AccountPage() {
                     {
                       key: "email_weekly_briefing" as const,
                       label: "Weekly intelligence briefing",
-                      hint: "Top 5 signals, community pulse, UAP radar",
+                      hint: "Top 5 signals, outbreak & UAP radar, insider highlights",
                     },
                     {
                       key: "email_high_threat_alerts" as const,

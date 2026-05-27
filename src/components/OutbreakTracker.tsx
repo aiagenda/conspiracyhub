@@ -2456,14 +2456,6 @@ export default function OutbreakTracker() {
             </div>
           )}
 
-          {/* COMMUNITY CTA */}
-          <div style={{marginTop:"1.5rem",padding:"14px 18px",border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-            <div style={{flex:1}}>
-              <div style={{fontFamily:"var(--font-raj), sans-serif",fontSize:12,fontWeight:700,color:"#c8e8d0",letterSpacing:2,marginBottom:4}}>HAVE INFORMATION? REPORT IT.</div>
-              <div style={{fontFamily:FONT,fontSize:11,color:"#5a8068",lineHeight:1.6}}>Share documents, tips or first-hand reports in the community board. Tag <span style={{color:"#ff3333"}}>@oracle</span> to trigger AI analysis of any outbreak thread.</div>
-            </div>
-            <Link href="/community" style={{fontFamily:"var(--font-raj), sans-serif",fontSize:11,fontWeight:700,letterSpacing:2,textTransform:"uppercase",padding:"9px 18px",border:"1px solid #ff3333",background:"rgba(255,51,51,0.06)",color:"#ff5555",borderRadius:3,textDecoration:"none",flexShrink:0}}>◈ DISCUSS IN COMMUNITY ▸</Link>
-          </div>
 
         </div>
       </div>
