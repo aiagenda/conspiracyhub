@@ -5,7 +5,16 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import { combinePolymarketQuery } from "@/lib/polymarketQuery";
-import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
+import {
+  maxNodeDisplayScore,
+  nodeDisplayScore,
+  nodeScoreColor,
+  nodeScoreHint,
+  nodeScoreLabelLong,
+  nodeScoreLabelShort,
+} from "@/lib/nodeScoreLabels";
+import { shouldShowFederalSpending } from "@/lib/federalSpending";
+import type { Edge, Node, NodeType, OracleAnalysis, OracleSource } from "@/types";
 
 const FONT = "'Share Tech Mono', monospace";
 const RAJ = "'Rajdhani', sans-serif";
@@ -479,6 +488,7 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
   const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
   const d = node.detail;
   const isTheory = node.type === "theory";
+  const score = nodeDisplayScore(node.type, d);
 
   return (
     <div className="ib-node-modal-backdrop" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(3,8,6,0.95)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
@@ -495,22 +505,24 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
 
         <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* Score */}
+          {score !== null ? (
           <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
             <div>
-              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 4 }}>{isTheory ? "PLAUSIBILITY" : "THREAT LEVEL"}</div>
-              <div style={{ fontFamily: RAJ, fontSize: 44, fontWeight: 700, color: (d.threat ?? 0) >= 65 ? "#ff3333" : (d.threat ?? 0) >= 35 ? "#ffaa00" : "#00bb66", lineHeight: 1 }}>{d.threat ?? d.confidence ?? 0}%</div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 4 }}>{nodeScoreLabelShort(node.type)}</div>
+              <div style={{ fontFamily: RAJ, fontSize: 44, fontWeight: 700, color: nodeScoreColor(score), lineHeight: 1 }}>{score}%</div>
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ height: 5, background: "#1a3320", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
-                <div style={{ height: "100%", width: `${d.threat ?? d.confidence ?? 0}%`, background: (d.threat ?? 0) >= 65 ? "#ff3333" : (d.threat ?? 0) >= 35 ? "#ffaa00" : "#00bb66", borderRadius: 3 }} />
+                <div style={{ height: "100%", width: `${score}%`, background: nodeScoreColor(score), borderRadius: 3 }} />
               </div>
+              <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", lineHeight: 1.5, marginBottom: 8 }}>{nodeScoreHint(node.type)}</div>
               <div style={{ display: "flex", gap: 6 }}>
                 {d.source_tier && <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 7px", borderRadius: 2, color: "#5a8068" }}>Tier {d.source_tier}</span>}
                 {d.source_type && <span style={{ fontSize: 9, border: "1px solid #1a3320", padding: "2px 7px", borderRadius: 2, color: "#5a8068", textTransform: "uppercase" }}>{d.source_type}</span>}
               </div>
             </div>
           </div>
+          ) : null}
 
           {/* Body */}
           {d.body && (
@@ -735,6 +747,176 @@ function FullAnalysisModal({ node, onClose }: { node: Node; onClose: () => void 
   );
 }
 
+const FEDERAL_SPENDING_COLLAPSED = 12;
+
+function FederalAwardRow({
+  award,
+}: {
+  award: {
+    awardId: string;
+    amountFormatted: string;
+    agency: string;
+    recipient?: string;
+    startDate: string;
+    description: string;
+    usaspendingUrl: string;
+  };
+}) {
+  return (
+    <a
+      href={award.usaspendingUrl}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: "block",
+        marginBottom: 8,
+        padding: "9px 11px",
+        border: "1px solid rgba(255,170,0,0.22)",
+        borderRadius: 4,
+        background: "rgba(255,170,0,0.04)",
+        textDecoration: "none",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+        <span style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#ffcc66" }}>{award.amountFormatted}</span>
+        <span style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 1 }}>{award.startDate || "—"}</span>
+      </div>
+      {award.recipient ? (
+        <div style={{ fontFamily: FONT, fontSize: 10, color: "#9ac8b0", marginBottom: 3 }}>{award.recipient}</div>
+      ) : null}
+      <div style={{ fontFamily: FONT, fontSize: 11, color: "#c8e8d0", marginBottom: 3 }}>{award.agency}</div>
+      {award.description ? (
+        <div style={{ ...IB_TYPE.bodySm, color: "#7aaa8a", lineHeight: 1.5 }}>{award.description}</div>
+      ) : null}
+      <div style={{ fontFamily: FONT, fontSize: 9, color: "#00bb66", marginTop: 4, letterSpacing: 1 }}>↗ View on USASpending</div>
+    </a>
+  );
+}
+
+function FederalSpendingPanel({ node }: { node: Node }) {
+  const d = node.detail;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [data, setData] = useState<{
+    panelTitle: string;
+    sourceNote: string;
+    totalAmountFormatted: string;
+    totalCount: number;
+    mode: string;
+    awards: Array<{
+      awardId: string;
+      amountFormatted: string;
+      agency: string;
+      recipient: string;
+      startDate: string;
+      description: string;
+      usaspendingUrl: string;
+    }>;
+  } | null>(null);
+
+  const queryName = d.title || node.label;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setData(null);
+    setExpanded(false);
+
+    const params = new URLSearchParams({
+      name: queryName,
+      nodeType: node.type,
+      label: node.label,
+      title: d.title || node.label,
+    });
+    if (d.source) params.set("source", d.source);
+    if (d.source_type) params.set("sourceType", d.source_type);
+
+    fetch(`/api/federal-spending?${params}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load federal spending");
+        return res.json();
+      })
+      .then((json) => {
+        if (!cancelled) setData(json);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not load US federal spending data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [node.type, node.label, queryName, d.title, d.source, d.source_type]);
+
+  const visibleAwards =
+    data && !expanded && data.awards.length > FEDERAL_SPENDING_COLLAPSED
+      ? data.awards.slice(0, FEDERAL_SPENDING_COLLAPSED)
+      : data?.awards ?? [];
+
+  return (
+    <DetailSection title={data?.panelTitle ?? "Federal spending (US)"} accent="#ffaa00">
+      <div style={{ ...IB_TYPE.bodySm, color: "#5a8068", marginBottom: 10, lineHeight: 1.55 }}>
+        {data?.sourceNote ?? "Public US federal data from "}
+        {!data?.sourceNote ? (
+          <>
+            <a href="https://www.usaspending.gov" target="_blank" rel="noreferrer" style={{ color: "#00bb66" }}>
+              USASpending.gov
+            </a>
+            . No API key required.
+          </>
+        ) : null}
+      </div>
+      {loading ? (
+        <div style={{ ...IB_TYPE.bodySm, color: "#5a8068" }}>Loading all matching federal awards…</div>
+      ) : error ? (
+        <div style={{ ...IB_TYPE.bodySm, color: "#ff6666" }}>{error}</div>
+      ) : !data || data.awards.length === 0 ? (
+        <div style={{ ...IB_TYPE.bodySm, color: "#5a8068" }}>
+          No matching US federal awards for &ldquo;{queryName}&rdquo;.
+        </div>
+      ) : (
+        <>
+          <div style={{ fontFamily: RAJ, fontSize: 18, fontWeight: 700, color: "#ffaa00", marginBottom: 10 }}>
+            {data.totalAmountFormatted} total · {data.totalCount} award{data.totalCount === 1 ? "" : "s"}
+          </div>
+          {visibleAwards.map((award) => (
+            <FederalAwardRow key={award.awardId} award={award} />
+          ))}
+          {data.awards.length > FEDERAL_SPENDING_COLLAPSED ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              style={{
+                width: "100%",
+                marginTop: 4,
+                padding: "8px 12px",
+                border: "1px solid rgba(255,170,0,0.35)",
+                borderRadius: 4,
+                background: "rgba(255,170,0,0.06)",
+                color: "#ffcc66",
+                fontFamily: FONT,
+                fontSize: 10,
+                letterSpacing: 1.5,
+                cursor: "pointer",
+                textTransform: "uppercase",
+              }}
+            >
+              {expanded
+                ? `Show less ▲`
+                : `Show all ${data.totalCount} awards (+${data.totalCount - FEDERAL_SPENDING_COLLAPSED} more) ▼`}
+            </button>
+          ) : null}
+        </>
+      )}
+    </DetailSection>
+  );
+}
+
 function DetailPanel({
   node,
   edges,
@@ -756,6 +938,7 @@ function DetailPanel({
   if (!node) return null;
   const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
   const d = node.detail;
+  const score = nodeDisplayScore(node.type, d);
 
   return (
     <>
@@ -804,13 +987,13 @@ function DetailPanel({
                 <span style={{ fontFamily: FONT, fontSize: 9, color: c.text, letterSpacing: 2, textTransform: "uppercase" }}>{TYPE_LABELS[node.type] ?? "NODE"}</span>
               </div>
               <div style={{ fontFamily: RAJ, fontSize: 20, fontWeight: 700, color: c.text, lineHeight: 1.2, letterSpacing: 0.5 }}>{node.label}</div>
-              {d?.threat !== undefined ? (
+              {score !== null ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
-                  <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66", lineHeight: 1 }}>{d.threat}%</div>
+                  <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: nodeScoreColor(score), lineHeight: 1 }}>{score}%</div>
                   <div style={{ flex: 1, height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${d.threat}%`, background: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66", borderRadius: 2, transition: "width 0.4s ease" }} />
+                    <div style={{ height: "100%", width: `${score}%`, background: nodeScoreColor(score), borderRadius: 2, transition: "width 0.4s ease" }} />
                   </div>
-                  <span style={{ fontFamily: FONT, fontSize: 8, color: "#5a8068", letterSpacing: 1.5, flexShrink: 0 }}>{node.type === "theory" ? "PLAUSIBILITY" : "THREAT"}</span>
+                  <span style={{ fontFamily: FONT, fontSize: 8, color: "#5a8068", letterSpacing: 1.5, flexShrink: 0 }}>{nodeScoreLabelShort(node.type)}</span>
                 </div>
               ) : null}
             </div>
@@ -970,17 +1153,20 @@ function DetailPanel({
           </div>
         ) : null}
 
+        {score !== null ? (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", letterSpacing: 2, marginBottom: 5, textTransform: "uppercase" }}>
-            {node.type === "theory" ? "Plausibility (model)" : "Threat level"}
+            {nodeScoreLabelLong(node.type)}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66" }}>{d.threat}%</div>
+            <div style={{ fontFamily: RAJ, fontSize: 28, fontWeight: 700, color: nodeScoreColor(score) }}>{score}%</div>
             <div style={{ flex: 1, height: 3, background: "#1a3320", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${d.threat}%`, background: d.threat >= 65 ? "#ff3333" : d.threat >= 45 ? "#ffaa00" : "#00bb66", borderRadius: 2 }} />
+              <div style={{ height: "100%", width: `${score}%`, background: nodeScoreColor(score), borderRadius: 2 }} />
             </div>
           </div>
+          <div style={{ fontFamily: FONT, fontSize: 9, color: "#5a8068", lineHeight: 1.55, marginTop: 6 }}>{nodeScoreHint(node.type)}</div>
         </div>
+        ) : null}
 
         {node.type !== "theory" ? (
           <>
@@ -1078,6 +1264,10 @@ function DetailPanel({
               <DetailSection title="Why it matters" accent="#00bb66">
                 <div style={IB_TYPE.bodyMuted}>{d.why_it_matters}</div>
               </DetailSection>
+            ) : null}
+
+            {shouldShowFederalSpending(node.type as NodeType) ? (
+              <FederalSpendingPanel node={node} />
             ) : null}
           </>
         ) : null}
@@ -2164,7 +2354,7 @@ export default function InvestigationBoard({
               {[
                 [String(nodes.length), "NODES"],
                 [String(edges.length), "EDGES"],
-                [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+                [`${maxNodeDisplayScore(nodes) ?? 0}%`, "TOP SIGNAL"],
               ].map(([val, label]) => (
                 <div
                   key={label}
@@ -2227,7 +2417,7 @@ export default function InvestigationBoard({
             {[
               [String(nodes.length), "NODES"],
               [String(edges.length), "EDGES"],
-              [`${Math.max(...nodes.map((n) => n.detail?.threat ?? 0), 0)}%`, "MAX THREAT"],
+              [`${maxNodeDisplayScore(nodes) ?? 0}%`, "TOP SIGNAL"],
             ].map(([val, label]) => (
               <div
                 key={label}

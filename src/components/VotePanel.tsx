@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 
 const FONT = "var(--font-share-tech-mono), monospace";
 const RAJ  = "var(--font-raj), sans-serif";
@@ -73,6 +74,12 @@ export default function VotePanel({ articleId, generatedArticleId, aiScore, theo
       if (vote_type === "witnessed") setWitnessed(true);
       setConfirmed(vote_type);
       setTimeout(() => setConfirmed(null), 1400);
+      posthog.capture("article_vote_cast", {
+        vote_type,
+        value,
+        article_id: aid || undefined,
+        generated_article_id: gid || undefined,
+      });
     } catch {}
     setVoting(null);
   }

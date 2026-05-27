@@ -64,9 +64,19 @@ function sanitizeNodes(nodes: unknown): Node[] {
       if (!node || typeof node !== "object") return null;
       const n = node as Partial<Node>;
       const safeLabel = typeof n.label === "string" ? n.label : `NODE ${index + 1}`;
+      const nodeType = n.type ? sanitizeNodeType(n.type) : inferNodeType(safeLabel);
+      const confidenceNum =
+        typeof n.detail?.confidence === "number"
+          ? Math.max(0, Math.min(100, n.detail.confidence))
+          : undefined;
+      const threatNum = typeof n.detail?.threat === "number" ? n.detail.threat : undefined;
+      const displayThreat =
+        nodeType === "article"
+          ? (threatNum ?? confidenceNum ?? 50)
+          : (threatNum ?? confidenceNum ?? 0);
       return {
         id: typeof n.id === "string" && n.id ? n.id : `node-${index}`,
-        type: n.type ? sanitizeNodeType(n.type) : inferNodeType(safeLabel),
+        type: nodeType,
         x: typeof n.x === "number" ? n.x : 500,
         y: typeof n.y === "number" ? n.y : 320,
         label: safeLabel,
@@ -75,7 +85,7 @@ function sanitizeNodes(nodes: unknown): Node[] {
           title: n.detail?.title ?? safeLabel,
           body: n.detail?.body ?? "",
           source: n.detail?.source ?? "Unknown source",
-          threat: typeof n.detail?.threat === "number" ? n.detail.threat : 50,
+          threat: displayThreat,
           excerpt: typeof n.detail?.excerpt === "string" && n.detail.excerpt.trim() ? n.detail.excerpt.trim() : undefined,
           source_url: n.detail?.source_url,
           source_tier: n.detail?.source_tier ?? "B",
@@ -86,10 +96,7 @@ function sanitizeNodes(nodes: unknown): Node[] {
           counter_evidence: Array.isArray(n.detail?.counter_evidence) ? n.detail.counter_evidence : [],
           timeline: Array.isArray(n.detail?.timeline) ? n.detail.timeline : [],
           actors: Array.isArray(n.detail?.actors) ? n.detail.actors : [],
-          confidence:
-            typeof n.detail?.confidence === "number"
-              ? Math.max(0, Math.min(100, n.detail.confidence))
-              : Math.round((typeof n.detail?.threat === "number" ? n.detail.threat : 50) * 0.9),
+          confidence: confidenceNum ?? (threatNum !== undefined ? Math.round(threatNum * 0.9) : undefined),
           open_questions: Array.isArray(n.detail?.open_questions) ? n.detail.open_questions : [],
           theory_sources: Array.isArray(n.detail?.theory_sources) ? n.detail.theory_sources : [],
           brave_sources: sanitizeBraveSources(n.detail?.brave_sources),

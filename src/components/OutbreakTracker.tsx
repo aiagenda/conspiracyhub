@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import SiteNav from "@/components/SiteNav";
 import Link from "next/link";
@@ -16,6 +16,19 @@ const RAJ  = "var(--font-raj), sans-serif";
 
 function isMobileViewport(): boolean {
   return typeof window !== "undefined" && window.innerWidth <= 768;
+}
+
+/** Map body is always shown on desktop; on mobile it follows mapOpen. */
+function useMapBodyVisible(mapOpen: boolean): boolean {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return mobile ? mapOpen : true;
 }
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -332,21 +345,46 @@ type ObMapCtx = {
 
 type ObMarkerDatum = ObMapMarkerDraw & { x: number; y: number };
 
-function pulseHalo(parent: d3.Selection<SVGGElement, unknown, null, undefined>, ringR: number, stroke: string) {
-  parent
+function obSpreadMotionEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function obMarkerKey(d: { o: Outbreak; country: string; isOrigin: boolean }): string {
+  return `${d.o.id}-${d.country}-${d.isOrigin ? "o" : "s"}`;
+}
+
+function pulseHalo(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  ringR: number,
+  stroke: string,
+  intense = false,
+) {
+  const ring = parent
     .append("circle")
     .attr("r", ringR)
     .attr("cx", 0)
     .attr("cy", 0)
     .attr("fill", "none")
     .attr("stroke", stroke)
-    .attr("stroke-width", 0.75)
-    .attr("stroke-opacity", 0.18)
+    .attr("stroke-width", intense ? 1.1 : 0.75)
+    .attr("stroke-opacity", intense ? 0.32 : 0.18);
+
+  ring
     .append("animate")
     .attr("attributeName", "stroke-opacity")
-    .attr("values", "0.08;0.28;0.08")
-    .attr("dur", "2.4s")
+    .attr("values", intense ? "0.12;0.62;0.12" : "0.08;0.28;0.08")
+    .attr("dur", intense ? "1.6s" : "2.4s")
     .attr("repeatCount", "indefinite");
+
+  if (intense) {
+    ring
+      .append("animate")
+      .attr("attributeName", "r")
+      .attr("values", `${ringR};${ringR + 4};${ringR}`)
+      .attr("dur", "1.6s")
+      .attr("repeatCount", "indefinite");
+  }
 }
 
 const COORD_EPS = 0.15;
@@ -387,7 +425,7 @@ function obLineStyle(
   outbreakId: string,
   selectedId: string | null,
 ): { opacity: number; width: number } {
-  if (!selectedId) return { opacity: 0.4, width: 1 };
+  if (!selectedId) return { opacity: 0, width: 0 };
   if (outbreakId === selectedId) return { opacity: 0.88, width: 1.65 };
   return { opacity: 0, width: 0 };
 }
@@ -498,13 +536,43 @@ function obMarkerLabelVisible(
   selectedId: string | null,
   focusCountry: string | null,
   k: number,
+  hoveredKey: string | null,
 ): boolean {
+  if (!selectedId) return hoveredKey === obMarkerKey(d);
   const isSel = d.o.id === selectedId;
   const isFocused = isSel && focusCountry != null && d.country === focusCountry;
   if (isFocused) return true;
-  if (d.isPrimary && (isSel || !selectedId || d.o.conspiracy_score >= 65)) return true;
+  if (d.isPrimary && (isSel || d.o.conspiracy_score >= 65)) return true;
   if (k >= 2 && isSel) return true;
   return false;
+}
+
+/**
+ * JS rAF-driven draw animation — 100% reliable, no SMIL begin-time issues.
+ * Animates stroke-dashoffset from len→0, looping. Auto-stops when el removed.
+ */
+function startSpreadLineRaf(pathEl: SVGPathElement, flowIndex: number) {
+  if (!obSpreadMotionEnabled()) return;
+
+  let len = 0;
+  let startTime: number | null = null;
+  const durationMs = (2.5 + (flowIndex % 6) * 0.35) * 1000;
+  const phaseMs = (flowIndex % 5) * 0.42 * 1000;
+
+  const frame = (now: number) => {
+    if (!pathEl.isConnected) return;
+    if (len < 2) {
+      len = pathEl.getTotalLength();
+      if (len < 2) { requestAnimationFrame(frame); return; }
+      pathEl.setAttribute("stroke-dasharray", `${len} ${len}`);
+    }
+    if (startTime === null) startTime = now - phaseMs;
+    const elapsed = ((now - startTime) % durationMs + durationMs) % durationMs;
+    pathEl.setAttribute("stroke-dashoffset", String(len * (1 - elapsed / durationMs)));
+    requestAnimationFrame(frame);
+  };
+
+  requestAnimationFrame(frame);
 }
 
 function applyObSpreadScale(
@@ -520,29 +588,11 @@ function applyObSpreadScale(
   linesG.selectAll<SVGPathElement, unknown>("path[data-x1]").each(updatePath);
 
   linesG
-    .selectAll<SVGPathElement, unknown>("path.ob-line, path.ob-line-track")
+    .selectAll<SVGPathElement, unknown>("path.ob-line, path.ob-line-draw")
     .attr("stroke-width", function () {
       const base = Number(d3.select(this).attr("data-base-width")) || 1;
-      return obSpreadStrokeAttr(base, k);
-    })
-    .attr("stroke-dasharray", function () {
-      if (d3.select(this).classed("ob-line-track") || d3.select(this).classed("ob-line-flow")) return null;
-      if (d3.select(this).attr("data-dashed") !== "1") return null;
-      const dashAttr = obSpreadVisualWidth(4, k) / obZoomK(k);
-      const gapAttr = obSpreadVisualWidth(3, k) / obZoomK(k);
-      return `${dashAttr} ${gapAttr}`;
-    });
-
-  linesG.selectAll<SVGPathElement, unknown>("path.ob-line-flow").each(function () {
-    const idx = Number(d3.select(this).attr("data-flow-index")) || 0;
-    applySpreadFlowDash(this, k, idx);
-  });
-
-  linesG
-    .selectAll<SVGPathElement, unknown>("path.ob-glow")
-    .attr("stroke-width", function () {
-      const base = Number(d3.select(this).attr("data-base-width")) || 1;
-      return obSpreadStrokeAttr(base * 3.5, k);
+      const mult = Number(d3.select(this).attr("data-width-mult")) || 1;
+      return obSpreadStrokeAttr(base * mult, k);
     });
 
   const arrowAttr = obSpreadArrowAttr(k);
@@ -555,22 +605,6 @@ function applyObSpreadScale(
     .attr("markerHeight", arrowAttr)
     .attr("refX", refX)
     .attr("refY", refY);
-}
-
-/** Animated dash segment traveling origin → destination along the spread path. */
-function applySpreadFlowDash(pathEl: SVGPathElement, k: number, flowIndex: number) {
-  const len = pathEl.getTotalLength();
-  if (!Number.isFinite(len) || len < 2) return;
-  const dash = Math.max(3.5, obSpreadVisualWidth(11, k));
-  const gap = Math.max(len - dash, dash * 2.5);
-  const total = dash + gap;
-  const duration = 3.6 + (flowIndex % 6) * 0.4;
-  d3.select(pathEl)
-    .attr("stroke-dasharray", `${dash} ${gap}`)
-    .attr("stroke-dashoffset", "0")
-    .style("--ob-flow-total", String(total))
-    .style("animation", `ob-spread-flow ${duration}s linear infinite`)
-    .style("animation-delay", `${(flowIndex % 5) * 0.28}s`);
 }
 
 function appendSpreadLinePair(
@@ -587,87 +621,48 @@ function appendSpreadLinePair(
   },
 ) {
   const { outbreakId, col, lineWidth, opacity, isSel, zoomK, flowIndex } = opts;
+  if (!isSel || opacity <= 0) return;
+
   const pathD = obSpreadPathD(geo, zoomK);
-  const dashAttr = obSpreadVisualWidth(4, zoomK) / obZoomK(zoomK);
-  const gapAttr = obSpreadVisualWidth(3, zoomK) / obZoomK(zoomK);
   const lineId = `${outbreakId}-${geo.x2.toFixed(1)}-${geo.y2.toFixed(1)}`;
 
-  if (opacity > 0) {
-    const glow = linesG
-      .append("path")
-      .attr("class", "ob-glow")
-      .attr("data-line-id", lineId)
-      .attr("data-outbreak-id", outbreakId)
-      .attr("data-base-width", lineWidth);
-    writeSpreadLineGeo(glow, geo);
-    glow
-      .attr("d", pathD)
-      .attr("fill", "none")
-      .attr("stroke", col)
-      .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 3.5, zoomK))
-      .attr("stroke-opacity", isSel ? 0.14 : 0.06)
-      .attr("stroke-linecap", "round")
-      .style("pointer-events", "none");
-  }
-
-  if (isSel && opacity > 0) {
-    const track = linesG
-      .append("path")
-      .attr("class", "ob-line ob-line-track")
-      .attr("data-line-id", lineId)
-      .attr("data-outbreak-id", outbreakId)
-      .attr("data-base-width", lineWidth)
-      .attr("data-dashed", "0");
-    writeSpreadLineGeo(track, geo);
-    track
-      .attr("d", pathD)
-      .attr("fill", "none")
-      .attr("stroke", col)
-      .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
-      .attr("stroke-opacity", 0.3)
-      .attr("stroke-linecap", "round")
-      .attr("marker-end", `url(#${arrowMarkerId(col)})`)
-      .style("pointer-events", "stroke");
-
-    const flow = linesG
-      .append("path")
-      .attr("class", "ob-line-flow")
-      .attr("data-line-id", lineId)
-      .attr("data-outbreak-id", outbreakId)
-      .attr("data-base-width", lineWidth)
-      .attr("data-flow-index", flowIndex);
-    writeSpreadLineGeo(flow, geo);
-    flow
-      .attr("d", pathD)
-      .attr("fill", "none")
-      .attr("stroke", col)
-      .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 1.2, zoomK))
-      .attr("stroke-opacity", 0.95)
-      .attr("stroke-linecap", "round")
-      .style("pointer-events", "none");
-    const flowNode = flow.node();
-    if (flowNode) applySpreadFlowDash(flowNode, zoomK, flowIndex);
-    return;
-  }
-
-  const line = linesG
+  const guide = linesG
     .append("path")
-    .attr("class", "ob-line")
+    .attr("class", "ob-line ob-line-guide")
     .attr("data-line-id", lineId)
     .attr("data-outbreak-id", outbreakId)
     .attr("data-base-width", lineWidth)
-    .attr("data-dashed", "1");
-  writeSpreadLineGeo(line, geo);
-  line
+    .attr("data-width-mult", "0.7");
+  writeSpreadLineGeo(guide, geo);
+  guide
+    .attr("d", pathD)
+    .attr("fill", "none")
+    .attr("stroke", col)
+    .attr("stroke-width", obSpreadStrokeAttr(lineWidth * 0.7, zoomK))
+    .attr("stroke-opacity", 0.14)
+    .attr("stroke-linecap", "round")
+    .style("pointer-events", "none");
+
+  const draw = linesG
+    .append("path")
+    .attr("class", "ob-line ob-line-draw")
+    .attr("data-line-id", lineId)
+    .attr("data-outbreak-id", outbreakId)
+    .attr("data-base-width", lineWidth)
+    .attr("data-flow-index", flowIndex);
+  writeSpreadLineGeo(draw, geo);
+  draw
     .attr("d", pathD)
     .attr("fill", "none")
     .attr("stroke", col)
     .attr("stroke-width", obSpreadStrokeAttr(lineWidth, zoomK))
-    .attr("stroke-opacity", opacity)
+    .attr("stroke-opacity", 0.88)
     .attr("stroke-linecap", "round")
-    .attr("stroke-dasharray", `${dashAttr} ${gapAttr}`)
-    .attr("marker-end", opacity > 0 ? `url(#${arrowMarkerId(col)})` : "none")
-    .style("pointer-events", opacity > 0 ? "stroke" : "none");
+    .attr("marker-end", `url(#${arrowMarkerId(col)})`)
+    .style("pointer-events", "stroke");
+
+  const drawNode = draw.node();
+  if (drawNode) startSpreadLineRaf(drawNode, flowIndex);
 }
 
 function outbreakMapVisible(outbreakId: string, selectedId: string | null): boolean {
@@ -680,6 +675,7 @@ function applyObMarkerStyles(
   selectedId: string | null,
   focusCountry: string | null,
   k: number,
+  hoveredKey: string | null,
 ) {
   g.each(function (d) {
     const isSel = d.o.id === selectedId;
@@ -699,7 +695,7 @@ function applyObMarkerStyles(
       .select(".ob-label")
       .style(
         "display",
-        obMarkerLabelVisible(d, selectedId, focusCountry, k) ? "block" : "none",
+        obMarkerLabelVisible(d, selectedId, focusCountry, k, hoveredKey) ? "block" : "none",
       );
   });
 }
@@ -708,11 +704,13 @@ function WorldMap({
   outbreaks,
   selected,
   focusCountry,
+  mapVisible,
   onSelect,
 }: {
   outbreaks: Outbreak[];
   selected: Outbreak | null;
   focusCountry: string | null;
+  mapVisible: boolean;
   onSelect: (o: Outbreak, country?: string) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -724,8 +722,22 @@ function WorldMap({
   const focusCountryRef = useRef<string | null>(focusCountry);
   const onSelectRef = useRef(onSelect);
   const setTooltipRef = useRef<(t: ObMapTooltip | null) => void>(() => {});
+  const hoveredMarkerRef = useRef<string | null>(null);
   const [world, setWorld] = useState<unknown>(null);
   const [tooltip, setTooltip] = useState<ObMapTooltip | null>(null);
+
+  const refreshMarkerLabels = useCallback(() => {
+    const ctx = mapCtxRef.current;
+    if (!ctx) return;
+    const k = zoomTransformRef.current.k || 1;
+    applyObMarkerStyles(
+      ctx.markersG.selectAll<SVGGElement, ObMarkerDatum>("g.ob-marker"),
+      selectedIdRef.current,
+      focusCountryRef.current,
+      k,
+      hoveredMarkerRef.current,
+    );
+  }, []);
 
   outbreaksRef.current = outbreaks;
   selectedIdRef.current = selected?.id ?? null;
@@ -766,6 +778,7 @@ function WorldMap({
 
       for (let pi = 0; pi < slots.length; pi++) {
         const { x, y, country, isOrigin } = slots[pi];
+        if (!selectedId && !isOrigin) continue;
         const isPrimary = pi === 0;
         const dotR = isPrimary ? r : Math.max(4, r - 2);
         markerQueue.push({ o, x, y, isPrimary, country, isOrigin, dotR, col, isSel });
@@ -858,7 +871,7 @@ function WorldMap({
       const group = d3.select(this);
       group.selectAll("*").remove();
 
-      pulseHalo(group, d.dotR + 6, d.col);
+      pulseHalo(group, d.isSel && d.isOrigin ? d.dotR + 9 : d.dotR + 6, d.col, d.isSel && d.isOrigin);
       group
         .append("circle")
         .attr("cx", 0)
@@ -888,6 +901,8 @@ function WorldMap({
         .attr("stroke-width", d.isSel && d.isPrimary ? 1.4 : 1)
         .style("cursor", "pointer")
         .on("mouseenter", function (event) {
+          hoveredMarkerRef.current = obMarkerKey(d);
+          refreshMarkerLabels();
           setTooltipRef.current({
             x: event.offsetX,
             y: event.offsetY,
@@ -898,6 +913,8 @@ function WorldMap({
           d3.select(this).attr("fill-opacity", "1");
         })
         .on("mouseleave", function () {
+          hoveredMarkerRef.current = null;
+          refreshMarkerLabels();
           setTooltipRef.current(null);
           d3.select(this).attr("fill-opacity", d.isPrimary ? 0.95 : 0.72);
         })
@@ -926,22 +943,13 @@ function WorldMap({
         .text(labelText)
         .style(
           "display",
-          obMarkerLabelVisible(d, selectedId, focus, k) ? "block" : "none",
+          obMarkerLabelVisible(d, selectedId, focus, k, hoveredMarkerRef.current) ? "block" : "none",
         );
     });
 
-    applyObMarkerStyles(mg, selectedId, focus, k);
+    applyObMarkerStyles(mg, selectedId, focus, k, hoveredMarkerRef.current);
     applyObSpreadScale(ctx.svg, linesG, k);
-  }, []);
-
-  const updateSelectionOnly = useCallback(
-    (selectedId: string | null, focus: string | null) => {
-      const ctx = mapCtxRef.current;
-      if (!ctx) return;
-      paintMarkers(ctx, selectedId, focus);
-    },
-    [paintMarkers],
-  );
+  }, [refreshMarkerLabels]);
 
   const paintBase = useCallback(() => {
     const svgEl = svgRef.current;
@@ -957,8 +965,9 @@ function WorldMap({
     svg.selectAll("*").remove();
     mapCtxRef.current = null;
 
-    // Arrow marker defs for each risk color — open chevron, tip at (9,5) in 10×10 viewBox
     const defs = svg.append("defs");
+
+    // Arrow marker defs for each risk color — open chevron, tip at (9,5) in 10×10 viewBox
     for (const [id, col] of ARROW_IDS) {
       const marker = defs.append("marker")
         .attr("id", id)
@@ -1035,6 +1044,7 @@ function WorldMap({
         selectedIdRef.current,
         focusCountryRef.current,
         k,
+        hoveredMarkerRef.current,
       );
     }
 
@@ -1117,14 +1127,12 @@ function WorldMap({
   }, [world, paintBase]);
 
   useEffect(() => {
+    hoveredMarkerRef.current = null;
     const ctx = mapCtxRef.current;
     if (!ctx) return;
-    paintMarkers(ctx, selectedIdRef.current, focusCountryRef.current);
-  }, [outbreaks, paintMarkers]);
+    paintMarkers(ctx, selected?.id ?? null, focusCountry);
+  }, [outbreaks, selected?.id, focusCountry, paintMarkers]);
 
-  useEffect(() => {
-    updateSelectionOnly(selected?.id ?? null, focusCountry);
-  }, [selected?.id, focusCountry, updateSelectionOnly]);
 
   return (
     <div
@@ -1137,15 +1145,9 @@ function WorldMap({
       }}
     >
       <style>{`
-        @keyframes ob-spread-flow {
-          to { stroke-dashoffset: calc(-1 * var(--ob-flow-total, 120px)); }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .ob-line-flow {
-            animation: none !important;
-            stroke-dasharray: none !important;
-            stroke-opacity: 0.45 !important;
-          }
+          .ob-line-draw animate { display: none; }
+          .ob-line-draw { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
         }
       `}</style>
       <svg
@@ -1209,10 +1211,10 @@ function WorldMap({
               const focus = (focusCountry ?? origin).toLowerCase();
               const isOrigin = focus === origin;
               return isOrigin
-                ? `◈ ${selected.disease.toUpperCase()} — ${countryLabel(origin)} origin · animated spread from origin`
+                ? `◈ ${selected.disease.toUpperCase()} — ${countryLabel(origin)} origin · lines draw from origin to each country (looping)`
                 : `◈ ${selected.disease.toUpperCase()} — ${countryLabel(focus)} · spread from ${countryLabel(origin)}`;
             })()
-          : "◈ Curved arrows show spread direction from origin · click any dot to isolate its network"}
+          : "◈ Active outbreak origins on map · click any dot to trace spread network"}
       </div>
     </div>
   );
@@ -2166,6 +2168,7 @@ export default function OutbreakTracker() {
   const [detailLevel, setDetailLevel] = useState<"preview" | "full">("preview");
   const [filter, setFilter]     = useState<"all"|"conspiracy"|"high">("all");
   const [mapOpen, setMapOpen]   = useState(false);
+  const mapVisible = useMapBodyVisible(mapOpen);
 
   const selectOutbreak = useCallback((o: Outbreak, country?: string) => {
     const origin = outbreakOrigin(o);
@@ -2256,20 +2259,25 @@ export default function OutbreakTracker() {
     };
   }, []);
 
-  if (loading) return <OutbreakLoadingScreen/>;
-
-  const outbreaks = data?.outbreaks??[];
-  const visible = sortByPublishedAtDesc(
-    outbreaks.filter((o) => {
-      if (filter === "conspiracy") return o.has_conspiracy;
-      if (filter === "high") return o.risk_level === "HIGH" || o.risk_level === "CRITICAL";
-      return true;
-    }),
+  const outbreaks = data?.outbreaks ?? [];
+  const visible = useMemo(
+    () =>
+      sortByPublishedAtDesc(
+        outbreaks.filter((o) => {
+          if (filter === "conspiracy") return o.has_conspiracy;
+          if (filter === "high") return o.risk_level === "HIGH" || o.risk_level === "CRITICAL";
+          return true;
+        }),
+      ),
+    [outbreaks, filter],
   );
 
-  /** Keep selected pin on map when filter changes (same idea as UAP: selection stays coherent). */
-  const mapOutbreaks =
-    selected && !visible.some((o) => o.id === selected.id) ? [...visible, selected] : visible;
+  const mapOutbreaks = useMemo(() => {
+    if (selected && !visible.some((o) => o.id === selected.id)) return [...visible, selected];
+    return visible;
+  }, [visible, selected]);
+
+  if (loading) return <OutbreakLoadingScreen/>;
 
   return (
     <div style={{minHeight:"100vh",background:"#050c07",color:"#c8e8d0",fontFamily:FONT}}>
@@ -2406,7 +2414,13 @@ export default function OutbreakTracker() {
                         : "intel-map-body ob-map-body"
                     }
                   >
-                    <WorldMap outbreaks={mapOutbreaks} selected={selected} focusCountry={focusCountry} onSelect={selectOutbreak} />
+                    <WorldMap
+                      outbreaks={mapOutbreaks}
+                      selected={selected}
+                      focusCountry={focusCountry}
+                      mapVisible={mapVisible}
+                      onSelect={selectOutbreak}
+                    />
                   </div>
                 </div>
                 <div className="ob-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 12 }}>

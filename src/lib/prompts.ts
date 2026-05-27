@@ -12,6 +12,8 @@ Return a JSON object with these fields:
 1. nodes — array of graph nodes around the article:
    - article node: id "center", type "article", x 500, y 320
    - supporting nodes: type one of: patent | foia | company | event | person
+   - For US federal agencies (NASA, DOD, NIH, etc.) use type "company" with detail.title = full official agency name, OR mention the agency clearly in detail.title/body so spending lookups work.
+   - For private companies use type "company" with detail.title = full legal or common name (e.g. "Blue Origin Federation, LLC" not just "Blue Origin").
    - **NODE COUNT: Aim for 8–12 supporting nodes (not counting center).** Populate all three layers below:
      * LAYER 1 — direct actors (3–5 nodes): the most prominent people, companies, events directly mentioned or implicated in the article.
      * LAYER 2 — secondary connections (3–5 nodes): entities connected to layer-1 nodes — e.g. the employer of a named person, the patent assignee for a technology, the agency that funded a company, a related historical event.
@@ -31,7 +33,7 @@ Return a JSON object with these fields:
      * counter_evidence (array, 1-3 items)
      * timeline (array of {date, event}, 1-4 items)
      * actors (array of names, 1-5)
-     * confidence (0-100)
+     * confidence (0-100): how strongly this node connects to the investigation — for company/person/event/patent/foia this is relevance or evidence weight, NOT physical danger. For the center article node, rate conspiracy/cover-up potential.
      * open_questions (array, 2-4 items)
 
 2. edges — connections between nodes:

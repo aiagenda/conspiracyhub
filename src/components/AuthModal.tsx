@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 import { resetPasswordForEmail, signInWithEmail, signUpWithEmail } from "@/lib/auth";
 import { isSupabaseBrowserConfigured } from "@/lib/supabase";
 
@@ -91,6 +92,8 @@ export default function AuthModal({
           setError(authError.message);
           return;
         }
+        posthog.identify(email.trim(), { email: email.trim() });
+        posthog.capture("user_signed_in", { email: email.trim() });
         onClose();
         return;
       }
@@ -101,6 +104,12 @@ export default function AuthModal({
         return;
       }
       const hasSession = Boolean(data?.session);
+      const userId = data?.user?.id;
+      posthog.identify(userId ?? email.trim(), { email: email.trim() });
+      posthog.capture("user_signed_up", {
+        email: email.trim(),
+        signup_mode: hasSession ? "signed_in" : "confirm_email",
+      });
       setSignupSuccess({
         mode: hasSession ? "signed_in" : "confirm_email",
         email: email.trim(),

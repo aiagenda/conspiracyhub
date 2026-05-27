@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminSession } from "@/lib/server/requireAdminSession";
+import { buildBraveQuery } from "@/lib/braveNodeQuery";
 import { searchBrave } from "@/lib/braveSearch";
 import type { Node, OracleTheory } from "@/types";
 
@@ -11,28 +12,6 @@ function getAdminClient() {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error("Supabase env missing");
   return createClient(url, key);
-}
-
-function buildBraveQuery(type: string, nodeTitle: string, topic: string): string {
-  const t = nodeTitle.slice(0, 50);
-  const ctx = topic.slice(0, 40);
-  switch (type) {
-    case "person":
-      return `"${t}" ${ctx} investigation connections profile background`;
-    case "company":
-      return `"${t}" ${ctx} corporate fraud scandal investigation exposed`;
-    case "event":
-      return `"${t}" ${ctx} evidence timeline what really happened`;
-    case "theory":
-      return `"${t}" ${ctx} conspiracy evidence proof claims`;
-    case "foia":
-      return `"${t}" ${ctx} declassified document FOIA leaked`;
-    case "patent":
-      return `"${t}" ${ctx} patent secret technology hidden`;
-    case "article":
-    default:
-      return `"${t}" ${ctx} investigation report`;
-  }
 }
 
 /**

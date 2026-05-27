@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { omitIfHungarianScript } from "@/lib/locale";
 import { sortByPublishedAtDesc } from "@/lib/sortByPubDate";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -105,6 +106,11 @@ export async function GET(req: NextRequest) {
     const registered = await isRegisteredUser(req.headers.get("authorization"));
 
     if (!registered) {
+      getPostHogClient().capture({
+        distinctId: "anonymous",
+        event: "search_performed",
+        properties: { query: rawQ, type, threat, registered: false, news_count: newsSanitized.length },
+      });
       return NextResponse.json({
         query: rawQ,
         news: newsSanitized,
@@ -134,6 +140,11 @@ export async function GET(req: NextRequest) {
     if (threat === "medium") theories = theories.filter((t) => t.probability >= 30 && t.probability < 60);
     if (threat === "low") theories = theories.filter((t) => t.probability < 30);
 
+    getPostHogClient().capture({
+      distinctId: "registered",
+      event: "search_performed",
+      properties: { query: rawQ, type, threat, registered: true, news_count: newsSanitized.length },
+    });
     return NextResponse.json({
       query: rawQ,
       news: newsSanitized,

@@ -9,6 +9,7 @@ import { normalizeVerdict } from "@/lib/verdict";
 import { fetchUrlContent } from "@/lib/urlContent";
 import type { OracleAnalysis } from "@/types";
 import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -89,6 +90,11 @@ export async function POST(req: NextRequest) {
       console.warn("[analyze-url] DB insert skipped:", dbErr.message);
       return NextResponse.json({ ...payload, id: null });
     }
+    getPostHogClient().capture({
+      distinctId: user.id,
+      event: "url_analyzed",
+      properties: { source_url: urlStr, verdict: payload.verdict },
+    });
     return NextResponse.json(inserted);
   } catch (err) {
     if (err instanceof Error && err.message === "oracle_no_theories") {

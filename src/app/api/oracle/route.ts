@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runOraclePipelineInsert } from "@/lib/server/oraclePipeline";
 import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,6 +56,11 @@ export async function POST(req: NextRequest) {
       if (!result.ok) {
         return NextResponse.json({ error: result.error, message: result.message }, { status: result.status });
       }
+      getPostHogClient().capture({
+        distinctId: user.id,
+        event: "oracle_analysis_requested",
+        properties: { news_id: newsId, source: "article" },
+      });
       return NextResponse.json(result.inserted);
     }
 
@@ -75,6 +81,11 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error, message: result.message }, { status: result.status });
     }
+    getPostHogClient().capture({
+      distinctId: user.id,
+      event: "oracle_analysis_requested",
+      properties: { generated_article_id: generatedArticleId, source: "generated_article" },
+    });
     return NextResponse.json(result.inserted);
   } catch (error) {
     console.error("[oracle]", error);

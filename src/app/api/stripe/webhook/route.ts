@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -129,6 +130,21 @@ export async function POST(req: NextRequest) {
         },
         session
       );
+
+      const userId =
+        (session.metadata?.supabase_user_id ?? session.client_reference_id ?? "").trim() || null;
+      if (userId) {
+        const posthog = getPostHogClient();
+        posthog.capture({
+          distinctId: userId,
+          event: "subscription_activated",
+          properties: {
+            stripe_customer_id: customerId ?? undefined,
+            stripe_subscription_id: subId ?? undefined,
+            subscription_status: subStatus ?? undefined,
+          },
+        });
+      }
     }
 
     if (event.type === "customer.subscription.updated") {
@@ -161,6 +177,17 @@ export async function POST(req: NextRequest) {
           subscription_cancel_at_period_end: false,
         })
         .eq("stripe_customer_id", stripeCustomerIdField(sub.customer));
+
+      const customerId = stripeCustomerIdField(sub.customer);
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: customerId || sub.id,
+        event: "subscription_cancelled",
+        properties: {
+          stripe_customer_id: customerId || undefined,
+          stripe_subscription_id: sub.id,
+        },
+      });
     }
 
     return NextResponse.json({ ok: true });

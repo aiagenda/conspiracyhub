@@ -5,6 +5,7 @@ import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
 import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
+import { buildBraveQuery } from "@/lib/braveNodeQuery";
 import { searchBrave } from "@/lib/braveSearch";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
@@ -37,32 +38,6 @@ function clampDbSourceType(st: unknown): "official" | "media" | "research" | "ar
   if (t === "official" || t === "media" || t === "research" || t === "archive") return t;
   if (t === "testimony") return "archive";
   return "media";
-}
-
-/**
- * Build a Brave search query tailored to the node type.
- * Prioritises investigative angles: profile, connections, evidence, timeline.
- */
-function buildBraveQuery(type: string, nodeTitle: string, topic: string): string {
-  const t = nodeTitle.slice(0, 50);
-  const ctx = topic.slice(0, 40);
-  switch (type) {
-    case "person":
-      return `"${t}" ${ctx} investigation connections profile background`;
-    case "company":
-      return `"${t}" ${ctx} corporate fraud scandal investigation exposed`;
-    case "event":
-      return `"${t}" ${ctx} evidence timeline what really happened`;
-    case "theory":
-      return `"${t}" ${ctx} conspiracy evidence proof claims`;
-    case "foia":
-      return `"${t}" ${ctx} declassified document FOIA leaked`;
-    case "patent":
-      return `"${t}" ${ctx} patent secret technology hidden`;
-    case "article":
-    default:
-      return `"${t}" ${ctx} investigation report`;
-  }
 }
 
 function clampDbTier(tier: unknown): "A" | "B" | "C" {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 function admin() {
   return createClient(
@@ -59,6 +60,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) throw error;
+
+    getPostHogClient().capture({
+      distinctId: hash,
+      event: "contact_message_sent",
+      properties: { category },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

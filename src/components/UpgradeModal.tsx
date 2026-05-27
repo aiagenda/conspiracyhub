@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 
 const FEATURES = [
   { icon: "◈", text: "Unlimited investigation boards — visual node graph with CIA/USPTO links" },
@@ -21,6 +22,10 @@ export default function UpgradeModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    posthog.capture("upgrade_modal_opened");
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -78,6 +83,7 @@ export default function UpgradeModal({
             type="button"
             disabled={loading}
             onClick={() => {
+              posthog.capture("checkout_initiated");
               setError(null);
               setLoading(true);
               void Promise.resolve(onUpgrade())

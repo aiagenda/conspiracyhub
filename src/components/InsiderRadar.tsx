@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import posthog from "posthog-js";
 import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
 import { CollapsibleSection } from "@/components/IntelAccordion";
@@ -291,7 +292,10 @@ export default function InsiderRadar() {
             <button
               type="button"
               disabled={loading || refreshing}
-              onClick={() => void loadFeed({ liveRefresh: true })}
+              onClick={() => {
+                posthog.capture("insider_radar_refreshed");
+                void loadFeed({ liveRefresh: true });
+              }}
               style={{
                 fontFamily: RAJ,
                 fontSize: 11,
