@@ -9,7 +9,7 @@ import type { NodeDetail, NodeType } from "@/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const VALID_TYPES = new Set<NodeType>(["company", "person", "event", "patent", "foia"]);
+const VALID_TYPES = new Set<NodeType>(["company", "government", "person", "event", "patent", "foia"]);
 
 /** Full US federal spending for a board node (USASpending.gov — no API key). */
 export async function GET(req: Request) {

@@ -99,6 +99,7 @@ export function detectUsAgency(text: string): string | null {
 export function shouldShowFederalSpending(nodeType: NodeType): boolean {
   return (
     nodeType === "company" ||
+    nodeType === "government" ||
     nodeType === "person" ||
     nodeType === "event" ||
     nodeType === "patent" ||
@@ -127,6 +128,16 @@ export function resolveFederalSpendingQuery(
         sourceNote: "Awards issued by this US federal agency; recipient shows who received funds.",
       };
     }
+  }
+
+  if (nodeType === "government") {
+    const resolvedAgency = agency || primary;
+    return {
+      mode: "awarding_agency",
+      query: resolvedAgency,
+      panelTitle: `Federal spending — ${label || resolvedAgency}`,
+      sourceNote: "Awards issued by this US government agency; recipient shows who received funds.",
+    };
   }
 
   if (nodeType === "company") {

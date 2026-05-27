@@ -6,7 +6,11 @@ export function buildBraveQuery(type: string, nodeTitle: string, topic: string):
     case "person":
       return `"${t}" ${ctx} investigation connections profile background`;
     case "company":
-      return `"${t}" ${ctx} federal contract award USASpending NASA DOD funding`;
+      return `"${t}" ${ctx} federal contract award USASpending funding`;
+    case "government":
+      return `"${t}" ${ctx} government agency intelligence operation investigation`;
+    case "country":
+      return `"${t}" ${ctx} state actor foreign interference geopolitics intelligence`;
     case "event":
       return `"${t}" ${ctx} evidence timeline what really happened`;
     case "theory":

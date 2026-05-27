@@ -1,6 +1,15 @@
 import type { ReaderReactionStats } from "@/lib/readerReactionVote";
 
-export type NodeType = "article" | "patent" | "foia" | "company" | "event" | "person" | "theory";
+export type NodeType =
+  | "article"
+  | "patent"
+  | "foia"
+  | "company"
+  | "government"
+  | "country"
+  | "event"
+  | "person"
+  | "theory";
 
 export interface NodeDetail {
   title: string;

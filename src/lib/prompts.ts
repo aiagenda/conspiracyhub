@@ -11,9 +11,13 @@ Return a JSON object with these fields:
 
 1. nodes — array of graph nodes around the article:
    - article node: id "center", type "article", x 500, y 320
-   - supporting nodes: type one of: patent | foia | company | event | person
-   - For US federal agencies (NASA, DOD, NIH, etc.) use type "company" with detail.title = full official agency name, OR mention the agency clearly in detail.title/body so spending lookups work.
-   - For private companies use type "company" with detail.title = full legal or common name (e.g. "Blue Origin Federation, LLC" not just "Blue Origin").
+   - supporting nodes: type one of: patent | foia | company | government | country | event | person
+   - **TYPE SELECTION RULES (mandatory):**
+     * **country** — sovereign nations, states, and territories (Russia, China, UK, France, Iran, Israel, Taiwan, Ukraine, North Korea, etc.). Use this whenever the node represents a country or nation-state as an actor.
+     * **government** — government agencies, ministries, intelligence services, military branches, and inter-governmental bodies (CIA, GCHQ, FBI, DOD, NSA, MI6, FSB, PLA, UN, NATO, EU, NASA, NIH, DARPA, etc.). Use this whenever the node is a governmental or quasi-governmental institution — NOT for private companies.
+     * **company** — private corporations only (Lockheed Martin, Pfizer, Google, Palantir, Blue Origin, etc.). Do NOT use for government agencies or countries.
+     * For US government agencies with federal-spending data: use type "government" and include the full official agency name in detail.title so spending lookups work.
+     * For private companies use type "company" with detail.title = full legal or common name (e.g. "Blue Origin Federation, LLC" not just "Blue Origin").
    - **NODE COUNT: Aim for 8–12 supporting nodes (not counting center).** Populate all three layers below:
      * LAYER 1 — direct actors (3–5 nodes): the most prominent people, companies, events directly mentioned or implicated in the article.
      * LAYER 2 — secondary connections (3–5 nodes): entities connected to layer-1 nodes — e.g. the employer of a named person, the patent assignee for a technology, the agency that funded a company, a related historical event.

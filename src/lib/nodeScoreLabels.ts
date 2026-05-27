@@ -21,6 +21,10 @@ export function nodeScoreLabelShort(type: NodeType): string {
       return "PLAUSIBILITY";
     case "company":
       return "RELEVANCE";
+    case "government":
+      return "INVOLVEMENT";
+    case "country":
+      return "INVOLVEMENT";
     case "person":
       return "INVOLVEMENT";
     case "event":
@@ -41,6 +45,10 @@ export function nodeScoreLabelLong(type: NodeType): string {
       return "Plausibility (model)";
     case "company":
       return "Investigation relevance";
+    case "government":
+      return "Agency involvement";
+    case "country":
+      return "Country involvement";
     case "person":
       return "Involvement in story";
     case "event":
@@ -61,6 +69,10 @@ export function nodeScoreHint(type: NodeType): string {
       return "Model estimate of how plausible this documented theory is (0–100%).";
     case "company":
       return "How strongly this company connects to the investigation — not a danger rating.";
+    case "government":
+      return "How involved this government agency is in the story network.";
+    case "country":
+      return "How involved this country is as a state actor in the story network.";
     case "person":
       return "How central this person is to the story network — not a danger rating.";
     case "event":
