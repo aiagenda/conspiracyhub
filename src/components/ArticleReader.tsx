@@ -10,6 +10,7 @@ import type { NewsItem } from "@/types";
 import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { markArticleRead } from "@/lib/readArticles";
+import { trackContinueReading } from "@/lib/continueReading";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { isLiveChatEnabled } from "@/lib/featureFlags";
 
@@ -268,7 +269,13 @@ export default function ArticleReader({
 
   useEffect(() => {
     markArticleRead(item.id);
-  }, [item.id]);
+    trackContinueReading({
+      newsId: item.id,
+      title: item.title,
+      path: `/article/${item.id}`,
+      score: item.score,
+    });
+  }, [item.id, item.title, item.score]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- highlights fetch lifecycle */
   useEffect(() => {

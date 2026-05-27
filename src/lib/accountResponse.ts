@@ -13,6 +13,8 @@ export type AccountProfileRow = UserProfilePlanRow & {
   subscription_current_period_end?: string | null;
   subscription_cancel_at_period_end?: boolean | null;
   created_at?: string | null;
+  email_weekly_briefing?: boolean | null;
+  email_high_threat_alerts?: boolean | null;
 };
 
 export function toAccountJson(profile: AccountProfileRow) {
@@ -39,5 +41,7 @@ export function toAccountJson(profile: AccountProfileRow) {
     stripe_subscription_id: profile.stripe_subscription_id ?? null,
     subscription_cancel_at_period_end: Boolean(profile.subscription_cancel_at_period_end),
     member_since: profile.created_at ?? null,
+    email_weekly_briefing: profile.email_weekly_briefing !== false,
+    email_high_threat_alerts: profile.email_high_threat_alerts !== false,
   };
 }

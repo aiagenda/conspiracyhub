@@ -8,6 +8,7 @@ import LiveChat from "@/components/LiveChat";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import VotePanel from "@/components/VotePanel";
 import { markArticleRead } from "@/lib/readArticles";
+import { trackContinueReading } from "@/lib/continueReading";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { isLiveChatEnabled } from "@/lib/featureFlags";
 import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
@@ -58,7 +59,13 @@ export default function GeneratedArticleReader({
 
   useEffect(() => {
     markArticleRead(item.id);
-  }, [item.id]);
+    trackContinueReading({
+      generatedArticleId: item.id,
+      title: item.title,
+      path: `/blog/${slug}`,
+      score: item.score,
+    });
+  }, [item.id, item.title, item.score, slug]);
 
   const chatActive = liveChatEnabled && chatOpen;
   const rootClass = `gar-root${chatActive ? " gar-chat-open" : ""}`;

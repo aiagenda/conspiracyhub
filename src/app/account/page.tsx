@@ -7,6 +7,7 @@ import { signOut } from "@/lib/auth";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
 import { parseNicknameInput } from "@/lib/nickname";
+import SavedInvestigationsList from "@/components/SavedInvestigationsList";
 
 type AccountPayload = {
   email: string;
@@ -24,6 +25,8 @@ type AccountPayload = {
   stripe_subscription_id: string | null;
   subscription_cancel_at_period_end: boolean;
   member_since: string | null;
+  email_weekly_briefing?: boolean;
+  email_high_threat_alerts?: boolean;
 };
 
 function accessPeriodHint(iso: string | null, cancelAtEnd: boolean): string | null {
@@ -55,6 +58,7 @@ export default function AccountPage() {
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [claimTrialLoading, setClaimTrialLoading] = useState(false);
+  const [emailPrefSaving, setEmailPrefSaving] = useState<string | null>(null);
 
   const [visitor, setVisitor] = useState(false);
 
@@ -150,6 +154,48 @@ export default function AccountPage() {
       await load();
     } finally {
       setClaimTrialLoading(false);
+    }
+  }
+
+  async function updateEmailPref(key: "email_weekly_briefing" | "email_high_threat_alerts", value: boolean) {
+    if (!data) return;
+    setError(null);
+    setEmailPrefSaving(key);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError("Session expired — sign in again.");
+        return;
+      }
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ [key]: value }),
+      });
+      const json = (await res.json()) as AccountPayload & { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "Could not update email preferences");
+        return;
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              email_weekly_briefing: json.email_weekly_briefing,
+              email_high_threat_alerts: json.email_high_threat_alerts,
+            }
+          : null,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update failed.");
+    } finally {
+      setEmailPrefSaving(null);
     }
   }
 
@@ -501,6 +547,60 @@ export default function AccountPage() {
                 )}
               </div>
 
+              <div style={card}>
+                <SavedInvestigationsList />
+              </div>
+
+              <div style={card}>
+                <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>
+                  Email preferences
+                </div>
+                <p style={{ fontSize: 11, color: "#5a8068", marginTop: 0, marginBottom: 12, lineHeight: 1.6 }}>
+                  Weekly briefing goes out Sunday 09:00 UTC. High-threat alerts (75%+) require PRO access.
+                </p>
+                {(
+                  [
+                    {
+                      key: "email_weekly_briefing" as const,
+                      label: "Weekly intelligence briefing",
+                      hint: "Top 5 signals, community pulse, UAP radar",
+                    },
+                    {
+                      key: "email_high_threat_alerts" as const,
+                      label: "High-threat alerts (PRO)",
+                      hint: "Instant email when a story scores 75%+",
+                    },
+                  ] as const
+                ).map(({ key, label, hint }) => {
+                  const on = data[key] !== false;
+                  return (
+                    <label
+                      key={key}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 10,
+                        marginBottom: 12,
+                        cursor: emailPrefSaving === key ? "wait" : "pointer",
+                        opacity: emailPrefSaving === key ? 0.7 : 1,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={emailPrefSaving === key}
+                        onChange={(e) => void updateEmailPref(key, e.target.checked)}
+                        style={{ marginTop: 2, accentColor: "#00ff88" }}
+                      />
+                      <span>
+                        <span style={{ display: "block", fontSize: 12, color: "#c8e8d0" }}>{label}</span>
+                        <span style={{ display: "block", fontSize: 10, color: "#3a5040", marginTop: 2 }}>{hint}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
               {hasEffectivePro ? (
                 <div style={{ ...card, borderColor: "rgba(0,255,136,0.3)", background: "rgba(0,255,136,0.03)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
@@ -763,8 +863,7 @@ export default function AccountPage() {
                   ))}
                 </div>
                 <p style={{ fontSize: 10, color: "#3a5040", marginTop: 12, marginBottom: 0, lineHeight: 1.65 }}>
-                  Display name is stored on your profile (shown above). Email and password changes use Supabase Auth
-                  (reset from sign-in). In-app email prefs can ship later.
+                  Display name is stored on your profile. Email and password changes use Supabase Auth (reset from sign-in).
                 </p>
               </div>
 

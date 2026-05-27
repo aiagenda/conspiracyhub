@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import PolymarketWidget from "@/components/PolymarketWidget";
+import SaveInvestigationButton from "@/components/SaveInvestigationButton";
 import { combinePolymarketQuery } from "@/lib/polymarketQuery";
 import {
   maxNodeDisplayScore,
@@ -221,6 +222,8 @@ type Props = {
   backHref?: string;
   /** Label for the back-link; defaults to "← BACK" */
   backLabel?: string;
+  newsId?: string;
+  generatedArticleId?: string;
 };
 
 function formatVerdictShort(v: OracleAnalysis["verdict"] | undefined): string {
@@ -1465,6 +1468,8 @@ export default function InvestigationBoard({
   polymarketContext,
   backHref,
   backLabel = "← BACK",
+  newsId,
+  generatedArticleId,
 }: Props) {
   const [scanLine, setScanLine] = useState(0);
   const [glitch, setGlitch] = useState(false);
@@ -2092,6 +2097,13 @@ export default function InvestigationBoard({
             >
               {shareToast}
             </div>
+          ) : null}
+          {(newsId || generatedArticleId) && articleTitle ? (
+            <SaveInvestigationButton
+              newsId={newsId}
+              generatedArticleId={generatedArticleId}
+              title={articleTitle}
+            />
           ) : null}
           {/* Share dropdown */}
           <div ref={shareMenuRef} data-share-ignore style={{ position: "relative" }}>

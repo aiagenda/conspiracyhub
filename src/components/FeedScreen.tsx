@@ -7,6 +7,8 @@ import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import UpgradeModal from "@/components/UpgradeModal";
+import TodayTopThreatCard from "@/components/TodayTopThreatCard";
+import ContinueReadingBanner from "@/components/ContinueReadingBanner";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
@@ -76,10 +78,12 @@ export default function FeedScreen({
   initialItems,
   feedNotice,
   feedPagination,
+  topThreat,
 }: {
   initialItems: NewsItem[];
   feedNotice?: FeedNotice;
   feedPagination?: FeedPagination;
+  topThreat?: NewsItem | null;
 }) {
   const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
   const [showAuth, setShowAuth] = useState(false);
@@ -208,8 +212,8 @@ export default function FeedScreen({
             { label: "RSS", key: "rss", tip: "Newest non-Guardian / non-GNews / non-Reddit feed row in DB." },
             { label: "SCRAPER", key: "scraper", tip: "Last news scraper job finished or started (scheduler)." },
             { label: "GPT-4o", key: "oracle", tip: "Latest oracle analysis created_at." },
-            { label: "UAP", key: "uap", tip: "Latest UAP sighting ingested." },
-            { label: "COMMUNITY", key: "community", tip: "Latest community thread." },
+            { label: "UAP", key: "uap", tip: "Last UAP full refresh (scheduler / intel cache), not last new NUFORC sighting." },
+            { label: "COMMUNITY", key: "community", tip: "Latest community post (thread reply or new thread)." },
           ] as const).map(({ label, key, tip }) => {
             const status = health ? health[key] : null;
             const age = formatHealthAge(health?.last_at?.[key]);
@@ -260,6 +264,12 @@ export default function FeedScreen({
               LATEST FIRST · SWITCH TO PRIORITY SCORE WHEN NEEDED
             </div>
           </div>
+
+          {(!feedPagination || feedPagination.page === 1) && topThreat ? (
+            <TodayTopThreatCard item={topThreat} />
+          ) : null}
+
+          {(!feedPagination || feedPagination.page === 1) ? <ContinueReadingBanner /> : null}
 
           {/* SORT + COUNT */}
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 10 }}>

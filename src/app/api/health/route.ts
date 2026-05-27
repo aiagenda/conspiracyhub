@@ -22,6 +22,27 @@ const emptyLastAt = {
   uap: null as string | null,
 };
 
+function latestIso(...candidates: (string | null | undefined)[]): string | null {
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const c of candidates) {
+    if (!c) continue;
+    const ms = Date.parse(c);
+    if (!Number.isNaN(ms) && ms > bestMs) {
+      bestMs = ms;
+      best = c;
+    }
+  }
+  return best;
+}
+
+function withinHours(iso: string | null | undefined, hours: number): boolean {
+  if (!iso) return false;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return false;
+  return Date.now() - ms <= hours * 60 * 60 * 1000;
+}
+
 export async function GET() {
   try {
     const db = admin();
@@ -43,6 +64,7 @@ export async function GET() {
     /** Ingest / per-source “online” if at least one row in this window (matches typical cron cadence). */
     const since12h = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
     const since1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
     const [
       recentArticles,
@@ -52,15 +74,17 @@ export async function GET() {
       rssRecent,
       lastScraper,
       oracleCount,
-      uapRecent,
+      uapIntelMeta,
+      lastUapNewsRow,
+      uapJobRow,
+      communityRecent,
       lastIngestRow,
       lastGuardianRow,
       lastGnewsRow,
       lastRedditRow,
       lastRssRow,
       lastOracleRow,
-      lastUapRow,
-      lastThreadRow,
+      lastPostRow,
     ] = await Promise.all([
       // Recent ingest: any article in last 12h? (column is published_at, not date)
       db.from("news_items").select("id", { count: "exact", head: true }).gte("published_at", since12h),
@@ -76,8 +100,12 @@ export async function GET() {
         .maybeSingle(),
       // Oracle: any analysis in last 1h?
       db.from("oracle_analyses").select("id", { count: "exact", head: true }).gte("created_at", since1h),
-      // UAP ingest: sightings in last 24h
-      db.from("uap_sightings").select("id", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+      // UAP: last full refresh meta + news scrape timestamp
+      db.from("uap_intel_meta").select("updated_at, value").eq("key", "last_full_refresh").maybeSingle(),
+      db.from("uap_news").select("scraped_at").order("scraped_at", { ascending: false }).limit(1).maybeSingle(),
+      db.from("scraper_jobs").select("id").eq("job_key", "uap_full_refresh").maybeSingle(),
+      // Community: any post in last 48h?
+      db.from("thread_posts").select("id", { count: "exact", head: true }).gte("created_at", since48h),
       db.from("news_items").select("published_at").order("published_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("news_items").select("published_at").eq("source", "guardian").order("published_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("news_items").select("published_at").ilike("source", "gnews%").order("published_at", { ascending: false }).limit(1).maybeSingle(),
@@ -92,16 +120,42 @@ export async function GET() {
         .limit(1)
         .maybeSingle(),
       db.from("oracle_analyses").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      db.from("uap_sightings").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      db.from("threads").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      db.from("thread_posts").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
+
+    const uapScraperRun = uapJobRow.data?.id
+      ? await db
+          .from("scraper_runs")
+          .select("status, started_at, finished_at")
+          .eq("job_id", uapJobRow.data.id)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
+
+    const uapMetaAt =
+      typeof uapIntelMeta.data?.value === "object" &&
+      uapIntelMeta.data.value !== null &&
+      "at" in (uapIntelMeta.data.value as Record<string, unknown>)
+        ? String((uapIntelMeta.data.value as Record<string, unknown>).at)
+        : null;
+    const uapScraperAt = uapScraperRun.data?.finished_at ?? uapScraperRun.data?.started_at ?? null;
+    const uapLastAt = latestIso(uapMetaAt, uapIntelMeta.data?.updated_at, uapScraperAt, lastUapNewsRow.data?.scraped_at);
+
+    const uapScraperRecentOk =
+      uapScraperRun.data?.status === "success" || uapScraperRun.data?.status === "running";
+    const uapOk =
+      (uapScraperRecentOk && withinHours(uapScraperAt, 26)) ||
+      withinHours(uapMetaAt, 26) ||
+      withinHours(uapIntelMeta.data?.updated_at, 26);
+
+    const communityOk = (communityRecent.count ?? 0) > 0;
 
     const ingestOk = (recentArticles.count ?? 0) > 0;
     const scraperStatus = lastScraper.data?.status ?? null;
     const scraperOk = scraperStatus === "success" || scraperStatus === "running";
     const oracleOk = (oracleCount.count ?? 0) > 0;
-    const uapOk = (uapRecent.count ?? 0) > 0;
-    const stat = (count: number | null) => (count ?? 0) > 0 ? "online" : "degraded";
+    const stat = (count: number | null) => ((count ?? 0) > 0 ? "online" : "degraded");
 
     const scraperAt =
       lastScraper.data?.finished_at ?? lastScraper.data?.started_at ?? null;
@@ -114,8 +168,8 @@ export async function GET() {
       rss: lastRssRow.data?.published_at ?? null,
       scraper: scraperAt,
       oracle: lastOracleRow.data?.created_at ?? null,
-      uap: lastUapRow.data?.created_at ?? null,
-      community: lastThreadRow.data?.created_at ?? null,
+      uap: uapLastAt,
+      community: lastPostRow.data?.created_at ?? null,
     };
 
     return NextResponse.json({
@@ -126,8 +180,8 @@ export async function GET() {
       rss: stat(rssRecent.count),
       scraper: scraperOk ? "online" : scraperStatus === "failed" ? "error" : "idle",
       oracle: oracleOk ? "online" : "idle",
-      community: "online",
-      uap: uapOk ? "online" : "idle",
+      community: communityOk ? "online" : "idle",
+      uap: uapOk ? "online" : uapScraperRun.data?.status === "failed" ? "error" : "idle",
       last_at,
       ts: Date.now(),
     });

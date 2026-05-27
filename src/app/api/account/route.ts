@@ -13,7 +13,7 @@ function getAdmin() {
 }
 
 const PROFILE_SELECT =
-  "email, nickname, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, pro_trial_ends_at, pro_trial_granted_at, pro_trial_redeemed, created_at";
+  "email, nickname, plan, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, pro_trial_ends_at, pro_trial_granted_at, pro_trial_redeemed, created_at, email_weekly_briefing, email_high_threat_alerts";
 
 async function loadOrCreateProfile(
   admin: ReturnType<typeof getAdmin>,
@@ -103,6 +103,23 @@ export async function PATCH(req: NextRequest) {
     }
 
     const claimTrial = (body as { claim_trial?: unknown }).claim_trial === true;
+    const emailWeekly = (body as { email_weekly_briefing?: unknown }).email_weekly_briefing;
+    const emailHighThreat = (body as { email_high_threat_alerts?: unknown }).email_high_threat_alerts;
+
+    if (typeof emailWeekly === "boolean" || typeof emailHighThreat === "boolean") {
+      await loadOrCreateProfile(admin, user);
+      const patch: Record<string, boolean> = {};
+      if (typeof emailWeekly === "boolean") patch.email_weekly_briefing = emailWeekly;
+      if (typeof emailHighThreat === "boolean") patch.email_high_threat_alerts = emailHighThreat;
+      const { error: prefErr } = await admin.from("user_profiles").update(patch).eq("id", user.id);
+      if (prefErr) return NextResponse.json({ error: prefErr.message }, { status: 500 });
+      const { data: updated } = await admin
+        .from("user_profiles")
+        .select(PROFILE_SELECT)
+        .eq("id", user.id)
+        .single();
+      return NextResponse.json(toAccountJson(updated as AccountProfileRow));
+    }
 
     if (claimTrial) {
       const profile = await loadOrCreateProfile(admin, user);
