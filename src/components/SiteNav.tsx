@@ -19,12 +19,15 @@ type Props = {
   onSignedOut?: () => void;
 };
 
+/** Re-enable when community launches publicly. */
+const SHOW_COMMUNITY_NAV = false;
+
 const NAV_LINKS = [
   { href: "/", label: "FEED", color: "#00ff88" },
   { href: "/uap", label: "UAP FILES", color: "#8aa6ff" },
   { href: "/outbreaks", label: "OUTBREAKS", color: "#ff3333", blink: true },
   { href: "/insider-radar", label: "INSIDER RADAR", color: "#ffaa00" },
-  { href: "/community", label: "COMMUNITY", color: "#00bb66" },
+  ...(SHOW_COMMUNITY_NAV ? [{ href: "/community", label: "COMMUNITY", color: "#00bb66" }] : []),
   { href: "/blog", label: "ANALYSIS", color: "#c94dff" },
   { href: "/search", label: "SEARCH", color: "#9ec8ae" },
   { href: "/guide", label: "GUIDE", color: "#9ec8ae" },

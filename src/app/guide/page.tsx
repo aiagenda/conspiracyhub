@@ -77,7 +77,6 @@ export default function GuidePage() {
             <Row label="UAP FILES" color="#8aa6ff">Dedicated UAP database <code style={{ color: "#3a5040" }}>/uap</code>.</Row>
             <Row label="OUTBREAKS" color="#ff3333">Health alerts <code style={{ color: "#3a5040" }}>/outbreaks</code>.</Row>
             <Row label="INSIDER RADAR" color="#ffaa00">Live insider feed <code style={{ color: "#3a5040" }}>/insider-radar</code> — UAP researchers, whistleblowers, journalists, Congress (see section below).</Row>
-            <Row label="COMMUNITY" color="#00bb66">OSINT board <code style={{ color: "#3a5040" }}>/community</code>.</Row>
             <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
             <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
             <Row label="GUIDE" color="#5a8068">This page <code style={{ color: "#3a5040" }}>/guide</code>.</Row>
@@ -107,7 +106,7 @@ export default function GuidePage() {
             <Sub>Article highlights</Sub>
             <Note>AI marks conspiracy-relevant phrases in the article body. Guests see the top <strong style={{ color: "#c8e8d0" }}>3</strong> signals; free registered users see <strong style={{ color: "#c8e8d0" }}>5</strong>; PRO / Analyst Pass trial sees all with full notes.</Note>
             <Sub>Status bar</Sub>
-            <Note>Green = source active recently. Yellow [IDLE] or [DEGRADED] = stale or quiet. Red = error. UAP reflects last full refresh (daily scraper), not only new NUFORC rows. COMMUNITY shows time of the latest post, not only new threads. DARPA: ████ is intentionally redacted.</Note>
+            <Note>Green = source active recently. Yellow [IDLE] or [DEGRADED] = stale or quiet. Red = error. UAP reflects last full refresh (daily scraper), not only new NUFORC rows. DARPA: ████ is intentionally redacted.</Note>
           </Section>
 
           {/* ANALYSIS / BLOG */}
@@ -221,23 +220,6 @@ export default function GuidePage() {
             <Note>Curated A–Z list of official declassified portals: CIA Reading Room, FBI Vault, NARA, NSA FOIA, DARPA, etc. Filter by agency or letter. Links open the primary government source — PDFs are not hosted here.</Note>
           </Section>
 
-          {/* COMMUNITY */}
-          <Section icon="◈" title="Community Intelligence" color="#00bb66">
-            <Note>/community lists and threads are public to read. Posting, replies, reactions, and @oracle require signing in from the feed.</Note>
-            <Sub>Thread categories</Sub>
-            <Row label="👁 SIGHTING" color="#00ff88">Direct observation — aerial, terrestrial or unexplained.</Row>
-            <Row label="📄 DOCUMENT" color="#ff3333">FOIA file, leaked document or official record.</Row>
-            <Row label="🔮 THEORY" color="#c94dff">Hypothesis for community evaluation.</Row>
-            <Row label="❓ QUESTION" color="#ffaa00">Ask the community or Oracle for analysis.</Row>
-            <Row label="💡 TIP" color="#00bb66">Link or lead others should investigate.</Row>
-            <Sub>Oracle in threads</Sub>
-            <Note>Type @oracle in any post to trigger AI analysis. Oracle reads all posts, cross-references known data, evaluates credibility and posts a structured report with theories, sources and next steps.</Note>
-            <Note>Free users: 3 @oracle triggers/day per device. PRO: unlimited.</Note>
-            <Sub>Voting and reactions</Sub>
-            <Row label="↑ / ↓" color="#5a8068">Up/down vote any post. One vote per browser.</Row>
-            <Row label="↩ REPLY" color="#5a8068">Threaded replies, indented under parent.</Row>
-          </Section>
-
           {/* SHARING */}
           <Section icon="↗" title={"Share & Export"} color="#5a8068">
             <Note>Every Investigation Board has ◈ SHARE ▼ and ☆ SAVE top-right.</Note>
@@ -255,7 +237,7 @@ export default function GuidePage() {
             <Sub>My investigations</Sub>
             <Note>Lists boards you saved with ☆ SAVE. Links back to the board and source article where available.</Note>
             <Sub>Email preferences</Sub>
-            <Row label="WEEKLY" color="#00ff88">Weekly intelligence briefing — top signals, community pulse, UAP highlight (Sunday 09:00 UTC). Opt out anytime.</Row>
+            <Row label="WEEKLY" color="#00ff88">Weekly intelligence briefing — top signals, outbreak/insider highlights, UAP radar (Sunday 09:00 UTC). Opt out anytime.</Row>
             <Row label="ALERTS" color="#ff3333">High-threat alerts when a story scores 75%+ — effective PRO only, opt-in on Account.</Row>
             <Sub>Founding operative</Sub>
             <Note>The first 100 new accounts receive a <strong style={{ color: "#c8e8d0" }}>90-day</strong> Analyst Pass and a founding badge on Account. After that, new signups get the standard <strong style={{ color: "#c8e8d0" }}>30-day</strong> trial automatically.</Note>
@@ -263,8 +245,8 @@ export default function GuidePage() {
 
           {/* PRO */}
           <Section icon="◐" title="Free vs. PRO" color="#c94dff">
-            <Row label="GUEST" color="#5a8068">Feed page 1, all articles, cached Oracle boards, community read-only, search news-only, 3 article highlights, no live chat.</Row>
-            <Row label="FREE" color="#5a8068">Full feed pagination, search AI enrichment, 5 article highlights, 3 @oracle/day, save up to 5 investigations, continue-reading sync.</Row>
+            <Row label="GUEST" color="#5a8068">Feed page 1, all articles, cached Oracle boards, search news-only, 3 article highlights, no live chat.</Row>
+            <Row label="FREE" color="#5a8068">Full feed pagination, search AI enrichment, 5 article highlights, save up to 5 investigations, continue-reading sync.</Row>
             <Row label="TRIAL" color="#ffaa00">New accounts receive an <strong style={{ color: "#c8e8d0" }}>Analyst Pass</strong> (full PRO, no card): <strong style={{ color: "#c8e8d0" }}>90 days</strong> for the first 100 founding operatives, then <strong style={{ color: "#c8e8d0" }}>30 days</strong>. Legacy users can claim a one-time 30-day pass from Account if eligible.</Row>
             <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full highlights, Polymarket odds, URL analyzer, high-threat email alerts (opt-in), unlimited saved investigations, board PNG export. $7/mo via Stripe.</Row>
             <Note>Sign in via SIGN IN on the feed. Upgrade via PRO ▶. Manage subscription and email prefs on Account.</Note>
