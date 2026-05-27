@@ -7,6 +7,7 @@ import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { trackContinueReading } from "@/lib/continueReading";
+import { correctNodeType } from "@/lib/nodeTypeCorrection";
 import type { Edge, NewsItem, Node, OracleAnalysis, NodeType, OracleTheory } from "@/types";
 
 const VALID_NODE_TYPES: NodeType[] = ["article", "patent", "foia", "company", "government", "country", "event", "person", "theory"];
@@ -48,44 +49,13 @@ function sanitizeNodeType(value: unknown): NodeType {
   return (VALID_NODE_TYPES.includes(normalized as NodeType) ? normalized : "event") as NodeType;
 }
 
-/** Sovereign nation / territory keywords for fallback node-type inference. */
-const COUNTRY_KEYWORDS = new Set([
-  "russia","china","usa","united states","uk","united kingdom","france","germany","iran",
-  "israel","ukraine","taiwan","north korea","south korea","india","pakistan","turkey",
-  "saudi arabia","australia","canada","japan","brazil","mexico","italy","spain","poland",
-  "netherlands","sweden","norway","finland","denmark","belgium","switzerland","austria",
-  "czech republic","hungary","romania","greece","syria","iraq","afghanistan","venezuela",
-  "cuba","belarus","georgia","armenia","azerbaijan","kazakhstan","serbia","croatia",
-  "slovenia","slovakia","estonia","latvia","lithuania","moldova","bulgaria","albania",
-  "egypt","iran","libya","sudan","ethiopia","kenya","nigeria","ghana","south africa",
-  "indonesia","malaysia","philippines","vietnam","thailand","myanmar","cambodia",
-  "bangladesh","sri lanka","new zealand",
-]);
-
-/** Government agency / institution keywords for fallback node-type inference. */
-const GOVERNMENT_KEYWORDS = [
-  "cia","gchq","fbi","nsa","dod","department of defense","department of state","nsa",
-  "pentagon","mi5","mi6","kgb","fsb","svr","mossad","bnd","dgse","aivd","gru","plc",
-  "nato","un ","united nations","european union","eu ","fema","dhs","homeland security",
-  "intelligence agenc","ministry of","cabinet","parliament","congress","senate","tribunal",
-  "interpol","europol","who ","world health","world bank","imf ","international monetary",
-  "darpa","nasa","nih ","cdc","fda ","epa ","fbi ","atf ","dea ","ice ","cbp ","tsa ",
-];
-
 function inferNodeType(label: string): NodeType {
-  const l = label.toLowerCase().trim();
+  const corrected = correctNodeType({ type: "event", label, title: label });
+  if (corrected !== "event") return corrected;
 
+  const l = label.toLowerCase().trim();
   if (l.includes("uspto") || l.includes("patent")) return "patent";
   if (l.includes("foia") || l.includes("declassified document")) return "foia";
-
-  if (COUNTRY_KEYWORDS.has(l)) return "country";
-  if (COUNTRY_KEYWORDS.has(l.replace(/^the\s+/, ""))) return "country";
-
-  for (const kw of GOVERNMENT_KEYWORDS) {
-    if (l.includes(kw)) return "government";
-  }
-
-  if (l.includes(" cia") || l === "cia") return "government";
   if (l.includes("inc.") || l.includes(" corp") || l.includes("organization") || l.includes("company") || l.includes("ltd")) return "company";
   if (l.includes("dr.") || l.includes("prof.") || l.includes("director") || l.includes("officer")) return "person";
   if (l.includes("study") || l.includes("event") || l.includes("forum") || l.includes("operation")) return "event";
@@ -99,7 +69,9 @@ function sanitizeNodes(nodes: unknown): Node[] {
       if (!node || typeof node !== "object") return null;
       const n = node as Partial<Node>;
       const safeLabel = typeof n.label === "string" ? n.label : `NODE ${index + 1}`;
-      const nodeType = n.type ? sanitizeNodeType(n.type) : inferNodeType(safeLabel);
+      const safeTitle = typeof n.detail?.title === "string" ? n.detail.title : safeLabel;
+      const rawType = n.type ? sanitizeNodeType(n.type) : inferNodeType(safeLabel);
+      const nodeType = correctNodeType({ type: rawType, label: safeLabel, title: safeTitle });
       const confidenceNum =
         typeof n.detail?.confidence === "number"
           ? Math.max(0, Math.min(100, n.detail.confidence))

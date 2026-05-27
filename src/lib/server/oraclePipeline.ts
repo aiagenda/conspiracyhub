@@ -6,6 +6,7 @@ import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/ora
 import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
 import { buildBraveQuery } from "@/lib/braveNodeQuery";
+import { correctNodeType } from "@/lib/nodeTypeCorrection";
 import { searchBrave } from "@/lib/braveSearch";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
 
@@ -193,50 +194,12 @@ export async function runOraclePipelineInsert(
     }));
 
     // ── Post-process: fix wrong types (e.g. sovereign nations mislabelled as company) ──
-    const KNOWN_COUNTRY_LABELS = new Set([
-      "russia","china","usa","united states","uk","united kingdom","great britain",
-      "france","germany","iran","israel","ukraine","taiwan","north korea","south korea",
-      "india","pakistan","turkey","saudi arabia","australia","canada","japan","brazil",
-      "mexico","italy","spain","poland","netherlands","sweden","norway","finland",
-      "denmark","belgium","switzerland","austria","czech republic","hungary","romania",
-      "greece","syria","iraq","afghanistan","venezuela","cuba","belarus","georgia",
-      "armenia","azerbaijan","kazakhstan","serbia","croatia","slovenia","slovakia",
-      "estonia","latvia","lithuania","moldova","bulgaria","albania","egypt","libya",
-      "sudan","ethiopia","kenya","nigeria","ghana","south africa","indonesia","malaysia",
-      "philippines","vietnam","thailand","myanmar","cambodia","bangladesh","sri lanka",
-      "new zealand","ireland","portugal","morocco","algeria","indonesia","cuba","iran",
-    ]);
-    const KNOWN_GOV_PATTERNS = [
-      /\bcia\b/i,/\bgchq\b/i,/\bfbi\b/i,/\bnsa\b/i,/\bmi[56]\b/i,/\bkgb\b/i,/\bfsb\b/i,
-      /\bsvr\b/i,/\bmossad\b/i,/\bbnd\b/i,/\bdgse\b/i,/\bgru\b/i,/\bpentagon\b/i,
-      /\bdarpa\b/i,/\bnasa\b/i,/\bnih\b/i,/\bdod\b/i,/\binterpol\b/i,/\beuropol\b/i,
-      /department of (defense|state|justice|energy|homeland)/i,
-      /ministry of (defense|foreign|interior|intelligence)/i,
-      /intelligence (agenc|service|committee)/i,
-      /\bnato\b/i,/\binterpol\b/i,
-      /\bhomeland security\b/i,/\b(fema|atf|dea|ice|cbp|tsa)\b/i,
-    ];
-
     for (const node of normalizedNodes) {
-      if (node.type === "article") continue;
-      const lbl = (node.label ?? "").toLowerCase().trim();
-      const ttl = ((node.detail?.title as string) ?? "").toLowerCase().trim();
-      const combined = `${lbl} ${ttl}`;
-
-      // Sovereign country check
-      if (KNOWN_COUNTRY_LABELS.has(lbl) || KNOWN_COUNTRY_LABELS.has(ttl)) {
-        node.type = "country";
-        continue;
-      }
-      // Government agency / institution check
-      if (node.type === "company") {
-        for (const pat of KNOWN_GOV_PATTERNS) {
-          if (pat.test(combined)) {
-            node.type = "government";
-            break;
-          }
-        }
-      }
+      node.type = correctNodeType({
+        type: node.type,
+        label: node.label ?? "",
+        title: (node.detail?.title as string) ?? "",
+      });
     }
 
     const topicKeywords = primaryTitle.slice(0, 55);
