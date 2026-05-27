@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runEnrichUapBriefs } from "@/app/api/uap-sightings/route";
+import { runPursueDocumentIngest } from "@/lib/server/uapIngest";
 import {
   executeJob,
   getSchedulerSnapshot,
@@ -41,6 +42,18 @@ export async function PATCH(req: NextRequest) {
       );
       try {
         const payload = await runEnrichUapBriefs(limit);
+        return NextResponse.json({ ok: true, result: { ok: true, payload } });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (action === "fetch_pursue") {
+      try {
+        const payload = await runPursueDocumentIngest();
         return NextResponse.json({ ok: true, result: { ok: true, payload } });
       } catch (e) {
         return NextResponse.json(

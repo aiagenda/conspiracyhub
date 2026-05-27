@@ -15,8 +15,10 @@ import {
 import {
   fetchAllUapDocumentFeeds,
   fetchAllUapNewsSources,
+  fetchPursueFeed,
   type UapNewsItem,
 } from "@/lib/server/uapFetchers";
+import { isPursueDocument } from "@/lib/pursueDocument";
 
 export function getUapAdmin(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -148,6 +150,10 @@ async function ingestUapNews(admin: SupabaseClient): Promise<{ upserted: number;
 
 async function ingestUapDocuments(admin: SupabaseClient): Promise<{ upserted: number }> {
   const items = await fetchAllUapDocumentFeeds();
+  return upsertDocumentFeedItems(admin, items);
+}
+
+async function upsertDocumentFeedItems(admin: SupabaseClient, items: UapNewsItem[]): Promise<{ upserted: number }> {
   const seen = new Set<string>();
   let upserted = 0;
 
@@ -171,6 +177,32 @@ async function ingestUapDocuments(admin: SupabaseClient): Promise<{ upserted: nu
   }
 
   return { upserted };
+}
+
+/** Fetch PURSUE releases and upsert into uap_intel_reference. */
+export async function runPursueDocumentIngest(): Promise<{
+  fetched: number;
+  upserted: number;
+  warGovBlocked: boolean;
+  warGovCount: number;
+  newsFallbackCount: number;
+  pursueDocumentsInDb: number;
+}> {
+  const admin = getUapAdmin();
+  const feed = await fetchPursueFeed();
+  const { upserted } = await upsertDocumentFeedItems(admin, feed.items);
+
+  const payload = await loadUapPayload({ liveFallback: false });
+  const pursueDocumentsInDb = payload.documents.filter(isPursueDocument).length;
+
+  return {
+    fetched: feed.items.length,
+    upserted,
+    warGovBlocked: feed.warGovBlocked,
+    warGovCount: feed.warGovCount,
+    newsFallbackCount: feed.newsFallbackCount,
+    pursueDocumentsInDb,
+  };
 }
 
 /** Full UAP refresh: reference seed, news, documents, NUFORC sightings. */

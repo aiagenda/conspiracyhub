@@ -10,6 +10,7 @@ import SiteNav from "@/components/SiteNav";
 import { CollapsibleSection, IntelExpandBar, IntelSectionChips } from "@/components/IntelAccordion";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { sortByPubDateDesc } from "@/lib/sortByPubDate";
+import { isPursueDocument } from "@/lib/pursueDocument";
 import {
   shouldDefaultToBriefView,
   previewPlainText,
@@ -1486,7 +1487,7 @@ export default function UAPTracker() {
                         <span style={{fontSize:9,color:"#c94dff",letterSpacing:1}}>{d.year}</span>
                         <span style={{fontSize:9,color:"#5a8068",border:"1px solid #1a3320",padding:"1px 6px",borderRadius:2}}>{d.type}</span>
                         <span style={{fontSize:9,color:d.classification==="DECLASSIFIED"||d.classification==="PUBLIC"?"#00bb66":"#ffaa00",border:"1px solid currentColor",padding:"1px 6px",borderRadius:2,opacity:0.8}}>{d.classification}</span>
-                        {((d as {source?:string}).source?.includes("PURSUE")||(d as {source?:string}).source?.includes("war.gov")) && (
+                        {isPursueDocument(d) && (
                           <span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.5)",padding:"1px 6px",borderRadius:2,fontWeight:700,letterSpacing:1}}>◈ PURSUE</span>
                         )}
                         <span style={{marginLeft:"auto",fontSize:9,color:"#c94dff"}}>↗ VIEW</span>

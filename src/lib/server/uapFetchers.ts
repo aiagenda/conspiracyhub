@@ -186,61 +186,114 @@ export async function fetchAllUapNewsSources(): Promise<UapNewsItem[]> {
   return [...aaro, ...news, ...reddit];
 }
 
+export type PursueFetchResult = {
+  items: UapNewsItem[];
+  warGovBlocked: boolean;
+  warGovCount: number;
+  newsFallbackCount: number;
+};
+
 /**
  * PURSUE — Pentagon UAP file portal (war.gov/UFO).
- * Batch releases drop every ~2 weeks. Falls back to Google News.
+ * Batch releases drop every ~2 weeks. Falls back to Google News when war.gov blocks datacenter IPs.
  */
-export async function fetchPURSUE(): Promise<UapNewsItem[]> {
+export async function fetchPursueFeed(): Promise<PursueFetchResult> {
   const results: UapNewsItem[] = [];
+  let warGovBlocked = false;
+  let warGovCount = 0;
 
-  // Primary: scrape war.gov/UFO
   try {
     const res = await fetch("https://www.war.gov/UFO/", {
-      headers: { "User-Agent": UA_BROWSER, "Accept": "text/html" },
+      headers: { "User-Agent": UA_BROWSER, Accept: "text/html" },
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) {
       const html = await res.text();
-      for (const m of html.matchAll(/href="([^"]*(?:DOW-UAP|dow-uap|PURSUE|pursue)[^"]*\.(pdf|mp4|png|jpg)?)"/gi)) {
-        const rawUrl = m[1];
-        const url = rawUrl.startsWith("http") ? rawUrl : `https://www.war.gov${rawUrl}`;
-        const filename = url.split("/").pop() ?? url;
-        const title = filename
-          .replace(/\.(pdf|mp4|png|jpg)$/i, "")
-          .replace(/[-_]/g, " ")
-          .replace(/DOW UAP PR(\d+)/i, "PURSUE Unresolved UAP Report #$1")
-          .trim();
-        if (title.length > 4) {
-          results.push({ title: `[PURSUE] ${title}`, url, source: "PURSUE (war.gov/UFO)", pubDate: new Date().toISOString(), type: "foia" });
-          if (results.length >= 20) break;
+      if (/access denied/i.test(html)) {
+        warGovBlocked = true;
+      } else {
+        for (const m of html.matchAll(/href="([^"]*(?:DOW-UAP|dow-uap|PURSUE|pursue)[^"]*\.?(?:pdf|mp4|png|jpg)?)"/gi)) {
+          const rawUrl = m[1];
+          const url = rawUrl.startsWith("http") ? rawUrl : `https://www.war.gov${rawUrl}`;
+          const filename = url.split("/").pop() ?? url;
+          const title = filename
+            .replace(/\.(pdf|mp4|png|jpg)$/i, "")
+            .replace(/[-_]/g, " ")
+            .replace(/DOW UAP PR(\d+)/i, "PURSUE Unresolved UAP Report #$1")
+            .trim();
+          if (title.length > 4) {
+            results.push({
+              title: `[PURSUE] ${title}`,
+              url,
+              source: "PURSUE (war.gov/UFO)",
+              pubDate: new Date().toISOString(),
+              type: "foia",
+            });
+            warGovCount++;
+            if (results.length >= 20) break;
+          }
         }
       }
     }
-  } catch { /* fallthrough */ }
+  } catch {
+    warGovBlocked = true;
+  }
 
-  // Fallback: Google News
+  const seen = new Set(results.map((r) => r.url));
+  let newsFallbackCount = 0;
+
   if (results.length < 3) {
     try {
-      for (const q of ["PURSUE UAP files war.gov 2026", "Pentagon UFO files release batch 2026"]) {
-        const res = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, {
-          headers: { "User-Agent": UA_BROWSER }, signal: AbortSignal.timeout(6000),
-        });
+      for (const q of [
+        "PURSUE UAP files war.gov 2026",
+        "Pentagon UFO files release batch 2026",
+        "Department of War UAP files WAR.GOV UFO",
+      ]) {
+        const res = await fetch(
+          `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`,
+          { headers: { "User-Agent": UA_BROWSER }, signal: AbortSignal.timeout(6000) },
+        );
         if (!res.ok) continue;
         const xml = await res.text();
         for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
           const x = m[1];
           const title = x.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() ?? "";
-          const link  = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
-          const pub   = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
-          if (title && link && /pursue|war\.gov|ufo.*file|uap.*release|pentagon.*ufo/i.test(title)) {
-            results.push({ title, url: link, source: "PURSUE News", pubDate: pub || new Date().toISOString(), type: "foia" });
+          const link = x.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? "";
+          const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
+          if (
+            title &&
+            link &&
+            !seen.has(link) &&
+            /pursue|war\.gov|ufo.*file|uap.*release|pentagon.*ufo|anomalous phenomena/i.test(title)
+          ) {
+            seen.add(link);
+            results.push({
+              title,
+              url: link,
+              source: "PURSUE News",
+              pubDate: pub || new Date().toISOString(),
+              type: "foia",
+            });
+            newsFallbackCount++;
           }
         }
-        if (results.length >= 5) break;
+        if (results.length >= 12) break;
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
-  return results.slice(0, 25);
+
+  return {
+    items: results.slice(0, 25),
+    warGovBlocked,
+    warGovCount,
+    newsFallbackCount,
+  };
+}
+
+export async function fetchPURSUE(): Promise<UapNewsItem[]> {
+  return (await fetchPursueFeed()).items;
 }
 
 /** FOIA RSS feeds for document ingest. */

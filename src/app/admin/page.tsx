@@ -810,23 +810,66 @@ export default function AdminPage() {
 
   async function fetchPursueFiles() {
     setScraperBusy("pursue-fetch");
-    setUapBriefHint({ variant: "info", text: "Fetching PURSUE files from war.gov/UFO…" });
+    setUapBriefHint({ variant: "info", text: "Fetching PURSUE files (war.gov + news fallback)…" });
     try {
-      const res = await fetch("/api/uap?type=all&fresh=1");
-      const d = await res.json();
-      const docCount = (d.documents ?? []).filter((doc: { source?: string }) =>
-        doc.source?.includes("PURSUE") || doc.source?.includes("war.gov")
-      ).length;
+      const res = await fetch("/api/admin/scrapers", {
+        method: "PATCH",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "fetch_pursue" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        result?: {
+          ok?: boolean;
+          payload?: {
+            fetched?: number;
+            upserted?: number;
+            warGovBlocked?: boolean;
+            warGovCount?: number;
+            newsFallbackCount?: number;
+            pursueDocumentsInDb?: number;
+          };
+        };
+      };
+      if (!res.ok) {
+        setUapBriefHint({ variant: "error", text: `PURSUE fetch failed: ${data.error ?? `HTTP ${res.status}`}` });
+        return;
+      }
+
+      const p = data.result?.payload;
+      const fetched = p?.fetched ?? 0;
+      const upserted = p?.upserted ?? 0;
+      const inDb = p?.pursueDocumentsInDb ?? 0;
+      const warGovBlocked = p?.warGovBlocked === true;
+      const warGovCount = p?.warGovCount ?? 0;
+      const newsCount = p?.newsFallbackCount ?? 0;
+
+      if (fetched === 0) {
+        setUapBriefHint({
+          variant: "info",
+          text: warGovBlocked
+            ? "No PURSUE items found — war.gov blocks server IPs; Google News returned nothing. Retry after the next batch release."
+            : "No PURSUE items found from war.gov or news feeds.",
+        });
+        return;
+      }
+
+      const sourceNote = warGovBlocked
+        ? `war.gov blocked from server · ${newsCount} from news`
+        : `${warGovCount} direct · ${newsCount} news`;
+
       setUapBriefHint({
-        variant: docCount > 0 ? "success" : "info",
-        text: docCount > 0
-          ? `◈ PURSUE fetch complete — ${docCount} Pentagon files loaded`
-          : "Fetch complete — PURSUE portal may be rate-limited, try again shortly",
+        variant: upserted > 0 || inDb > 0 ? "success" : "info",
+        text:
+          upserted > 0
+            ? `◈ PURSUE ingest — ${upserted} new (${fetched} fetched, ${inDb} total in DB) · ${sourceNote}`
+            : `◈ PURSUE — ${fetched} fetched, 0 new (${inDb} already in DB) · ${sourceNote}`,
       });
     } catch (e) {
       setUapBriefHint({ variant: "error", text: `PURSUE fetch failed: ${String(e)}` });
+    } finally {
+      setScraperBusy("");
     }
-    setScraperBusy("");
   }
 
   async function enrichUapBriefs() {
