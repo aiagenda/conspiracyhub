@@ -704,74 +704,6 @@ function SightingDetail({ sighting, onBack, compact = false }: { sighting: Sight
   );
 }
 
-// ── INCIDENT NODE GRAPH ────────────────────────────────────────
-function IncidentGraph({ incident, orgs }: { incident: Incident; orgs: Org[] }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const col = CLASS_COL[incident.classification]??"#5a8068";
-
-  // Build nodes
-  const cx=400,cy=200;
-  interface GraphNode { id:string; x:number; y:number; label:string; color:string; type:string }
-  const nodes: GraphNode[] = [{ id:"center", x:cx, y:cy, label:incident.name.split("/")[0].trim(), color:col, type:"incident" }];
-
-  // Place witnesses in a ring
-  const witnessCount = Math.min(incident.witnesses.length,4);
-  incident.witnesses.slice(0,witnessCount).forEach((w,i)=>{
-    const angle = (i/witnessCount)*Math.PI*2 - Math.PI/2 + (witnessCount===1?0:0);
-    nodes.push({ id:`w${i}`, x:cx+160*Math.cos(angle), y:cy+130*Math.sin(angle), label:w.split(" ").slice(-1)[0].toUpperCase(), color:"#00bb66", type:"witness" });
-  });
-  // Related orgs
-  const relatedOrgs = orgs.filter(o=>incident.relatedOrgs.includes(o.name)).slice(0,3);
-  relatedOrgs.forEach((o,i)=>{
-    const angle = Math.PI/4 + (i/3)*Math.PI*1.2;
-    nodes.push({ id:`o${i}`, x:cx+220*Math.cos(angle), y:cy+170*Math.sin(angle), label:o.name, color:"#ffaa00", type:"org" });
-  });
-  // Documents
-  incident.documents.slice(0,3).forEach((d,i)=>{
-    const angle = -Math.PI/4 - (i/3)*Math.PI;
-    nodes.push({ id:`d${i}`, x:cx+190*Math.cos(angle), y:cy+140*Math.sin(angle), label:d.split(" ").slice(0,2).join(" ").toUpperCase(), color:"#c94dff", type:"document" });
-  });
-
-  return (
-    <div style={{border:"1px solid #1a3320",borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
-      <div style={{padding:"8px 12px",borderBottom:"1px solid #1a3320",display:"flex",gap:8,alignItems:"center"}}>
-        <div style={{fontFamily:FONT,fontSize:9,color:"#5a8068",letterSpacing:2}}>◈ INVESTIGATION GRAPH</div>
-        <div style={{display:"flex",gap:8,marginLeft:"auto"}}>
-          {[["#00bb66","WITNESS"],["#ffaa00","ORGANIZATION"],["#c94dff","DOCUMENT"]].map(([c,l])=>(
-            <span key={l} style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:"#5a8068"}}>
-              <span style={{width:6,height:6,borderRadius:"50%",background:c,display:"inline-block"}}/>
-              {l}
-            </span>
-          ))}
-        </div>
-      </div>
-      <svg ref={svgRef} style={{width:"100%",height:280}} viewBox="0 0 800 280">
-        <defs>
-          <radialGradient id="incGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={col} stopOpacity="0.08"/>
-            <stop offset="100%" stopColor={col} stopOpacity="0"/>
-          </radialGradient>
-        </defs>
-        <rect width="800" height="280" fill="#090f0b"/>
-        {/* Center glow */}
-        <circle cx={cx} cy={cy} r={60} fill="url(#incGrad)"/>
-        {/* Edges */}
-        {nodes.slice(1).map(n=>(
-          <line key={n.id} x1={cx} y1={cy} x2={n.x} y2={n.y} stroke={n.color} strokeWidth="1" strokeOpacity="0.3" strokeDasharray="4 6"/>
-        ))}
-        {/* Nodes */}
-        {nodes.map((n,i)=>(
-          <g key={n.id}>
-            <circle cx={n.x} cy={n.y} r={i===0?24:14} fill="#090f0b" stroke={n.color} strokeWidth={i===0?2:1.5} style={{filter:`drop-shadow(0 0 ${i===0?8:3}px ${n.color})`}}/>
-            <text x={n.x} y={n.y+4} textAnchor="middle" fill={n.color} style={{fontFamily:FONT,fontSize:i===0?9:7,letterSpacing:0.5}} >{n.label.slice(0,10)}</text>
-            {i>0&&<text x={n.x} y={n.y+n.type==="witness"?26:24} textAnchor="middle" fill={n.color} opacity="0.5" style={{fontFamily:FONT,fontSize:6,letterSpacing:1}}>{n.type.toUpperCase()}</text>}
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
 // ── INCIDENT DETAIL ────────────────────────────────────────────
 type IncidentDetailVariant = "sidebar" | "inline-preview" | "inline-full";
 
@@ -812,8 +744,10 @@ function IncidentDetail({
     setAnalyzing(false);
   }
 
+  const relatedOrgCount = orgs.filter((o) => incident.relatedOrgs.includes(o.name)).length;
   const sectionChips = [
     incident.witnesses.length ? { label: `◈ ${incident.witnesses.length} WITNESSES`, color: "#00bb66" } : null,
+    relatedOrgCount ? { label: `◈ ${relatedOrgCount} ORGS`, color: "#ffaa00" } : null,
     incident.documents.length ? { label: `◈ ${incident.documents.length} DOCUMENTS`, color: "#c94dff" } : null,
   ].filter((c): c is { label: string; color: string } => c != null);
 
@@ -961,13 +895,7 @@ function IncidentDetail({
         </div>
       ) : null}
 
-      {useCollapsible ? (
-        <CollapsibleSection title="Investigation graph" accent="#ffaa00" subtitle="Tap to view entity connections">
-          <IncidentGraph incident={incident} orgs={orgs} />
-        </CollapsibleSection>
-      ) : (
-        <IncidentGraph incident={incident} orgs={orgs} />
-      )}
+      {!isInline && sectionChips.length > 0 ? <IntelSectionChips chips={sectionChips} /> : null}
 
       {useCollapsible ? (
         <CollapsibleSection title="Witnesses" count={incident.witnesses.length} accent="#00bb66" subtitle="Tap to view witness list">
