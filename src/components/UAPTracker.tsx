@@ -417,7 +417,7 @@ function UAPMap({
 }
 
 // ── SIGHTING DETAIL + COMMENTS ────────────────────────────────
-function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () => void }) {
+function SightingDetail({ sighting, onBack, compact = false }: { sighting: Sighting; onBack: () => void; compact?: boolean }) {
   const [comments, setComments] = useState<SightingComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
   const [loadingBody, setLoadingBody] = useState(true);
@@ -524,7 +524,7 @@ function SightingDetail({ sighting, onBack }: { sighting: Sighting; onBack: () =
       {/* Header card */}
       <div style={{border:`1px solid ${SIGHTING_COL}44`,borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
         {imageUrl&&(
-          <div style={{position:"relative",width:"100%",aspectRatio:"16/9",maxHeight:280,background:"#050c07"}}>
+          <div style={{position:"relative",width:"100%",aspectRatio:"16/9",maxHeight:compact?160:280,background:"#050c07"}}>
             <Image src={imageUrl} alt="" fill sizes="(max-width:768px) 100vw,640px" style={{objectFit:"cover"}} unoptimized />
           </div>
         )}
@@ -1107,6 +1107,35 @@ export default function UAPTracker() {
     });
   }, []);
 
+  const selectSighting = useCallback((s: Sighting) => {
+    startTransition(() => {
+      setSelectedSighting(s);
+      setTab("sightings");
+      if (isMobileViewport()) setMapOpen(true);
+    });
+  }, []);
+
+  const handleSightingClick = useCallback(
+    (s: Sighting) => {
+      startTransition(() => {
+        if (selectedSighting?.id !== s.id) {
+          setSelectedSighting(s);
+          if (isMobileViewport()) setMapOpen(true);
+          return;
+        }
+        setSelectedSighting(null);
+      });
+    },
+    [selectedSighting?.id],
+  );
+
+  useEffect(() => {
+    if (!selectedSighting?.id || tab !== "sightings" || typeof window === "undefined" || window.innerWidth > 768) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`uap-sighting-${selectedSighting.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [selectedSighting?.id, tab]);
+
   if (loading) return (
     <div style={{minHeight:"100vh",background:"#030806",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
       <style>{`@keyframes uap-blink{0%,100%{opacity:1}50%{opacity:0}}.uap-blink{animation:uap-blink 0.9s step-end infinite}`}</style>
@@ -1122,8 +1151,6 @@ export default function UAPTracker() {
   );
 
   if (!data) return null;
-
-  const sightingReadMode = tab === "sightings" && !!selectedSighting;
 
   const TABS = [
     { key:"news",       label:`LATEST NEWS (${data.news.length})` },
@@ -1204,7 +1231,6 @@ export default function UAPTracker() {
           </div>
 
           {/* WORLD MAP */}
-          {!sightingReadMode && (
           <div className="uap-map-section intel-map-section" style={{marginBottom:"1.25rem"}}>
             {/* Mobile map toggle row */}
             <button
@@ -1258,22 +1284,19 @@ export default function UAPTracker() {
                 incidents={data.incidents} selected={selected}
                 onSelect={s=>{selectIncident(s);setSelectedSighting(null);setTab("incidents");}}
                 sightings={sightings} showSightings={showSightings}
-                onSelectSighting={s=>{setSelectedSighting(s);setTab("sightings");}}
+                onSelectSighting={selectSighting}
                 mapTab={tab}
                 selectedSighting={selectedSighting}
               />
             </div>
           </div>
-          )}
 
           {/* TABS + CONTENT */}
           <div
             className="uap-main-split two-col-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: sightingReadMode
-                ? "1fr"
-                : "minmax(0,1fr) minmax(360px,420px)",
+              gridTemplateColumns: "minmax(0,1fr) minmax(360px,420px)",
               gap: "clamp(1rem,2.5vw,1.75rem)",
             }}
           >
@@ -1352,50 +1375,53 @@ export default function UAPTracker() {
               {tab==="sightings"&&(
                 <div>
                   <div style={{marginBottom:12,fontSize:9,color:"#5a8068",letterSpacing:1}}>
-                    Source: NUFORC · Long posts show an intelligence brief first (Admin → Scrapers → AI briefs to backfill)
+                    Source: NUFORC · Map shows geocoded pins · Select a row or map pin for details
                   </div>
 
-                  {selectedSighting ? (
-                    <SightingDetail sighting={selectedSighting} onBack={()=>setSelectedSighting(null)} />
-                  ) : (
-                    <>
-                      {sightingsLoading&&<div style={{textAlign:"center",padding:"2rem",fontSize:10,color:"#3a5040",letterSpacing:2}}>LOADING SIGHTINGS...</div>}
-                      {!sightingsLoading&&sightings.length===0&&(
-                        <div style={{textAlign:"center",padding:"3rem",fontSize:10,color:"#3a5040",letterSpacing:2}}>
-                          NO SIGHTINGS YET<br/>
-                          <span style={{fontSize:9,color:"#2a4030"}}>Data is updated from the admin scraper schedule.</span>
-                        </div>
-                      )}
-                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                        {sightings.map(s=>{
-                          const sk = contentKindStyle(s.content_kind);
-                          return (
-                          <div key={s.id} onClick={()=>setSelectedSighting(s)}
-                            style={{border:`1px solid ${SIGHTING_COL}22`,borderRadius:4,background:"#090f0b",cursor:"pointer",transition:"all 0.15s",overflow:"hidden"}}
-                            onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=`${SIGHTING_COL}66`;(e.currentTarget as HTMLDivElement).style.background="rgba(255,204,0,0.04)";}}
-                            onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=`${SIGHTING_COL}22`;(e.currentTarget as HTMLDivElement).style.background="#090f0b";}}>
-                            <div style={{padding:"8px 12px",borderBottom:`1px solid ${SIGHTING_COL}11`,background:"rgba(255,204,0,0.02)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                              <span style={{fontSize:9,color:sk.color,border:`1px solid ${sk.color}66`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{sk.label}</span>
-                              {s.shape&&<span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.3)",padding:"1px 6px",borderRadius:2}}>{s.shape.toUpperCase()}</span>}
-                              {(s.has_media||s.image_url)&&<span style={{fontSize:9,color:"#00bb66",border:"1px solid rgba(0,187,102,0.35)",padding:"1px 6px",borderRadius:2}}>PHOTO</span>}
-                              <span style={{fontSize:9,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{s.event_date??""}</span>
-                            </div>
-                            <div style={{padding:"10px 12px"}}>
-                              <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#ffe8a0",lineHeight:1.3,marginBottom:3}}>{s.title}</div>
-                              <div style={{fontSize:11,color:"#5a8068",letterSpacing:1,marginBottom:6}}>{s.location_name}</div>
-                              <div style={{fontSize:11,color:"#7aaa8a",lineHeight:1.6,marginBottom:6}}>{sightingPreview(s.description)}</div>
-                              <div style={{display:"flex",gap:10,fontSize:9,color:"#3a5040"}}>
-                                <span>▲ {s.upvotes}</span>
-                                <span>💬 {s.comment_count}</span>
-                                {s.source_url&&<a href={s.source_url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:"#00bb66",textDecoration:"none",marginLeft:"auto"}}>↗ NUFORC</a>}
-                              </div>
+                  {sightingsLoading&&<div style={{textAlign:"center",padding:"2rem",fontSize:10,color:"#3a5040",letterSpacing:2}}>LOADING SIGHTINGS...</div>}
+                  {!sightingsLoading&&sightings.length===0&&(
+                    <div style={{textAlign:"center",padding:"3rem",fontSize:10,color:"#3a5040",letterSpacing:2}}>
+                      NO SIGHTINGS YET<br/>
+                      <span style={{fontSize:9,color:"#2a4030"}}>Data is updated from the admin scraper schedule.</span>
+                    </div>
+                  )}
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {sightings.map(s=>{
+                      const sk = contentKindStyle(s.content_kind);
+                      const isSel = selectedSighting?.id === s.id;
+                      return (
+                      <div key={s.id} id={`uap-sighting-${s.id}`} style={{ minWidth: 0 }}>
+                        <div onClick={()=>handleSightingClick(s)}
+                          style={{border:`1px solid ${isSel?`${SIGHTING_COL}88`:`${SIGHTING_COL}22`}`,borderRadius:4,background:isSel?"rgba(255,204,0,0.06)":"#090f0b",cursor:"pointer",transition:"all 0.15s",overflow:"hidden"}}
+                          onMouseEnter={e=>{if(!isSel){(e.currentTarget as HTMLDivElement).style.borderColor=`${SIGHTING_COL}66`;(e.currentTarget as HTMLDivElement).style.background="rgba(255,204,0,0.04)";}}}
+                          onMouseLeave={e=>{if(!isSel){(e.currentTarget as HTMLDivElement).style.borderColor=`${SIGHTING_COL}22`;(e.currentTarget as HTMLDivElement).style.background="#090f0b";}}}>
+                          <div style={{padding:"8px 12px",borderBottom:`1px solid ${SIGHTING_COL}11`,background:"rgba(255,204,0,0.02)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                            <span style={{fontSize:9,color:sk.color,border:`1px solid ${sk.color}66`,padding:"1px 7px",borderRadius:2,letterSpacing:1}}>{sk.label}</span>
+                            {s.shape&&<span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.3)",padding:"1px 6px",borderRadius:2}}>{s.shape.toUpperCase()}</span>}
+                            {(s.has_media||s.image_url)&&<span style={{fontSize:9,color:"#00bb66",border:"1px solid rgba(0,187,102,0.35)",padding:"1px 6px",borderRadius:2}}>PHOTO</span>}
+                            <span style={{fontSize:9,color:"#3a5040",letterSpacing:1,marginLeft:"auto"}}>{s.event_date??""}</span>
+                            {isSel ? <span style={{ fontSize: 12, color: SIGHTING_COL, lineHeight: 1 }}>▾</span> : null}
+                          </div>
+                          <div style={{padding:"10px 12px"}}>
+                            <div style={{fontFamily:RAJ,fontSize:14,fontWeight:700,color:"#ffe8a0",lineHeight:1.3,marginBottom:3}}>{s.title}</div>
+                            <div style={{fontSize:11,color:"#5a8068",letterSpacing:1,marginBottom:6}}>{s.location_name}</div>
+                            <div style={{fontSize:11,color:"#7aaa8a",lineHeight:1.6,marginBottom:6}}>{sightingPreview(s.description)}</div>
+                            <div style={{display:"flex",gap:10,fontSize:9,color:"#3a5040"}}>
+                              <span>▲ {s.upvotes}</span>
+                              <span>💬 {s.comment_count}</span>
+                              {s.source_url&&<a href={s.source_url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:"#00bb66",textDecoration:"none",marginLeft:"auto"}}>↗ NUFORC</a>}
                             </div>
                           </div>
-                          );
-                        })}
+                        </div>
+                        {isSel ? (
+                          <div className="uap-detail-inline" style={{ marginTop: 10 }}>
+                            <SightingDetail sighting={s} onBack={() => setSelectedSighting(null)} compact />
+                          </div>
+                        ) : null}
                       </div>
-                    </>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -1499,7 +1525,6 @@ export default function UAPTracker() {
             </div>
 
             {/* RIGHT: Detail panel (desktop sidebar) */}
-            {!sightingReadMode && (
             <div className="uap-detail-sidebar">
               {selected&&tab==="incidents"&&(
                 <div>
@@ -1516,6 +1541,9 @@ export default function UAPTracker() {
                   </div>
                   <IncidentDetail incident={selected} people={data.people} orgs={data.organizations} docs={data.documents}/>
                 </div>
+              )}
+              {tab==="sightings"&&selectedSighting&&(
+                <SightingDetail sighting={selectedSighting} onBack={() => setSelectedSighting(null)} compact />
               )}
               {tab==="sightings"&&!selectedSighting&&(
                 <div style={{border:`1px solid ${SIGHTING_COL}33`,borderRadius:4,padding:"1.5rem",textAlign:"center",color:"#5a6030",fontSize:10,letterSpacing:2,background:"rgba(255,204,0,0.02)"}}>
@@ -1542,7 +1570,6 @@ export default function UAPTracker() {
                 </div>
               )}
             </div>
-            )}
           </div>
         </div>
 
