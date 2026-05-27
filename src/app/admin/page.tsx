@@ -808,6 +808,27 @@ export default function AdminPage() {
     }
   }
 
+  async function fetchPursueFiles() {
+    setScraperBusy("pursue-fetch");
+    setUapBriefHint({ variant: "info", text: "Fetching PURSUE files from war.gov/UFO…" });
+    try {
+      const res = await fetch("/api/uap?type=all&fresh=1");
+      const d = await res.json();
+      const docCount = (d.documents ?? []).filter((doc: { source?: string }) =>
+        doc.source?.includes("PURSUE") || doc.source?.includes("war.gov")
+      ).length;
+      setUapBriefHint({
+        variant: docCount > 0 ? "success" : "info",
+        text: docCount > 0
+          ? `◈ PURSUE fetch complete — ${docCount} Pentagon files loaded`
+          : "Fetch complete — PURSUE portal may be rate-limited, try again shortly",
+      });
+    } catch (e) {
+      setUapBriefHint({ variant: "error", text: `PURSUE fetch failed: ${String(e)}` });
+    }
+    setScraperBusy("");
+  }
+
   async function enrichUapBriefs() {
     setScraperBusy("uap-briefs");
     setUapBriefHint({ text: "Generating intelligence briefs… (may take ~1 min)", variant: "info" });
@@ -1044,6 +1065,20 @@ export default function AdminPage() {
                   }}
                 >
                   {scraperBusy === "uap-briefs" ? "Briefs…" : "AI briefs"}
+                </button>
+                <button
+                  type="button"
+                  disabled={scraperBusy === "pursue-fetch"}
+                  onClick={() => void fetchPursueFiles()}
+                  className="rounded border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide transition-colors hover:bg-[#0f1812] disabled:opacity-50"
+                  style={{
+                    borderColor: scraperBusy === "pursue-fetch" ? "#ffaa00" : "#2a3830",
+                    color: scraperBusy === "pursue-fetch" ? "#ffaa00" : muted,
+                    background: scraperBusy === "pursue-fetch" ? "rgba(255,170,0,0.08)" : "transparent",
+                  }}
+                  title="Fetch latest PURSUE batch from war.gov/UFO"
+                >
+                  {scraperBusy === "pursue-fetch" ? "Fetching…" : "◈ PURSUE"}
                 </button>
               </>
             )}

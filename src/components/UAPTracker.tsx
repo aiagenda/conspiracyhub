@@ -1482,10 +1482,13 @@ export default function UAPTracker() {
                       style={{display:"block",border:"1px solid rgba(201,77,255,0.2)",borderRadius:4,padding:"11px 13px",background:"rgba(20,8,28,0.6)",textDecoration:"none",transition:"border-color 0.15s"}}
                       onMouseEnter={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="rgba(201,77,255,0.5)";}}
                       onMouseLeave={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor="rgba(201,77,255,0.2)";}}>
-                      <div style={{display:"flex",gap:8,marginBottom:5,alignItems:"center"}}>
+                      <div style={{display:"flex",gap:8,marginBottom:5,alignItems:"center",flexWrap:"wrap"}}>
                         <span style={{fontSize:9,color:"#c94dff",letterSpacing:1}}>{d.year}</span>
                         <span style={{fontSize:9,color:"#5a8068",border:"1px solid #1a3320",padding:"1px 6px",borderRadius:2}}>{d.type}</span>
                         <span style={{fontSize:9,color:d.classification==="DECLASSIFIED"||d.classification==="PUBLIC"?"#00bb66":"#ffaa00",border:"1px solid currentColor",padding:"1px 6px",borderRadius:2,opacity:0.8}}>{d.classification}</span>
+                        {((d as {source?:string}).source?.includes("PURSUE")||(d as {source?:string}).source?.includes("war.gov")) && (
+                          <span style={{fontSize:9,color:"#ffaa00",border:"1px solid rgba(255,170,0,0.5)",padding:"1px 6px",borderRadius:2,fontWeight:700,letterSpacing:1}}>◈ PURSUE</span>
+                        )}
                         <span style={{marginLeft:"auto",fontSize:9,color:"#c94dff"}}>↗ VIEW</span>
                       </div>
                       <div style={{fontFamily:RAJ,fontSize:13,fontWeight:700,color:"#e9b3ff",marginBottom:5}}>{d.name}</div>
