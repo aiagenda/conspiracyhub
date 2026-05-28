@@ -124,40 +124,12 @@ export default async function Home({
       ? { page: currentPage, pageSize: PAGE_SIZE, totalCount, totalPages }
       : undefined;
 
-  let highestImpact: NewsItem | null = null;
-  if (currentPage === 1) {
-    let tq = supabase.from("news_items").select("*").gte("score", minScore);
-    if (useSevenDayWindow) {
-      tq = tq.gte("published_at", cutoff);
-    }
-    const { data: topRow } = await tq
-      .order("score", { ascending: false })
-      .order("published_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (topRow) {
-      highestImpact = {
-        id: topRow.id,
-        guardian_id: topRow.guardian_id,
-        title: topRow.title,
-        summary: topRow.summary ?? "",
-        url: topRow.url,
-        image: topRow.image ?? null,
-        date: topRow.published_at,
-        section: topRow.section,
-        score: topRow.score ?? 0,
-        angle: omitIfHungarianScript(topRow.angle ?? ""),
-      };
-    }
-  }
-
   return (
     <Suspense fallback={null}>
       <FeedScreen
         initialItems={items}
         feedNotice={items.length === 0 ? "empty_database" : undefined}
         feedPagination={feedPagination}
-        highestImpact={highestImpact}
       />
     </Suspense>
   );
