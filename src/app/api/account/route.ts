@@ -3,7 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { nicknameFromAuthMetadata, parseNicknameInput } from "@/lib/nickname";
 import { toAccountJson, type AccountProfileRow } from "@/lib/accountResponse";
 import { buildSignupTrialPatch, canClaimLegacyTrial } from "@/lib/userPlan";
-import { buildNewProfileInsert } from "@/lib/server/proTrial";
+import { isBillingEnabled } from "@/lib/featureFlags";
+import { buildNewProfileInsert, resolveSignupTrial } from "@/lib/server/proTrial";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,13 +31,34 @@ async function loadOrCreateProfile(
   if (!profile) {
     const email = user.email ?? "";
     const nickname = nicknameFromAuthMetadata(user.user_metadata);
-    const insertRow = await buildNewProfileInsert(admin, user.id, {
-      id: user.id,
-      email,
-      ...(nickname ? { nickname } : {}),
-    });
+    const insertRow = isBillingEnabled()
+      ? await buildNewProfileInsert(admin, user.id, {
+          id: user.id,
+          email,
+          ...(nickname ? { nickname } : {}),
+        })
+      : {
+          id: user.id,
+          email,
+          plan: "free",
+          ...(nickname ? { nickname } : {}),
+        };
     const { error: insErr } = await admin.from("user_profiles").insert(insertRow);
     if (insErr) throw new Error(insErr.message);
+
+    const again = await admin.from("user_profiles").select(PROFILE_SELECT).eq("id", user.id).single();
+    profile = again.data;
+  } else if (isBillingEnabled() && canClaimLegacyTrial(profile as AccountProfileRow)) {
+    const trial = await resolveSignupTrial(admin, user.id);
+    const { error: upErr } = await admin
+      .from("user_profiles")
+      .update({
+        ...trial.patch,
+        founding_member: trial.founding_member,
+        ...(trial.founding_slot != null ? { founding_slot: trial.founding_slot } : {}),
+      })
+      .eq("id", user.id);
+    if (upErr) throw new Error(upErr.message);
 
     const again = await admin.from("user_profiles").select(PROFILE_SELECT).eq("id", user.id).single();
     profile = again.data;

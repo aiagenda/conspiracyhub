@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { callOpenAIJSON } from "@/lib/openai";
 import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insiderRadarIngest";
+import { isBillingEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
-import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
 
@@ -376,6 +376,16 @@ export async function sendWeeklyBriefing(admin: SupabaseClient): Promise<{ sent:
   const articleCount = (content.hero ? 1 : 0) + content.moreArticles.length;
 
   let sent = 0;
+  if (!isBillingEnabled()) {
+    const allEmails = (users ?? [])
+      .map((u) => String(u.email ?? "").trim())
+      .filter(Boolean);
+    if (allEmails.length) {
+      sent += await sendBatch(resend, allEmails, subject, renderBriefingHtml(content, true));
+    }
+    return { sent, articles: articleCount };
+  }
+
   const proEmails: string[] = [];
   const freeEmails: string[] = [];
 

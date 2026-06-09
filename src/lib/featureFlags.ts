@@ -14,3 +14,10 @@ export function isLiveChatEnabled(): boolean {
 
 /** Re-enable when community launches publicly. */
 export const SHOW_COMMUNITY = false;
+
+/** Stripe / PRO tier / Analyst Pass — off while the product is fully free. */
+export const BILLING_ENABLED = false;
+
+export function isBillingEnabled(): boolean {
+  return BILLING_ENABLED;
+}

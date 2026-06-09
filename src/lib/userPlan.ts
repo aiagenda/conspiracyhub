@@ -1,3 +1,5 @@
+import { isBillingEnabled } from "@/lib/featureFlags";
+
 /** Billing / trial fields used for PRO access checks. */
 export type UserProfilePlanRow = {
   plan: string | null;
@@ -27,6 +29,7 @@ export function trialEndsAtFromNow(days = PRO_TRIAL_DAYS): string {
 
 /** True when user should get Oracle, highlights PRO tier, etc. */
 export function isEffectivePro(profile: UserProfilePlanRow | null | undefined): boolean {
+  if (!isBillingEnabled()) return true;
   if (!profile || profile.plan !== "pro") return false;
 
   const subId = profile.stripe_subscription_id?.trim();
@@ -66,6 +69,7 @@ export function buildSignupTrialPatch(now = new Date(), days = STANDARD_TRIAL_DA
 }
 
 export function canClaimLegacyTrial(profile: UserProfilePlanRow | null | undefined): boolean {
+  if (!isBillingEnabled()) return false;
   if (!profile) return true;
   if (profile.pro_trial_redeemed) return false;
   if (profile.stripe_subscription_id) return false;

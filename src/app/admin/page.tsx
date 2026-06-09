@@ -58,6 +58,7 @@ interface AdminUser {
   stripe_subscription_id: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  profile_pending?: boolean;
 }
 
 interface AdminThread {
@@ -1580,7 +1581,14 @@ export default function AdminPage() {
                     )}
                     {users.map((u) => (
                       <tr key={u.id} className="hover:bg-[#0f1510]">
-                        <td className="max-w-[180px] truncate border-b px-4 py-4 font-mono text-[11px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>{u.email}</td>
+                        <td className="max-w-[220px] truncate border-b px-4 py-4 font-mono text-[11px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                          {u.email || "(no email)"}
+                          {u.profile_pending && (
+                            <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide" style={{ border: "1px solid #3a3020", color: "#ccaa44" }} title="Auth account exists; profile row not synced yet">
+                              pending
+                            </span>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                           <span className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider" style={{
                             border: `1px solid ${u.plan === "pro" ? "var(--green-dark)" : "#1a2a22"}`,

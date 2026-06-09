@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { listAllAuthUsers } from "@/lib/server/listAuthUsers";
 
 function admin() {
   return createClient(
@@ -7,6 +8,16 @@ function admin() {
     process.env.SUPABASE_SERVICE_KEY!,
   );
 }
+
+type ProfileRow = {
+  id: string;
+  plan: "free" | "pro" | null;
+  subscription_status: string | null;
+  subscription_current_period_end: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  created_at: string | null;
+};
 
 export interface AdminUser {
   id: string;
@@ -19,9 +30,29 @@ export interface AdminUser {
   created_at: string;
   last_sign_in_at: string | null;
   oracle_count: number;
+  profile_pending: boolean;
 }
 
-// GET — list all users with plan info + email
+async function loadProfilesByIds(db: ReturnType<typeof admin>, ids: string[]) {
+  if (!ids.length) return [] as ProfileRow[];
+
+  const rows: ProfileRow[] = [];
+  const chunkSize = 200;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const { data, error } = await db
+      .from("user_profiles")
+      .select(
+        "id, plan, subscription_status, subscription_current_period_end, stripe_customer_id, stripe_subscription_id, created_at",
+      )
+      .in("id", chunk);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as ProfileRow[]));
+  }
+  return rows;
+}
+
+// GET — list registered auth users merged with plan/profile data
 export async function GET(req: NextRequest) {
   try {
     const db = admin();
@@ -31,58 +62,37 @@ export async function GET(req: NextRequest) {
     const from = (page - 1) * limit;
     const planFilter = searchParams.get("plan"); // "pro" | "free" | null
 
-    // 1. Pull user_profiles (paginated)
-    let profileQuery = db
-      .from("user_profiles")
-      .select(
-        "id, plan, subscription_status, subscription_current_period_end, stripe_customer_id, stripe_subscription_id, created_at",
-        { count: "exact" },
-      )
-      .order("created_at", { ascending: false })
-      .range(from, from + limit - 1);
+    const authUsers = await listAllAuthUsers(db);
+    const profiles = await loadProfilesByIds(
+      db,
+      authUsers.map((u) => u.id),
+    );
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    let merged: AdminUser[] = authUsers.map((u) => {
+      const profile = profileMap.get(u.id);
+      const plan = profile?.plan === "pro" ? "pro" : "free";
+      return {
+        id: u.id,
+        email: u.email ?? "",
+        plan,
+        subscription_status: profile?.subscription_status ?? null,
+        subscription_current_period_end: profile?.subscription_current_period_end ?? null,
+        stripe_customer_id: profile?.stripe_customer_id ?? null,
+        stripe_subscription_id: profile?.stripe_subscription_id ?? null,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        oracle_count: 0,
+        profile_pending: !profile,
+      };
+    });
 
     if (planFilter === "pro" || planFilter === "free") {
-      profileQuery = profileQuery.eq("plan", planFilter);
+      merged = merged.filter((u) => u.plan === planFilter);
     }
 
-    const { data: profiles, count, error: profErr } = await profileQuery;
-    if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+    const users = merged.slice(from, from + limit);
 
-    const ids = (profiles ?? []).map((p) => p.id);
-
-    // 2. Pull auth.users for emails (admin API)
-    const { data: authData, error: authErr } = await db.auth.admin.listUsers({ perPage: 1000 });
-    if (authErr) return NextResponse.json({ error: authErr.message }, { status: 500 });
-
-    const emailMap: Record<string, { email: string; last_sign_in_at: string | null }> = {};
-    for (const u of authData.users ?? []) {
-      emailMap[u.id] = { email: u.email ?? "", last_sign_in_at: u.last_sign_in_at ?? null };
-    }
-
-    // 3. Oracle analysis count per user (rough proxy for engagement)
-    const { data: oracleCounts } = await db
-      .from("oracle_analyses")
-      .select("id")
-      .in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-    // Note: oracle_analyses doesn't have user_id, so we just mark 0 for now
-    // This can be improved when user_id tracking is added to oracle_analyses
-
-    const users: AdminUser[] = (profiles ?? []).map((p) => ({
-      id: p.id,
-      email: emailMap[p.id]?.email ?? "(no email)",
-      plan: p.plan ?? "free",
-      subscription_status: p.subscription_status ?? null,
-      subscription_current_period_end: p.subscription_current_period_end ?? null,
-      stripe_customer_id: p.stripe_customer_id ?? null,
-      stripe_subscription_id: p.stripe_subscription_id ?? null,
-      created_at: p.created_at,
-      last_sign_in_at: emailMap[p.id]?.last_sign_in_at ?? null,
-      oracle_count: 0,
-    }));
-
-    // 4. Revenue summary
-    const proCount = users.filter((u) => u.plan === "pro").length;
-    // Also get total pro count from DB for accurate MRR
     const { count: totalProCount } = await db
       .from("user_profiles")
       .select("id", { count: "exact", head: true })
@@ -94,7 +104,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       users,
-      total: count ?? 0,
+      total: merged.length,
       page,
       summary: {
         totalPro: totalProCount ?? 0,
@@ -115,13 +125,31 @@ export async function PATCH(req: NextRequest) {
     if (!id || !["free", "pro"].includes(plan)) {
       return NextResponse.json({ error: "id and plan (free|pro) required" }, { status: 400 });
     }
+
+    const { data: authUser, error: authErr } = await db.auth.admin.getUserById(id);
+    if (authErr || !authUser.user) {
+      return NextResponse.json({ error: authErr?.message ?? "user_not_found" }, { status: 404 });
+    }
+
     const patch: Record<string, unknown> = { plan };
     if (plan === "free") {
       patch.subscription_status = "canceled";
       patch.stripe_subscription_id = null;
     }
-    const { error } = await db.from("user_profiles").update(patch).eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const { data: existing } = await db.from("user_profiles").select("id").eq("id", id).maybeSingle();
+    if (!existing) {
+      const { error: insErr } = await db.from("user_profiles").insert({
+        id,
+        email: authUser.user.email ?? "",
+        ...patch,
+      });
+      if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+    } else {
+      const { error } = await db.from("user_profiles").update(patch).eq("id", id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true, note: note ?? null });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

@@ -6,11 +6,9 @@ import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
-import UpgradeModal from "@/components/UpgradeModal";
 import ContinueReadingBanner from "@/components/ContinueReadingBanner";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
-import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
 import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { Session, User } from "@supabase/supabase-js";
@@ -85,7 +83,6 @@ export default function FeedScreen({
 }) {
   const [sortBy, setSortBy] = useState<"latest" | "priority">("latest");
   const [showAuth, setShowAuth] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
@@ -190,7 +187,6 @@ export default function FeedScreen({
               user={user}
               userPlan={userPlan}
               onSignIn={() => setShowAuth(true)}
-              onUpgrade={() => setShowUpgrade(true)}
               onSignedOut={refreshUser}
             />
           </div>
@@ -564,7 +560,6 @@ export default function FeedScreen({
           }}
         />
       )}
-      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={redirectToStripeCheckout} />}
     </div>
   );
 }

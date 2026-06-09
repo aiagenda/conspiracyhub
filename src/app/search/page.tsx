@@ -704,7 +704,7 @@ export default function SearchPage() {
                 [ERROR] {urlError}
                 {urlError.includes("Sign in") ? (
                   <div style={{ marginTop: 10, fontSize: T.meta, color: "#cc8888" }}>
-                    URL analysis requires a Pro account. Sign in and upgrade from the feed page.
+                    URL analysis requires sign-in. Create a free account from the feed header.
                   </div>
                 ) : null}
               </div>

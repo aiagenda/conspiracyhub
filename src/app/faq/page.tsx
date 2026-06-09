@@ -18,7 +18,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What is the Oracle?",
-    a: "Oracle is the AI analysis layer powered by GPT-4o. It reads an article and generates a threat score (0–100), a credibility verdict (True / Partially True / Questionable / Disinformation), a conspiracy angle and a connection map. Cached analyses are free to view — triggering a new one requires a PRO account.",
+    a: "Oracle is the AI analysis layer powered by GPT-4o. It reads an article and generates a threat score (0–100), a credibility verdict (True / Partially True / Questionable / Disinformation), a conspiracy angle and a connection map. Sign in to trigger new analyses; cached boards are visible to everyone.",
   },
   {
     q: "What is the threat score?",
@@ -30,7 +30,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What are Polymarket predictions?",
-    a: "When a relevant Polymarket prediction market exists for an article topic, it is shown as a live card strip on the board. This gives a crowd-sourced probability estimate from real-money markets. Requires PRO.",
+    a: "When a relevant Polymarket prediction market exists for an article topic, it is shown as a live card strip on the board. This gives a crowd-sourced probability estimate from real-money markets. Available to signed-in users.",
   },
   {
     q: "Can I submit a tip or article?",
@@ -41,8 +41,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "On each article and investigation report page you can vote on the AI threat score, pick the most credible Oracle theory (after an analysis exists), and mark if you witnessed something similar. Votes are anonymous, deduplicated per browser fingerprint, and shown as a live reader consensus alongside the AI score. The Investigation Board is for exploring the graph and sources.",
   },
   {
-    q: "What do I get with PRO?",
-    a: "Unlimited Oracle triggers, full article highlights (free = top 3), Polymarket real-time odds, URL analyzer, email alerts at 75%+ threat, unlimited Investigation Boards and PNG board export. $7/month via Stripe.",
+    q: "Is everything free?",
+    a: "Yes — the platform is currently free. Register for Oracle triggers, full highlights, Polymarket odds, URL analysis, and saved investigations. Opt in on Account for the weekly intelligence briefing and high-threat email alerts.",
   },
   {
     q: "How do I use the Reference Index?",

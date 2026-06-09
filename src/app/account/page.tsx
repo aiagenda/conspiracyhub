@@ -8,6 +8,7 @@ import { pageContentShellStyle } from "@/lib/pageShell";
 import { redirectToStripeCheckout } from "@/lib/stripeCheckoutClient";
 import { parseNicknameInput } from "@/lib/nickname";
 import SavedInvestigationsList from "@/components/SavedInvestigationsList";
+import { isBillingEnabled } from "@/lib/featureFlags";
 
 type AccountPayload = {
   email: string;
@@ -397,7 +398,7 @@ export default function AccountPage() {
             ACCOUNT
           </div>
           <div className="ob-nav-time intel-page-nav-meta" style={{ marginLeft: "auto", fontSize: 9, color: "#3a5040", letterSpacing: 1 }}>
-            PROFILE & BILLING
+            PROFILE{isBillingEnabled() ? " & BILLING" : " & NOTIFICATIONS"}
           </div>
         </header>
 
@@ -414,7 +415,7 @@ export default function AccountPage() {
                 textTransform: "uppercase",
               }}
             >
-              ■ PROFILE & BILLING ■
+              ■ PROFILE{isBillingEnabled() ? " & BILLING" : " & NOTIFICATIONS"} ■
             </div>
             <h1
               className="page-hero-title"
@@ -431,7 +432,9 @@ export default function AccountPage() {
               YOUR ACCOUNT
             </h1>
             <p className="page-hero-tagline" style={{ fontSize: 11, color: "#5a8068", marginTop: 8, maxWidth: 520, lineHeight: 1.6 }}>
-              Plan status, renewal countdown, Stripe billing (card, invoices, cancel).
+              {isBillingEnabled()
+                ? "Plan status, renewal countdown, Stripe billing (card, invoices, cancel)."
+                : "Profile, saved investigations, and email notification preferences."}
             </p>
           </div>
 
@@ -558,7 +561,10 @@ export default function AccountPage() {
                   Email preferences
                 </div>
                 <p style={{ fontSize: 11, color: "#5a8068", marginTop: 0, marginBottom: 12, lineHeight: 1.6 }}>
-                  Weekly briefing goes out Sunday 09:00 UTC. High-threat alerts (75%+) require PRO access.
+                  Weekly briefing goes out Sunday 09:00 UTC.
+                  {isBillingEnabled()
+                    ? " High-threat alerts (75%+) require PRO access."
+                    : " High-threat alerts (75%+) are available to all registered users who opt in."}
                 </p>
                 {(
                   [
@@ -569,7 +575,7 @@ export default function AccountPage() {
                     },
                     {
                       key: "email_high_threat_alerts" as const,
-                      label: "High-threat alerts (PRO)",
+                      label: isBillingEnabled() ? "High-threat alerts (PRO)" : "High-threat alerts",
                       hint: "Instant email when a story scores 75%+",
                     },
                   ] as const
@@ -603,7 +609,7 @@ export default function AccountPage() {
                 })}
               </div>
 
-              {hasEffectivePro ? (
+              {isBillingEnabled() && (hasEffectivePro ? (
                 <div style={{ ...card, borderColor: "rgba(0,255,136,0.3)", background: "rgba(0,255,136,0.03)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
                     <span style={{ fontFamily: "var(--font-raj), sans-serif", fontSize: 22, fontWeight: 700, color: "#00ff88", letterSpacing: 3 }}>PRO</span>
@@ -838,7 +844,7 @@ export default function AccountPage() {
                     Opens Stripe Checkout on this site. You can also use <strong style={{ color: "#5a8068" }}>PRO ▶</strong> in the feed header.
                   </div>
                 </div>
-              )}
+              ))}
 
               <div style={card}>
                 <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>SETTINGS & LINKS</div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { isBillingEnabled } from "@/lib/featureFlags";
 import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
 
 function getResend() {
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
       .eq("email_high_threat_alerts", true);
 
     const emails = (users ?? [])
-      .filter((u) => isEffectivePro(u as UserProfilePlanRow))
+      .filter((u) => !isBillingEnabled() || isEffectivePro(u as UserProfilePlanRow))
       .map((u) => u.email)
       .filter(Boolean) as string[];
 

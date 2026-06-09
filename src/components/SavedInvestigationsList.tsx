@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { isBillingEnabled } from "@/lib/featureFlags";
 
 type SavedItem = {
   id: string;
@@ -90,7 +91,8 @@ export default function SavedInvestigationsList() {
         <div style={{ fontSize: 11, color: "#ff8888" }}>{error}</div>
       ) : items.length === 0 ? (
         <p style={{ fontSize: 11, color: "#5a8068", margin: 0, lineHeight: 1.6 }}>
-          Save an investigation from any Oracle board with the ☆ SAVE button. Free accounts: up to {limit ?? 5}; PRO: unlimited.
+          Save an investigation from any Oracle board with the ☆ SAVE button.
+          {isBillingEnabled() ? ` Free accounts: up to ${limit ?? 5}; PRO: unlimited.` : " Unlimited saves while the platform is free."}
         </p>
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -136,7 +138,7 @@ export default function SavedInvestigationsList() {
           ))}
         </ul>
       )}
-      {!isPro && items.length > 0 && limit != null ? (
+      {!isBillingEnabled() ? null : !isPro && items.length > 0 && limit != null ? (
         <p style={{ fontSize: 10, color: "#3a5040", marginTop: 10, marginBottom: 0 }}>
           {items.length}/{limit} saved · PRO unlocks unlimited saves
         </p>

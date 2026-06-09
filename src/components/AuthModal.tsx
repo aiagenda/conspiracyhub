@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import posthog from "posthog-js";
 import { resetPasswordForEmail, signInWithEmail, signUpWithEmail } from "@/lib/auth";
 import { isSupabaseBrowserConfigured } from "@/lib/supabase";
+import { isBillingEnabled } from "@/lib/featureFlags";
 
 const RAJ = "var(--font-raj), sans-serif";
 const MONO = "var(--font-share-tech-mono), monospace";
@@ -418,7 +419,7 @@ export default function AuthModal({
                     We sent a <strong style={{ color: "#00bb66" }}>confirmation link</strong> to your inbox. Open it to
                     activate your operative profile.
                   </>
-                ) : (
+                ) : isBillingEnabled() ? (
                   <>
                     Your account is live with a{" "}
                     <strong style={{ color: "#00bb66" }}>
@@ -426,6 +427,11 @@ export default function AuthModal({
                     </strong>
                     {signupSuccess.foundingMember ? " (founding operative)" : ""} — full PRO (Oracle, URL
                     analysis, highlights). Open Account anytime to see days remaining.
+                  </>
+                ) : (
+                  <>
+                    Your account is live — full access to Oracle, Investigation Boards, URL analysis, and email
+                    preferences. Open <strong style={{ color: "#00bb66" }}>Account</strong> to manage notifications.
                   </>
                 )}
               </p>
@@ -470,7 +476,9 @@ export default function AuthModal({
                     letterSpacing: 0.2,
                   }}
                 >
-                  <li>Early operatives may receive a <strong style={{ color: "#6a9080" }}>90-day Analyst Pass</strong> after confirming.</li>
+                  {isBillingEnabled() && (
+                    <li>Early operatives may receive a <strong style={{ color: "#6a9080" }}>90-day Analyst Pass</strong> after confirming.</li>
+                  )}
                   <li>Check <strong style={{ color: "#6a9080" }}>Inbox</strong> and wait a minute for delivery.</li>
                   <li>
                     If nothing appears, open <strong style={{ color: "#6a9080" }}>Spam / Junk</strong> or{" "}
@@ -646,8 +654,17 @@ export default function AuthModal({
                   letterSpacing: 0.3,
                 }}
               >
-                <strong style={{ color: "#00ff88" }}>90-day Analyst Pass</strong> for early operatives (then 30-day) —
-                full PRO after signup (Oracle, URL analyzer, all highlights). No credit card required for the trial.
+                {isBillingEnabled() ? (
+                  <>
+                    <strong style={{ color: "#00ff88" }}>90-day Analyst Pass</strong> for early operatives (then 30-day) —
+                    full PRO after signup (Oracle, URL analyzer, all highlights). No credit card required for the trial.
+                  </>
+                ) : (
+                  <>
+                    Free registration — full access to Oracle, Investigation Boards, URL analysis, and optional weekly
+                    intelligence briefing emails.
+                  </>
+                )}
               </div>
             )}
 

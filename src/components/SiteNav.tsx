@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
-import { SHOW_COMMUNITY } from "@/lib/featureFlags";
+import { SHOW_COMMUNITY, isBillingEnabled } from "@/lib/featureFlags";
 
 const RAJ = "var(--font-raj), sans-serif";
 
@@ -101,7 +101,7 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
             SIGN IN
           </button>
         )}
-        {(userPlan ?? "").toLowerCase() !== "pro" && (
+        {(isBillingEnabled() && (userPlan ?? "").toLowerCase() !== "pro") && (
           onUpgrade ? (
             <button
               type="button"
@@ -179,7 +179,7 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
               <button type="button" onClick={() => { setMenuOpen(false); onSignIn?.(); }}
                 style={{ flex: 1, padding: "10px", border: "1px solid #1a3320", borderRadius: 3, color: MUTED_UI, fontFamily: RAJ, fontSize: 13, fontWeight: 700, letterSpacing: 2, background: "transparent", cursor: "pointer" }}>SIGN IN</button>
             )}
-            {(userPlan ?? "").toLowerCase() !== "pro" && (
+            {(isBillingEnabled() && (userPlan ?? "").toLowerCase() !== "pro") && (
               onUpgrade ? (
                 <button
                   type="button"

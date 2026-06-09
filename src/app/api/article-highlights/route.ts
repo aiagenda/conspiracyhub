@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
+import { isBillingEnabled } from "@/lib/featureFlags";
 import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
 import { PROFILE_PLAN_SELECT } from "@/lib/server/proTrial";
 
@@ -14,6 +15,7 @@ function getAdminClient() {
 type UserTier = "guest" | "free" | "pro";
 
 async function getUserTier(auth: string | null): Promise<UserTier> {
+  if (!isBillingEnabled()) return "pro";
   if (!auth?.startsWith("Bearer ")) return "guest";
   try {
     const admin = getAdminClient();
