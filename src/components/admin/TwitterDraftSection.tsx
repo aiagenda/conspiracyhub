@@ -78,7 +78,7 @@ export function TwitterDraftSection() {
     <div>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] leading-relaxed" style={{ color: muted }}>
-          Up to 5 articles (score ≥55, last 7 days, or Oracle boards) — skips articles drafted in the last 14 days.
+          Up to 5 articles — prefers score ≥55 (7d) or Oracle boards; falls back to blog posts and score ≥42 (21d).
         </p>
         <button
           type="button"
@@ -109,8 +109,10 @@ export function TwitterDraftSection() {
           style={{ border: "1px solid rgba(255,51,51,0.3)", color: "#ff5555", background: "rgba(255,51,51,0.05)" }}
         >
           {error === "no_article_found"
-            ? "No eligible articles right now (score ≥55 in last 7d, or Oracle in 7d, excluding recent drafts). Run news ingest or click New drafts later."
-            : error}
+            ? "No eligible content to draft right now. Run news ingest (Automation), fix OpenAI key for writers, or publish a new blog article — then click New drafts."
+            : error === "generation_failed"
+              ? "Found articles but OpenAI failed (check API key / billing on Vercel OPENAI_API_KEY)."
+              : error}
         </div>
       )}
 

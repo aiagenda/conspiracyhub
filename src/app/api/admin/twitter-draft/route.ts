@@ -7,9 +7,14 @@ export const maxDuration = 120;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 const MAX_PICKS = 5;
 const HIGH_SCORE_MIN = 55;
+const HIGH_SCORE_MIN_RELAXED = 42;
 const HIGH_SCORE_LOOKBACK_DAYS = 7;
+const HIGH_SCORE_LOOKBACK_RELAXED_DAYS = 21;
 const ORACLE_LOOKBACK_DAYS = 7;
+const ORACLE_LOOKBACK_RELAXED_DAYS = 21;
+const BLOG_LOOKBACK_DAYS = 30;
 const DRAFT_EXCLUDE_DAYS = 14;
+const DRAFT_EXCLUDE_RELAXED_DAYS = 3;
 const DRAFT_CACHE_TTL_HOURS = 24;
 
 function articleKey(kind: TwitterCandidate["kind"], id: string): string {
@@ -120,8 +125,8 @@ async function loadOracleByGenerated(admin: SupabaseClient, sinceIso: string) {
   return map;
 }
 
-async function loadExcludedArticleKeys(admin: SupabaseClient): Promise<Set<string>> {
-  const since = new Date(Date.now() - DRAFT_EXCLUDE_DAYS * 24 * 3600_000).toISOString();
+async function loadExcludedArticleKeys(admin: SupabaseClient, excludeDays = DRAFT_EXCLUDE_DAYS): Promise<Set<string>> {
+  const since = new Date(Date.now() - excludeDays * 24 * 3600_000).toISOString();
   const { data } = await admin
     .from("twitter_draft_batches")
     .select("article_keys")
@@ -164,9 +169,18 @@ async function saveDraftBatch(
   });
 }
 
-async function loadCandidates(admin: SupabaseClient, excludeKeys: Set<string>): Promise<TwitterCandidate[]> {
-  const highScoreSince = new Date(Date.now() - HIGH_SCORE_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
-  const oracleSince = new Date(Date.now() - ORACLE_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
+async function loadCandidatesFromPool(
+  admin: SupabaseClient,
+  excludeKeys: Set<string>,
+  opts: {
+    minScore: number;
+    lookbackDays: number;
+    oracleDays: number;
+    includeBlog?: boolean;
+  },
+): Promise<TwitterCandidate[]> {
+  const highScoreSince = new Date(Date.now() - opts.lookbackDays * 24 * 3600_000).toISOString();
+  const oracleSince = new Date(Date.now() - opts.oracleDays * 24 * 3600_000).toISOString();
   const byId = new Map<string, TwitterCandidate>();
 
   const [oracleNews, oracleGen, { data: highScoreNews }] = await Promise.all([
@@ -176,10 +190,10 @@ async function loadCandidates(admin: SupabaseClient, excludeKeys: Set<string>): 
       .from("news_items")
       .select("id, title, summary, angle, score, section")
       .gte("published_at", highScoreSince)
-      .gte("score", HIGH_SCORE_MIN)
+      .gte("score", opts.minScore)
       .order("score", { ascending: false })
       .order("published_at", { ascending: false })
-      .limit(15),
+      .limit(20),
   ]);
 
   for (const row of highScoreNews ?? []) {
@@ -222,7 +236,7 @@ async function loadCandidates(admin: SupabaseClient, excludeKeys: Set<string>): 
         site_url: `${SITE_URL}/board/${id}`,
         oracleContext,
         has_oracle: true,
-        priority: Math.max(score, 55) + 25,
+        priority: Math.max(score, opts.minScore) + 25,
       });
     }
   }
@@ -253,11 +267,71 @@ async function loadCandidates(admin: SupabaseClient, excludeKeys: Set<string>): 
     }
   }
 
+  if (opts.includeBlog) {
+    const blogSince = new Date(Date.now() - BLOG_LOOKBACK_DAYS * 24 * 3600_000).toISOString();
+    const { data: blogRows } = await admin
+      .from("generated_articles")
+      .select("id, title, slug, excerpt, published_at")
+      .eq("status", "published")
+      .gte("published_at", blogSince)
+      .order("published_at", { ascending: false })
+      .limit(12);
+    for (const row of blogRows ?? []) {
+      const id = String(row.id);
+      const key = `gen:${id}`;
+      if (byId.has(key)) continue;
+      const slug = String(row.slug ?? "").trim();
+      if (!slug) continue;
+      byId.set(key, {
+        kind: "generated_article",
+        id,
+        title: String(row.title ?? ""),
+        summary: String(row.excerpt ?? ""),
+        angle: "",
+        score: null,
+        section: "Analysis",
+        site_url: `${SITE_URL}/blog/${slug}`,
+        oracleContext: "",
+        has_oracle: false,
+        priority: 62,
+      });
+    }
+  }
+
   return [...byId.values()]
     .filter((c) => c.title.trim())
     .filter((c) => !excludeKeys.has(articleKey(c.kind, c.id)))
     .sort((a, b) => b.priority - a.priority)
     .slice(0, MAX_PICKS);
+}
+
+async function loadCandidates(admin: SupabaseClient, excludeKeys: Set<string>): Promise<TwitterCandidate[]> {
+  const tiers = [
+    {
+      minScore: HIGH_SCORE_MIN,
+      lookbackDays: HIGH_SCORE_LOOKBACK_DAYS,
+      oracleDays: ORACLE_LOOKBACK_DAYS,
+      includeBlog: false,
+    },
+    {
+      minScore: HIGH_SCORE_MIN_RELAXED,
+      lookbackDays: HIGH_SCORE_LOOKBACK_RELAXED_DAYS,
+      oracleDays: ORACLE_LOOKBACK_RELAXED_DAYS,
+      includeBlog: true,
+    },
+  ];
+
+  for (const tier of tiers) {
+    const picks = await loadCandidatesFromPool(admin, excludeKeys, tier);
+    if (picks.length > 0) return picks;
+  }
+
+  const shortExclude = await loadExcludedArticleKeys(admin, DRAFT_EXCLUDE_RELAXED_DAYS);
+  const relaxed = await loadCandidatesFromPool(admin, shortExclude, tiers[1]!);
+  if (relaxed.length > 0) return relaxed;
+
+  // Nothing left after exclusions — allow re-use of recent articles so admin can still post.
+  return loadCandidatesFromPool(admin, new Set(), tiers[1]!);
 }
 
 async function loadSingleCandidate(admin: SupabaseClient, articleId: string): Promise<TwitterCandidate | null> {
@@ -427,7 +501,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_article_found",
-          hint: `No new eligible articles (score ≥${HIGH_SCORE_MIN}, last ${HIGH_SCORE_LOOKBACK_DAYS}d, or Oracle ${ORACLE_LOOKBACK_DAYS}d) outside the ${DRAFT_EXCLUDE_DAYS}-day draft window. Try refresh after more ingest or wait for exclusions to expire.`,
+          hint: `No eligible articles (score ≥${HIGH_SCORE_MIN} in ${HIGH_SCORE_LOOKBACK_DAYS}d, Oracle ${ORACLE_LOOKBACK_DAYS}d, blog ${BLOG_LOOKBACK_DAYS}d fallback, or score ≥${HIGH_SCORE_MIN_RELAXED} in ${HIGH_SCORE_LOOKBACK_RELAXED_DAYS}d). Run news ingest or fix OPENAI_API_KEY for writers.`,
         },
         { status: 404 },
       );
