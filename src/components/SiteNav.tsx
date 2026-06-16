@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 import { SHOW_COMMUNITY, isBillingEnabled } from "@/lib/featureFlags";
@@ -38,8 +38,58 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
   const controlled = userProp !== undefined;
   const [uncontrolledUser, setUncontrolledUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Top offset for the mobile dropdown — measured from the hamburger button so it
+   * tracks the real header height instead of a hardcoded value. */
+  const [menuTop, setMenuTop] = useState(52);
+  const menuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const user = controlled ? (userProp ?? null) : uncontrolledUser;
+
+  const openMenu = useCallback(() => {
+    const rect = menuBtnRef.current?.getBoundingClientRect();
+    if (rect) setMenuTop(Math.round(rect.bottom));
+    setMenuOpen(true);
+  }, []);
+
+  // Lock body scroll, close on Escape, and trap focus while the mobile menu is open.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    // Move focus into the menu for keyboard + screen-reader users.
+    const firstLink = menuRef.current?.querySelector<HTMLElement>("a, button");
+    firstLink?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        menuBtnRef.current?.focus();
+        return;
+      }
+      if (e.key !== "Tab" || !menuRef.current) return;
+      const focusable = Array.from(
+        menuRef.current.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (controlled) return;
@@ -59,12 +109,6 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
 
   return (
     <>
-      <style>{`
-        @keyframes outbreakBlink{0%,100%{border-color:#ff3333;box-shadow:0 0 5px rgba(255,51,51,0.3)}50%{border-color:rgba(255,51,51,0.3);box-shadow:none}}
-        @keyframes obDot{0%,100%{opacity:1}50%{opacity:0.2}}
-        @keyframes menuSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-      `}</style>
-
       {/* Desktop nav */}
       <nav aria-label="Main" className="desktop-nav" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         {NAV_LINKS.map(({ href, label, color, blink }) => (
@@ -123,10 +167,12 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
 
       {/* Mobile hamburger button */}
       <button
+        ref={menuBtnRef}
         type="button"
-        onClick={() => setMenuOpen(o => !o)}
+        onClick={() => (menuOpen ? setMenuOpen(false) : openMenu())}
         aria-label={menuOpen ? "Close menu" : "Open menu"}
         aria-expanded={menuOpen}
+        aria-controls="site-mobile-menu"
         className="mobile-only"
         style={{
           display: "none", // shown via CSS mobile-only class
@@ -143,13 +189,27 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div style={{
-          position: "fixed", top: 52, left: 0, right: 0, zIndex: 200,
-          background: "#050c07", borderBottom: "1px solid #1a3320",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
-          animation: "menuSlide 0.2s ease",
-          display: "flex", flexDirection: "column",
-        }}>
+        <>
+          {/* Backdrop — tap outside to close */}
+          <div
+            aria-hidden
+            onClick={() => setMenuOpen(false)}
+            style={{ position: "fixed", inset: 0, top: menuTop, zIndex: 199, background: "rgba(0,0,0,0.5)" }}
+          />
+          <div
+            ref={menuRef}
+            id="site-mobile-menu"
+            role="navigation"
+            aria-label="Site"
+            className="site-mobile-menu"
+            style={{
+              position: "fixed", top: menuTop, left: 0, right: 0, zIndex: 200,
+              maxHeight: `calc(100dvh - ${menuTop}px)`, overflowY: "auto",
+              background: "#050c07", borderBottom: "1px solid #1a3320",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+              animation: "menuSlide 0.2s ease",
+              display: "flex", flexDirection: "column",
+            }}>
           {NAV_LINKS.map(({ href, label, color, blink }) => (
             <Link key={href} href={href}
               style={{
@@ -194,7 +254,8 @@ export default function SiteNav({ spacious, user: userProp, userPlan, onSignIn, 
               )
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
     </>
   );

@@ -1123,8 +1123,37 @@ export type OutbreakPayload = {
   generated_at: string;
   cache_version?: number;
   cached?: boolean;
+  /** Served from an expired cache while a background refresh runs (stale-while-revalidate). */
+  stale?: boolean;
   preview?: boolean;
 };
+
+/**
+ * Read the latest cached outbreak payload without triggering an external refresh.
+ * Returns the payload plus its age so callers can decide to serve it stale (instantly)
+ * and revalidate in the background. Version-mismatched or missing caches return null.
+ */
+export async function readOutbreakCache(): Promise<{ payload: OutbreakPayload; ageMs: number } | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return null;
+  try {
+    const admin = createClient(url, key);
+    const { data: c } = await admin
+      .from("outbreak_cache")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!c) return null;
+    const data = c.data as OutbreakPayload;
+    if ((data.cache_version ?? 1) < OUTBREAK_CACHE_VERSION) return null;
+    const ageMs = Date.now() - new Date(c.created_at).getTime();
+    return { payload: { ...sanitizeOutbreakPayload(data), cached: true }, ageMs };
+  } catch {
+    return null;
+  }
+}
 
 export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Promise<{
   ok: boolean;

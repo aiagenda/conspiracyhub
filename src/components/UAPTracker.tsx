@@ -9,6 +9,7 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import SiteNav from "@/components/SiteNav";
 import { CollapsibleSection, IntelExpandBar, IntelSectionChips } from "@/components/IntelAccordion";
 import { pageContentShellStyle } from "@/lib/pageShell";
+import { canOptimizeImage } from "@/lib/imageHosts";
 import { sortByPubDateDesc } from "@/lib/sortByPubDate";
 import { isPursueDocument } from "@/lib/pursueDocument";
 import {
@@ -526,7 +527,7 @@ function SightingDetail({ sighting, onBack, compact = false }: { sighting: Sight
       <div style={{border:`1px solid ${SIGHTING_COL}44`,borderRadius:4,background:"#090f0b",overflow:"hidden"}}>
         {imageUrl&&(
           <div style={{position:"relative",width:"100%",aspectRatio:"16/9",maxHeight:compact?160:280,background:"#050c07"}}>
-            <Image src={imageUrl} alt="" fill sizes="(max-width:768px) 100vw,640px" style={{objectFit:"cover"}} unoptimized />
+            <Image src={imageUrl} alt="" fill sizes="(max-width:768px) 100vw,640px" style={{objectFit:"cover"}} unoptimized={!canOptimizeImage(imageUrl)} />
           </div>
         )}
         <div style={{padding:"16px 20px",borderBottom:`1px solid ${SIGHTING_COL}22`,background:"rgba(255,204,0,0.04)"}}>

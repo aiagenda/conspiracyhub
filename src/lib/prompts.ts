@@ -13,9 +13,12 @@ Return a JSON object with these fields:
    - article node: id "center", type "article", x 500, y 320
    - supporting nodes: type one of: patent | foia | company | government | country | event | person
    - **TYPE SELECTION RULES (mandatory):**
-     * **country** — sovereign nations, states, and territories (Russia, China, UK, France, Iran, Israel, Taiwan, Ukraine, North Korea, etc.). Use this whenever the node represents a country or nation-state as an actor.
-     * **government** — government agencies, ministries, intelligence services, military branches, and inter-governmental bodies (CIA, GCHQ, FBI, DOD, NSA, MI6, FSB, PLA, UN, NATO, EU, NASA, NIH, DARPA, etc.). Use this whenever the node is a governmental or quasi-governmental institution — NOT for private companies.
+     * **country** — ONLY sovereign nations and constituent regions named as a place (Russia, China, UK, France, Iran, Scotland, etc.). A country node's label must BE the country/region name. NEVER use "country" for an agency, ministry, department, or policy, even if its name contains a country (e.g. "Home Office", "UK Immigration", "US Department of Defense" are NOT countries).
+     * **government** — government agencies, ministries, departments, intelligence services, military branches, regulators, and inter-governmental bodies (CIA, GCHQ, FBI, DOD, NSA, MI6, FSB, PLA, UN, NATO, EU, NASA, DARPA, **Home Office, Border Force, HMRC, DWP, Cabinet Office**, etc.). Use this for ANY governmental or quasi-governmental institution — NOT for countries and NOT for private companies.
      * **company** — private corporations only (Lockheed Martin, Pfizer, Google, Palantir, Blue Origin, etc.). Do NOT use for government agencies or countries.
+     * **event** — policies, laws, operations, programs, scandals, or incidents (e.g. "Hostile Environment policy", "Operation Mockingbird"). Use this for a named policy/measure rather than tagging it as a country or company.
+     * **person** — a single named individual (e.g. "Jeffrey Epstein", "Allen Dulles"). A person stays a person even if they head an agency. A collective or role group ("Health Advocates", "Alleged Victims", "Conspiracy Theorists", "Board of Governors") is NOT a person — type it "company"/organisation or "government".
+     * SELF-CHECK before output: for every node typed "country", confirm the label is literally a nation or region name. If it is an agency, department, or policy, switch it to "government" or "event". For every "person", confirm the label is one individual's name, not a group. The "sub" line must match the type (e.g. country → region/continent, government → "Gov Agency"/"Ministry", event → "Policy"/"Operation").
      * For US government agencies with federal-spending data: use type "government" and include the full official agency name in detail.title so spending lookups work.
      * For private companies use type "company" with detail.title = full legal or common name (e.g. "Blue Origin Federation, LLC" not just "Blue Origin").
    - **NODE COUNT: Aim for 8–12 supporting nodes (not counting center).** Populate all three layers below:
@@ -43,6 +46,8 @@ Return a JSON object with these fields:
 2. edges — connections between nodes:
    - from, to (node ids), color (hex), strength (0-1)
    - label: specific relationship description, max 22 characters (NOT generic "connection")
+   - explanation (MANDATORY): 1–2 full sentences stating WHY this connection exists and what evidence supports it — enough for an investigator to understand the link without other context. Never leave empty or generic.
+   - source_url (when available): a citation backing the connection (official record, article, patent, filing). Omit only if no real source applies.
    - RULE — model REAL relationships, not radial spokes:
      * If two people share a real relationship (funding, employment, family, collaboration), draw a direct PERSON→PERSON edge.
      * If a person filed/owns/controls an org or patent, draw PERSON→ORG or PERSON→PATENT — NOT ARTICLE→PERSON.

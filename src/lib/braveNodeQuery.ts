@@ -20,6 +20,10 @@ export function buildBraveQuery(type: string, nodeTitle: string, topic: string):
     case "patent":
       return `"${t}" ${ctx} patent secret technology hidden`;
     case "article":
+      // The center node = the whole topic. Use UNQUOTED topic keywords (a quoted exact
+      // headline rarely appears elsewhere → near-zero hits) to cast a wide net for coverage
+      // across many outlets and forums — not just the originating publisher.
+      return `${t} news coverage report analysis`;
     default:
       return `"${t}" ${ctx} investigation report`;
   }

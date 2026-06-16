@@ -6,6 +6,7 @@ import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/ora
 import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
 import { buildBraveQuery } from "@/lib/braveNodeQuery";
+import { fetchArticleRelatedCoverage } from "@/lib/server/relatedCoverage";
 import { correctNodeType } from "@/lib/nodeTypeCorrection";
 import { searchBrave } from "@/lib/braveSearch";
 import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
@@ -136,14 +137,29 @@ export async function runOraclePipelineInsert(
     }));
 
     const genericLabels = new Set(["connection", "link", "contextual relationship"]);
-    const normalizedEdges: Edge[] = (analysisAfterAllowlist.edges ?? []).map((edge) => ({
-      ...edge,
-      label:
+    const nodeLabelById = new Map(
+      (analysisAfterAllowlist.nodes ?? []).map((n) => [n.id, n.label ?? n.id] as const),
+    );
+    const normalizedEdges: Edge[] = (analysisAfterAllowlist.edges ?? []).map((edge) => {
+      const label =
         edge.label && !genericLabels.has(edge.label.trim().toLowerCase())
           ? edge.label
-          : "Evidence-backed contextual relationship",
-      confidence: typeof edge.confidence === "number" ? edge.confidence : Math.round((edge.strength ?? 0.5) * 100),
-    }));
+          : "Evidence-backed contextual relationship";
+      const explanation =
+        typeof edge.explanation === "string" && edge.explanation.trim().length > 0
+          ? edge.explanation.trim()
+          : `${nodeLabelById.get(edge.from) ?? edge.from} is linked to ${
+              nodeLabelById.get(edge.to) ?? edge.to
+            } — ${label.toLowerCase()}.`;
+      return {
+        ...edge,
+        label,
+        explanation,
+        source_url: sanitizeOracleHttpUrl(edge.source_url) || undefined,
+        confidence:
+          typeof edge.confidence === "number" ? edge.confidence : Math.round((edge.strength ?? 0.5) * 100),
+      };
+    });
 
     const normalizedNodes: Node[] = (analysisAfterAllowlist.nodes ?? []).map((node) => ({
       ...node,
@@ -199,6 +215,7 @@ export async function runOraclePipelineInsert(
         type: node.type,
         label: node.label ?? "",
         title: (node.detail?.title as string) ?? "",
+        sub: node.sub ?? "",
       });
     }
 
@@ -208,8 +225,11 @@ export async function runOraclePipelineInsert(
     await Promise.all(
       normalizedNodes.map(async (node) => {
         const nodeTitle = node.detail?.title || node.label;
-        const query = buildBraveQuery(node.type, nodeTitle, topicKeywords);
-        const braveResults = await searchBrave(query, 8);
+        // The center article node = the whole topic → pull broad multi-source/forum coverage.
+        const braveResults =
+          node.type === "article"
+            ? await fetchArticleRelatedCoverage(nodeTitle, topicKeywords, { excludeUrl: primaryUrl })
+            : await searchBrave(buildBraveQuery(node.type, nodeTitle, topicKeywords), 8);
         if (!braveResults.length) return;
         const existingSources: string[] = Array.isArray(node.detail?.theory_sources)
           ? (node.detail.theory_sources as string[])

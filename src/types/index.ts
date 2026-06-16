@@ -53,6 +53,10 @@ export interface Edge {
   strength: number;
   confidence?: number;
   evidence_source_ids?: string[];
+  /** One- to two-sentence explanation of why this connection exists (for investigators). */
+  explanation?: string;
+  /** Optional citation backing the connection. */
+  source_url?: string;
 }
 
 export interface NewsItem {

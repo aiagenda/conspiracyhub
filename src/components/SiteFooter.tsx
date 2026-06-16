@@ -51,18 +51,15 @@ export default function SiteFooter() {
             <a
               key={l.href}
               href={l.href}
+              aria-current={pathname === l.href ? "page" : undefined}
               style={{
                 fontFamily: "var(--font-raj), sans-serif",
                 fontSize: 10,
                 fontWeight: 700,
                 letterSpacing: 2,
                 textTransform: "uppercase",
-                color: pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)",
                 textDecoration: "none",
-                transition: "color 0.15s",
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = pathname === l.href ? "#00bb66" : "var(--muted-dim, #7aaa8a)"; }}
             >
               {l.label}
             </a>
@@ -82,14 +79,12 @@ export default function SiteFooter() {
             href="https://www.parallelhuman.tech/en"
             target="_blank"
             rel="noopener noreferrer"
+            className="site-footer-powered-link"
             style={{
-              color: "#00bb66",
               textDecoration: "none",
               fontWeight: 700,
               letterSpacing: 2,
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66"; }}
           >
             ParallelHuman
           </a>

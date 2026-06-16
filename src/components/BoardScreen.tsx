@@ -70,8 +70,9 @@ function sanitizeNodes(nodes: unknown): Node[] {
       const n = node as Partial<Node>;
       const safeLabel = typeof n.label === "string" ? n.label : `NODE ${index + 1}`;
       const safeTitle = typeof n.detail?.title === "string" ? n.detail.title : safeLabel;
+      const safeSub = typeof n.sub === "string" ? n.sub : "";
       const rawType = n.type ? sanitizeNodeType(n.type) : inferNodeType(safeLabel);
-      const nodeType = correctNodeType({ type: rawType, label: safeLabel, title: safeTitle });
+      const nodeType = correctNodeType({ type: rawType, label: safeLabel, title: safeTitle, sub: safeSub });
       const confidenceNum =
         typeof n.detail?.confidence === "number"
           ? Math.max(0, Math.min(100, n.detail.confidence))
@@ -495,6 +496,15 @@ function sanitizeEdges(edges: unknown, nodes: Node[]): Edge[] {
         color: typeof e.color === "string" ? e.color : "#5a8068",
         label: normalizeEdgeLabel(e.label, fromNode, toNode),
         strength: typeof e.strength === "number" && e.strength > 0 ? e.strength : 0.5,
+        ...(typeof e.confidence === "number" ? { confidence: e.confidence } : {}),
+        ...(Array.isArray(e.evidence_source_ids) ? { evidence_source_ids: e.evidence_source_ids } : {}),
+        explanation:
+          typeof e.explanation === "string" && e.explanation.trim()
+            ? e.explanation.trim()
+            : `${fromNode.label} is linked to ${toNode.label} — ${normalizeEdgeLabel(e.label, fromNode, toNode).toLowerCase()}.`,
+        ...(typeof e.source_url === "string" && e.source_url.trim()
+          ? { source_url: e.source_url.trim() }
+          : {}),
       } satisfies Edge;
     })
     .filter(Boolean) as Edge[];

@@ -100,18 +100,44 @@ body {
 }
 .news-card-action-link {
   color: var(--muted-dim) !important;
+  transition: color 0.15s, border-color 0.15s;
+}
+.news-card-action-link:hover,
+.news-card-action-link:focus-visible {
+  color: var(--green-dim) !important;
+  border-color: var(--green-dim) !important;
 }
 .reader-reaction-btn {
   color: var(--muted-dim) !important;
 }
 .site-footer a {
   color: var(--muted-dim) !important;
+  transition: color 0.15s;
+}
+.site-footer a:hover,
+.site-footer a:focus-visible,
+.site-footer a[aria-current="page"] {
+  color: var(--green-dim) !important;
+}
+/* Brand / "powered by" link keeps the accent colour as its resting state. */
+.site-footer-powered-link {
+  color: var(--green-dim) !important;
+}
+.site-footer-powered-link:hover,
+.site-footer-powered-link:focus-visible {
+  color: var(--green) !important;
 }
 .site-footer-meta {
   color: var(--muted-dim) !important;
 }
 .feed-scroll-top {
   color: var(--muted-dim) !important;
+  transition: color 0.2s, border-color 0.2s;
+}
+.feed-scroll-top:hover,
+.feed-scroll-top:focus-visible {
+  color: var(--green) !important;
+  border-color: var(--green-dim) !important;
 }
 .feed-pagination-muted {
   color: var(--muted-dim) !important;
@@ -141,6 +167,15 @@ body {
 .skip-link:focus {
   left: 0.75rem;
   outline: none;
+}
+
+/* Site nav — mobile menu + outbreak link keyframes (moved out of inline <style>) */
+@keyframes outbreakBlink { 0%,100%{border-color:#ff3333;box-shadow:0 0 5px rgba(255,51,51,0.3)} 50%{border-color:rgba(255,51,51,0.3);box-shadow:none} }
+@keyframes obDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+@keyframes menuSlide { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+
+@media (prefers-reduced-motion: reduce) {
+  .site-mobile-menu { animation: none !important; }
 }
 
 /* Site nav — outbreak accent (motion-safe only) */

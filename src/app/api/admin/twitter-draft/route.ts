@@ -148,13 +148,25 @@ async function loadLatestCachedBatch(admin: SupabaseClient) {
     .select("picks, created_at")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!data?.picks || !Array.isArray(data.picks)) return null;
+    .limit(5);
+  // Skip dismiss-marker rows (picks: []) — only a real batch counts as the cache.
+  const row = (data ?? []).find((r) => Array.isArray(r.picks) && r.picks.length > 0);
+  if (!row) return null;
   return {
-    picks: data.picks,
-    cached_at: data.created_at as string,
+    picks: row.picks as Array<{ article?: { id?: string; kind?: string } }>,
+    cached_at: row.created_at as string,
   };
+}
+
+/** article_key for a cached pick object (mirrors articleKey()). */
+function pickKey(pick: { article?: { id?: string; kind?: string } }): string {
+  const id = String(pick.article?.id ?? "");
+  return pick.article?.kind === "generated_article" ? `gen:${id}` : id;
+}
+
+/** Record a single article as dismissed so it is excluded from future batches (14d). */
+async function recordDismissal(admin: SupabaseClient, key: string) {
+  await admin.from("twitter_draft_batches").insert({ picks: [], article_keys: [key] });
 }
 
 async function saveDraftBatch(
@@ -475,12 +487,18 @@ export async function GET(req: NextRequest) {
   if (!articleId && !refresh) {
     const cached = await loadLatestCachedBatch(admin);
     if (cached) {
-      return NextResponse.json({
-        picks: cached.picks,
-        count: cached.picks.length,
-        cached: true,
-        cached_at: cached.cached_at,
-      });
+      // Drop any picks the admin has since dismissed so they never reappear from cache.
+      const excluded = await loadExcludedArticleKeys(admin);
+      const visiblePicks = cached.picks.filter((p) => !excluded.has(pickKey(p)));
+      if (visiblePicks.length > 0) {
+        return NextResponse.json({
+          picks: visiblePicks,
+          count: visiblePicks.length,
+          cached: true,
+          cached_at: cached.cached_at,
+        });
+      }
+      // All cached picks dismissed — fall through to generate a fresh batch.
     }
     if (latestOnly) {
       return NextResponse.json({ error: "no_cached_drafts" }, { status: 404 });
@@ -532,4 +550,70 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ picks, count: picks.length, cached: false });
+}
+
+/**
+ * Dismiss a single drafted topic: `{ action: "dismiss", id, kind, shown?: string[] }`.
+ * Records it as excluded (so it won't be picked again for 14 days, and is filtered out of
+ * the cached batch on reload) and returns one fresh replacement pick so the list stays full.
+ */
+export async function POST(req: NextRequest) {
+  const admin = getAdmin();
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
+
+  const action = String(body.action ?? "dismiss");
+  if (action !== "dismiss") {
+    return NextResponse.json({ error: "unknown_action" }, { status: 400 });
+  }
+
+  const id = String(body.id ?? "").trim();
+  const kind: TwitterCandidate["kind"] = body.kind === "generated_article" ? "generated_article" : "news_item";
+  if (!id) {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+  const dismissedKey = articleKey(kind, id);
+  const shown = Array.isArray(body.shown) ? body.shown.map((k) => String(k)) : [];
+
+  try {
+    await recordDismissal(admin, dismissedKey);
+  } catch (e) {
+    return NextResponse.json(
+      { error: "dismiss_failed", hint: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+
+  // Try to serve a fresh replacement so the admin always has new topics to work with.
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ ok: true, dismissed: dismissedKey, pick: null });
+  }
+
+  try {
+    const excludeKeys = await loadExcludedArticleKeys(admin);
+    for (const k of shown) excludeKeys.add(k);
+    excludeKeys.add(dismissedKey);
+
+    const candidates = await loadCandidatesFromPool(admin, excludeKeys, {
+      minScore: HIGH_SCORE_MIN_RELAXED,
+      lookbackDays: HIGH_SCORE_LOOKBACK_RELAXED_DAYS,
+      oracleDays: ORACLE_LOOKBACK_RELAXED_DAYS,
+      includeBlog: true,
+    });
+    const next = candidates.find((c) => !shown.includes(articleKey(c.kind, c.id)));
+    if (!next) {
+      return NextResponse.json({ ok: true, dismissed: dismissedKey, pick: null });
+    }
+    const pick = await generateForCandidate(next, apiKey);
+    return NextResponse.json({ ok: true, dismissed: dismissedKey, pick });
+  } catch (e) {
+    // Dismissal already persisted; replacement is best-effort.
+    console.warn("[twitter-draft] replacement failed", e);
+    return NextResponse.json({ ok: true, dismissed: dismissedKey, pick: null });
+  }
 }

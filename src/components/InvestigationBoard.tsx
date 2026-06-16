@@ -250,25 +250,54 @@ function isLikelyUrl(text: string): boolean {
   return /^https?:\/\//i.test(text.trim());
 }
 
-function EdgeLine({ edge, nodes, active }: { edge: Edge; nodes: Node[]; active: boolean }) {
+function EdgeLine({
+  edge,
+  nodes,
+  active,
+  selected = false,
+  onSelect,
+}: {
+  edge: Edge;
+  nodes: Node[];
+  active: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+}) {
   const from = nodes.find((n) => n.id === edge.from);
   const to = nodes.find((n) => n.id === edge.to);
   if (!from || !to) return null;
-  const opacity = active ? 1 : 0.35;
-  const strokeW = active ? 2 : 1;
+  const opacity = selected ? 1 : active ? 1 : 0.35;
+  const strokeW = selected ? 3 : active ? 2 : 1;
   return (
     <g>
-      <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={edge.color} strokeWidth={strokeW} strokeOpacity={opacity * 0.4} />
+      {/* Invisible wide hit-area so the thin dashed line is easy to click/tap. */}
+      {onSelect ? (
+        <line
+          x1={from.x}
+          y1={from.y}
+          x2={to.x}
+          y2={to.y}
+          stroke="transparent"
+          strokeWidth={18}
+          style={{ cursor: "pointer", pointerEvents: "stroke" }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+        />
+      ) : null}
+      <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={edge.color} strokeWidth={strokeW} strokeOpacity={opacity * 0.4} style={{ pointerEvents: "none" }} />
       <line
         x1={from.x}
         y1={from.y}
         x2={to.x}
         y2={to.y}
         stroke={edge.color}
-        strokeWidth={active ? 1.5 : 1}
+        strokeWidth={selected ? 2.5 : active ? 1.5 : 1}
         strokeOpacity={opacity}
         strokeDasharray="6 14"
-        style={{ animation: `dashMove ${2 / Math.max(edge.strength || 0.4, 0.2)}s linear infinite` }}
+        style={{ animation: `dashMove ${2 / Math.max(edge.strength || 0.4, 0.2)}s linear infinite`, pointerEvents: "none" }}
       />
     </g>
   );
@@ -276,6 +305,70 @@ function EdgeLine({ edge, nodes, active }: { edge: Edge; nodes: Node[]; active: 
 
 function truncate(str: string, max: number) {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
+}
+
+function EdgeDetailPanel({
+  edge,
+  nodes,
+  onClose,
+  overlay = false,
+}: {
+  edge: Edge;
+  nodes: Node[];
+  onClose: () => void;
+  overlay?: boolean;
+}) {
+  const from = nodes.find((n) => n.id === edge.from);
+  const to = nodes.find((n) => n.id === edge.to);
+  const accent = edge.color || "#ffaa00";
+  return (
+    <div
+      style={
+        overlay
+          ? {
+              position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "72%",
+              background: "#06110a", borderTop: `2px solid ${accent}`, borderRadius: "20px 20px 0 0",
+              display: "flex", flexDirection: "column", zIndex: 50,
+              animation: "slideUp 0.32s cubic-bezier(0.32,0.72,0,1)", boxShadow: "0 -16px 48px rgba(0,0,0,0.7)",
+            }
+          : {
+              position: "absolute", right: 0, top: 0, bottom: 0, width: "var(--ib-panel-w)",
+              background: "#06110a", borderLeft: `1px solid ${accent}`,
+              display: "flex", flexDirection: "column", zIndex: 30,
+              animation: "slideIn 0.25s ease", boxShadow: "-8px 0 32px rgba(0,0,0,0.35)",
+            }
+      }
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #1a3320", flexShrink: 0 }}>
+        <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: 2, color: accent, textTransform: "uppercase" }}>◈ Connection</span>
+        <button type="button" onClick={onClose} aria-label="Close connection details" style={{ background: "transparent", border: "none", color: "#7aaa8a", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>×</button>
+      </div>
+      <div style={{ padding: 16, overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <span style={{ fontFamily: RAJ, fontWeight: 700, fontSize: 14, letterSpacing: 0.5, color: "#c8e8d0" }}>{from?.label ?? edge.from}</span>
+          <span style={{ color: accent }}>→</span>
+          <span style={{ fontFamily: RAJ, fontWeight: 700, fontSize: 14, letterSpacing: 0.5, color: "#c8e8d0" }}>{to?.label ?? edge.to}</span>
+        </div>
+        {edge.label ? (
+          <div style={{ display: "inline-block", padding: "3px 9px", border: `1px solid ${accent}`, borderRadius: 3, fontFamily: FONT, fontSize: 10, letterSpacing: 1, color: accent, marginBottom: 12 }}>{edge.label}</div>
+        ) : null}
+        {edge.explanation ? (
+          <div style={{ ...IB_TYPE.bodySm, color: "#9ec8ae", lineHeight: 1.7, marginBottom: 12 }}>{edge.explanation}</div>
+        ) : null}
+        {typeof edge.confidence === "number" ? (
+          <div style={{ ...IB_TYPE.meta, color: "#7aaa8a", letterSpacing: 1, marginBottom: 10 }}>CONFIDENCE · {edge.confidence}%</div>
+        ) : null}
+        {edge.source_url ? (
+          <a href={edge.source_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#00bb66", fontSize: 11, textDecoration: "none" }}>
+            <span style={{ flexShrink: 0 }}>↗</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>{edge.source_url}</span>
+          </a>
+        ) : (
+          <div style={{ ...IB_TYPE.meta, color: "#5a8068", letterSpacing: 1 }}>No source link provided.</div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function graphNodeDimensions(node: Node, mobile: boolean) {
@@ -927,6 +1020,7 @@ function FederalSpendingPanel({ node }: { node: Node }) {
 function DetailPanel({
   node,
   edges,
+  nodes,
   onClose,
   analysisSources,
   polymarketArticleTitle,
@@ -935,6 +1029,7 @@ function DetailPanel({
 }: {
   node: Node | null;
   edges: Edge[];
+  nodes: Node[];
   onClose: () => void;
   analysisSources?: OracleSource[];
   polymarketArticleTitle?: string;
@@ -943,6 +1038,19 @@ function DetailPanel({
 }) {
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   if (!node) return null;
+  const nodeLabelById = new Map(nodes.map((n) => [n.id, n.label] as const));
+  const connections = edges
+    .filter((e) => e.from === node.id || e.to === node.id)
+    .map((e) => {
+      const otherId = e.from === node.id ? e.to : e.from;
+      return {
+        otherLabel: nodeLabelById.get(otherId) ?? otherId,
+        label: e.label,
+        explanation: e.explanation,
+        sourceUrl: e.source_url,
+        color: e.color,
+      };
+    });
   const c = NODE_COLORS[node.type] ?? FALLBACK_COLOR;
   const d = node.detail;
   const score = nodeDisplayScore(node.type, d);
@@ -1281,10 +1389,10 @@ function DetailPanel({
 
         {node.type !== "theory" && d.brave_sources && (d.brave_sources as { title: string; url: string; description: string }[]).length > 0 ? (
           <DetailSection
-            title={`Web Intelligence · ${(d.brave_sources as { title: string; url: string; description: string }[]).length} sources`}
+            title={`${node.type === "article" ? "Related coverage across sources" : "Web Intelligence"} · ${(d.brave_sources as { title: string; url: string; description: string }[]).length} sources`}
             accent="#4ab8e0"
           >
-            {(d.brave_sources as { title: string; url: string; description: string }[]).slice(0, 8).map((src, i) => {
+            {(d.brave_sources as { title: string; url: string; description: string }[]).slice(0, node.type === "article" ? 16 : 8).map((src, i) => {
               let domain = "";
               try { domain = new URL(src.url).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
               return (
@@ -1335,6 +1443,48 @@ function DetailPanel({
               <div key={`counter-${i}`} style={{ display: "flex", gap: 7, ...IB_TYPE.listItem, marginBottom: 6, alignItems: "flex-start" }}>
                 <span style={{ color: "#ffaa00", flexShrink: 0 }}>▸</span>
                 <span>{item}</span>
+              </div>
+            ))}
+          </DetailSection>
+        ) : null}
+
+        {connections.length > 0 ? (
+          <DetailSection title={`Connections · ${connections.length}`} accent="#ffaa00">
+            {connections.map((conn, i) => (
+              <div
+                key={`conn-${i}`}
+                style={{
+                  marginBottom: 8,
+                  padding: "8px 11px",
+                  border: "1px solid #1a3320",
+                  borderLeft: `2px solid ${conn.color || "#5a8068"}`,
+                  borderRadius: 4,
+                  background: "rgba(255,255,255,0.012)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+                  <span style={{ color: conn.color || "#7aaa8a", flexShrink: 0 }}>→</span>
+                  <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#c8e8d0" }}>
+                    {conn.otherLabel}
+                  </span>
+                  {conn.label ? (
+                    <span style={{ ...IB_TYPE.meta, color: "#7aaa8a", letterSpacing: 1 }}>· {conn.label}</span>
+                  ) : null}
+                </div>
+                {conn.explanation ? (
+                  <div style={{ ...IB_TYPE.bodySm, color: "#9ec8ae", lineHeight: 1.6 }}>{conn.explanation}</div>
+                ) : null}
+                {conn.sourceUrl ? (
+                  <a
+                    href={conn.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 4, color: "#00bb66", fontSize: 10, textDecoration: "none", maxWidth: "100%" }}
+                  >
+                    <span style={{ flexShrink: 0 }}>↗</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{conn.sourceUrl}</span>
+                  </a>
+                ) : null}
               </div>
             ))}
           </DetailSection>
@@ -1479,6 +1629,7 @@ export default function InvestigationBoard({
   const [glitch, setGlitch] = useState(false);
   const [pulse, setPulse] = useState(false);
   const [internalSelected, setInternalSelected] = useState<Node | null>(selectedNode ?? null);
+  const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
   const [shareToast, setShareToast] = useState("");
@@ -1928,6 +2079,7 @@ export default function InvestigationBoard({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setInternalSelected(null);
+        setSelectedEdgeKey(null);
         onNodeClick(null);
       }
     };
@@ -1948,9 +2100,16 @@ export default function InvestigationBoard({
   const connectedEdges = internalSelected ? edges.filter((e) => selectedEdges.has(`${e.from}-${e.to}`)) : [];
   const handleNodeClick = (node: Node) => {
     const next = internalSelected?.id === node.id ? null : node;
+    setSelectedEdgeKey(null);
     setInternalSelected(next);
     onNodeClick(next);
   };
+
+  const selectedEdge = selectedEdgeKey
+    ? edges.find((e) => `${e.from}-${e.to}` === selectedEdgeKey) ?? null
+    : null;
+  /** A side/overlay panel (node OR edge) is open — drives canvas width + control offsets. */
+  const panelOpen = Boolean(internalSelected) || Boolean(selectedEdge);
 
   const allText = `${nodes.map((n) => `${n.label} ${n.sub} ${n.detail?.title ?? ""} ${n.detail?.source ?? ""}`).join(" ")} ${edges.map((e) => e.label).join(" ")}`.toLowerCase();
   const hasCiaFoia = allText.includes("cia") || allText.includes("foia");
@@ -2077,7 +2236,7 @@ export default function InvestigationBoard({
           style={{
             position: "absolute",
             top: 12,
-            right: internalSelected ? "calc(var(--ib-panel-w) + 16px)" : 12,
+            right: panelOpen ? "calc(var(--ib-panel-w) + 16px)" : 12,
             zIndex: 20,
             display: "flex",
             gap: 6,
@@ -2260,7 +2419,7 @@ export default function InvestigationBoard({
           className="ib-main-svg"
           ref={svgRef}
           viewBox="0 0 1000 640"
-          style={{ width: internalSelected && !narrowPanel ? "calc(100% - var(--ib-panel-w))" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab", touchAction: "none" }}
+          style={{ width: panelOpen && !narrowPanel ? "calc(100% - var(--ib-panel-w))" : "100%", height: "100%", transition: "width 0.25s ease", position: "absolute", inset: 0, cursor: svgDragActive ? "grabbing" : "grab", touchAction: "none" }}
           preserveAspectRatio="xMidYMid meet"
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
@@ -2268,9 +2427,23 @@ export default function InvestigationBoard({
           onMouseLeave={handleMouseUp}
         >
           <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-          {localNodes.length > 0 && edges.map((edge, i) => (
-            <EdgeLine key={`${edge.from}-${edge.to}-${i}`} edge={edge} nodes={localNodes} active={!internalSelected || selectedEdges.has(`${edge.from}-${edge.to}`)} />
-          ))}
+          {localNodes.length > 0 && edges.map((edge, i) => {
+            const key = `${edge.from}-${edge.to}`;
+            return (
+              <EdgeLine
+                key={`${key}-${i}`}
+                edge={edge}
+                nodes={localNodes}
+                active={!internalSelected || selectedEdges.has(key)}
+                selected={selectedEdgeKey === key}
+                onSelect={() => {
+                  setInternalSelected(null);
+                  onNodeClick(null);
+                  setSelectedEdgeKey((prev) => (prev === key ? null : key));
+                }}
+              />
+            );
+          })}
 
           {localNodes.map((node) => (
             <g key={node.id} data-node="true" data-node-id={node.id} onMouseDown={(e) => handleNodeMouseDown(e, node.id)} style={{ cursor: "grab" }}>
@@ -2474,6 +2647,7 @@ export default function InvestigationBoard({
           <DetailPanel
             node={internalSelected}
             edges={edges}
+            nodes={localNodes}
             overlay={narrowPanel}
             onClose={() => {
               setInternalSelected(null);
@@ -2482,6 +2656,13 @@ export default function InvestigationBoard({
             analysisSources={analysisSources}
             polymarketArticleTitle={articleTitle}
             polymarketArticleContext={polymarketContext}
+          />
+        ) : selectedEdge ? (
+          <EdgeDetailPanel
+            edge={selectedEdge}
+            nodes={localNodes}
+            overlay={narrowPanel}
+            onClose={() => setSelectedEdgeKey(null)}
           />
         ) : null}
       </div>

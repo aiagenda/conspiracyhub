@@ -1,42 +1,68 @@
 # The Theorist
 
-Dark, AI-driven investigation feed and board experience built with Next.js, Supabase, OpenAI, and Stripe.
+A dark, AI-driven investigation feed and board experience. GPT-4o scores and ranks
+government cover-ups, UAP sightings, classified patent secrets, and underground
+theories from multiple live sources (Guardian, RSS, Reddit, FOIA indexes), then
+presents them as an interactive "terminal" feed with article readers, investigation
+boards, and topic trackers (UAP, Outbreaks, Insider Radar).
 
-## Getting Started
+Built with **Next.js 16 (App Router)**, **React 19**, **Supabase**, **OpenAI**,
+**Stripe**, **Resend**, and **PostHog**. Maps use **d3** + **topojson**.
 
-First, run the development server:
+> ⚠️ This repo targets Next.js 16, which has breaking changes vs. earlier versions.
+> Before changing framework-level code, read the bundled docs in
+> `node_modules/next/dist/docs/` (see [AGENTS.md](./AGENTS.md)).
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.local.example` to `.env.local` and fill in every key before running the
+API routes. Key groups:
 
-## Environment Variables
+- **Supabase** — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_KEY` (server-only; used by the feed loader and ingest).
+- **OpenAI** — `OPENAI_API_KEY` (scoring, lore/article generation, Oracle).
+- **Sources** — `GUARDIAN_API_KEY` and the Reddit/Brave keys used by the radars.
+- **Billing** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_ID`.
+- **Cron / admin** — `CRON_SECRET`, `ADMIN_SECRET`.
+- **Email** — `RESEND_API_KEY` (weekly briefing).
+- **Analytics** — `NEXT_PUBLIC_POSTHOG_*`, `POSTHOG_PROJECT_ID`,
+  `POSTHOG_PERSONAL_API_KEY`.
+- **Site URL** — set `NEXT_PUBLIC_SITE_URL` to your deployed origin. When unset it
+  falls back to `https://conspiracyhub.vercel.app`, which is used for canonical
+  URLs, OG metadata, and the sitemap — so set it in production.
 
-Create `.env.local` from `.env.local.example` and fill all keys before running API routes.
+Database schema lives in [`supabase-schema.sql`](./supabase-schema.sql) and the
+`supabase/` directory.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command         | Description              |
+| --------------- | ------------------------ |
+| `npm run dev`   | Start the dev server     |
+| `npm run build` | Production build         |
+| `npm run start` | Run the production build |
+| `npm run lint`  | ESLint                   |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project layout
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app` — App Router routes, API handlers, and page shells.
+- `src/components` — feed, readers, trackers, investigation board, admin UI.
+- `src/lib` — data access, scoring/ingest pipelines (`src/lib/server`), and helpers.
+- `scripts/`, `supabase/` — ingest/cron utilities and database setup.
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deployed on Vercel. Image optimization is enabled for a curated allowlist of stable
+image hosts (see [`src/lib/imageHosts.ts`](./src/lib/imageHosts.ts) and
+`images.remotePatterns` in [`next.config.ts`](./next.config.ts)); images from other
+upstream sources fall back to unoptimized rendering.

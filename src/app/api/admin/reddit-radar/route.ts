@@ -45,12 +45,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result);
     }
 
-    if (action === "dismiss") {
+    if (action === "dismiss" || action === "dismissed") {
       await updateRedditMatchStatus(matchId, "dismissed");
       return NextResponse.json({ ok: true });
     }
 
-    if (action === "posted") {
+    if (action === "posted" || action === "post") {
       await updateRedditMatchStatus(matchId, "posted");
       return NextResponse.json({ ok: true });
     }

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import ReaderReactionVote from "@/components/ReaderReactionVote";
+import { canOptimizeImage } from "@/lib/imageHosts";
 import { isLiveChatEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import type { NewsItem } from "@/types";
 
@@ -44,7 +45,7 @@ export default function NewsCard({
       style={{
         border: `1px solid ${borderIdle}`,
         borderRadius: 4,
-        background: read ? "rgba(7,14,10,0.95)" : "#090f0b",
+        background: read ? "rgba(7,14,10,0.95)" : "var(--card)",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -67,7 +68,7 @@ export default function NewsCard({
               src={item.image}
               alt=""
               fill
-              unoptimized
+              unoptimized={!canOptimizeImage(item.image)}
               priority={priority}
               loading={priority ? "eager" : undefined}
               sizes="(max-width: 768px) 100vw, (max-width: 1400px) 50vw, 25vw"
@@ -159,7 +160,7 @@ export default function NewsCard({
 
         {item.angle && (
           <div className="news-card-angle" style={{ fontSize: 14, borderLeft: "2px solid #1a3320", paddingLeft: 10, lineHeight: 1.65 }}>
-            <span style={{ color: "#00bb66" }}>▸ </span>
+            <span style={{ color: "var(--green-dim)" }}>▸ </span>
             {item.angle}
           </div>
         )}
@@ -201,7 +202,7 @@ export default function NewsCard({
                 textAlign: "center",
                 textDecoration: "none",
                 background: "transparent",
-                border: "1px solid #1a3320",
+                border: "1px solid var(--green-dark)",
                 borderRadius: 3,
                 padding: "10px 14px",
                 fontFamily: "var(--font-raj), sans-serif",
@@ -209,15 +210,6 @@ export default function NewsCard({
                 fontWeight: 700,
                 letterSpacing: 2,
                 textTransform: "uppercase",
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
-                (e.currentTarget as HTMLAnchorElement).style.color = "#00ff88";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1a3320";
-                (e.currentTarget as HTMLAnchorElement).style.color = "var(--muted-dim, #7aaa8a)";
               }}
             >
               ▸ DISCUSS IN COMMUNITY
@@ -240,15 +232,6 @@ export default function NewsCard({
               fontWeight: 700,
               letterSpacing: 2,
               textTransform: "uppercase",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "#00bb66";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#00bb66";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,187,102,0.3)";
-              (e.currentTarget as HTMLAnchorElement).style.color = "var(--muted-dim, #7aaa8a)";
             }}
           >
             ◈ LIVE CHAT

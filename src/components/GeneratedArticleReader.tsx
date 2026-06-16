@@ -9,6 +9,7 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import VotePanel from "@/components/VotePanel";
 import { markArticleRead } from "@/lib/readArticles";
 import { trackContinueReading } from "@/lib/continueReading";
+import { canOptimizeImage } from "@/lib/imageHosts";
 import { pageContentShellStyle } from "@/lib/pageShell";
 import { isLiveChatEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
@@ -364,7 +365,7 @@ export default function GeneratedArticleReader({
                 className="gar-hero-img"
                 style={{ position: "relative", height: 320, marginBottom: "1.5rem", borderRadius: 4, overflow: "hidden" }}
               >
-                <Image src={item.image} alt="" fill unoptimized style={{ objectFit: "cover", filter: "saturate(0.4) brightness(0.65)" }} />
+                <Image src={item.image} alt="" fill unoptimized={!canOptimizeImage(item.image)} style={{ objectFit: "cover", filter: "saturate(0.4) brightness(0.65)" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, #050c07)" }} />
               </div>
             ) : null}

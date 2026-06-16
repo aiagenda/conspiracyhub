@@ -37,6 +37,9 @@ export function TwitterDraftSection() {
   const [copied, setCopied] = useState<string | null>(null);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState(false);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+
+  const pickKey = (a: TweetPick["article"]) => (a.kind === "generated_article" ? `gen:${a.id}` : a.id);
 
   const loadDrafts = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -72,6 +75,27 @@ export function TwitterDraftSection() {
     navigator.clipboard.writeText(text);
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function dismiss(article: TweetPick["article"]) {
+    setDismissingId(article.id);
+    setError("");
+    const shown = picks.map((p) => pickKey(p.article));
+    // Optimistically remove the dismissed topic from view.
+    setPicks((prev) => prev.filter((p) => p.article.id !== article.id));
+    try {
+      const res = await fetch("/api/admin/twitter-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "dismiss", id: article.id, kind: article.kind, shown }),
+      });
+      const d = await res.json();
+      if (d.error) setError(d.hint ? `${d.error}: ${d.hint}` : d.error);
+      else if (d.pick) setPicks((prev) => [...prev, d.pick as TweetPick]);
+    } catch (e) {
+      setError(String(e));
+    }
+    setDismissingId(null);
   }
 
   return (
@@ -158,6 +182,22 @@ export function TwitterDraftSection() {
                   <span className="ml-auto font-mono text-[9px]" style={{ color: "var(--green-dim)" }}>
                     Best time: {data.best_time}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => void dismiss(data.article)}
+                    disabled={dismissingId === data.article.id}
+                    title="Mark as done — remove this topic and pull a new one"
+                    className="rounded border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest"
+                    style={{
+                      border: "1px solid rgba(255,51,51,0.35)",
+                      color: "#ff5555",
+                      background: "transparent",
+                      cursor: dismissingId === data.article.id ? "wait" : "pointer",
+                      opacity: dismissingId === data.article.id ? 0.5 : 1,
+                    }}
+                  >
+                    {dismissingId === data.article.id ? "…" : "✕ Done"}
+                  </button>
                 </div>
                 <div className="font-mono text-xs" style={{ color: "var(--foreground)" }}>
                   {data.article.title}

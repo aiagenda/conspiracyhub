@@ -530,22 +530,13 @@ export default function FeedScreen({
           height: 36,
           borderRadius: "50%",
           background: "rgba(9,15,11,0.9)",
-          border: "1px solid #1a3320",
+          border: "1px solid var(--green-dark)",
           fontSize: 14,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          transition: "all 0.2s",
           backdropFilter: "blur(4px)",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.borderColor = "#00bb66";
-          (e.currentTarget as HTMLButtonElement).style.color = "#00ff88";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.borderColor = "#1a3320";
-          (e.currentTarget as HTMLButtonElement).style.color = "var(--muted-dim, #7aaa8a)";
         }}
         title="Back to top"
       >

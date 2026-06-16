@@ -14,6 +14,7 @@ export interface BraveResult {
 export async function searchBrave(
   query: string,
   count = 5,
+  offset = 0,
 ): Promise<BraveResult[]> {
   const key = process.env.BRAVE_SEARCH_API_KEY?.trim();
   if (!key) return [];
@@ -26,6 +27,8 @@ export async function searchBrave(
       safesearch: "moderate",
       freshness: "py", // past year
     });
+    // Page offset (0-9): skip `offset` pages of `count` results to fetch deeper coverage.
+    if (offset > 0) params.set("offset", String(Math.min(Math.max(offset, 0), 9)));
     const res = await fetch(`${BRAVE_API}?${params}`, {
       headers: {
         Accept: "application/json",

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireAdminSession } from "@/lib/server/requireAdminSession";
 import { buildBraveQuery } from "@/lib/braveNodeQuery";
 import { searchBrave } from "@/lib/braveSearch";
+import { fetchArticleRelatedCoverage } from "@/lib/server/relatedCoverage";
 import type { Node, OracleTheory } from "@/types";
 
 export const maxDuration = 120;
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
     // Load oracle_analyses row + article title for context
     let analysisRow: AnalysisRow | null = null;
     let topicTitle = "";
+    let primaryUrl = "";
 
     if (newsId) {
       const { data: a } = await admin
@@ -55,8 +57,9 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       analysisRow = (a as AnalysisRow | null);
 
-      const { data: ni } = await admin.from("news_items").select("title").eq("id", newsId).maybeSingle();
+      const { data: ni } = await admin.from("news_items").select("title, url").eq("id", newsId).maybeSingle();
       topicTitle = (ni as { title?: string } | null)?.title ?? "";
+      primaryUrl = (ni as { url?: string } | null)?.url ?? "";
     } else {
       const { data: a } = await admin
         .from("oracle_analyses")
@@ -85,8 +88,10 @@ export async function POST(req: NextRequest) {
     await Promise.all(
       nodes.map(async (node) => {
         const nodeTitle = node.detail?.title || node.label;
-        const query = buildBraveQuery(node.type, nodeTitle, topicKeywords);
-        const results = await searchBrave(query, 8);
+        const results =
+          node.type === "article"
+            ? await fetchArticleRelatedCoverage(nodeTitle, topicKeywords, { excludeUrl: primaryUrl || undefined })
+            : await searchBrave(buildBraveQuery(node.type, nodeTitle, topicKeywords), 8);
         if (!results.length) return;
         const braveStructured = results.map((r) => ({ title: r.title, url: r.url, description: r.description }));
         node.detail = { ...node.detail, brave_sources: braveStructured };
