@@ -169,6 +169,29 @@ async function recordDismissal(admin: SupabaseClient, key: string) {
   await admin.from("twitter_draft_batches").insert({ picks: [], article_keys: [key] });
 }
 
+/**
+ * Keys the admin explicitly DISMISSED — only the marker rows (empty `picks`), NOT the
+ * article_keys of real saved batches. Used to drop dismissed topics from the cached batch
+ * without filtering out the cached batch's own (still-valid) picks.
+ */
+async function loadDismissedKeys(admin: SupabaseClient, days = DRAFT_EXCLUDE_DAYS): Promise<Set<string>> {
+  const since = new Date(Date.now() - days * 24 * 3600_000).toISOString();
+  const { data } = await admin
+    .from("twitter_draft_batches")
+    .select("picks, article_keys")
+    .gte("created_at", since)
+    .limit(200);
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    const isDismissMarker = !Array.isArray(row.picks) || row.picks.length === 0;
+    if (!isDismissMarker) continue;
+    for (const key of row.article_keys ?? []) {
+      if (key) out.add(String(key));
+    }
+  }
+  return out;
+}
+
 async function saveDraftBatch(
   admin: SupabaseClient,
   picks: ReturnType<typeof mapVariants>[],
@@ -487,9 +510,10 @@ export async function GET(req: NextRequest) {
   if (!articleId && !refresh) {
     const cached = await loadLatestCachedBatch(admin);
     if (cached) {
-      // Drop any picks the admin has since dismissed so they never reappear from cache.
-      const excluded = await loadExcludedArticleKeys(admin);
-      const visiblePicks = cached.picks.filter((p) => !excluded.has(pickKey(p)));
+      // Drop only picks the admin has since DISMISSED (not the batch's own keys) so the
+      // cache still serves — otherwise every load would regenerate (OpenAI cost).
+      const dismissed = await loadDismissedKeys(admin);
+      const visiblePicks = cached.picks.filter((p) => !dismissed.has(pickKey(p)));
       if (visiblePicks.length > 0) {
         return NextResponse.json({
           picks: visiblePicks,
