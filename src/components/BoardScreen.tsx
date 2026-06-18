@@ -6,6 +6,7 @@ import InvestigationBoard from "@/components/InvestigationBoard";
 import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { isBillingEnabled } from "@/lib/featureFlags";
 import { trackContinueReading } from "@/lib/continueReading";
 import { correctNodeType } from "@/lib/nodeTypeCorrection";
 import type { Edge, NewsItem, Node, OracleAnalysis, NodeType, OracleTheory } from "@/types";
@@ -556,20 +557,32 @@ export default function BoardScreen({
     try {
       setAccessBlock(null);
       setLoading(true);
+
+      const query =
+        oracleMode === "generated"
+          ? `generatedArticleId=${encodeURIComponent(news.id)}`
+          : `newsId=${encodeURIComponent(news.id)}`;
+
+      const cacheRes = await fetch(`/api/oracle?${query}`);
+      if (cacheRes.ok) {
+        setAnalysis((await cacheRes.json()) as OracleAnalysis);
+        setSelected(null);
+        return;
+      }
+
       const supabase = getSupabaseBrowserClient();
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setAccessBlock({ kind: "sign_in" });
-        return;
+
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
       }
+
       const res = await fetch("/api/oracle", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers,
         body: JSON.stringify(
           oracleMode === "generated" ? { generatedArticleId: news.id } : { newsId: news.id },
         ),
@@ -581,11 +594,11 @@ export default function BoardScreen({
         payload = {};
       }
       if (!res.ok) {
-        if (res.status === 403 && payload.error === "upgrade_required") {
+        if (isBillingEnabled() && res.status === 403 && payload.error === "upgrade_required") {
           setAccessBlock({ kind: "pro_required" });
           return;
         }
-        if (res.status === 401) {
+        if (isBillingEnabled() && res.status === 401) {
           setAccessBlock({ kind: "sign_in" });
           return;
         }
