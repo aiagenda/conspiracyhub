@@ -266,33 +266,41 @@ async function loadReference<T>(
   entityType: "incident" | "person" | "organization" | "document",
   fallback: readonly T[],
 ): Promise<T[]> {
-  const { data, error } = await admin
+  const { data } = await admin
     .from("uap_intel_reference")
     .select("payload, is_curated, updated_at")
     .eq("entity_type", entityType);
 
-  if (error || !data?.length) return [...fallback] as T[];
+  // Merge curated fallback so newly-added reference data appears immediately, before the
+  // next full scrape re-seeds the DB. DB rows take precedence over fallback for the same id.
+  const merged = new Map<string, { payload: T; is_curated: boolean }>();
+  for (const f of fallback) {
+    const id = (f as { id?: string }).id;
+    if (id) merged.set(id, { payload: f, is_curated: true });
+  }
+  for (const r of data ?? []) {
+    const id = (r.payload as { id?: string })?.id;
+    if (id) merged.set(id, { payload: r.payload as T, is_curated: Boolean(r.is_curated) });
+  }
+  const rows = [...merged.values()];
+  if (rows.length === 0) return [...fallback] as T[];
 
   if (entityType === "document") {
-    const curated = data
+    const curated = rows
       .filter((r) => r.is_curated)
-      .map((r) => r.payload as T)
-      .sort((a, b) => {
-        const ya = (a as UapDocument).year ?? 0;
-        const yb = (b as UapDocument).year ?? 0;
-        return yb - ya;
-      });
-    const scraped = data.filter((r) => !r.is_curated).map((r) => r.payload as T);
-    return [...curated, ...scraped] as T[];
+      .map((r) => r.payload as UapDocument)
+      .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    const scraped = rows.filter((r) => !r.is_curated).map((r) => r.payload);
+    return [...(curated as T[]), ...(scraped as T[])];
   }
 
   if (entityType === "incident") {
-    return data
-      .map((r) => r.payload as T)
-      .sort((a, b) => String((b as UapIncident).date).localeCompare(String((a as UapIncident).date)));
+    return rows
+      .map((r) => r.payload as UapIncident)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date))) as T[];
   }
 
-  return data.map((r) => r.payload as T);
+  return rows.map((r) => r.payload) as T[];
 }
 
 async function loadNewsFromDb(admin: SupabaseClient): Promise<UapNewsItem[] | null> {
