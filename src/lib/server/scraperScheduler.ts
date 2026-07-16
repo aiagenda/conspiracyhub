@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { runScraper } from "@/app/api/scraper/route";
+import { runUapScrape } from "@/app/api/uap-sightings/route";
 import { runUapFullScrape } from "@/lib/server/uapIngest";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
@@ -105,14 +106,22 @@ async function runNewsScraper(): Promise<{ ok: boolean; status: number; payload:
   }
 }
 
-async function runUapScraper(config: Record<string, unknown> | null): Promise<{ ok: boolean; status: number; payload: unknown }> {
-  const maxNewRaw = config?.max_new;
+async function runUapScraper(job: ScraperJob): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const config = job.config ?? {};
+  const maxNewRaw = config.max_new;
   const maxNew = Math.min(Math.max(
     typeof maxNewRaw === "number" ? maxNewRaw : parseInt(String(maxNewRaw ?? "70"), 10) || 70,
     1
   ), 120);
+  const mode =
+    config.mode === "nuforc_only" || config.mode === "full"
+      ? config.mode
+      : job.job_key === "uap_nuforc"
+        ? "nuforc_only"
+        : "full";
   try {
-    const payload = await runUapFullScrape(maxNew);
+    const payload =
+      mode === "nuforc_only" ? await runUapScrape(maxNew) : await runUapFullScrape(maxNew);
     return { ok: true, status: 200, payload };
   } catch (e) {
     return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
@@ -196,7 +205,7 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
                   ? await runRedditRadarScraper()
                   : job.target === "weekly_briefing"
                     ? await runWeeklyBriefingJob()
-                    : await runUapScraper(job.config ?? {});
+                    : await runUapScraper(job);
 
     await finishRun(run.id, resp.ok ? "success" : "failed", {
       startedAt: run.started_at,
@@ -217,12 +226,56 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
   }
 }
 
+/** Daily UTC 09:00 ingest jobs shown under Admin → Automation → Ingest & intel. */
+const DAILY_INGEST_JOBS = [
+  {
+    job_key: "news_main",
+    name: "Main news feed scrape",
+    target: "news_scraper",
+    schedule_cron: "0 9 * * *",
+    enabled: true,
+    config: {},
+  },
+  {
+    job_key: "uap_nuforc",
+    name: "NUFORC sightings scrape",
+    target: "uap_scraper",
+    schedule_cron: "0 9 * * *",
+    enabled: true,
+    config: { mode: "nuforc_only", max_new: 70 },
+  },
+  {
+    job_key: "outbreak_refresh",
+    name: "Outbreak intelligence refresh",
+    target: "outbreak_scraper",
+    schedule_cron: "0 9 * * *",
+    enabled: true,
+    config: {},
+  },
+  {
+    job_key: "reddit_radar_scan",
+    name: "Reddit topic radar scan",
+    target: "reddit_radar_scraper",
+    schedule_cron: "0 9 * * *",
+    enabled: true,
+    config: {},
+  },
+  {
+    job_key: "uap_full_refresh",
+    name: "UAP full intelligence refresh",
+    target: "uap_scraper",
+    schedule_cron: "0 9 * * *",
+    enabled: true,
+    config: { mode: "full", max_new: 70 },
+  },
+] as const;
+
 const OUTBREAK_JOB = {
   job_key: "outbreak_refresh",
   name: "Outbreak intelligence refresh",
   target: "outbreak_scraper",
   schedule_cron: "0 9 * * *",
-  enabled: false,
+  enabled: true,
   config: {},
 } as const;
 
@@ -304,21 +357,13 @@ async function ensureWeeklyBriefingJob() {
   if (error) console.warn("[scraper] ensure weekly_briefing:", error.message);
 }
 
-const UAP_FULL_JOB = {
-  job_key: "uap_full_refresh",
-  name: "UAP full intelligence refresh",
-  target: "uap_scraper",
-  schedule_cron: "0 9 * * *",
-  enabled: true,
-  config: { max_new: 70 },
-} as const;
-
-/** Idempotent — unified UAP scrape (news, documents, reference seed, NUFORC). */
-async function ensureUapFullScraperJob() {
+/** Idempotent — keeps all five daily ingest jobs enabled with aligned UTC cron. */
+export async function ensureDailyIngestJobs() {
   const db = admin();
-  const { error } = await db.from("scraper_jobs").upsert({ ...UAP_FULL_JOB }, { onConflict: "job_key" });
-  if (error) console.warn("[scraper] ensure uap_full_refresh:", error.message);
-  await db.from("scraper_jobs").update({ enabled: false }).eq("job_key", "uap_nuforc");
+  for (const job of DAILY_INGEST_JOBS) {
+    const { error } = await db.from("scraper_jobs").upsert({ ...job }, { onConflict: "job_key" });
+    if (error) console.warn(`[scraper] ensure ${job.job_key}:`, error.message);
+  }
 }
 
 /** Idempotent — GSC sync + SEO article jobs (migration 20260516120100). */
@@ -338,11 +383,11 @@ async function ensureSearchConsoleScraperJobs() {
 
 export async function getSchedulerSnapshot() {
   const db = admin();
+  await ensureDailyIngestJobs();
   await ensureOutbreakScraperJob();
   await ensureInsiderRadarScraperJob();
   await ensureRedditRadarScraperJob();
   await ensureWeeklyBriefingJob();
-  await ensureUapFullScraperJob();
   await ensureSearchConsoleScraperJobs();
   const { data: jobs, error: jobsErr } = await db
     .from("scraper_jobs")
