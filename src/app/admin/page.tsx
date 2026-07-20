@@ -2492,8 +2492,10 @@ export default function AdminPage() {
               <code className="text-[var(--green-dim)]">SCRAPER_MIN_SCORE</code> (default 70) are stored. On the public feed,{" "}
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
-              <strong style={{ color: "var(--foreground)" }}>UAP full intelligence refresh</strong> updates Latest News, Documents (FOIA feeds), curated Incidents/People/Orgs seed, and NUFORC Sightings in one run.{" "}
-              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.
+              <strong style={{ color: "var(--foreground)" }}>UAP full intelligence refresh</strong> updates Latest News, Documents (FOIA feeds), and curated Incidents/People/Orgs seed.{" "}
+              <strong style={{ color: "var(--foreground)" }}>NUFORC sightings scrape</strong> ingests new NUFORC reports only (separate daily job).{" "}
+              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force).{" "}
+              <strong style={{ color: "var(--foreground)" }}>Reddit topic radar scan</strong> matches subreddit posts to site content for draft suggestions. All five daily jobs run at 09:00 UTC.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
                 Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
