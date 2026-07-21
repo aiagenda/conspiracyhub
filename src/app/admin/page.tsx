@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 import { humanizeCronUtc } from "@/lib/cronHuman";
+import { DAILY_INGEST_JOB_KEYS } from "@/lib/dailyIngestJobs";
 import { ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY } from "@/lib/analyticsExclude";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 import {
@@ -757,6 +758,16 @@ export default function AdminPage() {
           j.target === "reddit_radar_scraper",
       ),
     [scrapers],
+  );
+  const dailyIngestJobs = useMemo(() => {
+    const byKey = new Map(feedScraperJobs.map((j) => [j.job_key, j]));
+    return DAILY_INGEST_JOB_KEYS.map((key) => byKey.get(key)).filter(
+      (j): j is ScraperJob => j != null,
+    );
+  }, [feedScraperJobs]);
+  const otherFeedScraperJobs = useMemo(
+    () => feedScraperJobs.filter((j) => !DAILY_INGEST_JOB_KEYS.includes(j.job_key)),
+    [feedScraperJobs],
   );
   const seoScraperJobs = useMemo(
     () => scrapers.filter((j) => j.target === "search_console"),
@@ -2493,25 +2504,35 @@ export default function AdminPage() {
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
               <strong style={{ color: "var(--foreground)" }}>UAP full intelligence refresh</strong> updates Latest News, Documents (FOIA feeds), curated Incidents/People/Orgs seed, and NUFORC Sightings in one run.{" "}
-              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.
+              <strong style={{ color: "var(--foreground)" }}>NUFORC sightings scrape</strong> is superseded by that full refresh (kept here for manual nuforc-only runs).{" "}
+              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; runs daily at 09:00 UTC with the other ingest jobs). Not the same as the investigation article writers below.
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
-                Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
+                Five ingest jobs run daily at 09:00 UTC via Vercel cron on{" "}
+                <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (Hobby plan: one cron slot). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
                 <code className="text-[var(--green-dim)]">OPENAI_API_KEY</code> for news scoring.
               </span>
             </div>
             <div className="space-y-2">
-              {feedScraperJobs.map(scraperJobCard)}
+              {dailyIngestJobs.map(scraperJobCard)}
               {scrapers.length === 0 && (
                 <div className="rounded-lg px-4 py-8 text-center text-[13px]" style={{ background: cardBg, border, color: muted }}>
                   No scraper jobs found. Apply latest migration first.
                 </div>
               )}
-              {scrapers.length > 0 && feedScraperJobs.length === 0 && (
+              {scrapers.length > 0 && dailyIngestJobs.length === 0 && (
                 <div className="rounded-lg px-4 py-6 text-center text-[12px]" style={{ background: cardBg, border, color: muted }}>
-                  No feed ingest jobs in this database snapshot.
+                  No daily ingest jobs in this database snapshot — click Refresh jobs.
                 </div>
               )}
+              {otherFeedScraperJobs.length > 0 ? (
+                <>
+                  <h4 className="pt-3 font-raj text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: muted }}>
+                    Other feed jobs
+                  </h4>
+                  {otherFeedScraperJobs.map(scraperJobCard)}
+                </>
+              ) : null}
             </div>
           </div>
             )}
