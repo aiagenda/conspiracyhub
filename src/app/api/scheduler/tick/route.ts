@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   checkCronAuth,
+  ensureDailyIngestJobs,
   executeJob,
   matchesCronNow,
 } from "@/lib/server/scraperScheduler";
@@ -17,6 +18,8 @@ function admin() {
 }
 
 async function runTick() {
+  await ensureDailyIngestJobs();
+
   const db = admin();
   let trialExpired = 0;
   try {
