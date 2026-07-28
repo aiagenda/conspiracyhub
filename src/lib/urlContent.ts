@@ -188,12 +188,56 @@ async function fetchYoutubeOembed(url: string): Promise<{ title: string; text: s
   }
 }
 
-async function scrapeGenericHtml(url: string): Promise<{ title: string; text: string }> {
+const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20 MB — skip pathological FOIA dumps
+
+function pdfTitleFromUrl(url: string): string {
+  try {
+    const file = decodeURIComponent(new URL(url).pathname.split("/").pop() || "");
+    const name = file.replace(/\.pdf$/i, "").replace(/[_\-]+/g, " ").trim();
+    return name || "PDF document";
+  } catch {
+    return "PDF document";
+  }
+}
+
+/** Extract readable text from a PDF (FOIA / war.gov / PURSUE releases, patents). */
+async function extractPdfContent(url: string, buffer: ArrayBuffer): Promise<{ title: string; text: string; source: "pdf" }> {
+  // Lazily loaded so the common HTML path stays lean on cold starts.
+  const { extractText, getDocumentProxy, getMeta } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const { text } = await extractText(pdf, { mergePages: true });
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) throw new Error("PDF has no extractable text (likely a scanned image — OCR not supported).");
+
+  let metaTitle = "";
+  try {
+    const { info } = await getMeta(pdf);
+    const t = (info as { Title?: string } | undefined)?.Title;
+    if (t && t.trim()) metaTitle = t.trim();
+  } catch {
+    // metadata is best-effort
+  }
+
+  const title = metaTitle || pdfTitleFromUrl(url);
+  return { title: `PDF · ${title.slice(0, 140)}`, text: clean.slice(0, MAX_TEXT), source: "pdf" };
+}
+
+async function scrapeGenericHtml(url: string): Promise<{ title: string; text: string; source: "html" | "pdf" }> {
   const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" },
-    signal: AbortSignal.timeout(12000),
+    headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,application/pdf" },
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(`Cannot fetch URL: HTTP ${res.status}`);
+
+  const contentType = (res.headers.get("content-type") || "").toLowerCase();
+  if (contentType.includes("application/pdf") || /\.pdf(?:$|[?#])/i.test(url)) {
+    const declared = Number(res.headers.get("content-length") || "0");
+    if (declared > MAX_PDF_BYTES) throw new Error(`PDF too large to analyze (${Math.round(declared / 1e6)} MB).`);
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > MAX_PDF_BYTES) throw new Error(`PDF too large to analyze (${Math.round(buffer.byteLength / 1e6)} MB).`);
+    return await extractPdfContent(url, buffer);
+  }
+
   const html = await res.text();
 
   const title =
@@ -215,10 +259,10 @@ async function scrapeGenericHtml(url: string): Promise<{ title: string; text: st
     .trim()
     .slice(0, 5000);
 
-  return { title: title.trim(), text: ((desc ? `${desc} ` : "") + bodyText).slice(0, MAX_TEXT) };
+  return { title: title.trim(), text: ((desc ? `${desc} ` : "") + bodyText).slice(0, MAX_TEXT), source: "html" };
 }
 
-export type UrlContentSource = "twitter" | "reddit" | "bluesky" | "threads" | "youtube" | "html";
+export type UrlContentSource = "twitter" | "reddit" | "bluesky" | "threads" | "youtube" | "pdf" | "html";
 
 export async function fetchUrlContent(urlStr: string): Promise<{ title: string; text: string; source: UrlContentSource }> {
   const expanded = await expandRedirects(urlStr.trim());
@@ -254,6 +298,5 @@ export async function fetchUrlContent(urlStr: string): Promise<{ title: string; 
   const yt = await fetchYoutubeOembed(expanded);
   if (yt) return { ...yt, source: "youtube" };
 
-  const html = await scrapeGenericHtml(expanded);
-  return { ...html, source: "html" };
+  return await scrapeGenericHtml(expanded);
 }

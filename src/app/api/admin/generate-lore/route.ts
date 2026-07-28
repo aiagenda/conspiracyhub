@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runLoreDossierCore } from "@/lib/server/generateArticleCore";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * POST /api/admin/generate-lore

@@ -61,15 +61,22 @@ async function braveSearchFirstTrustedUrl(query: string, apiKey: string): Promis
 function buildQuery(source: SanitizedSource): string {
   const title = source.title.trim().slice(0, 120);
   const desc = source.description.trim().slice(0, 80);
-  // Add site: hints toward gov/archive domains to improve precision
-  const govHint = TRUSTED_SOURCE_DOMAINS.filter((d) =>
-    /cia\.gov|archives\.gov|congress\.gov|govinfo|gao\.gov|darpa|pubmed|aaro|nsarchive/.test(d),
-  )
-    .slice(0, 4)
-    .map((d) => `site:${d}`)
-    .join(" OR ");
-
   return desc ? `${title} ${desc.split(" ").slice(0, 6).join(" ")}` : title;
+}
+
+/** `(site:cia.gov OR site:archives.gov OR …)` — pins a query to primary government sources. */
+function govSiteHint(): string {
+  const domains = TRUSTED_SOURCE_DOMAINS.filter((d) =>
+    /^(cia|archives|congress|govinfo|gao)\.gov$|darpa|pubmed|aaro|nsarchive/.test(d),
+  ).slice(0, 4);
+  return domains.length ? `(${domains.map((d) => `site:${d}`).join(" OR ")})` : "";
+}
+
+/** Declassified/FOIA-flavoured entries resolve better when pinned to primary domains first. */
+function looksLikePrimaryGovSource(source: SanitizedSource): boolean {
+  return /foia|declassified|cia|nsa|fbi|pentagon|congress|senate|gao|darpa|patent|memorandum|hearing|testimony/i.test(
+    `${source.title} ${source.description}`,
+  );
 }
 
 /**
@@ -77,10 +84,10 @@ function buildQuery(source: SanitizedSource): string {
  * a real URL on a trusted domain. Sources that already have a trusted URL are left
  * untouched. Returns an updated copy of the sources array.
  */
-export async function enrichSourcesWithRealUrls(
-  sources: SanitizedSource[],
+export async function enrichSourcesWithRealUrls<T extends SanitizedSource>(
+  sources: T[],
   braveApiKey?: string,
-): Promise<SanitizedSource[]> {
+): Promise<T[]> {
   if (!braveApiKey) return sources;
 
   const enriched = await Promise.all(
@@ -91,8 +98,17 @@ export async function enrichSourcesWithRealUrls(
       const query = buildQuery(source);
       if (!query) return source;
 
-      const found = await braveSearchFirstTrustedUrl(query, braveApiKey);
-      return found ? { ...source, url: found } : source;
+      // Try the most promising phrasing first, then fall back to the other one.
+      const hint = govSiteHint();
+      const hinted = hint ? `${hint} ${query}` : "";
+      const attempts = looksLikePrimaryGovSource(source) && hinted ? [hinted, query] : [query, hinted];
+
+      for (const attempt of attempts) {
+        if (!attempt) continue;
+        const found = await braveSearchFirstTrustedUrl(attempt, braveApiKey);
+        if (found) return { ...source, url: found };
+      }
+      return source;
     }),
   );
 

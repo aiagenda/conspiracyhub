@@ -24,6 +24,7 @@ import { PostHogAdminSection } from "@/components/admin/PostHogAdminSection";
 import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
 import { RedditRadarSection } from "@/components/admin/RedditRadarSection";
+import { BragStudioSection } from "@/components/admin/BragStudioSection";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -99,6 +100,7 @@ interface AdminBlogPost {
   status: string;
   view_count: number;
   unique_viewers: number;
+  word_count?: number;
   has_oracle?: boolean;
 }
 
@@ -548,6 +550,62 @@ export default function AdminPage() {
       }
     } finally {
       setBraveBusyId("");
+    }
+  }
+
+  async function expandBlogPost(id: string, title: string) {
+    const short = title.length > 90 ? `${title.slice(0, 90)}…` : title;
+    if (!confirm(`Expand to long-form (~2500 words)?\n“${short}”\n\nSame URL — takes 1–3 minutes.`)) return;
+    setBlogAdminBusy(id);
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "expand_article", id }),
+      });
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        article?: { word_count?: number; words_before?: number };
+      };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      if (d.article?.word_count) {
+        alert(`Expanded: ${d.article.words_before ?? "?"} → ${d.article.word_count} words`);
+      }
+      await loadBlogPosts(blogPage);
+    } finally {
+      setBlogAdminBusy("");
+    }
+  }
+
+  async function expandTopShortBlogPosts() {
+    if (!confirm("Expand the 3 most-viewed short posts (<1000 words) to long-form?\n\nTakes several minutes. Same URLs.")) return;
+    setBlogAdminBusy("expand_top");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "expand_top_short", limit: 3, max_words: 1000 }),
+      });
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        results?: Array<{ title?: string; words_before?: number; article?: { word_count?: number } }>;
+      };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      const summary = (d.results ?? [])
+        .map((r) => `${r.title?.slice(0, 40)}: ${r.words_before} → ${r.article?.word_count ?? "?"} w`)
+        .join("\n");
+      if (summary) alert(`Expanded:\n${summary}`);
+      await loadBlogPosts(blogPage);
+    } finally {
+      setBlogAdminBusy("");
     }
   }
 
@@ -2050,6 +2108,12 @@ export default function AdminPage() {
               </div>
             )}
 
+            {contentSubTab === "brag" && (
+              <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
+                <BragStudioSection />
+              </div>
+            )}
+
             {contentSubTab === "articles" && (
             <>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2293,6 +2357,15 @@ export default function AdminPage() {
                   <button
                     type="button"
                     disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
+                    onClick={() => void expandTopShortBlogPosts()}
+                    className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    style={{ borderColor: "#2a4030", color: "var(--green)" }}
+                  >
+                    {blogAdminBusy === "expand_top" ? "Expanding…" : "Expand top 3 short posts"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
                     onClick={() => void sanitizeAllReportSources()}
                     className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#1a3320", color: "var(--green-dim)" }}
@@ -2334,14 +2407,14 @@ export default function AdminPage() {
                   <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
                     <thead>
                       <tr style={{ background: "#0a100c" }}>
-                        {["Title", "Category", "Published", "Readers", "Open", "Actions"].map((h) => (
+                        {["Title", "Category", "Published", "Words", "Readers", "Open", "Actions"].map((h) => (
                           <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {blogPosts.length === 0 && (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
                       )}
                       {blogPosts.map((p) => (
                         <tr key={p.id} className="hover:bg-[#0f1510]">
@@ -2354,6 +2427,16 @@ export default function AdminPage() {
                           <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{p.category}</td>
                           <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                             {new Date(p.published_at).toLocaleDateString("en-GB")}
+                          </td>
+                          <td
+                            className="whitespace-nowrap border-b px-4 py-4 text-center tabular-nums text-[11px]"
+                            style={{
+                              borderColor: "#111816",
+                              color: (p.word_count ?? 0) < 1000 ? "#ffaa66" : "var(--green-dim)",
+                            }}
+                            title="Body word count (before Related investigations block)"
+                          >
+                            {p.word_count ?? "—"}
                           </td>
                           <td
                             className="whitespace-nowrap border-b px-4 py-4 text-center"
@@ -2381,6 +2464,16 @@ export default function AdminPage() {
                           </td>
                           <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                disabled={blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || braveBusyId !== ""}
+                                onClick={() => void expandBlogPost(p.id, p.title)}
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                style={{ borderColor: "#1a4030", color: "var(--green)" }}
+                                title="Expand to ~2500 words (same URL)"
+                              >
+                                {blogAdminBusy === p.id ? "…" : "Expand"}
+                              </button>
                               <button
                                 type="button"
                                 disabled={braveBusyId !== "" || blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}

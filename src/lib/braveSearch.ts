@@ -22,6 +22,12 @@ export async function searchBrave(
   query: string,
   count = 5,
   offset = 0,
+  /**
+   * Brave freshness filter. Defaults to the past year (the feed/Oracle want recent
+   * coverage). Pass `null` to search all time — required for archival topics like
+   * MKULTRA or Operation Paperclip, where a 1-year window hides the best sources.
+   */
+  freshness: "pd" | "pw" | "pm" | "py" | null = "py",
 ): Promise<BraveResult[]> {
   const key = process.env.BRAVE_SEARCH_API_KEY?.trim();
   if (!key) return [];
@@ -31,8 +37,8 @@ export async function searchBrave(
     count: String(Math.min(count, 10)),
     search_lang: "en",
     safesearch: "moderate",
-    freshness: "py", // past year
   });
+  if (freshness) params.set("freshness", freshness);
   // Page offset (0-9): skip `offset` pages of `count` results to fetch deeper coverage.
   if (offset > 0) params.set("offset", String(Math.min(Math.max(offset, 0), 9)));
 

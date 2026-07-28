@@ -5,6 +5,29 @@
 import { isOracleUrlTooVague } from "@/lib/oracleSourceUrls";
 
 export const TRUSTED_SOURCE_DOMAINS = [
+  // ── US government & military (blanket) ──────────────────────────────────────
+  // Any *.gov / *.mil host is inherently a primary source for FOIA, declassified
+  // programs and agency records (fbi.gov/vault, nsa.gov, state.gov, energy.gov …).
+  // Note: `.gov.uk` and other foreign TLDs do NOT match — this is US-only.
+  // Homepages are still rejected downstream by isOracleUrlTooVague().
+  "gov",
+  "mil",
+  // ── Academic & university ───────────────────────────────────────────────────
+  // `edu` covers US universities; `ac.uk` the UK. Universities on national TLDs
+  // (mcgill.ca, uni-x.de …) cannot be matched by suffix and must be named explicitly.
+  "edu",
+  "ac.uk",
+  // ── Reference & fact-checking ───────────────────────────────────────────────
+  // A site that weighs "documented vs speculation" needs the debunk side on hand —
+  // without these the model can only cite sources that support a claim.
+  "wikipedia.org",
+  "britannica.com",
+  "theconversation.com",
+  "snopes.com",
+  "factcheck.org",
+  "politifact.com",
+  "fullfact.org",
+  // ── Named government paths kept explicit (used as site: hints when searching) ─
   "cia.gov",
   "archives.gov",
   "federalregister.gov",
@@ -21,6 +44,23 @@ export const TRUSTED_SOURCE_DOMAINS = [
   "patents.google.com",
   "aaro.mil",
   "nsarchive.gwu.edu",
+  // ── Archives & primary-document repositories ────────────────────────────────
+  "archive.org",
+  "hathitrust.org",
+  "wikisource.org",
+  "muckrock.com",
+  "governmentattic.org",
+  "documentcloud.org",
+  // ── Peer-reviewed / scientific ──────────────────────────────────────────────
+  "nature.com",
+  "science.org",
+  "jstor.org",
+  "arxiv.org",
+  "bmj.com",
+  "thelancet.com",
+  "nejm.org",
+  "scientificamerican.com",
+  // ── Major news outlets ──────────────────────────────────────────────────────
   "nytimes.com",
   "theguardian.com",
   "reuters.com",
@@ -32,7 +72,24 @@ export const TRUSTED_SOURCE_DOMAINS = [
   "wired.com",
   "theintercept.com",
   "propublica.org",
-  "documentcloud.org",
+  "npr.org",
+  "pbs.org",
+  "theatlantic.com",
+  "newyorker.com",
+  "latimes.com",
+  "bloomberg.com",
+  "ft.com",
+  "economist.com",
+  "time.com",
+  "nbcnews.com",
+  "cbsnews.com",
+  "cnn.com",
+  "forbes.com",
+  "newsweek.com",
+  "aljazeera.com",
+  "dw.com",
+  "smithsonianmag.com",
+  // ── Advocacy / research organisations ───────────────────────────────────────
   "fas.org",
   "aclu.org",
 ] as const;
