@@ -19,12 +19,20 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+function isVercelServerless(): boolean {
+  return process.env.VERCEL === "1";
+}
+
 function getAdmin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 }
 
+/** Writable job workspace — /tmp on Vercel (read-only /var/task elsewhere). */
 function bragJobsDir(): string {
-  return process.env.BRAG_JOBS_DIR?.trim() || path.join(process.cwd(), "var", "brag-jobs");
+  const custom = process.env.BRAG_JOBS_DIR?.trim();
+  if (custom) return custom;
+  if (isVercelServerless()) return path.join("/tmp", "brag-jobs");
+  return path.join(process.cwd(), "var", "brag-jobs");
 }
 
 function bragAssetsDir(): string {
@@ -35,7 +43,13 @@ function bragAssetsDir(): string {
 }
 
 function publicVideoDir(): string {
+  if (isVercelServerless()) return path.join("/tmp", "brag-output");
   return path.join(process.cwd(), "public", "brag");
+}
+
+async function canRenderVideo(): Promise<boolean> {
+  if (process.env.BRAG_RENDER === "0" || isVercelServerless()) return false;
+  return ffmpegAvailable();
 }
 
 export type BragJobRow = {
@@ -168,12 +182,27 @@ async function renderHyperframes(jobDir: string): Promise<string> {
   return outPath;
 }
 
-async function publishVideo(jobId: string, localMp4: string): Promise<string> {
+async function publishVideo(jobId: string, localMp4: string): Promise<string | null> {
+  if (isVercelServerless()) return null;
   await mkdir(publicVideoDir(), { recursive: true });
   const publicName = `${jobId}.mp4`;
   const dest = path.join(publicVideoDir(), publicName);
   await cp(localMp4, dest);
   return `/brag/${publicName}`;
+}
+
+async function ensureJobWorkspace(job: BragJobRow): Promise<string> {
+  const jobDir = path.join(bragJobsDir(), job.id);
+  try {
+    await readFile(path.join(jobDir, "index.html"));
+    return jobDir;
+  } catch {
+    /* rebuild below */
+  }
+  const plan = job.plan_json;
+  if (!plan) throw new Error("No plan_json on job — regenerate from admin first");
+  const format = (job.format as BragFormat) || "landscape";
+  return writeJobWorkspace(job.id, plan, format);
 }
 
 export async function listBragJobs(limit = 20): Promise<BragJobRow[]> {
@@ -210,7 +239,13 @@ export async function createAndRunBragJob(params: CreateBragJobParams): Promise<
     .select("*")
     .single();
 
-  if (insErr || !inserted) throw new Error(insErr?.message ?? "insert failed");
+  if (insErr || !inserted) {
+    const msg = insErr?.message ?? "insert failed";
+    if (/brag_jobs/i.test(msg)) {
+      throw new Error("brag_jobs table missing — run migration 20260728140000_brag_jobs.sql in Supabase SQL Editor");
+    }
+    throw new Error(msg);
+  }
   const jobId = inserted.id as string;
 
   try {
@@ -224,9 +259,13 @@ export async function createAndRunBragJob(params: CreateBragJobParams): Promise<
     const jobDir = await writeJobWorkspace(jobId, plan, format);
     await writeFile(path.join(jobDir, "share-copy.txt"), plan.share_copy, "utf8");
 
-    const canRender = process.env.BRAG_RENDER !== "0" && (await ffmpegAvailable());
+    const canRender = await canRenderVideo();
 
     if (!canRender) {
+      const hint = isVercelServerless()
+        ? "Plan ready (stored in DB). MP4 render needs a local machine with FFmpeg: npm run brag:render -- " + jobId
+        : "Plan + composition saved. FFmpeg/Hyperframes render unavailable on this host — run: npm run brag:render -- " +
+          jobId;
       const { data: updated } = await admin
         .from("brag_jobs")
         .update({
@@ -235,9 +274,7 @@ export async function createAndRunBragJob(params: CreateBragJobParams): Promise<
           share_copy: plan.share_copy,
           duration_sec: plan.total_duration_sec,
           finished_at: new Date().toISOString(),
-          error_text:
-            "Plan + composition saved. FFmpeg/Hyperframes render unavailable on this host — run: npm run brag:render -- " +
-            jobId,
+          error_text: hint,
         })
         .eq("id", jobId)
         .select("*")
@@ -280,10 +317,14 @@ export async function rerenderBragJob(jobId: string): Promise<BragJobRow> {
   const admin = getAdmin();
   if (!(await ffmpegAvailable())) throw new Error("FFmpeg not available on this host");
 
+  const { data: row, error: fetchErr } = await admin.from("brag_jobs").select("*").eq("id", jobId).single();
+  if (fetchErr || !row) throw new Error(fetchErr?.message ?? "job_not_found");
+
   await admin.from("brag_jobs").update({ status: "rendering", error_text: null }).eq("id", jobId);
 
   try {
-    const mp4 = await renderHyperframes(path.join(bragJobsDir(), jobId));
+    const jobDir = await ensureJobWorkspace(row as BragJobRow);
+    const mp4 = await renderHyperframes(jobDir);
     const videoPath = await publishVideo(jobId, mp4);
     const { data } = await admin
       .from("brag_jobs")
@@ -291,7 +332,7 @@ export async function rerenderBragJob(jobId: string): Promise<BragJobRow> {
         status: "ready",
         video_path: videoPath,
         finished_at: new Date().toISOString(),
-        error_text: null,
+        error_text: videoPath ? null : "Rendered locally — copy from var/brag-jobs/" + jobId + "/brag.mp4",
       })
       .eq("id", jobId)
       .select("*")
