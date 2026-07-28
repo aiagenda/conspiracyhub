@@ -7,7 +7,7 @@ import {
 } from "@/lib/server/bragPipeline";
 import { BRAG_TONE_PRESETS, type BragFormat } from "@/lib/server/bragProjectContext";
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function GET() {
   try {
