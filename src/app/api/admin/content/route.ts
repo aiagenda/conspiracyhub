@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getFeedMinScore } from "@/lib/feedMinScore";
 import { pageViewStatsByPaths } from "@/lib/adminPageViewCounts";
 
 function admin() {
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
     const { count: highThreat } = await db
       .from("news_items")
       .select("id", { count: "exact", head: true })
-      .gte("score", 75);
+      .gte("score", getFeedMinScore());
     const { count: oracleTotal } = await db
       .from("oracle_analyses")
       .select("id", { count: "exact", head: true });

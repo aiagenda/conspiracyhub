@@ -7,6 +7,7 @@ import { enrichSourcesWithRealUrls } from "@/lib/searchSourceUrl";
 import { mergeResearchSources, researchPromptBlock, researchTopic, type SourceRow } from "@/lib/server/articleResearch";
 import { countArticleWords, expandArticleIfShort } from "@/lib/server/articleExpand";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
+import { getFeedMinScore } from "@/lib/feedMinScore";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -355,7 +356,7 @@ export async function runGenerateArticleCore(mode: string): Promise<GenerateArti
       const { data: topNews } = await admin
         .from("news_items")
         .select("id, title, summary, angle, score, section, url")
-        .gte("score", 65)
+        .gte("score", getFeedMinScore())
         .gte("published_at", new Date(Date.now() - 48 * 3600000).toISOString())
         .order("score", { ascending: false })
         .limit(5);

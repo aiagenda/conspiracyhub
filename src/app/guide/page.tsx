@@ -91,7 +91,7 @@ export default function GuidePage() {
 
           {/* FEED */}
           <Section icon="◈" title="Main Feed" color="#00ff88">
-            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority score (0–100). Only articles scoring 70+ are shown in the main stream.</Note>
+            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority score (0–100). Only articles scoring 80+ are shown in the main stream. High-score items get an SEO rewrite on ingest (550–900 words) with source attribution on the article page.</Note>
             <Sub>Highest impact signal</Sub>
             <Note>At the top of page 1, the hero card highlights the <strong style={{ color: "#c8e8d0" }}>highest priority score</strong> from the last 7 days — not a separate editorial pick. The percentage matches the same AI score used on news cards.</Note>
             <Sub>Continue where you left off</Sub>
@@ -100,7 +100,7 @@ export default function GuidePage() {
             <Row label="PAGE 1" color="#00ff88">Always free — no account required.</Row>
             <Row label="PAGE 2+" color="#ffaa00">Free registered account required. Guests see a sign-in prompt instead of older archive pages.</Row>
             <Sub>News card</Sub>
-            <Row label="82% PRIORITY" color="#ff3333">AI priority / impact score. 80+ = high (red), 70–79 = elevated. Below 70 is hidden from the feed.</Row>
+            <Row label="82% PRIORITY" color="#ff3333">AI priority / impact score. 85+ = critical alert, 80+ = feed (red), 70–79 = stored but hidden. Below 80 is not shown in the feed.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
             <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board; optional per-article live chat appears in the dock only when <code style={{ color: "#3a5040" }}>NEXT_PUBLIC_LIVE_CHAT_ENABLED=true</code> is set on deploy. Live chat requires sign-in.</Row>
             <Sub>Article highlights</Sub>

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "brag:render": "tsx scripts/brag-render.ts"
+    "brag:render": "tsx scripts/brag-render.ts",
+    "rewrite:news": "npx tsx scripts/rewrite-news-pending.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
