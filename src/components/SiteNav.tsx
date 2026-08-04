@@ -27,6 +27,8 @@ const NAV_LINKS = [
   { href: "/insider-radar", label: "INSIDER RADAR", color: "#ffaa00" },
   ...(SHOW_COMMUNITY ? [{ href: "/community", label: "COMMUNITY", color: "#00bb66" }] : []),
   { href: "/blog", label: "ANALYSIS", color: "#c94dff" },
+  { href: "/ai", label: "AI & TECH", color: "#00d4ff" },
+  { href: "/toolkit", label: "TOOLKIT", color: "#00bb66" },
   { href: "/search", label: "SEARCH", color: "#9ec8ae" },
   { href: "/guide", label: "GUIDE", color: "#9ec8ae" },
 ];
