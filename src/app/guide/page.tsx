@@ -80,6 +80,8 @@ export default function GuidePage() {
             <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
             <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
             <Row label="GUIDE" color="#5a8068">This page <code style={{ color: "#3a5040" }}>/guide</code>.</Row>
+            <Row label="TOOLKIT" color="#00bb66">Curated GitHub + OSINT links <code style={{ color: "#3a5040" }}>/toolkit</code> — research stack for hardcore builders.</Row>
+            <Row label="AI &amp; TECH" color="#00d4ff">Factual tech desk <code style={{ color: "#3a5040" }}>/ai</code>.</Row>
             <Row label="ACCOUNT" color="#5a8068">Profile, Analyst Pass, saved investigations, email prefs <code style={{ color: "#3a5040" }}>/account</code> — sign in from the feed first.</Row>
             <Sub>Do not confuse</Sub>
             <Row label="ANALYSIS" color="#c94dff">Product area: the <code style={{ color: "#3a5040" }}>/blog</code> report list and each report at <code style={{ color: "#3a5040" }}>/blog/[slug]</code>.</Row>
