@@ -99,8 +99,8 @@ export default function GuidePage() {
             <Sub>Continue where you left off</Sub>
             <Note>When you open an article, report, or board, the feed remembers your last position (browser storage; synced to your account when signed in). Page 1 shows a resume banner if you have a saved session.</Note>
             <Sub>Pagination &amp; access</Sub>
-            <Row label="PAGE 1" color="#00ff88">Always free — no account required.</Row>
-            <Row label="PAGE 2+" color="#ffaa00">Free registered account required. Guests see a sign-in prompt instead of older archive pages.</Row>
+            <Row label="PAGE 1+" color="#00ff88">All feed pages are free to browse — no registration wall on the archive.</Row>
+            <Row label="GUEST CTA" color="#00bb66">Guests see a soft prompt: Weekly Oracle Brief newsletter or free registration (Oracle, saved investigations).</Row>
             <Sub>News card</Sub>
             <Row label="82% PRIORITY" color="#ff3333">AI priority / impact score. 85+ = critical alert, 80+ = feed (red), 70–79 = stored but hidden. Below 80 is not shown in the feed.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
@@ -247,8 +247,8 @@ export default function GuidePage() {
 
           {/* PRO */}
           <Section icon="◐" title="Free vs. PRO" color="#c94dff">
-            <Row label="GUEST" color="#5a8068">Feed page 1, all articles, cached Oracle boards, search news-only, 3 article highlights, no live chat.</Row>
-            <Row label="FREE" color="#5a8068">Full feed pagination, search AI enrichment, 5 article highlights, save up to 5 investigations, continue-reading sync.</Row>
+            <Row label="GUEST" color="#5a8068">Full feed pagination, all articles, cached Oracle boards, search news-only, 3 article highlights, newsletter CTA, no live chat.</Row>
+            <Row label="FREE" color="#5a8068">Oracle triggers, search AI enrichment, 5 article highlights, save up to 5 investigations, weekly briefing prefs on Account.</Row>
             <Row label="TRIAL" color="#ffaa00">New accounts receive an <strong style={{ color: "#c8e8d0" }}>Analyst Pass</strong> (full PRO, no card): <strong style={{ color: "#c8e8d0" }}>90 days</strong> for the first 100 founding operatives, then <strong style={{ color: "#c8e8d0" }}>30 days</strong>. Legacy users can claim a one-time 30-day pass from Account if eligible.</Row>
             <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full highlights, Polymarket odds, URL analyzer, high-threat email alerts (opt-in), unlimited saved investigations, board PNG export. $7/mo via Stripe.</Row>
             <Note>Sign in via SIGN IN on the feed. Upgrade via PRO ▶. Manage subscription and email prefs on Account.</Note>
