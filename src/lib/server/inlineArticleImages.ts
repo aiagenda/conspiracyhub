@@ -75,6 +75,29 @@ function stripTags(s: string): string {
   return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+export function countH2Sections(markdown: string): number {
+  return (markdown.match(/^## /gm) ?? []).length;
+}
+
+/** Adjust slot indices when the article has fewer H2 sections than planned. */
+export function normalizeImageSlots(slots: ImageSlot[], h2Count: number): ImageSlot[] {
+  if (h2Count <= 0) return [];
+  return slots.slice(0, 3).map((slot, i) => {
+    let idx = slot.after_h2_index;
+    if (i === 2 && idx > h2Count) idx = h2Count;
+    if (i === 1 && idx > h2Count) idx = Math.max(1, h2Count - 1);
+    if (idx < 1) idx = 1;
+    if (idx > h2Count) idx = h2Count;
+    return { ...slot, after_h2_index: idx };
+  });
+}
+
+/** First markdown image URL in content, if any. */
+export function firstMarkdownImageUrl(markdown: string): string | null {
+  const m = markdown.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/);
+  return m?.[1] ?? null;
+}
+
 /** Insert markdown image + italic caption after the first paragraph of selected H2 sections. */
 export function injectInlineImages(
   markdown: string,
@@ -145,7 +168,11 @@ export async function resolveImagePlacements(
 
     if (!url) continue;
     used.add(url);
-    if (!caption.toLowerCase().includes("source") && !caption.toLowerCase().includes("via")) {
+    if (
+      sourceLabel.trim() &&
+      !caption.toLowerCase().includes("source") &&
+      !caption.toLowerCase().includes("via")
+    ) {
       caption = `${caption} — via ${sourceLabel}`;
     }
     out.push({

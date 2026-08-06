@@ -25,6 +25,7 @@ import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
 import { RedditRadarSection } from "@/components/admin/RedditRadarSection";
 import { BragStudioSection } from "@/components/admin/BragStudioSection";
+import { TechDeskSection } from "@/components/admin/TechDeskSection";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -2760,6 +2761,8 @@ export default function AdminPage() {
             </div>
           </div>
             )}
+
+            {automationSubTab === "tech" && <TechDeskSection />}
           </section>
           )}
 

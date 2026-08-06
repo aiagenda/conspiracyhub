@@ -45,6 +45,9 @@ export default async function BlogPage() {
         .from("generated_articles")
         .select("id, title, slug, excerpt, category, tags, focus_keyword, published_at, meta_description, mode")
         .eq("status", "published")
+        // AI & Tech is a separate, factual desk with its own index at /ai — keeping it out
+        // of the conspiracy investigation list protects both sections' topical identity.
+        .neq("category", "ai")
         .order("published_at", { ascending: false })
         .limit(50);
       if (!error && data) {

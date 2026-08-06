@@ -4,7 +4,9 @@ import { getFeedMinScore } from "@/lib/feedMinScore";
 import { newsSourceLabel } from "@/lib/newsSourceLabel";
 import { fetchNewsSourceContent } from "@/lib/server/fetchNewsSourceBody";
 import {
+  countH2Sections,
   injectInlineImages,
+  normalizeImageSlots,
   resolveImagePlacements,
   type ImageSlot,
 } from "@/lib/server/inlineArticleImages";
@@ -35,22 +37,6 @@ type RewritePayload = {
 
 function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
-}
-
-function countH2(markdown: string): number {
-  return (markdown.match(/^## /gm) ?? []).length;
-}
-
-/** Adjust slot indices when article has fewer than 4 H2 sections. */
-function normalizeImageSlots(slots: ImageSlot[], h2Count: number): ImageSlot[] {
-  if (h2Count <= 0) return [];
-  return slots.slice(0, 2).map((slot, i) => {
-    let idx = slot.after_h2_index;
-    if (i === 1 && idx > h2Count) idx = h2Count;
-    if (idx < 1) idx = 1;
-    if (idx > h2Count) idx = h2Count;
-    return { ...slot, after_h2_index: idx };
-  });
 }
 
 export async function rewriteNewsArticleBody(
@@ -92,7 +78,7 @@ Site: ${SITE_URL}`,
   }
 
   let body_markdown = result.body_markdown.trim();
-  const h2Count = countH2(body_markdown);
+  const h2Count = countH2Sections(body_markdown);
   const slots = normalizeImageSlots(result.image_slots ?? [], h2Count);
 
   if (slots.length) {

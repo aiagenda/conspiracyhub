@@ -13,6 +13,7 @@ import {
   normalizeFaqs,
   rankRelatedArticles,
 } from "@/lib/blogSeo";
+import { firstMarkdownImageUrl } from "@/lib/server/inlineArticleImages";
 import type { NewsItem } from "@/types";
 
 export const revalidate = 86400;
@@ -135,12 +136,15 @@ export default async function BlogArticlePage({
     (typeof article.meta_description === "string" && article.meta_description.trim()) ||
     "";
 
+  const inlineHero = firstMarkdownImageUrl(article.content);
+  const heroImage = inlineHero ?? blogArticleOgImageUrl(article.title);
+
   const item: NewsItem = {
     id: article.id,
     title: article.title,
     summary,
     url: canonical,
-    image: blogArticleOgImageUrl(article.title),
+    image: heroImage,
     date: article.published_at,
     section: article.category,
     score: 55,

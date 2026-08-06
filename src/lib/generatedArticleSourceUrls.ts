@@ -92,6 +92,67 @@ export const TRUSTED_SOURCE_DOMAINS = [
   // ── Advocacy / research organisations ───────────────────────────────────────
   "fas.org",
   "aclu.org",
+  // ── AI & technology ─────────────────────────────────────────────────────────
+  // Required by the AI & Tech section: without these, researchTopic() returns almost
+  // nothing for AI topics, because the general news list barely covers this beat.
+  // Primary sources — the labs' own docs and announcements. Measured note: for AI queries
+  // Brave mostly returns vendor blogs and SEO farms, so the official product/doc domains
+  // ARE the primary sources here and must be listed explicitly. `claude.com` matters
+  // because Anthropic's docs live on platform.claude.com, not anthropic.com.
+  "anthropic.com",
+  "claude.com",
+  "openai.com",
+  "deepmind.google",
+  "ai.google.dev",
+  "research.google",
+  "blog.google",
+  "ai.meta.com",
+  "mistral.ai",
+  "cohere.com",
+  "x.ai",
+  "huggingface.co",
+  "github.com",
+  "github.blog",
+  "arxiv.org",
+  "paperswithcode.com",
+  "artificialanalysis.ai",
+  "pytorch.org",
+  "tensorflow.org",
+  "nvidia.com",
+  "developer.nvidia.com",
+  // Major clouds & platform docs (Bedrock, Azure AI, Vertex …):
+  "aws.amazon.com",
+  "cloud.google.com",
+  "azure.microsoft.com",
+  "microsoft.com",
+  "databricks.com",
+  "cloudflare.com",
+  "vercel.com",
+  // Developer reference:
+  "developer.mozilla.org",
+  "python.org",
+  "kubernetes.io",
+  "docker.com",
+  "npmjs.com",
+  "stackoverflow.com",
+  // Standards & policy:
+  "nist.gov",
+  "iso.org",
+  "w3.org",
+  "digital-strategy.ec.europa.eu",
+  // Trade press:
+  "techcrunch.com",
+  "arstechnica.com",
+  "theverge.com",
+  "venturebeat.com",
+  "zdnet.com",
+  "theregister.com",
+  "technologyreview.com",
+  "ieee.org",
+  "spectrum.ieee.org",
+  "acm.org",
+  "stackoverflow.blog",
+  "semianalysis.com",
 ] as const;
 
 export type SanitizedSource = { title: string; url: string; description: string };

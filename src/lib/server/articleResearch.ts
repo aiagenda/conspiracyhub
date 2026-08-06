@@ -17,13 +17,28 @@ const MAX_PER_HOST = 3;
 const RESULTS_PER_QUERY = 6;
 
 /**
+ * Which beat the topic belongs to. The angles that surface good sources differ completely:
+ * "declassified FOIA" is meaningless on an AI story and measurably returns nothing.
+ */
+export type ResearchStyle = "investigation" | "tech";
+
+/**
  * Complementary angles so the pool holds primary documents, mainstream coverage and the
  * sceptical side. Plain keyword queries only — Brave handles `OR` operators poorly and
  * an operator-laden query measurably returns fewer results.
  */
-function buildResearchQueries(topic: string): string[] {
+function buildResearchQueries(topic: string, style: ResearchStyle): string[] {
   const clean = topic.replace(/\s+/g, " ").trim().slice(0, 180);
   if (!clean) return [];
+
+  if (style === "tech") {
+    return [
+      clean,
+      `${clean} official documentation`,
+      `${clean} benchmark comparison`,
+    ];
+  }
+
   return [
     clean,
     `${clean} declassified documents FOIA`,
@@ -43,10 +58,11 @@ function buildResearchQueries(topic: string): string[] {
 export async function researchTopic(
   topic: string,
   freshness: "pd" | "pw" | "pm" | "py" | null = null,
+  style: ResearchStyle = "investigation",
 ): Promise<ResearchFinding[]> {
   if (!process.env.BRAVE_SEARCH_API_KEY?.trim()) return [];
 
-  const queries = buildResearchQueries(topic);
+  const queries = buildResearchQueries(topic, style);
   const collected: BraveResult[] = [];
   for (const q of queries) {
     try {
