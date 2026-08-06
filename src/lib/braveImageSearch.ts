@@ -40,7 +40,7 @@ export async function searchBraveImages(query: string, count = 3): Promise<Brave
           title?: string;
           url?: string;
           properties?: { url?: string; width?: number; height?: number };
-          thumbnail?: { src?: string };
+          thumbnail?: { src?: string; width?: number; height?: number };
         }>;
       };
 
@@ -48,9 +48,9 @@ export async function searchBraveImages(query: string, count = 3): Promise<Brave
       for (const r of json.results ?? []) {
         const url = r.properties?.url ?? r.url ?? r.thumbnail?.src ?? "";
         if (!url.startsWith("http")) continue;
-        const w = r.properties?.width ?? 0;
-        const h = r.properties?.height ?? 0;
-        if (w > 0 && h > 0 && (w < 200 || h < 120)) continue;
+        const w = r.properties?.width ?? r.thumbnail?.width ?? 0;
+        const h = r.properties?.height ?? r.thumbnail?.height ?? 0;
+        if (w > 0 && h > 0 && (w < 240 || h < 160)) continue;
         mapped.push({
           url,
           title: (r.title ?? "").trim(),

@@ -23,6 +23,41 @@ export type ResolvedImagePlacement = {
 
 const BLOCKED_HOSTS = /(?:gravatar|pixel|tracking|analytics|doubleclick|facebook\.com|fbcdn)/i;
 const BLOCKED_EXT = /\.(?:svg|gif|ico)(?:\?|$)/i;
+/** Skip obvious thumbs / tracking pixels in article inline slots. */
+function isLikelyTinyImageUrl(url: string): boolean {
+  const pathDim = url.match(/(?:^|[/?&=])(\d{1,3})x(\d{1,3})(?:[/?&]|$)/i);
+  if (pathDim) {
+    const w = parseInt(pathDim[1], 10);
+    const h = parseInt(pathDim[2], 10);
+    if (w < 320 || h < 200) return true;
+  }
+  const wParam = url.match(/(?:^|[?&])width=(\d{1,3})(?:&|$)/i)?.[1];
+  if (wParam && parseInt(wParam, 10) < 320) return true;
+  return false;
+}
+
+export function isUsableArticleImageUrl(url: string): boolean {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  if (BLOCKED_HOSTS.test(url) || BLOCKED_EXT.test(url)) return false;
+  if (isLikelyTinyImageUrl(url)) return false;
+  return true;
+}
+
+/** og:image / twitter:image from full page HTML (head — not inside `<article>`). */
+export function extractOgImageFromHtml(html: string): string | null {
+  const patterns = [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    const u = normalizeImageUrl(m?.[1] ?? "");
+    if (u) return u;
+  }
+  return null;
+}
 
 export function normalizeImageUrl(raw: string, baseUrl?: string): string | null {
   let url = raw.replace(/&amp;/g, "&").trim();
@@ -37,6 +72,7 @@ export function normalizeImageUrl(raw: string, baseUrl?: string): string | null 
   }
   if (!/^https?:\/\//i.test(url)) return null;
   if (BLOCKED_HOSTS.test(url) || BLOCKED_EXT.test(url)) return null;
+  if (!isUsableArticleImageUrl(url)) return null;
   return url;
 }
 
@@ -77,6 +113,34 @@ function stripTags(s: string): string {
 
 export function countH2Sections(markdown: string): number {
   return (markdown.match(/^## /gm) ?? []).length;
+}
+
+/** H2 section indices (1-based) suitable for inline photos — skips TL;DR / FAQ blocks. */
+export function pickImageH2Targets(markdown: string, max = 3): number[] {
+  const skip = /^(tl;dr|faq|related investigations|related articles|sources)/i;
+  const headings: number[] = [];
+  let n = 0;
+  for (const m of markdown.matchAll(/^## +(.+)$/gm)) {
+    n += 1;
+    const title = m[1]?.trim() ?? "";
+    if (!skip.test(title)) headings.push(n);
+  }
+  if (!headings.length) return [];
+  if (headings.length <= max) return headings;
+  const out = [headings[0]];
+  if (max >= 2) out.push(headings[Math.floor(headings.length / 2)]);
+  if (max >= 3) out.push(headings[headings.length - 1]);
+  return [...new Set(out)].slice(0, max);
+}
+
+/** Map planned slots onto real content H2 indices (skip TL;DR / FAQ). */
+export function remapSlotsToContentH2(slots: ImageSlot[], markdown: string): ImageSlot[] {
+  const targets = pickImageH2Targets(markdown, slots.length);
+  if (!targets.length) return [];
+  return slots.slice(0, targets.length).map((slot, i) => ({
+    ...slot,
+    after_h2_index: targets[i] ?? slot.after_h2_index,
+  }));
 }
 
 /** Adjust slot indices when the article has fewer H2 sections than planned. */
@@ -180,6 +244,64 @@ export async function resolveImagePlacements(
       url,
       caption,
     });
+  }
+
+  return out;
+}
+
+/** Tech articles: Brave for every slot; at most one source photo on the first slot. */
+export async function resolveTechImagePlacements(
+  slots: ImageSlot[],
+  sourceImages: SourceImage[],
+  sourceLabel: string,
+  fallbackKeyword: string,
+): Promise<ResolvedImagePlacement[]> {
+  const used = new Set<string>();
+  const out: ResolvedImagePlacement[] = [];
+  const usableSource = sourceImages.filter((s) => isUsableArticleImageUrl(s.url));
+
+  async function braveFor(query: string): Promise<string | null> {
+    const q = query.trim();
+    if (!q) return null;
+    for (const searchQ of [q, `${fallbackKeyword} ${q}`.trim(), fallbackKeyword.trim()]) {
+      if (!searchQ) continue;
+      const results = await searchBraveImages(searchQ, 6);
+      for (const r of results) {
+        if (!used.has(r.url) && isUsableArticleImageUrl(r.url)) return r.url;
+      }
+    }
+    return null;
+  }
+
+  for (let i = 0; i < slots.slice(0, 3).length; i += 1) {
+    const slot = slots[i];
+    let url: string | null = null;
+    let caption = slot.caption?.trim() || slot.search_query;
+
+    if (i === 0 && usableSource.length) {
+      url = usableSource.find((s) => !used.has(s.url))?.url ?? null;
+      if (url) {
+        const src = usableSource.find((s) => s.url === url);
+        if (src?.caption) caption = src.caption;
+      }
+    }
+
+    if (!url) url = await braveFor(slot.search_query);
+
+    if (!url) continue;
+    used.add(url);
+    out.push({ afterH2Index: slot.after_h2_index, url, caption });
+  }
+
+  if (out.length === 0 && slots.length > 0) {
+    const url = await braveFor(fallbackKeyword || "artificial intelligence technology");
+    if (url) {
+      out.push({
+        afterH2Index: slots[0].after_h2_index,
+        url,
+        caption: `${fallbackKeyword || "Technology"} — illustration`,
+      });
+    }
   }
 
   return out;

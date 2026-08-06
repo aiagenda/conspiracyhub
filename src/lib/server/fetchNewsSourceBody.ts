@@ -1,6 +1,7 @@
 import { fetchRedditArticleBody } from "@/lib/server/redditPostBody";
 import {
   extractImagesFromHtml,
+  extractOgImageFromHtml,
   normalizeImageUrl,
   type SourceImage,
 } from "@/lib/server/inlineArticleImages";
@@ -42,25 +43,26 @@ async function fetchGuardianContent(guardianId: string): Promise<{ text: string;
   }
 }
 
-async function fetchGenericHtml(url: string): Promise<{ text: string; html: string }> {
+async function fetchGenericHtml(url: string): Promise<{ text: string; html: string; ogImage: string | null }> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Accept: "text/html" },
       signal: AbortSignal.timeout(12000),
       cache: "no-store",
     });
-    if (!res.ok) return { text: "", html: "" };
-    const html = await res.text();
-    const stripped = html
+    if (!res.ok) return { text: "", html: "", ogImage: null };
+    const fullHtml = await res.text();
+    const ogImage = extractOgImageFromHtml(fullHtml);
+    const stripped = fullHtml
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "");
     const contentMatch =
       stripped.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ??
       stripped.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
     const raw = contentMatch ? contentMatch[1] : stripped;
-    return { text: htmlToText(raw).slice(0, 8000), html: raw };
+    return { text: htmlToText(raw).slice(0, 8000), html: raw, ogImage };
   } catch {
-    return { text: "", html: "" };
+    return { text: "", html: "", ogImage: null };
   }
 }
 
@@ -101,6 +103,9 @@ export async function fetchNewsSourceContent(input: NewsSourceFetchInput): Promi
     const generic = await fetchGenericHtml(articleUrl);
     text = generic.text;
     images = extractImagesFromHtml(generic.html, articleUrl);
+    if (generic.ogImage && !images.some((i) => i.url === generic.ogImage)) {
+      images.unshift({ url: generic.ogImage, caption: "Lead image" });
+    }
     if (!text) {
       try {
         const r = await fetchUrlContent(articleUrl);

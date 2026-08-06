@@ -31,6 +31,7 @@ type GenerateResult = {
   source_count: number;
   sources_with_links: number;
   research_findings: number;
+  inline_images?: number;
 };
 
 type DraftDetail = {
@@ -265,6 +266,12 @@ export function TechDeskSection() {
             </div>
             <div>
               Research findings used: <strong style={{ color: "#c8e8d0" }}>{result.research_findings}</strong>
+            </div>
+            <div>
+              Inline images:{" "}
+              <strong style={{ color: (result.inline_images ?? 0) > 0 ? "#00ff88" : "#ff8888" }}>
+                {result.inline_images ?? 0}
+              </strong>
             </div>
           </div>
           <p className="mt-2 text-[10px] leading-relaxed" style={{ color: muted }}>

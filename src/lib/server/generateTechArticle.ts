@@ -24,7 +24,8 @@ import {
   firstMarkdownImageUrl,
   injectInlineImages,
   normalizeImageSlots,
-  resolveImagePlacements,
+  remapSlotsToContentH2,
+  resolveTechImagePlacements,
   type ImageSlot,
   type SourceImage,
 } from "@/lib/server/inlineArticleImages";
@@ -158,14 +159,27 @@ async function enrichTechArticleImages(
   sourceImages: SourceImage[],
   sourceLabel: string,
 ): Promise<string> {
+  const baseSlots =
+    article.image_slots?.length ? article.image_slots : defaultTechImageSlots(article.focus_keyword);
+  let slots = remapSlotsToContentH2(baseSlots, article.content);
   const h2Count = countH2Sections(article.content);
-  const slots = normalizeImageSlots(
-    article.image_slots?.length ? article.image_slots : defaultTechImageSlots(article.focus_keyword),
-    h2Count,
-  );
+  slots = normalizeImageSlots(slots, h2Count);
   if (!slots.length) return article.content;
 
-  const placements = await resolveImagePlacements(slots, sourceImages, sourceLabel);
+  const placements = await resolveTechImagePlacements(
+    slots,
+    sourceImages,
+    sourceLabel,
+    article.focus_keyword || article.title,
+  );
+  if (!placements.length) {
+    console.warn("[tech-images] no images resolved", {
+      title: article.title,
+      braveKey: Boolean(process.env.BRAVE_SEARCH_API_KEY?.trim()),
+      sourceImages: sourceImages.length,
+    });
+    return article.content;
+  }
   return injectInlineImages(article.content, placements);
 }
 
@@ -315,6 +329,7 @@ Internal links: reference "${SITE_URL}/ai" for the AI & Tech index.${researchBlo
     });
 
     // ── 4. Guarantee long-form (reuses the existing expansion pass) ──
+    const imageSlots = article.image_slots;
     const expansion = await expandArticleIfShort({
       apiKey: process.env.OPENAI_API_KEY!,
       article,
@@ -322,7 +337,7 @@ Internal links: reference "${SITE_URL}/ai" for the AI & Tech index.${researchBlo
       allowlistBlock: allowlist.promptBlock,
       minWords: TECH_MIN_WORDS,
     });
-    article = expansion.article;
+    article = { ...expansion.article, image_slots: imageSlots ?? expansion.article.image_slots };
 
     // ── 4b. Inline images (Medium-style breaks + Brave fallback) ──
     const sourceLabel = sourceImageLabel(sourceTitle, resolvedSourceUrl);
