@@ -19,6 +19,9 @@ const RAJ = "var(--font-raj), sans-serif";
 const ACCENT = "#ff8844";
 
 type Filter = "all" | "m45" | "m5" | "m6" | "significant" | "tsunami" | "24h";
+type SortMode = "mag" | "time";
+
+const PAGE = 25;
 
 function regionOf(place: string): string {
   const parts = place.split(",").map((s) => s.trim()).filter(Boolean);
@@ -287,130 +290,109 @@ function EventRow({
       style={{
         display: "flex",
         width: "100%",
-        gap: 8,
+        gap: 10,
         alignItems: "center",
         textAlign: "left",
-        background: selected ? "rgba(255,136,68,0.1)" : "transparent",
-        border: "none",
-        borderBottom: "1px solid #0d1a10",
-        padding: "8px 4px",
+        background: selected ? "rgba(255,136,68,0.12)" : "#090f0b",
+        border: `1px solid ${selected ? ACCENT : "#132a18"}`,
+        borderRadius: 3,
+        padding: "8px 10px",
         cursor: "pointer",
         fontFamily: FONT,
       }}
     >
-      <span style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: col, minWidth: 36 }}>
+      <span
+        style={{
+          fontFamily: RAJ,
+          fontSize: 17,
+          fontWeight: 700,
+          color: col,
+          background: `${col}1a`,
+          border: `1px solid ${col}55`,
+          borderRadius: 3,
+          width: 46,
+          padding: "3px 0",
+          textAlign: "center",
+          flexShrink: 0,
+          lineHeight: 1.2,
+        }}
+      >
         {ev.mag.toFixed(1)}
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 11, color: selected ? "#e8ffe8" : "#c8e8d0", lineHeight: 1.3 }}>
+        <span
+          style={{
+            display: "block",
+            fontFamily: RAJ,
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#e8ffe8",
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {ev.place}
         </span>
-        <span style={{ fontSize: 9, color: "#5a8068" }}>
+        <span style={{ display: "block", fontSize: 10, color: "#5a8068", marginTop: 2, letterSpacing: 0.5 }}>
           {seismicTimeAgo(ev.time)}
           {ev.depthKm != null ? ` · ${ev.depthKm.toFixed(0)} km` : ""}
+          {ev.tsunami ? " · TSUNAMI" : ""}
         </span>
       </span>
     </button>
   );
 }
 
-function RegionFold({
-  region,
-  events,
-  selectedId,
-  onSelect,
-}: {
-  region: string;
-  events: SeismicEvent[];
-  selectedId: string | null;
-  onSelect: (ev: SeismicEvent) => void;
-}) {
-  const PREVIEW = 8;
-  const containsSelected = events.some((e) => e.id === selectedId);
-  const [open, setOpen] = useState(containsSelected);
-  const [showAll, setShowAll] = useState(false);
-  const topMag = events[0]?.mag ?? 0;
-  const listed = showAll || events.length <= PREVIEW ? events : events.slice(0, PREVIEW);
-
-  useEffect(() => {
-    if (!containsSelected) return;
-    setOpen(true);
-    const idx = events.findIndex((e) => e.id === selectedId);
-    if (idx >= PREVIEW) setShowAll(true);
-  }, [containsSelected, selectedId, events]);
-
+function SelectedDetail({ ev }: { ev: SeismicEvent }) {
+  const col = magColor(ev.mag);
   return (
-    <div style={{ border: `1px solid ${containsSelected ? magColor(topMag) : "#1a3320"}`, borderRadius: 4, overflow: "hidden", background: "#090f0b" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+    <div style={{ border: `1px solid ${col}`, borderRadius: 4, padding: "14px 16px", background: "#090f0b" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: col }}>
+          M{ev.mag.toFixed(1)} {ev.magType}
+        </span>
+        <span style={{ fontSize: 9, letterSpacing: 1.5, color: col, border: `1px solid ${col}`, borderRadius: 2, padding: "2px 7px" }}>
+          {magBand(ev.mag)}
+        </span>
+        {ev.tsunami ? (
+          <span style={{ fontSize: 9, letterSpacing: 1.5, color: "#00d4ff", border: "1px solid #00d4ff", borderRadius: 2, padding: "2px 7px" }}>
+            TSUNAMI FLAG
+          </span>
+        ) : null}
+      </div>
+      <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#e8ffe8", marginTop: 6, lineHeight: 1.35 }}>
+        {ev.place}
+      </div>
+      <div style={{ fontSize: 11, color: "#7aaa8a", marginTop: 8, lineHeight: 1.7 }}>
+        {new Date(ev.time).toUTCString()}
+        <br />
+        {ev.lat.toFixed(3)}°, {ev.lng.toFixed(3)}°
+        {ev.depthKm != null ? ` · ${ev.depthKm.toFixed(1)} km depth` : ""}
+        {ev.felt != null ? ` · ${ev.felt} felt reports` : ""}
+        {` · ${ev.sources.join(" + ").toUpperCase()}`}
+      </div>
+      <a
+        href={ev.url}
+        target="_blank"
+        rel="noreferrer"
         style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "9px 11px",
-          background: open ? "rgba(0,0,0,0.25)" : "transparent",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          fontFamily: FONT,
+          display: "inline-block",
+          marginTop: 12,
+          fontFamily: RAJ,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 2,
+          color: ACCENT,
+          textDecoration: "none",
+          border: `1px solid ${ACCENT}`,
+          padding: "6px 12px",
+          borderRadius: 3,
         }}
       >
-        <span style={{ color: magColor(topMag), fontSize: 12, flexShrink: 0, width: 14 }}>{open ? "▾" : "▸"}</span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span
-            style={{
-              display: "block",
-              fontFamily: RAJ,
-              fontSize: 11,
-              fontWeight: 700,
-              color: magColor(topMag),
-              letterSpacing: 1.5,
-              textTransform: "uppercase",
-            }}
-          >
-            {region}
-          </span>
-          {!open ? (
-            <span style={{ display: "block", fontSize: 9, color: "#3a5040", marginTop: 2 }}>
-              M{topMag.toFixed(1)} top · {events.length === 1 ? "1 event" : `${events.length} events`}
-            </span>
-          ) : null}
-        </span>
-        <span style={{ fontFamily: RAJ, fontSize: 12, fontWeight: 700, color: magColor(topMag), flexShrink: 0 }}>
-          {events.length}
-        </span>
-      </button>
-      {open ? (
-        <div>
-          {listed.map((ev) => (
-            <EventRow key={ev.id} ev={ev} selected={ev.id === selectedId} onClick={() => onSelect(ev)} />
-          ))}
-          {events.length > PREVIEW && !showAll ? (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              style={{
-                width: "100%",
-                background: "transparent",
-                border: "none",
-                borderTop: "1px solid #0d1a10",
-                padding: "8px 4px",
-                cursor: "pointer",
-                fontFamily: RAJ,
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: 1.5,
-                color: "#5a8068",
-              }}
-            >
-              SHOW ALL {events.length}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+        SOURCE RECORD ↗
+      </a>
     </div>
   );
 }
@@ -419,14 +401,17 @@ export default function SeismicTracker() {
   const [data, setData] = useState<SeismicPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<SeismicEvent | null>(null);
+  const [picked, setPicked] = useState<SeismicEvent | null>(null);
   const [filter, setFilter] = useState<Filter>("24h");
   const [query, setQuery] = useState("");
+  const [regionChoice, setRegionChoice] = useState("all");
+  const [sort, setSort] = useState<SortMode>("mag");
+  const [limitState, setLimitState] = useState({ key: "", n: PAGE });
   const [mapOpen, setMapOpen] = useState(false);
   const mapVisible = useMapBodyVisible(mapOpen);
 
   const selectEvent = useCallback((ev: SeismicEvent) => {
-    setSelected(ev);
+    setPicked(ev);
     if (isMobileViewport()) setMapOpen(true);
   }, []);
 
@@ -446,7 +431,7 @@ export default function SeismicTracker() {
         const day = Date.now() - 24 * 3600_000;
         const recent = json.events.filter((e) => new Date(e.time).getTime() >= day);
         const pick = recent.find((e) => e.mag >= 5) ?? recent[0] ?? json.events[0] ?? null;
-        if (pick) setSelected(pick);
+        if (pick) setPicked(pick);
       } catch {
         if (!cancelled) setError("Network error while loading seismic feeds.");
       } finally {
@@ -458,7 +443,7 @@ export default function SeismicTracker() {
     };
   }, []);
 
-  const visible = useMemo(() => {
+  const scoped = useMemo(() => {
     const all = data?.events ?? [];
     const day = Date.now() - 24 * 3600_000;
     const q = query.trim().toLowerCase();
@@ -474,13 +459,27 @@ export default function SeismicTracker() {
     });
   }, [data, filter, query]);
 
-  const groups = useMemo(() => groupByRegion(visible), [visible]);
+  const groups = useMemo(() => groupByRegion(scoped), [scoped]);
 
-  useEffect(() => {
-    if (!visible.length) return;
-    if (selected && visible.some((e) => e.id === selected.id)) return;
-    setSelected(visible[0]);
-  }, [visible, selected]);
+  /** A chosen region disappears whenever the other filters exclude it, so fall back to "all". */
+  const region = groups.some((g) => g.region === regionChoice) ? regionChoice : "all";
+
+  const visible = useMemo(() => {
+    const inRegion = region === "all" ? scoped : scoped.filter((e) => regionOf(e.place) === region);
+    return [...inRegion].sort((a, b) =>
+      sort === "time"
+        ? new Date(b.time).getTime() - new Date(a.time).getTime()
+        : b.mag - a.mag || new Date(b.time).getTime() - new Date(a.time).getTime(),
+    );
+  }, [scoped, region, sort]);
+
+  const listKey = `${filter}|${query}|${region}|${sort}`;
+  const limit = limitState.key === listKey ? limitState.n : PAGE;
+
+  const selected = useMemo(() => {
+    if (picked && visible.some((e) => e.id === picked.id)) return picked;
+    return visible[0] ?? picked ?? null;
+  }, [picked, visible]);
 
   const mapEvents = useMemo(() => {
     if (selected && !visible.some((e) => e.id === selected.id)) return [...visible, selected];
@@ -636,16 +635,37 @@ export default function SeismicTracker() {
               }}
             />
             <select
-              value={selected?.id ?? ""}
-              onChange={(e) => {
-                const hit = visible.find((ev) => ev.id === e.target.value);
-                if (hit) selectEvent(hit);
-              }}
+              value={region}
+              onChange={(e) => setRegionChoice(e.target.value)}
+              aria-label="Filter by region"
               style={{
-                flex: "1 1 260px",
+                flex: "1 1 240px",
                 minWidth: 200,
                 background: "#090f0b",
-                border: `1px solid ${ACCENT}66`,
+                border: `1px solid ${region === "all" ? "#1a3320" : ACCENT}`,
+                borderRadius: 3,
+                color: region === "all" ? "#c8e8d0" : ACCENT,
+                fontFamily: FONT,
+                fontSize: 12,
+                padding: "8px 10px",
+              }}
+            >
+              <option value="all">All regions ({groups.length})</option>
+              {groups.map((g) => (
+                <option key={g.region} value={g.region}>
+                  {g.region} ({g.events.length}) — max M{g.events[0].mag.toFixed(1)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortMode)}
+              aria-label="Sort events"
+              style={{
+                flex: "0 1 170px",
+                minWidth: 150,
+                background: "#090f0b",
+                border: "1px solid #1a3320",
                 borderRadius: 3,
                 color: "#c8e8d0",
                 fontFamily: FONT,
@@ -653,16 +673,8 @@ export default function SeismicTracker() {
                 padding: "8px 10px",
               }}
             >
-              <option value="">Jump to event…</option>
-              {groups.map((g) => (
-                <optgroup key={g.region} label={`${g.region} (${g.events.length})`}>
-                  {g.events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      M{ev.mag.toFixed(1)} · {ev.place} · {seismicTimeAgo(ev.time)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
+              <option value="mag">Strongest first</option>
+              <option value="time">Newest first</option>
             </select>
           </div>
 
@@ -696,70 +708,69 @@ export default function SeismicTracker() {
             className="seis-grid"
           >
             {mapVisible ? (
-              <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
                 <SeismicMap events={mapEvents} selected={selected} onSelect={selectEvent} />
-                <p style={{ fontSize: 10, color: "#3a5040", marginTop: 8, lineHeight: 1.6 }}>
+                <p style={{ fontSize: 10, color: "#3a5040", lineHeight: 1.6 }}>
                   Official USGS and EMSC catalogs — not a detection network. Marker size tracks magnitude. Cyan ring = tsunami flag on the USGS event.
                 </p>
+                {selected ? <SelectedDetail ev={selected} /> : null}
               </div>
             ) : null}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-              {selected ? (
-                <div style={{ border: `1px solid ${magColor(selected.mag)}`, borderRadius: 4, padding: "14px 16px", background: "#090f0b" }}>
-                  <div style={{ fontFamily: RAJ, fontSize: 22, fontWeight: 700, color: magColor(selected.mag) }}>
-                    M{selected.mag.toFixed(1)} {selected.magType}
-                  </div>
-                  <div style={{ fontFamily: RAJ, fontSize: 15, fontWeight: 700, color: "#e8ffe8", marginTop: 6, lineHeight: 1.35 }}>
-                    {selected.place}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#7aaa8a", marginTop: 8, lineHeight: 1.7 }}>
-                    {new Date(selected.time).toUTCString()}
-                    <br />
-                    {selected.lat.toFixed(3)}°, {selected.lng.toFixed(3)}°
-                    {selected.depthKm != null ? ` · ${selected.depthKm.toFixed(1)} km depth` : ""}
-                    {selected.felt != null ? ` · ${selected.felt} felt reports` : ""}
-                  </div>
-                  <a
-                    href={selected.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: "inline-block",
-                      marginTop: 12,
-                      fontFamily: RAJ,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: 2,
-                      color: ACCENT,
-                      textDecoration: "none",
-                      border: `1px solid ${ACCENT}`,
-                      padding: "6px 12px",
-                      borderRadius: 3,
-                    }}
-                  >
-                    SOURCE RECORD ↗
-                  </a>
-                </div>
-              ) : null}
+              {!mapVisible && selected ? <SelectedDetail ev={selected} /> : null}
 
-              <div style={{ fontFamily: RAJ, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#5a8068" }}>
-                {visible.length} MATCHES · {groups.length} REGIONS
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  fontFamily: RAJ,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 2,
+                  color: "#5a8068",
+                }}
+              >
+                <span>{region === "all" ? "ALL REGIONS" : region}</span>
+                <span>
+                  {Math.min(limit, visible.length)}/{visible.length}
+                </span>
               </div>
 
               {visible.length === 0 ? (
                 <div style={{ fontSize: 12, color: "#5a8068", padding: "16px 8px" }}>No events match this filter.</div>
               ) : (
-                <div style={{ maxHeight: 520, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 }}>
-                  {groups.map((g) => (
-                    <RegionFold
-                      key={g.region}
-                      region={g.region}
-                      events={g.events}
-                      selectedId={selected?.id ?? null}
-                      onSelect={selectEvent}
+                <div style={{ maxHeight: 560, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, paddingRight: 3 }}>
+                  {visible.slice(0, limit).map((ev) => (
+                    <EventRow
+                      key={ev.id}
+                      ev={ev}
+                      selected={selected?.id === ev.id}
+                      onClick={() => selectEvent(ev)}
                     />
                   ))}
+                  {visible.length > limit ? (
+                    <button
+                      type="button"
+                      onClick={() => setLimitState({ key: listKey, n: limit + PAGE })}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid #1a3320",
+                        borderRadius: 3,
+                        padding: "9px 0",
+                        cursor: "pointer",
+                        fontFamily: RAJ,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: 2,
+                        color: "#7aaa8a",
+                      }}
+                    >
+                      LOAD {Math.min(PAGE, visible.length - limit)} MORE
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>
