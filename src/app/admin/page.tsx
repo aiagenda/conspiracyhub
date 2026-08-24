@@ -1570,6 +1570,7 @@ export default function AdminPage() {
               <a href="/guide" className="no-underline hover:underline">Guide</a>
               <a href="/uap" className="no-underline hover:underline">UAP</a>
               <a href="/outbreaks" className="no-underline hover:underline">Outbreaks</a>
+              <a href="/seismic" className="no-underline hover:underline">Seismic</a>
               <a href="/insider-radar" className="no-underline hover:underline">Insider radar</a>
             </div>
           </section>

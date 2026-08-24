@@ -7,6 +7,7 @@ import SiteNav from "@/components/SiteNav";
 import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
 import ContinueReadingBanner from "@/components/ContinueReadingBanner";
+import SeismicFeedStrip from "@/components/SeismicFeedStrip";
 import FeedGuestArchiveCta from "@/components/FeedGuestArchiveCta";
 import type { NewsItem } from "@/types";
 import { pageContentShellStyle } from "@/lib/pageShell";
@@ -262,7 +263,12 @@ export default function FeedScreen({
             </div>
           </div>
 
-          {(!feedPagination || feedPagination.page === 1) ? <ContinueReadingBanner /> : null}
+          {(!feedPagination || feedPagination.page === 1) ? (
+            <>
+              <ContinueReadingBanner />
+              <SeismicFeedStrip />
+            </>
+          ) : null}
 
           {/* SORT + COUNT */}
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: 10 }}>

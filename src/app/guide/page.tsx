@@ -76,6 +76,7 @@ export default function GuidePage() {
             <Row label="FEED" color="#00ff88">Home <code style={{ color: "#3a5040" }}>/</code> — priority-scored news stream.</Row>
             <Row label="UAP FILES" color="#8aa6ff">Dedicated UAP database <code style={{ color: "#3a5040" }}>/uap</code>.</Row>
             <Row label="OUTBREAKS" color="#ff3333">Health alerts <code style={{ color: "#3a5040" }}>/outbreaks</code>.</Row>
+            <Row label="SEISMIC" color="#ff8844">Live earthquake monitor <code style={{ color: "#3a5040" }}>/seismic</code> — USGS + EMSC.</Row>
             <Row label="INSIDER RADAR" color="#ffaa00">Live insider feed <code style={{ color: "#3a5040" }}>/insider-radar</code> — UAP researchers, whistleblowers, journalists, Congress (see section below).</Row>
             <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
             <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
@@ -204,6 +205,17 @@ export default function GuidePage() {
             <Row label="HIGH" color="#ff6600">Multiple countries affected or unusual pathogen.</Row>
             <Row label="MODERATE" color="#ffaa00">Monitored, currently under control.</Row>
             <Row label="LOW" color="#00bb66">Localised, no spread detected.</Row>
+          </Section>
+
+          {/* SEISMIC */}
+          <Section icon="◎" title="Seismic Monitor" color="#ff8844">
+            <Note>
+              <code style={{ color: "#3a5040" }}>/seismic</code> aggregates official catalogs — USGS GeoJSON (M2.5+ 24h, M4.5+ 7d, significant 30d) and EMSC FDSN (M2.5+). Events are deduped by time + location. This is a monitor, not a sensor network.
+            </Note>
+            <Row label="M6+" color="#ff3333">Strong / major — largest markers, pulse ring.</Row>
+            <Row label="M5+" color="#ff6633">Moderate. Also listed on the feed homepage when they occur in the last 24 hours.</Row>
+            <Row label="SIGNIFICANT" color="#ffaa00">USGS significant-event list (impact / felt / media, not only magnitude).</Row>
+            <Row label="TSUNAMI" color="#00d4ff">USGS tsunami flag on the event record — not a local warning.</Row>
           </Section>
 
           {/* SEARCH */}

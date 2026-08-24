@@ -62,6 +62,8 @@ export const TOOLKIT_CATEGORIES: ToolkitCategory[] = [
       { name: "OSINT on Chain", url: "https://osint.intelligenceonchain.com/", blurb: "Blockchain-adjacent OSINT resources." },
       { name: "PentestList", url: "https://pentestlist.com/", blurb: "Searchable pentest/OSINT tool directory." },
       { name: "UseOdin", url: "https://www.useodin.net/", blurb: "OSINT platform for analysts." },
+      { name: "USGS Earthquake Hazards", url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php", blurb: "Official GeoJSON catalogs — powers The Theorist /seismic monitor." },
+      { name: "EMSC / Seismic Portal", url: "https://www.seismicportal.eu/", blurb: "European-Mediterranean Seismological Centre FDSN event feed." },
       { name: "Osiris AI Live Map", url: "https://www.osirisai.live/", blurb: "Global incidents, CCTV, earthquakes, live news — situational awareness layer." },
       { name: "ExtractFace", url: "https://github.com/mrpnkt/ExtractFace", blurb: "Facebook photo/face extraction helpers for authorized research." },
       { name: "fb-sleep-stats", url: "https://github.com/sorenlouv/fb-sleep-stats", blurb: "Activity-pattern analysis from public Facebook signals." },

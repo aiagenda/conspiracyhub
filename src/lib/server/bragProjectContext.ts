@@ -10,7 +10,8 @@ Core features to show in a launch video:
 3. ANALYSIS REPORTS — Long-form AI investigative articles at /blog (SEO deep-dives, FAQ schema).
 4. UAP FILES — Documented sighting archive at /uap.
 5. OUTBREAK TRACKER — Health intelligence at /outbreaks.
-6. INSIDER RADAR — Live X/Twitter feed from UAP researchers at /insider-radar.
+6. SEISMIC MONITOR — Live USGS + EMSC earthquake catalog at /seismic.
+7. INSIDER RADAR — Live X/Twitter feed from UAP researchers at /insider-radar.
 
 Visual identity:
 - Background: #050c07 (terminal green-black)

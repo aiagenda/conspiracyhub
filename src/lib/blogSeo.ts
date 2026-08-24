@@ -176,6 +176,7 @@ export function injectInternalLinks(
     lines.push(
       `- [Investigation reports](${site}/blog) — AI deep-dives on cover-ups, UAP, and declassified programs`,
       `- [UAP files](${site}/uap) — documented sighting archive`,
+      `- [Seismic monitor](${site}/seismic) — live USGS + EMSC earthquake catalog`,
       `- [Investigation Board](${site}/guide) — interactive Oracle graph per story`,
     );
   }
