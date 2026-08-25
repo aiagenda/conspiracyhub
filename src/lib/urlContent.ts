@@ -1,10 +1,23 @@
 /**
  * Fetches readable title + text for URL analysis (Oracle / analyze-url).
  * Uses platform-specific APIs where plain HTML scraping fails (social).
+ * On 403/paywall: tries Firecrawl/Jina (optional keys), then Brave mirror search.
  */
 
-const UA = "TheTheorist/1.0 (+https://conspiracyhub.vercel.app)";
+import { searchBrave } from "@/lib/braveSearch";
+
+const UA = "Mozilla/5.0 (compatible; TheTheorist/1.0; +https://the-theorist.com)";
 const MAX_TEXT = 8000;
+
+const FETCH_HEADERS = {
+  "User-Agent": UA,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Cache-Control": "no-cache",
+} as const;
+
+const MIRROR_HOST =
+  /(?:^|\.)reuters\.com$|(?:^|\.)apnews\.com$|(?:^|\.)arstechnica\.com$|(?:^|\.)theverge\.com$|(?:^|\.)techcrunch\.com$|(?:^|\.)wired\.com$|(?:^|\.)bbc\.(?:co\.uk|com)$|(?:^|\.)theguardian\.com$|(?:^|\.)npr\.org$|(?:^|\.)axios\.com$|(?:^|\.)fortune\.com$|(?:^|\.)engadget\.com$|(?:^|\.)theregister\.com$|(?:^|\.)huggingface\.co$/i;
 
 function stripHtml(html: string): string {
   return html
@@ -222,24 +235,7 @@ async function extractPdfContent(url: string, buffer: ArrayBuffer): Promise<{ ti
   return { title: `PDF · ${title.slice(0, 140)}`, text: clean.slice(0, MAX_TEXT), source: "pdf" };
 }
 
-async function scrapeGenericHtml(url: string): Promise<{ title: string; text: string; source: "html" | "pdf" }> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,application/pdf" },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) throw new Error(`Cannot fetch URL: HTTP ${res.status}`);
-
-  const contentType = (res.headers.get("content-type") || "").toLowerCase();
-  if (contentType.includes("application/pdf") || /\.pdf(?:$|[?#])/i.test(url)) {
-    const declared = Number(res.headers.get("content-length") || "0");
-    if (declared > MAX_PDF_BYTES) throw new Error(`PDF too large to analyze (${Math.round(declared / 1e6)} MB).`);
-    const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > MAX_PDF_BYTES) throw new Error(`PDF too large to analyze (${Math.round(buffer.byteLength / 1e6)} MB).`);
-    return await extractPdfContent(url, buffer);
-  }
-
-  const html = await res.text();
-
+function parseHtmlArticle(html: string): { title: string; text: string } {
   const title =
     html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)?.[1] ||
     html.match(/<meta[^>]+property='og:title'[^>]+content='([^']+)'/i)?.[1] ||
@@ -259,7 +255,176 @@ async function scrapeGenericHtml(url: string): Promise<{ title: string; text: st
     .trim()
     .slice(0, 5000);
 
-  return { title: title.trim(), text: ((desc ? `${desc} ` : "") + bodyText).slice(0, MAX_TEXT), source: "html" };
+  return {
+    title: title.trim(),
+    text: ((desc ? `${desc} ` : "") + bodyText).slice(0, MAX_TEXT),
+  };
+}
+
+function slugToSearchQuery(url: URL): string {
+  const parts = url.pathname.split("/").filter(Boolean);
+  const slug = (parts[parts.length - 1] ?? "").replace(/\.html?$/i, "");
+  return slug.replace(/[-_]+/g, " ").replace(/\d{4,}/g, " ").replace(/\s+/g, " ").trim();
+}
+
+async function fetchFirecrawlMarkdown(url: string): Promise<{ title: string; text: string } | null> {
+  const key = process.env.FIRECRAWL_API_KEY?.trim();
+  if (!key) return null;
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown"],
+        onlyMainContent: true,
+        timeout: 30000,
+      }),
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      success?: boolean;
+      data?: { markdown?: string; metadata?: { title?: string } };
+    };
+    const md = data?.data?.markdown?.trim();
+    if (!md || md.length < 120) return null;
+    const title =
+      data?.data?.metadata?.title?.trim() ||
+      md.match(/^#\s+(.+)/m)?.[1]?.trim() ||
+      "Article";
+    return { title, text: md.slice(0, MAX_TEXT) };
+  } catch {
+    return null;
+  }
+}
+
+function parseJinaReaderBody(body: string): { title: string; text: string } | null {
+  if (/AbuseAlleviationError|blocked until/i.test(body)) return null;
+  const title = body.match(/^Title:\s*(.+)$/m)?.[1]?.trim();
+  const md = body.match(/Markdown Content:\s*\n([\s\S]+)/)?.[1]?.trim() ?? body.trim();
+  if (!md || md.length < 120) return null;
+  const cleanTitle =
+    title && !/^404|try searching/i.test(title)
+      ? title
+      : md.match(/^#\s+(.+)/m)?.[1]?.trim() ?? "Article";
+  return { title: cleanTitle, text: md.slice(0, MAX_TEXT) };
+}
+
+async function fetchJinaReaderMarkdown(url: string): Promise<{ title: string; text: string } | null> {
+  const key = process.env.JINA_READER_API_KEY?.trim();
+  try {
+    const headers: Record<string, string> = {
+      Accept: "text/markdown",
+      "User-Agent": UA,
+      "X-Return-Format": "markdown",
+    };
+    if (key) headers.Authorization = `Bearer ${key}`;
+
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      headers,
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!res.ok) return null;
+    return parseJinaReaderBody(await res.text());
+  } catch {
+    return null;
+  }
+}
+
+async function fetchViaBraveMirror(blockedUrl: string): Promise<{ title: string; text: string } | null> {
+  if (!process.env.BRAVE_SEARCH_API_KEY?.trim()) return null;
+
+  let original: URL;
+  try {
+    original = new URL(blockedUrl);
+  } catch {
+    return null;
+  }
+  const blockedHost = original.hostname.replace(/^www\./, "").toLowerCase();
+  const query = slugToSearchQuery(original);
+  if (query.length < 10) return null;
+
+  const results = await searchBrave(query, 8, 0, "pm");
+  const candidates = results.filter((r) => {
+    try {
+      const h = new URL(r.url).hostname.replace(/^www\./, "").toLowerCase();
+      return h !== blockedHost;
+    } catch {
+      return false;
+    }
+  });
+
+  const ordered = [
+    ...candidates.filter((r) => MIRROR_HOST.test(new URL(r.url).hostname)),
+    ...candidates.filter((r) => !MIRROR_HOST.test(new URL(r.url).hostname)),
+  ];
+
+  for (const hit of ordered.slice(0, 5)) {
+    try {
+      const res = await fetch(hit.url, {
+        headers: FETCH_HEADERS,
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) continue;
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (contentType.includes("application/pdf")) continue;
+      const parsed = parseHtmlArticle(await res.text());
+      if (parsed.text.length >= 400) {
+        return { title: hit.title || parsed.title, text: parsed.text };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+async function fetchWithReaderFallbacks(url: string): Promise<{ title: string; text: string } | null> {
+  const firecrawl = await fetchFirecrawlMarkdown(url);
+  if (firecrawl) return firecrawl;
+
+  const jina = await fetchJinaReaderMarkdown(url);
+  if (jina) return jina;
+
+  return fetchViaBraveMirror(url);
+}
+
+async function scrapeGenericHtml(url: string): Promise<{ title: string; text: string; source: "html" | "pdf" }> {
+  const res = await fetch(url, {
+    headers: FETCH_HEADERS,
+    redirect: "follow",
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    if ([401, 403, 429, 503].includes(res.status)) {
+      const fallback = await fetchWithReaderFallbacks(url);
+      if (fallback) return { ...fallback, source: "html" };
+    }
+    const hint =
+      res.status === 403
+        ? " — site blocks automated access (NYT, WSJ, etc.). Paste the article text, or set FIRECRAWL_API_KEY in Vercel."
+        : "";
+    throw new Error(`Cannot fetch URL: HTTP ${res.status}${hint}`);
+  }
+
+  const contentType = (res.headers.get("content-type") || "").toLowerCase();
+  if (contentType.includes("application/pdf") || /\.pdf(?:$|[?#])/i.test(url)) {
+    const declared = Number(res.headers.get("content-length") || "0");
+    if (declared > MAX_PDF_BYTES) throw new Error(`PDF too large to analyze (${Math.round(declared / 1e6)} MB).`);
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > MAX_PDF_BYTES) throw new Error(`PDF too large to analyze (${Math.round(buffer.byteLength / 1e6)} MB).`);
+    return await extractPdfContent(url, buffer);
+  }
+
+  const parsed = parseHtmlArticle(await res.text());
+  return { ...parsed, source: "html" };
 }
 
 export type UrlContentSource = "twitter" | "reddit" | "bluesky" | "threads" | "youtube" | "pdf" | "html";
