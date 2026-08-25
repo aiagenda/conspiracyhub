@@ -1,4 +1,4 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import type { SeismicEvent, SeismicFeedStatus, SeismicPayload, SeismicSource } from "@/lib/seismic";
 
 const UA = "TheTheorist/1.0 (+https://the-theorist.com; seismic tracker)";
@@ -255,9 +255,26 @@ async function fetchAndMergeSeismic(): Promise<SeismicPayload> {
   };
 }
 
+export const SEISMIC_CACHE_TAG = "seismic-payload";
+
 export const loadSeismicPayload = unstable_cache(fetchAndMergeSeismic, ["seismic-payload-v1"], {
   revalidate: 300,
+  tags: [SEISMIC_CACHE_TAG],
 });
+
+export async function runSeismicRefresh(): Promise<{
+  ok: boolean;
+  status: number;
+  payload: SeismicPayload | { error: string };
+}> {
+  try {
+    const payload = await fetchAndMergeSeismic();
+    revalidateTag(SEISMIC_CACHE_TAG);
+    return { ok: true, status: 200, payload };
+  } catch (e) {
+    return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
+  }
+}
 
 export function pickSeismicHighlight(payload: SeismicPayload): SeismicEvent | null {
   const week = Date.now() - 7 * 24 * 3600_000;

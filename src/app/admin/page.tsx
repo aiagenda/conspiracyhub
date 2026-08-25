@@ -23,7 +23,6 @@ import {
 import { PostHogAdminSection } from "@/components/admin/PostHogAdminSection";
 import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
-import { RedditRadarSection } from "@/components/admin/RedditRadarSection";
 import { BragStudioSection } from "@/components/admin/BragStudioSection";
 import { TechDeskSection } from "@/components/admin/TechDeskSection";
 
@@ -813,7 +812,7 @@ export default function AdminPage() {
           j.target === "uap_scraper" ||
           j.target === "outbreak_scraper" ||
           j.target === "insider_radar_scraper" ||
-          j.target === "reddit_radar_scraper",
+          j.target === "seismic_scraper",
       ),
     [scrapers],
   );
@@ -851,6 +850,10 @@ export default function AdminPage() {
   );
   const uapRefreshJob = useMemo(
     () => scrapers.find((j) => j.job_key === "uap_full_refresh" || j.target === "uap_scraper") ?? null,
+    [scrapers],
+  );
+  const seismicRefreshJob = useMemo(
+    () => scrapers.find((j) => j.job_key === "seismic_refresh" || j.target === "seismic_scraper") ?? null,
     [scrapers],
   );
 
@@ -1004,7 +1007,8 @@ export default function AdminPage() {
         job.target === "news_scraper" ||
         job.target === "outbreak_scraper" ||
         job.target === "uap_scraper" ||
-        job.target === "insider_radar_scraper"
+        job.target === "insider_radar_scraper" ||
+        job.target === "seismic_scraper"
       ) {
         if (!res.ok) {
           if (job.target === "uap_scraper") {
@@ -1044,6 +1048,17 @@ export default function AdminPage() {
           } else if (job.target === "insider_radar_scraper") {
             const n = typeof p.x_twitter_posts === "number" ? p.x_twitter_posts : "?";
             setNewsIngestHint(`insider radar · ${n} X posts · ${String(p.refreshed_at ?? p.generated_at ?? "?")}`);
+          } else if (job.target === "seismic_scraper") {
+            const n = Array.isArray(p.events) ? p.events.length : "?";
+            const stats = p.stats as { m5?: number; significant?: number } | undefined;
+            const feeds = Array.isArray(p.feeds)
+              ? (p.feeds as Array<{ id?: string; ok?: boolean }>)
+                  .map((f) => `${f.id ?? "?"}:${f.ok ? "ok" : "err"}`)
+                  .join(" · ")
+              : "";
+            setNewsIngestHint(
+              `seismic · ${n} events · M5+ ${stats?.m5 ?? "?"} · sig ${stats?.significant ?? "?"}${feeds ? ` · ${feeds}` : ""} · ${String(p.generated_at ?? "?")}`,
+            );
           } else {
             const src = p.sources as Record<string, number> | undefined;
             const parts: string[] = [];
@@ -1351,6 +1366,26 @@ export default function AdminPage() {
             })()}
           </div>
         ) : null}
+        {job.target === "seismic_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "events" in last.result ? (
+          <div
+            className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
+            style={{ borderColor: "#1a2620", color: "var(--green-dim)" }}
+            title={JSON.stringify(last.result)}
+          >
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+              Last run
+            </span>
+            {(() => {
+              const r = last.result as {
+                events?: unknown[];
+                generated_at?: string;
+                stats?: { m5?: number; significant?: number };
+              };
+              const n = Array.isArray(r.events) ? r.events.length : 0;
+              return `${n} events · M5+ ${r.stats?.m5 ?? 0} · sig ${r.stats?.significant ?? 0} · ${r.generated_at ? new Date(r.generated_at).toLocaleString("en-GB") : "—"}`;
+            })()}
+          </div>
+        ) : null}
         {job.target === "news_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "inserted" in last.result ? (
           <div
             className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
@@ -1536,14 +1571,17 @@ export default function AdminPage() {
                     {scraperBusy === uapRefreshJob.id ? "…" : "UAP refresh"}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => { setActiveTab("content"); setContentSubTab("reddit"); }}
-                  className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
-                  style={{ borderColor: "#ff6600", color: "#ff6600" }}
-                >
-                  Reddit radar
-                </button>
+                {seismicRefreshJob ? (
+                  <button
+                    type="button"
+                    disabled={scraperBusy === seismicRefreshJob.id}
+                    onClick={() => void runScraperNow(seismicRefreshJob)}
+                    className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-50"
+                    style={{ borderColor: "#ff8844", color: "#ff8844", background: "rgba(255,136,68,0.08)" }}
+                  >
+                    {scraperBusy === seismicRefreshJob.id ? "…" : "Seismic refresh"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => { setActiveTab("content"); setContentSubTab("twitter"); }}
@@ -2104,12 +2142,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {contentSubTab === "reddit" && (
-              <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
-                <RedditRadarSection />
-              </div>
-            )}
-
             {contentSubTab === "brag" && (
               <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
                 <BragStudioSection />
@@ -2588,7 +2620,8 @@ export default function AdminPage() {
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
               <strong style={{ color: "var(--foreground)" }}>UAP full intelligence refresh</strong> updates Latest News, Documents (FOIA feeds), curated Incidents/People/Orgs seed, and NUFORC Sightings in one run.{" "}
-              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.
+              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.{" "}
+              <strong style={{ color: "var(--foreground)" }}>Seismic refresh</strong> pulls USGS + EMSC feeds, merges duplicates, and busts the /seismic page cache (~5 min TTL on page loads).
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
                 Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
