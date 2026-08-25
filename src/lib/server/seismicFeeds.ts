@@ -269,7 +269,7 @@ export async function runSeismicRefresh(): Promise<{
 }> {
   try {
     const payload = await fetchAndMergeSeismic();
-    revalidateTag(SEISMIC_CACHE_TAG);
+    revalidateTag(SEISMIC_CACHE_TAG, { expire: 0 });
     return { ok: true, status: 200, payload };
   } catch (e) {
     return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
