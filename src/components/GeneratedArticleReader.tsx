@@ -382,6 +382,10 @@ export default function GeneratedArticleReader({
               .blog-content blockquote{border-left:2px solid #00bb66;margin:1.5rem 0;padding:0 0 0 1rem;}
               .blog-content blockquote p{color:#7aaa8a;font-style:italic;}
               .blog-content hr{border:none;border-top:1px solid #1a3320;margin:2rem 0;}
+              .blog-content img{width:100%;max-height:420px;object-fit:cover;border-radius:4px;margin:1.75rem 0 0.35rem;border:1px solid #1a3320;filter:saturate(0.55) brightness(0.78);}
+              .blog-content p:has(img){margin:1.75rem 0 0.25rem;}
+              .blog-content p:has(img)+p{font-size:12px;color:#5a8068;text-align:center;margin:-0.15rem 0 1.75rem;line-height:1.55;font-style:italic;}
+              .blog-content em:only-child{display:block;font-size:12px;color:#5a8068;text-align:center;margin:-0.5rem 0 1.75rem;line-height:1.55;font-style:italic;}
             `}</style>
               <div className="blog-content">
                 <ReactMarkdown>{markdown}</ReactMarkdown>

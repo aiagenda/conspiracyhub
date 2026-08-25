@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
-import { getFeedMinScore } from "@/lib/feedMinScore";
+import { getFeedMinScore, getAlertMinScore } from "@/lib/feedMinScore";
 import { SYSTEM_SCORE } from "@/lib/prompts";
+import {
+  loadPendingRewriteCandidates,
+  rewriteNewsItemsBatch,
+  type NewsItemRewriteRow,
+} from "@/lib/server/newsArticleRewrite";
 
 export const maxDuration = 300; // 5 min – Vercel Pro max for cron routes
 
@@ -372,6 +377,8 @@ export async function runScraper(openAiKey: string) {
   // ── 4. Score in batches of 20 ─────────────────────────────────────────────
   const BATCH = 20;
   let inserted = 0;
+  const rewriteQueue: NewsItemRewriteRow[] = [];
+  const REWRITE_CAP = Math.min(8, Math.max(2, parseInt(process.env.NEWS_REWRITE_CAP ?? "5", 10) || 5));
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   for (let i = 0; i < fresh.length; i += BATCH) {
@@ -407,12 +414,18 @@ export async function runScraper(openAiKey: string) {
           angle: a.angle,
           source: a.source,
         }));
-        const { error } = await admin.from("news_items").upsert(rows, { onConflict: "guardian_id" });
-        if (!error) {
-          inserted += rows.length;
-          // Fire alerts for high-threat articles (score ≥ 75)
-          for (const row of rows) {
-            if (row.score >= 75) {
+        const { data: upserted, error } = await admin
+          .from("news_items")
+          .upsert(rows, { onConflict: "guardian_id" })
+          .select("id, title, summary, angle, score, section, url, source, guardian_id, image, body_html, rewrite_status");
+        if (!error && upserted?.length) {
+          inserted += upserted.length;
+          for (const row of upserted) {
+            rewriteQueue.push(row as NewsItemRewriteRow);
+          }
+          // Fire alerts for exceptional scores only (default ≥85)
+          for (const row of upserted) {
+            if ((row.score ?? 0) >= getAlertMinScore()) {
               try {
                 await fetch(`${baseUrl}/api/alerts`, {
                   method: "POST",
@@ -426,13 +439,33 @@ export async function runScraper(openAiKey: string) {
               }
             }
           }
-        } else {
+        } else if (error) {
           console.error("[scraper] upsert error:", error.message);
         }
       }
     } catch (e) {
       console.error(`[scraper] batch ${i} scoring error:`, e);
     }
+  }
+
+  // ── 5. SEO rewrite for high-score feed articles ───────────────────────────
+  let rewriteStats = { ready: 0, skipped: 0, failed: 0 };
+  try {
+    const backlog = await loadPendingRewriteCandidates(admin, REWRITE_CAP);
+    const seen = new Set<string>();
+    const toRewrite: NewsItemRewriteRow[] = [];
+    for (const row of [...rewriteQueue, ...backlog]) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      toRewrite.push(row);
+      if (toRewrite.length >= REWRITE_CAP) break;
+    }
+    if (toRewrite.length) {
+      console.log(`[scraper] rewriting up to ${toRewrite.length} feed articles (cap=${REWRITE_CAP})`);
+      rewriteStats = await rewriteNewsItemsBatch(admin, openAiKey, toRewrite, REWRITE_CAP);
+    }
+  } catch (e) {
+    console.error("[scraper] rewrite batch error:", e);
   }
 
   return {
@@ -442,6 +475,7 @@ export async function runScraper(openAiKey: string) {
     missing_from_db: missing.length,
     scored_this_run: fresh.length,
     min_score: minScore,
+    rewrite: rewriteStats,
     sources: { guardian: guardian.length, gnews: gnews.length, reddit: reddit.length, rss: rssResults.flat().length },
     timestamp: new Date().toISOString(),
   };

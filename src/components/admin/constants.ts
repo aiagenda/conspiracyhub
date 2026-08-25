@@ -5,8 +5,8 @@ export const cardBg = "#080c09";
 export const muted = "#5a8068";
 
 export type AdminTab = "dashboard" | "audience" | "content" | "automation" | "inbox";
-export type ContentSubTab = "articles" | "blog" | "twitter" | "reddit";
-export type AutomationSubTab = "ingest" | "seo" | "writers" | "lore";
+export type ContentSubTab = "articles" | "blog" | "twitter" | "brag";
+export type AutomationSubTab = "ingest" | "seo" | "writers" | "lore" | "tech";
 
 export const ADMIN_TABS: { id: AdminTab; label: string; accent?: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -20,7 +20,7 @@ export const CONTENT_SUBTABS: { id: ContentSubTab; label: string }[] = [
   { id: "articles", label: "Feed articles" },
   { id: "blog", label: "Blog reports" },
   { id: "twitter", label: "X Drafts" },
-  { id: "reddit", label: "Reddit Radar" },
+  { id: "brag", label: "Brag Studio" },
 ];
 
 export const AUTOMATION_SUBTABS: { id: AutomationSubTab; label: string }[] = [
@@ -28,4 +28,5 @@ export const AUTOMATION_SUBTABS: { id: AutomationSubTab; label: string }[] = [
   { id: "seo", label: "SEO / GSC" },
   { id: "writers", label: "Writers" },
   { id: "lore", label: "Lore dossier" },
+  { id: "tech", label: "AI & Tech desk" },
 ];

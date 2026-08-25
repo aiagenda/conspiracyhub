@@ -76,10 +76,13 @@ export default function GuidePage() {
             <Row label="FEED" color="#00ff88">Home <code style={{ color: "#3a5040" }}>/</code> — priority-scored news stream.</Row>
             <Row label="UAP FILES" color="#8aa6ff">Dedicated UAP database <code style={{ color: "#3a5040" }}>/uap</code>.</Row>
             <Row label="OUTBREAKS" color="#ff3333">Health alerts <code style={{ color: "#3a5040" }}>/outbreaks</code>.</Row>
+            <Row label="SEISMIC" color="#ff8844">Live earthquake monitor <code style={{ color: "#3a5040" }}>/seismic</code> — USGS + EMSC.</Row>
             <Row label="INSIDER RADAR" color="#ffaa00">Live insider feed <code style={{ color: "#3a5040" }}>/insider-radar</code> — UAP researchers, whistleblowers, journalists, Congress (see section below).</Row>
             <Row label="ANALYSIS" color="#c94dff">Investigation <strong style={{ color: "#c8e8d0" }}>Reports</strong> index <code style={{ color: "#3a5040" }}>/blog</code> — long-form published reports (not the Oracle engine).</Row>
             <Row label="SEARCH" color="#5a8068">Full-text + URL tools <code style={{ color: "#3a5040" }}>/search</code>.</Row>
             <Row label="GUIDE" color="#5a8068">This page <code style={{ color: "#3a5040" }}>/guide</code>.</Row>
+            <Row label="TOOLKIT" color="#00bb66">Curated GitHub + OSINT links <code style={{ color: "#3a5040" }}>/toolkit</code> — research stack for hardcore builders.</Row>
+            <Row label="AI &amp; TECH" color="#00d4ff">Factual tech desk <code style={{ color: "#3a5040" }}>/ai</code>.</Row>
             <Row label="ACCOUNT" color="#5a8068">Profile, Analyst Pass, saved investigations, email prefs <code style={{ color: "#3a5040" }}>/account</code> — sign in from the feed first.</Row>
             <Sub>Do not confuse</Sub>
             <Row label="ANALYSIS" color="#c94dff">Product area: the <code style={{ color: "#3a5040" }}>/blog</code> report list and each report at <code style={{ color: "#3a5040" }}>/blog/[slug]</code>.</Row>
@@ -91,16 +94,16 @@ export default function GuidePage() {
 
           {/* FEED */}
           <Section icon="◈" title="Main Feed" color="#00ff88">
-            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority score (0–100). Only articles scoring 70+ are shown in the main stream.</Note>
+            <Note>Homepage collects articles from Guardian API, Google News, Reddit and FOIA databases. GPT-4o assigns a priority score (0–100). Only articles scoring 80+ are shown in the main stream. High-score items get an SEO rewrite on ingest (550–900 words) with source attribution on the article page.</Note>
             <Sub>Highest impact signal</Sub>
             <Note>At the top of page 1, the hero card highlights the <strong style={{ color: "#c8e8d0" }}>highest priority score</strong> from the last 7 days — not a separate editorial pick. The percentage matches the same AI score used on news cards.</Note>
             <Sub>Continue where you left off</Sub>
             <Note>When you open an article, report, or board, the feed remembers your last position (browser storage; synced to your account when signed in). Page 1 shows a resume banner if you have a saved session.</Note>
             <Sub>Pagination &amp; access</Sub>
-            <Row label="PAGE 1" color="#00ff88">Always free — no account required.</Row>
-            <Row label="PAGE 2+" color="#ffaa00">Free registered account required. Guests see a sign-in prompt instead of older archive pages.</Row>
+            <Row label="PAGE 1+" color="#00ff88">All feed pages are free to browse — no registration wall on the archive.</Row>
+            <Row label="GUEST CTA" color="#00bb66">Guests see a soft prompt: Weekly Oracle Brief newsletter or free registration (Oracle, saved investigations).</Row>
             <Sub>News card</Sub>
-            <Row label="82% PRIORITY" color="#ff3333">AI priority / impact score. 80+ = high (red), 70–79 = elevated. Below 70 is hidden from the feed.</Row>
+            <Row label="82% PRIORITY" color="#ff3333">AI priority / impact score. 85+ = critical alert, 80+ = feed (red), 70–79 = stored but hidden. Below 80 is not shown in the feed.</Row>
             <Row label="TIER A" color="#ffaa00">Source tier — A = official/primary (Guardian, FOIA), B = established media, C = community/unverified.</Row>
             <Row label={"◈ READ & INVESTIGATE ▶"} color="#00ff88">Opens the article reader (<code style={{ color: "#3a5040" }}>/article/[id]</code>). From there, open the Board; optional per-article live chat appears in the dock only when <code style={{ color: "#3a5040" }}>NEXT_PUBLIC_LIVE_CHAT_ENABLED=true</code> is set on deploy. Live chat requires sign-in.</Row>
             <Sub>Article highlights</Sub>
@@ -204,6 +207,17 @@ export default function GuidePage() {
             <Row label="LOW" color="#00bb66">Localised, no spread detected.</Row>
           </Section>
 
+          {/* SEISMIC */}
+          <Section icon="◎" title="Seismic Monitor" color="#ff8844">
+            <Note>
+              <code style={{ color: "#3a5040" }}>/seismic</code> aggregates official catalogs — USGS GeoJSON (M2.5+ 24h, M4.5+ 7d, significant 30d) and EMSC FDSN (M2.5+). Events are deduped by time + location. This is a monitor, not a sensor network.
+            </Note>
+            <Row label="M6+" color="#ff3333">Strong / major — largest markers, pulse ring.</Row>
+            <Row label="M5+" color="#ff6633">Moderate. Also listed on the feed homepage when they occur in the last 24 hours.</Row>
+            <Row label="SIGNIFICANT" color="#ffaa00">USGS significant-event list (impact / felt / media, not only magnitude).</Row>
+            <Row label="TSUNAMI" color="#00d4ff">USGS tsunami flag on the event record — not a local warning.</Row>
+          </Section>
+
           {/* SEARCH */}
           <Section icon="⌕" title={"Search & URL Analyzer"} color="#5a8068">
             <Note><code style={{ color: "#3a5040" }}>/search</code> searches the article database plus AI enrichment when signed in.</Note>
@@ -245,8 +259,8 @@ export default function GuidePage() {
 
           {/* PRO */}
           <Section icon="◐" title="Free vs. PRO" color="#c94dff">
-            <Row label="GUEST" color="#5a8068">Feed page 1, all articles, cached Oracle boards, search news-only, 3 article highlights, no live chat.</Row>
-            <Row label="FREE" color="#5a8068">Full feed pagination, search AI enrichment, 5 article highlights, save up to 5 investigations, continue-reading sync.</Row>
+            <Row label="GUEST" color="#5a8068">Full feed pagination, all articles, cached Oracle boards, search news-only, 3 article highlights, newsletter CTA, no live chat.</Row>
+            <Row label="FREE" color="#5a8068">Oracle triggers, search AI enrichment, 5 article highlights, save up to 5 investigations, weekly briefing prefs on Account.</Row>
             <Row label="TRIAL" color="#ffaa00">New accounts receive an <strong style={{ color: "#c8e8d0" }}>Analyst Pass</strong> (full PRO, no card): <strong style={{ color: "#c8e8d0" }}>90 days</strong> for the first 100 founding operatives, then <strong style={{ color: "#c8e8d0" }}>30 days</strong>. Legacy users can claim a one-time 30-day pass from Account if eligible.</Row>
             <Row label="PRO ▶" color="#c94dff">Unlimited Oracle triggers, full highlights, Polymarket odds, URL analyzer, high-threat email alerts (opt-in), unlimited saved investigations, board PNG export. $7/mo via Stripe.</Row>
             <Note>Sign in via SIGN IN on the feed. Upgrade via PRO ▶. Manage subscription and email prefs on Account.</Note>

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 
-export const maxDuration = 120;
+// 2500-3500 word articles plus the pre-writing web research push generation well past the
+// old 120s budget. 300s is the Vercel Pro ceiling (same as the scraper route).
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "brag:render": "tsx scripts/brag-render.ts",
+    "rewrite:news": "npx tsx scripts/rewrite-news-pending.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -21,7 +23,8 @@
     "react-markdown": "^10.1.0",
     "resend": "^6.12.3",
     "stripe": "^22.1.1",
-    "topojson-client": "^3.1.0"
+    "topojson-client": "^3.1.0",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -5,6 +5,29 @@
 import { isOracleUrlTooVague } from "@/lib/oracleSourceUrls";
 
 export const TRUSTED_SOURCE_DOMAINS = [
+  // ── US government & military (blanket) ──────────────────────────────────────
+  // Any *.gov / *.mil host is inherently a primary source for FOIA, declassified
+  // programs and agency records (fbi.gov/vault, nsa.gov, state.gov, energy.gov …).
+  // Note: `.gov.uk` and other foreign TLDs do NOT match — this is US-only.
+  // Homepages are still rejected downstream by isOracleUrlTooVague().
+  "gov",
+  "mil",
+  // ── Academic & university ───────────────────────────────────────────────────
+  // `edu` covers US universities; `ac.uk` the UK. Universities on national TLDs
+  // (mcgill.ca, uni-x.de …) cannot be matched by suffix and must be named explicitly.
+  "edu",
+  "ac.uk",
+  // ── Reference & fact-checking ───────────────────────────────────────────────
+  // A site that weighs "documented vs speculation" needs the debunk side on hand —
+  // without these the model can only cite sources that support a claim.
+  "wikipedia.org",
+  "britannica.com",
+  "theconversation.com",
+  "snopes.com",
+  "factcheck.org",
+  "politifact.com",
+  "fullfact.org",
+  // ── Named government paths kept explicit (used as site: hints when searching) ─
   "cia.gov",
   "archives.gov",
   "federalregister.gov",
@@ -21,6 +44,23 @@ export const TRUSTED_SOURCE_DOMAINS = [
   "patents.google.com",
   "aaro.mil",
   "nsarchive.gwu.edu",
+  // ── Archives & primary-document repositories ────────────────────────────────
+  "archive.org",
+  "hathitrust.org",
+  "wikisource.org",
+  "muckrock.com",
+  "governmentattic.org",
+  "documentcloud.org",
+  // ── Peer-reviewed / scientific ──────────────────────────────────────────────
+  "nature.com",
+  "science.org",
+  "jstor.org",
+  "arxiv.org",
+  "bmj.com",
+  "thelancet.com",
+  "nejm.org",
+  "scientificamerican.com",
+  // ── Major news outlets ──────────────────────────────────────────────────────
   "nytimes.com",
   "theguardian.com",
   "reuters.com",
@@ -32,9 +72,87 @@ export const TRUSTED_SOURCE_DOMAINS = [
   "wired.com",
   "theintercept.com",
   "propublica.org",
-  "documentcloud.org",
+  "npr.org",
+  "pbs.org",
+  "theatlantic.com",
+  "newyorker.com",
+  "latimes.com",
+  "bloomberg.com",
+  "ft.com",
+  "economist.com",
+  "time.com",
+  "nbcnews.com",
+  "cbsnews.com",
+  "cnn.com",
+  "forbes.com",
+  "newsweek.com",
+  "aljazeera.com",
+  "dw.com",
+  "smithsonianmag.com",
+  // ── Advocacy / research organisations ───────────────────────────────────────
   "fas.org",
   "aclu.org",
+  // ── AI & technology ─────────────────────────────────────────────────────────
+  // Required by the AI & Tech section: without these, researchTopic() returns almost
+  // nothing for AI topics, because the general news list barely covers this beat.
+  // Primary sources — the labs' own docs and announcements. Measured note: for AI queries
+  // Brave mostly returns vendor blogs and SEO farms, so the official product/doc domains
+  // ARE the primary sources here and must be listed explicitly. `claude.com` matters
+  // because Anthropic's docs live on platform.claude.com, not anthropic.com.
+  "anthropic.com",
+  "claude.com",
+  "openai.com",
+  "deepmind.google",
+  "ai.google.dev",
+  "research.google",
+  "blog.google",
+  "ai.meta.com",
+  "mistral.ai",
+  "cohere.com",
+  "x.ai",
+  "huggingface.co",
+  "github.com",
+  "github.blog",
+  "arxiv.org",
+  "paperswithcode.com",
+  "artificialanalysis.ai",
+  "pytorch.org",
+  "tensorflow.org",
+  "nvidia.com",
+  "developer.nvidia.com",
+  // Major clouds & platform docs (Bedrock, Azure AI, Vertex …):
+  "aws.amazon.com",
+  "cloud.google.com",
+  "azure.microsoft.com",
+  "microsoft.com",
+  "databricks.com",
+  "cloudflare.com",
+  "vercel.com",
+  // Developer reference:
+  "developer.mozilla.org",
+  "python.org",
+  "kubernetes.io",
+  "docker.com",
+  "npmjs.com",
+  "stackoverflow.com",
+  // Standards & policy:
+  "nist.gov",
+  "iso.org",
+  "w3.org",
+  "digital-strategy.ec.europa.eu",
+  // Trade press:
+  "techcrunch.com",
+  "arstechnica.com",
+  "theverge.com",
+  "venturebeat.com",
+  "zdnet.com",
+  "theregister.com",
+  "technologyreview.com",
+  "ieee.org",
+  "spectrum.ieee.org",
+  "acm.org",
+  "stackoverflow.blog",
+  "semianalysis.com",
 ] as const;
 
 export type SanitizedSource = { title: string; url: string; description: string };

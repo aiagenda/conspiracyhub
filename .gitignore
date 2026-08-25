@@ -42,4 +42,7 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.env.local
+
+# brag studio workspace + rendered videos
+/var/brag-jobs/
+/public/brag/*.mp4

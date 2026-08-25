@@ -6,6 +6,7 @@ import PolymarketWidget from "@/components/PolymarketWidget";
 import VotePanel from "@/components/VotePanel";
 import Link from "next/link";
 import Image from "next/image";
+import ReactMarkdown from "react-markdown";
 import type { NewsItem } from "@/types";
 import type { VoteTheoryChip } from "@/lib/oracleVoteTheories";
 import { pageContentShellStyle } from "@/lib/pageShell";
@@ -250,11 +251,16 @@ function ArticleText({ text, highlights }: { text: string; highlights: Highlight
 export default function ArticleReader({
   item,
   body,
+  bodyMarkdown,
+  sourceAttribution,
   initialChatOpen = false,
   voteTheories = [],
 }: {
   item: NewsItem;
   body: string;
+  /** GPT SEO rewrite (markdown) — preferred over live-fetched body. */
+  bodyMarkdown?: string;
+  sourceAttribution?: { label: string; url: string; isRewritten?: boolean };
   initialChatOpen?: boolean;
   voteTheories?: VoteTheoryChip[];
 }) {
@@ -280,7 +286,7 @@ export default function ArticleReader({
 
   /* eslint-disable react-hooks/set-state-in-effect -- highlights fetch lifecycle */
   useEffect(() => {
-    if (!body) return;
+    if (!body || bodyMarkdown) return;
     setHlLoading(true);
     (async () => {
       try {
@@ -307,7 +313,7 @@ export default function ArticleReader({
         setHlLoading(false);
       }
     })();
-  }, [body, item.title]);
+  }, [body, bodyMarkdown, item.title]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const displayHighlights = filterCat
@@ -553,15 +559,54 @@ export default function ArticleReader({
               <div style={{ marginBottom: "1rem", fontSize: 10, color: "#ff3333" }}>[{hlError}]</div>
             )}
 
-            {/* Article body with highlights */}
-            {body && (
+            {/* SEO rewrite (markdown) */}
+            {bodyMarkdown && (
+              <article style={{ marginBottom: "1.5rem" }}>
+                <div
+                  style={{
+                    marginBottom: 14,
+                    padding: "8px 12px",
+                    border: "1px solid rgba(201,77,255,0.25)",
+                    borderRadius: 3,
+                    background: "rgba(201,77,255,0.04)",
+                    fontSize: 11,
+                    color: "#9a7aaa",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <span style={{ color: "#c94dff", fontFamily: RAJ, fontWeight: 700, letterSpacing: 1.5 }}>
+                    ◈ THE THEORIST ANALYSIS
+                  </span>
+                  {" — "}
+                  Original reporting paraphrased and expanded for investigators. See source attribution below.
+                </div>
+                <style>{`
+              .feed-rewrite h2{font-family:var(--font-raj),sans-serif;font-size:20px;font-weight:700;color:#00ff88;letter-spacing:1px;margin:2rem 0 0.75rem;border-bottom:1px solid #1a3320;padding-bottom:8px;}
+              .feed-rewrite h3{font-family:var(--font-raj),sans-serif;font-size:16px;font-weight:700;color:#c8e8d0;letter-spacing:1px;margin:1.5rem 0 0.5rem;}
+              .feed-rewrite p{font-family:var(--font-share-tech-mono),monospace;font-size:15px;color:#c8e8d0;line-height:1.85;margin:0 0 1.1rem;}
+              .feed-rewrite strong{color:#00ff88;font-weight:bold;}
+              .feed-rewrite a{color:#00bb66;text-decoration:underline;}
+              .feed-rewrite ul,.feed-rewrite ol{margin:0 0 1.1rem 0;padding-left:1.5rem;}
+              .feed-rewrite li{font-family:var(--font-share-tech-mono),monospace;font-size:15px;color:#c8e8d0;line-height:1.8;margin-bottom:6px;}
+              .feed-rewrite img{width:100%;max-height:420px;object-fit:cover;border-radius:4px;margin:1.75rem 0 0.35rem;border:1px solid #1a3320;filter:saturate(0.45) brightness(0.72);}
+              .feed-rewrite p:has(img){margin:1.75rem 0 0.25rem;}
+              .feed-rewrite p:has(img)+p{font-size:12px;color:#5a8068;text-align:center;margin:-0.15rem 0 1.75rem;line-height:1.55;font-style:italic;}
+            `}</style>
+                <div className="feed-rewrite ar-article-body">
+                  <ReactMarkdown>{bodyMarkdown}</ReactMarkdown>
+                </div>
+              </article>
+            )}
+
+            {/* Article body with highlights (live-fetched fallback) */}
+            {body && !bodyMarkdown && (
               <div className="ar-article-body" style={{ marginBottom: "1.5rem" }}>
                 <ArticleText text={body} highlights={displayHighlights} />
               </div>
             )}
 
             {/* No body: show summary + prominent source link */}
-            {!body && (
+            {!body && !bodyMarkdown && (
               <div style={{ marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: 14 }}>
                 {item.summary && (
                   <div style={{ padding: "16px 18px", border: "1px solid #1a3320", borderRadius: 4, background: "rgba(0,255,136,0.02)", fontSize: 14, color: "#9ec8ae", lineHeight: 1.75 }}>
@@ -631,6 +676,52 @@ export default function ArticleReader({
               </div>
             )}
 
+            {sourceAttribution?.url && (bodyMarkdown || body) && (
+              <div
+                style={{
+                  marginBottom: "1.5rem",
+                  padding: "14px 16px",
+                  border: "1px solid #1a3320",
+                  borderRadius: 4,
+                  background: "#080c09",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: RAJ,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#5a8068",
+                    letterSpacing: 2,
+                    marginBottom: 10,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  ◈ Source
+                </div>
+                <p style={{ fontSize: 13, color: "#9ec8ae", lineHeight: 1.7, margin: "0 0 10px" }}>
+                  {sourceAttribution.isRewritten
+                    ? `This analysis is based on reporting by ${sourceAttribution.label}. The narrative above is an original paraphrase — read the primary source for verbatim quotes and full context.`
+                    : `Primary reporting from ${sourceAttribution.label}.`}
+                </p>
+                <a
+                  href={sourceAttribution.url}
+                  target="_blank"
+                  rel="nofollow noopener noreferrer"
+                  style={{
+                    fontFamily: RAJ,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#00bb66",
+                    letterSpacing: 1.5,
+                    textDecoration: "none",
+                  }}
+                >
+                  ↗ Read original at {sourceAttribution.label}
+                </a>
+              </div>
+            )}
+
             {/* CTA to investigation board */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <Link href={`/board/${item.id}`}
@@ -681,7 +772,7 @@ export default function ArticleReader({
             </div>
 
             {/* POLYMARKET — after legend (matches desktop layout bundle) */}
-            <PolymarketWidget query={item.title} context={buildArticlePolymarketContext(item, body, highlights)} />
+            <PolymarketWidget query={item.title} context={buildArticlePolymarketContext(item, bodyMarkdown || body, highlights)} />
 
             <VotePanel articleId={item.id} aiScore={item.score} theories={voteTheories} />
 

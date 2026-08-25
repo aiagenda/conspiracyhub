@@ -23,7 +23,8 @@ import {
 import { PostHogAdminSection } from "@/components/admin/PostHogAdminSection";
 import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
-import { RedditRadarSection } from "@/components/admin/RedditRadarSection";
+import { BragStudioSection } from "@/components/admin/BragStudioSection";
+import { TechDeskSection } from "@/components/admin/TechDeskSection";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -99,6 +100,7 @@ interface AdminBlogPost {
   status: string;
   view_count: number;
   unique_viewers: number;
+  word_count?: number;
   has_oracle?: boolean;
 }
 
@@ -551,6 +553,62 @@ export default function AdminPage() {
     }
   }
 
+  async function expandBlogPost(id: string, title: string) {
+    const short = title.length > 90 ? `${title.slice(0, 90)}…` : title;
+    if (!confirm(`Expand to long-form (~2500 words)?\n“${short}”\n\nSame URL — takes 1–3 minutes.`)) return;
+    setBlogAdminBusy(id);
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "expand_article", id }),
+      });
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        article?: { word_count?: number; words_before?: number };
+      };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      if (d.article?.word_count) {
+        alert(`Expanded: ${d.article.words_before ?? "?"} → ${d.article.word_count} words`);
+      }
+      await loadBlogPosts(blogPage);
+    } finally {
+      setBlogAdminBusy("");
+    }
+  }
+
+  async function expandTopShortBlogPosts() {
+    if (!confirm("Expand the 3 most-viewed short posts (<1000 words) to long-form?\n\nTakes several minutes. Same URLs.")) return;
+    setBlogAdminBusy("expand_top");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/generated-articles", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ action: "expand_top_short", limit: 3, max_words: 1000 }),
+      });
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        results?: Array<{ title?: string; words_before?: number; article?: { word_count?: number } }>;
+      };
+      if (!res.ok) {
+        setErr(d.error ?? res.statusText);
+        return;
+      }
+      const summary = (d.results ?? [])
+        .map((r) => `${r.title?.slice(0, 40)}: ${r.words_before} → ${r.article?.word_count ?? "?"} w`)
+        .join("\n");
+      if (summary) alert(`Expanded:\n${summary}`);
+      await loadBlogPosts(blogPage);
+    } finally {
+      setBlogAdminBusy("");
+    }
+  }
+
   async function deleteBlogPost(id: string, title: string) {
     const short = title.length > 90 ? `${title.slice(0, 90)}…` : title;
     if (!confirm(`Delete investigation report:\n“${short}”?`)) return;
@@ -754,7 +812,7 @@ export default function AdminPage() {
           j.target === "uap_scraper" ||
           j.target === "outbreak_scraper" ||
           j.target === "insider_radar_scraper" ||
-          j.target === "reddit_radar_scraper",
+          j.target === "seismic_scraper",
       ),
     [scrapers],
   );
@@ -792,6 +850,10 @@ export default function AdminPage() {
   );
   const uapRefreshJob = useMemo(
     () => scrapers.find((j) => j.job_key === "uap_full_refresh" || j.target === "uap_scraper") ?? null,
+    [scrapers],
+  );
+  const seismicRefreshJob = useMemo(
+    () => scrapers.find((j) => j.job_key === "seismic_refresh" || j.target === "seismic_scraper") ?? null,
     [scrapers],
   );
 
@@ -945,7 +1007,8 @@ export default function AdminPage() {
         job.target === "news_scraper" ||
         job.target === "outbreak_scraper" ||
         job.target === "uap_scraper" ||
-        job.target === "insider_radar_scraper"
+        job.target === "insider_radar_scraper" ||
+        job.target === "seismic_scraper"
       ) {
         if (!res.ok) {
           if (job.target === "uap_scraper") {
@@ -985,6 +1048,17 @@ export default function AdminPage() {
           } else if (job.target === "insider_radar_scraper") {
             const n = typeof p.x_twitter_posts === "number" ? p.x_twitter_posts : "?";
             setNewsIngestHint(`insider radar · ${n} X posts · ${String(p.refreshed_at ?? p.generated_at ?? "?")}`);
+          } else if (job.target === "seismic_scraper") {
+            const n = Array.isArray(p.events) ? p.events.length : "?";
+            const stats = p.stats as { m5?: number; significant?: number } | undefined;
+            const feeds = Array.isArray(p.feeds)
+              ? (p.feeds as Array<{ id?: string; ok?: boolean }>)
+                  .map((f) => `${f.id ?? "?"}:${f.ok ? "ok" : "err"}`)
+                  .join(" · ")
+              : "";
+            setNewsIngestHint(
+              `seismic · ${n} events · M5+ ${stats?.m5 ?? "?"} · sig ${stats?.significant ?? "?"}${feeds ? ` · ${feeds}` : ""} · ${String(p.generated_at ?? "?")}`,
+            );
           } else {
             const src = p.sources as Record<string, number> | undefined;
             const parts: string[] = [];
@@ -1292,6 +1366,26 @@ export default function AdminPage() {
             })()}
           </div>
         ) : null}
+        {job.target === "seismic_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "events" in last.result ? (
+          <div
+            className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
+            style={{ borderColor: "#1a2620", color: "var(--green-dim)" }}
+            title={JSON.stringify(last.result)}
+          >
+            <span className="mr-1.5 uppercase tracking-wider" style={{ color: "#3a5040" }}>
+              Last run
+            </span>
+            {(() => {
+              const r = last.result as {
+                events?: unknown[];
+                generated_at?: string;
+                stats?: { m5?: number; significant?: number };
+              };
+              const n = Array.isArray(r.events) ? r.events.length : 0;
+              return `${n} events · M5+ ${r.stats?.m5 ?? 0} · sig ${r.stats?.significant ?? 0} · ${r.generated_at ? new Date(r.generated_at).toLocaleString("en-GB") : "—"}`;
+            })()}
+          </div>
+        ) : null}
         {job.target === "news_scraper" && last?.status === "success" && last.result && typeof last.result === "object" && "inserted" in last.result ? (
           <div
             className="mt-1.5 line-clamp-2 border-t pt-1.5 font-mono text-[10px] leading-snug"
@@ -1477,14 +1571,17 @@ export default function AdminPage() {
                     {scraperBusy === uapRefreshJob.id ? "…" : "UAP refresh"}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => { setActiveTab("content"); setContentSubTab("reddit"); }}
-                  className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
-                  style={{ borderColor: "#ff6600", color: "#ff6600" }}
-                >
-                  Reddit radar
-                </button>
+                {seismicRefreshJob ? (
+                  <button
+                    type="button"
+                    disabled={scraperBusy === seismicRefreshJob.id}
+                    onClick={() => void runScraperNow(seismicRefreshJob)}
+                    className="rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-50"
+                    style={{ borderColor: "#ff8844", color: "#ff8844", background: "rgba(255,136,68,0.08)" }}
+                  >
+                    {scraperBusy === seismicRefreshJob.id ? "…" : "Seismic refresh"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => { setActiveTab("content"); setContentSubTab("twitter"); }}
@@ -1511,6 +1608,7 @@ export default function AdminPage() {
               <a href="/guide" className="no-underline hover:underline">Guide</a>
               <a href="/uap" className="no-underline hover:underline">UAP</a>
               <a href="/outbreaks" className="no-underline hover:underline">Outbreaks</a>
+              <a href="/seismic" className="no-underline hover:underline">Seismic</a>
               <a href="/insider-radar" className="no-underline hover:underline">Insider radar</a>
             </div>
           </section>
@@ -2044,9 +2142,9 @@ export default function AdminPage() {
               </div>
             )}
 
-            {contentSubTab === "reddit" && (
+            {contentSubTab === "brag" && (
               <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
-                <RedditRadarSection />
+                <BragStudioSection />
               </div>
             )}
 
@@ -2293,6 +2391,15 @@ export default function AdminPage() {
                   <button
                     type="button"
                     disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
+                    onClick={() => void expandTopShortBlogPosts()}
+                    className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
+                    style={{ borderColor: "#2a4030", color: "var(--green)" }}
+                  >
+                    {blogAdminBusy === "expand_top" ? "Expanding…" : "Expand top 3 short posts"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
                     onClick={() => void sanitizeAllReportSources()}
                     className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
                     style={{ borderColor: "#1a3320", color: "var(--green-dim)" }}
@@ -2334,14 +2441,14 @@ export default function AdminPage() {
                   <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
                     <thead>
                       <tr style={{ background: "#0a100c" }}>
-                        {["Title", "Category", "Published", "Readers", "Open", "Actions"].map((h) => (
+                        {["Title", "Category", "Published", "Words", "Readers", "Open", "Actions"].map((h) => (
                           <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {blogPosts.length === 0 && (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No published analysis posts yet.</td></tr>
                       )}
                       {blogPosts.map((p) => (
                         <tr key={p.id} className="hover:bg-[#0f1510]">
@@ -2354,6 +2461,16 @@ export default function AdminPage() {
                           <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{p.category}</td>
                           <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
                             {new Date(p.published_at).toLocaleDateString("en-GB")}
+                          </td>
+                          <td
+                            className="whitespace-nowrap border-b px-4 py-4 text-center tabular-nums text-[11px]"
+                            style={{
+                              borderColor: "#111816",
+                              color: (p.word_count ?? 0) < 1000 ? "#ffaa66" : "var(--green-dim)",
+                            }}
+                            title="Body word count (before Related investigations block)"
+                          >
+                            {p.word_count ?? "—"}
                           </td>
                           <td
                             className="whitespace-nowrap border-b px-4 py-4 text-center"
@@ -2381,6 +2498,16 @@ export default function AdminPage() {
                           </td>
                           <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
                             <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                disabled={blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== "" || braveBusyId !== ""}
+                                onClick={() => void expandBlogPost(p.id, p.title)}
+                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
+                                style={{ borderColor: "#1a4030", color: "var(--green)" }}
+                                title="Expand to ~2500 words (same URL)"
+                              >
+                                {blogAdminBusy === p.id ? "…" : "Expand"}
+                              </button>
                               <button
                                 type="button"
                                 disabled={braveBusyId !== "" || blogAdminBusy !== "" || oracleRerunBusyKey !== "" || bulkOracleBusy !== ""}
@@ -2493,7 +2620,8 @@ export default function AdminPage() {
               <strong style={{ color: "var(--foreground)" }}>GNEWS</strong> with an age means the{" "}
               <em>newest Google-News-sourced article already in the database</em>, not the last crawl time — if nothing new passes the score gate, that date stays old even though ingest runs.{" "}
               <strong style={{ color: "var(--foreground)" }}>UAP full intelligence refresh</strong> updates Latest News, Documents (FOIA feeds), curated Incidents/People/Orgs seed, and NUFORC Sightings in one run.{" "}
-              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.
+              <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.{" "}
+              <strong style={{ color: "var(--foreground)" }}>Seismic refresh</strong> pulls USGS + EMSC feeds, merges duplicates, and busts the /seismic page cache (~5 min TTL on page loads).
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
                 Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
@@ -2667,6 +2795,8 @@ export default function AdminPage() {
             </div>
           </div>
             )}
+
+            {automationSubTab === "tech" && <TechDeskSection />}
           </section>
           )}
 

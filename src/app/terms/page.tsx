@@ -37,7 +37,7 @@ export default function TermsPage() {
       <P>
         ConspiracyHub is an intelligence aggregation platform that curates, analyses, and
         presents publicly available news, documents, and research related to geopolitical
-        events, UAP incidents, outbreaks, and related topics. Content is aggregated from
+        events, UAP incidents, outbreaks, seismic catalogs, and related topics. Content is aggregated from
         third-party sources; we do not originate or verify every claim.
       </P>
 

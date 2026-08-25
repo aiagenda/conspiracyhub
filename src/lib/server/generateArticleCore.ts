@@ -1,10 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { callOpenAIJSON } from "@/lib/openai";
-import { sanitizeSources } from "@/lib/generatedArticleSourceUrls";
+import { sanitizeSources, trustedArticleSourceUrl } from "@/lib/generatedArticleSourceUrls";
 import { applyAllowlistToArticleSources, createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { enrichSourcesWithRealUrls } from "@/lib/searchSourceUrl";
+import { mergeResearchSources, researchPromptBlock, researchTopic, type SourceRow } from "@/lib/server/articleResearch";
+import { countArticleWords, expandArticleIfShort } from "@/lib/server/articleExpand";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
+import { getFeedMinScore } from "@/lib/feedMinScore";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -29,8 +32,13 @@ const ARTICLE_SYSTEM = `You are a senior investigative journalist specializing i
 
 Write in English. Be factual, reference real documents and events. Your articles should:
 - Have a compelling, SEO-friendly title with the main topic keyword
-- Be 1200-1600 words
-- Use H2 and H3 subheadings naturally throughout
+- Be 2500-3500 words. This is a long-form flagship investigation, not a summary. Never pad to
+  reach the length — earn it with substance: specific dates, named actors, document and bill
+  numbers, direct quotes, the chain of events, and competing interpretations of the same facts.
+- Use H2 and H3 subheadings naturally throughout — at least 6 H2 sections
+- Develop each section to 3+ substantial paragraphs; never leave a heading with one thin paragraph
+- Cite sources INLINE as markdown links — [source title](URL) — placed at the exact claim they
+  support. A reader should be able to check any specific assertion without scrolling to the end.
 - Include real references (CIA FOIA, Pentagon, Congressional testimony, patents)
 - Analyze conspiracy theories critically — what evidence exists, what is speculation
 - End with open questions that invite readers to investigate further
@@ -38,19 +46,28 @@ Write in English. Be factual, reference real documents and events. Your articles
 - Populate the "faqs" JSON array with the same 3-4 Q&A pairs (question + answer fields)
 
 CRITICAL SOURCE RULES — read carefully:
-The user message may include "--- ALLOWED_SOURCE_URLS" (URLs from the seed story). When present:
-- For the main news / seed story itself, prefer a "url" copied verbatim from that ALLOWED list when you cite that story.
-- You SHOULD also add several additional sources (FOIA reading room, Congress.gov, GAO, archives, major outlets) with full "url" values on the trusted domains below — each must be a specific page (not a site homepage) you are confident exists.
-- If you are not sure a path is real, use url: "" and explain how to search in the description.
+Source priority, highest first:
+1. "--- WEB RESEARCH" — live search results included in the user message. These URLs were just
+   retrieved and are verified reachable. Copy them VERBATIM and prefer them above everything else.
+2. "--- ALLOWED_SOURCE_URLS" — URLs from the seed story. Copy verbatim when citing that story.
+3. Your own recall — ONLY for URLs you are 100% certain exist.
+
 You MUST only include sources with URLs that you are CERTAIN exist. If you are not 100% sure the exact URL is real and reachable, set "url" to "" (empty string) — never invent or guess a URL.
-Only use URLs from these trusted domains (top-level only, exact paths must be real):
-  cia.gov/readingroom, archives.gov, federalregister.gov, congress.gov/bill, congress.gov/congressional-record,
-  govinfo.gov, gao.gov, dni.gov, defense.gov, darpa.mil, fda.gov, cdc.gov, pubmed.ncbi.nlm.nih.gov,
-  patents.google.com, aaro.mil, nsarchive.gwu.edu, nytimes.com, theguardian.com, reuters.com,
-  apnews.com, bbc.com, bbc.co.uk, washingtonpost.com, politico.com, wired.com, theintercept.com,
-  propublica.org, documentcloud.org, fas.org, aclu.org
+Anything copied verbatim from the WEB RESEARCH block is safe by definition — prefer it over recall.
+
+Allowed domains for URLs you supply yourself (paths must be real and specific, never a homepage):
+  any *.gov and *.mil host (cia.gov/readingroom, archives.gov, congress.gov, govinfo.gov, gao.gov,
+  dni.gov, defense.gov, darpa.mil, aaro.mil, fbi.gov/vault, fda.gov, cdc.gov …),
+  any *.edu university host, patents.google.com, pubmed.ncbi.nlm.nih.gov,
+  archives: archive.org, hathitrust.org, wikisource.org, muckrock.com, governmentattic.org, documentcloud.org,
+  science: nature.com, science.org, jstor.org, arxiv.org, bmj.com, thelancet.com, nejm.org, scientificamerican.com,
+  news: nytimes.com, theguardian.com, reuters.com, apnews.com, bbc.com, bbc.co.uk, washingtonpost.com,
+  politico.com, wired.com, theintercept.com, propublica.org, npr.org, pbs.org, theatlantic.com,
+  newyorker.com, latimes.com, bloomberg.com, ft.com, economist.com, time.com, nbcnews.com,
+  cbsnews.com, cnn.com, aljazeera.com, dw.com, smithsonianmag.com, fas.org, aclu.org
 If you want to cite a source but cannot provide a verified real URL, use url: "" and explain in the description where readers can find it (e.g. "Search: CIA FOIA reading room, MKULTRA documents").
 Never fabricate document IDs, bill numbers, article slugs, or path segments.
+Aim for 8-14 entries in the "sources" array.
 
 Return ONLY valid JSON (no markdown outside the JSON):
 {
@@ -150,14 +167,29 @@ Structure your article using these sections (use ## headings):
 ## Open Threads — unanswered questions for readers to investigate
 ## FAQ — 3 questions readers search for (### per question)
 
-Length: 1200–1600 words. Use ### sub-headings within sections as needed.
+Length: 2500–3500 words. This is a long-form dossier, not a briefing. Never pad to reach the length —
+earn it with substance: specific dates, named actors, the documentary trail, and the strongest
+version of each competing explanation. Develop every ## section to 3+ substantial paragraphs and
+use ### sub-headings within sections as needed.
 
-SOURCE RULES:
-- The user will provide SEED URLs. Treat them as primary citations — use them verbatim in the sources array.
-- You may add mainstream news citations (nytimes.com, theguardian.com, bbc.com, reuters.com, apnews.com, washingtonpost.com, politico.com, theintercept.com, propublica.org) only if you are CERTAIN the specific URL exists.
+Cite sources INLINE as markdown links — [source title](URL) — at the exact claim they support, not
+only in a list at the end. This matters more here than in straight reporting: a speculative claim
+without a traceable link is worthless to the reader.
+
+SOURCE RULES — priority, highest first:
+1. "--- WEB RESEARCH" — live search results in the user message. Already verified reachable.
+   Copy VERBATIM and prefer above everything else. Tier these as "media".
+2. SEED URLs provided by the user — primary citations, use verbatim. Tier "seed".
+3. Your own recall — only if you are CERTAIN the specific URL exists.
+- Additional citations are allowed on any *.gov, *.mil or *.edu host, on archives (archive.org,
+  documentcloud.org, muckrock.com, hathitrust.org, wikisource.org), on peer-reviewed outlets
+  (nature.com, science.org, jstor.org, arxiv.org, thelancet.com, nejm.org) and on major news
+  (nytimes.com, theguardian.com, bbc.com, reuters.com, apnews.com, washingtonpost.com, politico.com,
+  theintercept.com, propublica.org, npr.org, theatlantic.com, newyorker.com) — only if CERTAIN.
 - For books, documentaries, forums, podcasts, or anything without a stable URL: set url to "" and describe where to find it.
 - NEVER invent or guess a URL. If in doubt: url: "".
 - Include a "tier" field: "seed" (user-provided), "media" (mainstream news), "community" (forums/blogs), "unverified".
+- Aim for 8-14 entries in the "sources" array.
 
 Return ONLY valid JSON (no markdown outside):
 {
@@ -206,22 +238,59 @@ export async function runLoreDossierCore(params: LoreDossierParams): Promise<Gen
 
 Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_COMMUNITY ? `, "${SITE_URL}/community" for community discussion` : ""}.`;
 
+    // Research the live web BEFORE writing so the dossier cites reachable pages rather
+    // than URLs recalled from training data. All-time freshness: lore topics are historical.
+    const findings = await researchTopic(`${topic}${angle ? ` ${angle}` : ""}`, null);
+
     const allowlist = createSourceUrlAllowlist(
-      mergeUrlSeeds(seedUrls, extractHttpsUrlsFromText(prompt)),
+      mergeUrlSeeds([...seedUrls, ...findings.map((f) => f.url)], extractHttpsUrlsFromText(prompt)),
       "article",
     );
 
-    const article = await callOpenAIJSON<GeneratedArticlePayload>({
+    const researchBlock = researchPromptBlock(findings);
+    const allowlistBlock = allowlist.promptBlock;
+
+    let article = await callOpenAIJSON<GeneratedArticlePayload>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: LORE_SYSTEM,
-      user: prompt + allowlist.promptBlock,
-      maxTokens: 3500,
+      user: prompt + researchBlock + allowlistBlock,
+      maxTokens: 9000,
       model: "gpt-4o",
     });
+
+    const expanded = await expandArticleIfShort({
+      apiKey: process.env.OPENAI_API_KEY!,
+      article,
+      researchBlock,
+      allowlistBlock,
+    });
+    article = expanded.article;
 
     const baseSlug = slugify(article.slug || article.title);
     const finalSlug = `${baseSlug}-${Date.now().toString(36)}`;
     const { content: seoContent, faqs } = await enrichArticleContentForSeo(admin, article, finalSlug);
+
+    // Previously the dossier path inserted `article.sources` raw — no validation, no URL
+    // enrichment — which is why lore pieces shipped with the weakest citations of any mode.
+    // Seed URLs the user supplied stay valid even off the trusted list; the rest must pass
+    // domain validation.
+    const cleanedSources: SourceRow[] = (article.sources ?? [])
+      .map((s) => {
+        const raw = String(s?.url ?? "").trim();
+        return {
+          title: String(s?.title ?? "").trim(),
+          url: allowlist.sanitizeToAllowlisted(raw) || trustedArticleSourceUrl(raw),
+          description: String(s?.description ?? "").trim(),
+          ...(s?.tier ? { tier: String(s.tier) } : {}),
+        };
+      })
+      .filter((s) => s.title);
+
+    const loreSources = mergeResearchSources(
+      await enrichSourcesWithRealUrls(cleanedSources, process.env.BRAVE_SEARCH_API_KEY),
+      findings,
+      { tier: "media" },
+    );
 
     const { data: inserted, error } = await insertPublishedArticle(admin, {
       title: article.title,
@@ -234,7 +303,7 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_
       category: "lore",
       tags: article.tags ?? [],
       faqs,
-      sources: article.sources ?? [],
+      sources: loreSources,
       mode: "lore_dossier",
       status: "published",
       published_at: new Date().toISOString(),
@@ -253,7 +322,16 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_
       status: 200,
       payload: {
         success: true,
-        article: { id: inserted.id, title: article.title, slug: finalSlug, url: `${SITE_URL}/blog/${finalSlug}` },
+        article: {
+          id: inserted.id,
+          title: article.title,
+          slug: finalSlug,
+          url: `${SITE_URL}/blog/${finalSlug}`,
+          word_count: countArticleWords(seoContent),
+          expanded: expanded.expanded,
+          words_before: expanded.wordsBefore,
+          words_after: expanded.wordsAfter,
+        },
       },
     };
   } catch (e) {
@@ -271,12 +349,14 @@ export async function runGenerateArticleCore(mode: string): Promise<GenerateArti
     const admin = getAdmin();
     let primaryCitationUrls: string[] = [];
     let prompt = "";
+    /** Topic handed to the pre-writing web research step (see articleResearch.ts). */
+    let researchQuery = "";
 
     if (mode === "news_jacking") {
       const { data: topNews } = await admin
         .from("news_items")
         .select("id, title, summary, angle, score, section, url")
-        .gte("score", 65)
+        .gte("score", getFeedMinScore())
         .gte("published_at", new Date(Date.now() - 48 * 3600000).toISOString())
         .order("score", { ascending: false })
         .limit(5);
@@ -287,6 +367,7 @@ export async function runGenerateArticleCore(mode: string): Promise<GenerateArti
 
       const top = topNews[0];
       primaryCitationUrls = mergeUrlSeeds([top.url], []);
+      researchQuery = top.title;
       prompt = `Write a deep-dive investigative analysis article about this news story from a conspiracy theory angle.
 
 News title: "${top.title}"
@@ -338,6 +419,7 @@ Related article: ${top.url}`;
             !o.query.split(" ").every((w: string) => existingKeywords.has(w)),
         ) ?? opportunities[0];
 
+      researchQuery = target.query;
       prompt = `Write a comprehensive, SEO-optimized investigation article targeting this exact search query: "${target.query}"
 
 Search data: ${target.impressions} monthly impressions, position ${target.position}, ${target.clicks} clicks
@@ -369,6 +451,7 @@ Write the article that should rank #1 for "${target.query}".`;
 
       const pick = sightings[Math.floor(Math.random() * sightings.length)];
       primaryCitationUrls = mergeUrlSeeds([pick.source_url], []);
+      researchQuery = `${pick.title} UAP incident ${pick.location_name ?? ""}`.trim();
       const dateStr = pick.event_date
         ? new Date(pick.event_date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
         : "unknown date";
@@ -417,6 +500,7 @@ Internal links: reference "${SITE_URL}/uap" for the UAP files page.`;
         section: string;
       } | null;
       primaryCitationUrls = mergeUrlSeeds(news?.url ? [news.url] : [], []);
+      researchQuery = news?.title ?? "";
       const theories = Array.isArray(pick.theories) ? pick.theories.slice(0, 3) : [];
       const theoryNames = theories.map((t: { name?: string }) => t.name ?? "").filter(Boolean).join(", ");
 
@@ -452,6 +536,7 @@ Internal links: reference "${SITE_URL}/board" for the AI investigation board, "$
 
       const pick = docs[Math.floor(Math.random() * docs.length)];
       primaryCitationUrls = mergeUrlSeeds([pick.canonical_url], []);
+      researchQuery = `${pick.title} ${pick.agency}`.trim();
 
       prompt = `Write a deep-dive investigative article about this declassified government document or program.
 
@@ -490,6 +575,7 @@ Include the official source URL prominently. Internal links: reference "${SITE_U
       ];
       const topic = EVERGREEN_TOPICS[Math.floor(Math.random() * EVERGREEN_TOPICS.length)];
       primaryCitationUrls = [];
+      researchQuery = topic;
       prompt = `Write a comprehensive, SEO-optimized deep-dive article about: "${topic}"
 
 Requirements:
@@ -502,19 +588,35 @@ Requirements:
 Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" for investigation tools.`;
     }
 
+    // Research the live web BEFORE writing so the article cites reachable pages rather than
+    // URLs recalled from training data. News-pegged modes want recent coverage; evergreen,
+    // reference-document and UAP pieces are archival, so they search all time.
+    const freshness = mode === "news_jacking" || mode === "oracle_deep_dive" ? "py" : null;
+    const findings = await researchTopic(researchQuery, freshness);
+
     const articleAllow = createSourceUrlAllowlist(
-      mergeUrlSeeds(primaryCitationUrls, extractHttpsUrlsFromText(prompt)),
+      mergeUrlSeeds([...primaryCitationUrls, ...findings.map((f) => f.url)], extractHttpsUrlsFromText(prompt)),
       "article",
     );
-    const userPrompt = prompt + articleAllow.promptBlock;
+    const researchBlock = researchPromptBlock(findings);
+    const allowlistBlock = articleAllow.promptBlock;
+    const userPrompt = prompt + researchBlock + allowlistBlock;
 
-    const article = await callOpenAIJSON<GeneratedArticlePayload>({
+    let article = await callOpenAIJSON<GeneratedArticlePayload>({
       apiKey: process.env.OPENAI_API_KEY!,
       system: ARTICLE_SYSTEM,
       user: userPrompt,
-      maxTokens: 3000,
+      maxTokens: 9000,
       model: "gpt-4o",
     });
+
+    const expanded = await expandArticleIfShort({
+      apiKey: process.env.OPENAI_API_KEY!,
+      article,
+      researchBlock,
+      allowlistBlock,
+    });
+    article = expanded.article;
 
     const baseSlug = slugify(article.slug || article.title);
     const finalSlug = `${baseSlug}-${Date.now().toString(36)}`;
@@ -531,10 +633,15 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
       category: article.category,
       tags: article.tags ?? [],
       faqs,
-      sources: await (async () => {
-        const filtered = sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow));
-        return enrichSourcesWithRealUrls(filtered, process.env.BRAVE_SEARCH_API_KEY);
-      })(),
+      // Model-chosen sources first, then any researched links it left unused — so an article
+      // never ships with an empty or link-less sources list.
+      sources: mergeResearchSources(
+        await enrichSourcesWithRealUrls(
+          sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], articleAllow)),
+          process.env.BRAVE_SEARCH_API_KEY,
+        ),
+        findings,
+      ),
       mode,
       status: "published",
       published_at: new Date().toISOString(),
@@ -553,7 +660,127 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
       status: 200,
       payload: {
         success: true,
-        article: { id: inserted.id, title: article.title, slug: finalSlug, url: `${SITE_URL}/blog/${finalSlug}` },
+        article: {
+          id: inserted.id,
+          title: article.title,
+          slug: finalSlug,
+          url: `${SITE_URL}/blog/${finalSlug}`,
+          word_count: countArticleWords(seoContent),
+          expanded: expanded.expanded,
+          words_before: expanded.wordsBefore,
+          words_after: expanded.wordsAfter,
+        },
+      },
+    };
+  } catch (e) {
+    return { status: 500, payload: { error: String(e) } };
+  }
+}
+
+/** Expand an already-published article in place (same slug). Admin / repair path. */
+export async function runExpandExistingArticleCore(articleId: string): Promise<GenerateArticleResult> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { status: 500, payload: { error: "OPENAI_API_KEY missing" } };
+  }
+
+  try {
+    const admin = getAdmin();
+    const { data: row, error: fetchErr } = await admin
+      .from("generated_articles")
+      .select("id, title, slug, meta_description, focus_keyword, secondary_keywords, content, excerpt, category, tags, faqs, sources, mode, status")
+      .eq("id", articleId)
+      .single();
+
+    if (fetchErr || !row) {
+      return { status: 404, payload: { error: fetchErr?.message ?? "article_not_found" } };
+    }
+
+    const draft: GeneratedArticlePayload = {
+      title: row.title,
+      slug: row.slug,
+      meta_description: row.meta_description ?? "",
+      focus_keyword: row.focus_keyword ?? "",
+      secondary_keywords: (row.secondary_keywords as string[]) ?? [],
+      content: row.content ?? "",
+      excerpt: row.excerpt ?? "",
+      category: row.category ?? "politics",
+      tags: (row.tags as string[]) ?? [],
+      faqs: (row.faqs as GeneratedArticlePayload["faqs"]) ?? [],
+      sources: (row.sources as GeneratedArticlePayload["sources"]) ?? [],
+    };
+
+    const wordsBefore = countArticleWords(draft.content);
+    const researchQuery = draft.focus_keyword || draft.title;
+    const freshness = row.mode === "news_jacking" || row.mode === "oracle_deep_dive" ? "py" : null;
+    const findings = await researchTopic(researchQuery, freshness);
+
+    const seedUrls = (draft.sources ?? []).map((s) => s.url).filter(Boolean);
+    const allowlist = createSourceUrlAllowlist(
+      mergeUrlSeeds(seedUrls, [...findings.map((f) => f.url)]),
+      "article",
+    );
+    const researchBlock = researchPromptBlock(findings);
+    const allowlistBlock = allowlist.promptBlock;
+
+    const expanded = await expandArticleIfShort({
+      apiKey: process.env.OPENAI_API_KEY!,
+      article: draft,
+      researchBlock,
+      allowlistBlock,
+      maxPasses: 2,
+    });
+
+    const article = expanded.article;
+    const { content: seoContent, faqs } = await enrichArticleContentForSeo(admin, article, row.slug);
+
+    const nextSources = mergeResearchSources(
+      await enrichSourcesWithRealUrls(
+        sanitizeSources(applyAllowlistToArticleSources(article.sources ?? [], allowlist)),
+        process.env.BRAVE_SEARCH_API_KEY,
+      ),
+      findings,
+      row.mode === "lore_dossier" ? { tier: "media" } : {},
+    );
+
+    const { error: upErr } = await admin
+      .from("generated_articles")
+      .update({
+        title: article.title,
+        meta_description: article.meta_description,
+        focus_keyword: article.focus_keyword,
+        secondary_keywords: article.secondary_keywords ?? [],
+        content: seoContent,
+        excerpt: article.excerpt,
+        category: article.category,
+        tags: article.tags ?? [],
+        faqs,
+        sources: nextSources,
+      })
+      .eq("id", articleId);
+
+    if (upErr) return { status: 500, payload: { error: upErr.message } };
+
+    try {
+      revalidatePath("/blog");
+      revalidatePath(`/blog/${row.slug}`);
+    } catch {
+      /* */
+    }
+
+    return {
+      status: 200,
+      payload: {
+        success: true,
+        article: {
+          id: articleId,
+          title: article.title,
+          slug: row.slug,
+          url: `${SITE_URL}/blog/${row.slug}`,
+          word_count: countArticleWords(seoContent),
+          words_before: wordsBefore,
+          words_after: countArticleWords(seoContent),
+          expanded: expanded.expanded,
+        },
       },
     };
   } catch (e) {

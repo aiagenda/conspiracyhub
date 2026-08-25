@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // unpdf (pdf.js-based) is loaded at runtime by the URL analyzer, not bundled —
+  // avoids serverless bundler edge cases with its worker/wasm internals.
+  serverExternalPackages: ["unpdf"],
   images: {
     // Allowlist of known, high-volume, stable image hosts that Next is allowed to
     // optimize. Arbitrary feed/publisher hosts are not listed and are rendered with

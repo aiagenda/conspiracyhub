@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { callOpenAIJSON } from "@/lib/openai";
 import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insiderRadarIngest";
+import { loadSeismicPayload, pickSeismicHighlight } from "@/lib/server/seismicFeeds";
 import { isBillingEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
 
@@ -23,6 +24,7 @@ type BriefArticle = { id: string; title: string; score: number; angle: string };
 type BriefThread = { id: string; title: string; post_count: number; upvotes: number };
 type BriefUap = { id: string; title: string; location?: string };
 type BriefOutbreak = { title: string; risk_level: string; location: string; description: string };
+type BriefSeismic = { title: string; mag: number; place: string };
 type BriefInsider = { title: string; tracker_name: string; url: string };
 
 export type WeeklyBriefingContent = {
@@ -32,6 +34,7 @@ export type WeeklyBriefingContent = {
   thread: BriefThread | null;
   uap: BriefUap | null;
   outbreak: BriefOutbreak | null;
+  seismic: BriefSeismic | null;
   insider: BriefInsider[];
   weekLabel: string;
 };
@@ -203,7 +206,7 @@ Return ONLY valid JSON: { "summary": "..." }`,
 export async function gatherWeeklyBriefingContent(admin: SupabaseClient): Promise<WeeklyBriefingContent> {
   const cutoffIso = weekCutoffIso(7);
 
-  const [articlesRes, thread, uap, outbreak, insiderCache] = await Promise.all([
+  const [articlesRes, thread, uap, outbreak, insiderCache, seismicPayload] = await Promise.all([
     admin
       .from("news_items")
       .select("id, title, score, angle")
@@ -214,6 +217,7 @@ export async function gatherWeeklyBriefingContent(admin: SupabaseClient): Promis
     fetchRecentUap(admin, cutoffIso),
     fetchOutbreakHighlight(admin),
     readInsiderRadarCache(),
+    loadSeismicPayload().catch(() => null),
   ]);
 
   const articles = mapArticles(articlesRes.data ?? []);
@@ -221,6 +225,10 @@ export async function gatherWeeklyBriefingContent(admin: SupabaseClient): Promis
   const moreArticles = articles.slice(1);
   const leadSummary = await generateLeadSummary(hero, moreArticles);
   const insider = pickInsiderHighlights(insiderCache?.posts ?? []);
+  const seismicHit = seismicPayload ? pickSeismicHighlight(seismicPayload) : null;
+  const seismic = seismicHit
+    ? { title: seismicHit.title, mag: seismicHit.mag, place: seismicHit.place }
+    : null;
 
   const weekLabel = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
@@ -231,6 +239,7 @@ export async function gatherWeeklyBriefingContent(admin: SupabaseClient): Promis
     thread,
     uap,
     outbreak,
+    seismic,
     insider,
     weekLabel,
   };
@@ -274,6 +283,12 @@ function renderBriefingHtml(content: WeeklyBriefingContent, isPro: boolean): str
              `<li style="margin-bottom:12px"><a href="${base}/article/${a.id}" style="color:#00ff88;text-decoration:none"><strong>${escapeHtml(a.title)}</strong></a><br/><span style="color:#ff6666">${a.score}% priority</span> · <span style="color:#7aaa8a">${escapeHtml(a.angle.slice(0, 120))}</span></li>`,
          )
          .join("")}</ol>`
+    : "";
+
+  const seismicHtml = content.seismic
+    ? `<h2 style="color:#ff8844;font-size:13px;letter-spacing:1px;margin-top:20px">SEISMIC WATCH</h2>
+       <p style="margin:8px 0"><strong style="color:#ff6633">M${content.seismic.mag.toFixed(1)}</strong> · ${escapeHtml(content.seismic.place)}</p>
+       <p style="margin:4px 0 8px"><a href="${base}/seismic" style="color:#00ff88;text-decoration:none">${escapeHtml(content.seismic.title)}</a></p>`
     : "";
 
   const outbreakHtml = content.outbreak
@@ -320,6 +335,7 @@ function renderBriefingHtml(content: WeeklyBriefingContent, isPro: boolean): str
     ${leadHtml}
     ${moreHtml}
     ${outbreakHtml}
+    ${seismicHtml}
     ${insiderHtml}
     ${threadHtml}
     ${uapHtml}

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
-import { fetchRedditArticleBody } from "@/lib/server/redditPostBody";
+import { newsSourceLabel } from "@/lib/newsSourceLabel";
+import { fetchNewsSourceBody } from "@/lib/server/fetchNewsSourceBody";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
@@ -21,14 +22,15 @@ export async function generateMetadata({
   const admin = createClient(url, key);
   const { data: news } = await admin
     .from("news_items")
-    .select("title, summary, image, published_at, section")
+    .select("title, summary, image, published_at, section, seo_description, rewrite_status")
     .eq("id", id)
     .single();
 
   if (!news) return {};
 
   const title = (news.title ?? "").slice(0, 60) || "Investigation";
-  const rawDesc = omitIfHungarianScript(news.summary ?? "");
+  const seoDesc = omitIfHungarianScript(news.seo_description ?? "");
+  const rawDesc = seoDesc || omitIfHungarianScript(news.summary ?? "");
   const description = rawDesc.slice(0, 155) || "Read the full investigation on The Theorist.";
   const canonicalUrl = `${SITE_URL}/article/${id}`;
   const images = news.image
@@ -57,75 +59,6 @@ export async function generateMetadata({
   };
 }
 
-function htmlToText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>\s*<p[^>]*>/gi, "\n\n")
-    .replace(/<p[^>]*>/gi, "")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-}
-
-async function fetchGuardianBody(guardianId: string): Promise<string> {
-  const key = process.env.GUARDIAN_API_KEY;
-  if (!key) return "";
-  try {
-    const url = `https://content.guardianapis.com/${guardianId}?show-fields=body,trailText,byline&api-key=${key}`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return "";
-    const data = await res.json();
-    const body: string = data?.response?.content?.fields?.body ?? "";
-    return htmlToText(body);
-  } catch {
-    return "";
-  }
-}
-
-/** Fetch + extract readable text from any article URL (for non-Guardian, non-Reddit sources). */
-async function fetchGenericBody(articleUrl: string): Promise<string> {
-  if (!articleUrl?.startsWith("http")) return "";
-  try {
-    const host = new URL(articleUrl).hostname.replace(/^www\./, "").toLowerCase();
-    if (host === "x.com" || host === "twitter.com" || host === "mobile.twitter.com") return "";
-  } catch {
-    /* ignore invalid URL */
-  }
-
-  try {
-    const res = await fetch(articleUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; TheTheorist/1.0; +https://conspiracyhub.vercel.app)" },
-      signal: AbortSignal.timeout(7000),
-      cache: "no-store",
-    });
-    if (!res.ok) return "";
-    const html = await res.text();
-    // Strip non-content sections
-    const stripped = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<nav[\s>][\s\S]*?<\/nav>/gi, "")
-      .replace(/<header[\s>][\s\S]*?<\/header>/gi, "")
-      .replace(/<footer[\s>][\s\S]*?<\/footer>/gi, "")
-      .replace(/<aside[\s>][\s\S]*?<\/aside>/gi, "");
-    // Prefer <article> or <main> if present
-    const contentMatch =
-      stripped.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ??
-      stripped.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-    const raw = contentMatch ? contentMatch[1] : stripped;
-    const text = htmlToText(raw).slice(0, 8000);
-    if (text.length < 60 || text.split(/\s+/).length < 12) return "";
-    return text;
-  } catch {
-    return "";
-  }
-}
-
 export default async function ArticlePage({
   params,
   searchParams,
@@ -147,22 +80,22 @@ export default async function ArticlePage({
   const { data: news } = await admin.from("news_items").select("*").eq("id", id).single();
   if (!news) return <div className="min-h-screen bg-[#050c07] text-[#ff3333] p-8">[ERROR] Article not found.</div>;
 
-  // Guardian articles have IDs like "world/2026/may/11/title" (contain "/").
-  // All other sources (reddit, gnews, rss) have IDs like "reddit-abc123".
-  const isGuardian = (news.guardian_id ?? "").includes("/");
   const articleUrl = news.url ?? "";
   const isReddit = /reddit\.com\/r\//.test(articleUrl);
 
   let redditThumbnail: string | null = null;
-  let body: string;
-  if (isGuardian) {
-    body = await fetchGuardianBody(news.guardian_id ?? "");
-  } else if (isReddit) {
-    const r = await fetchRedditArticleBody(articleUrl);
-    redditThumbnail = r.thumbnail;
-    body = r.text;
-  } else {
-    body = await fetchGenericBody(articleUrl);
+  const rewrittenMarkdown =
+    news.rewrite_status === "ready" && typeof news.body_html === "string" ? news.body_html.trim() : "";
+
+  let body = "";
+  if (!rewrittenMarkdown) {
+    const fetched = await fetchNewsSourceBody(news);
+    body = fetched;
+    if (isReddit && articleUrl) {
+      const { fetchRedditArticleBody } = await import("@/lib/server/redditPostBody");
+      const r = await fetchRedditArticleBody(articleUrl);
+      redditThumbnail = r.thumbnail;
+    }
   }
 
   const { data: oracleAnalysis } = await admin
@@ -186,6 +119,7 @@ export default async function ArticlePage({
     section: news.section,
     score: news.score ?? 0,
     angle: omitIfHungarianScript(news.angle ?? ""),
+    source: news.source ?? undefined,
   };
 
   const fallbackBody = omitIfHungarianScript(news.summary ?? "");
@@ -196,13 +130,15 @@ export default async function ArticlePage({
   const readerBody = bodyFromFetch || fb || ang;
   /** Avoid showing the same line twice (header angle + body) when angle is the only text we have. */
   const itemForReader: NewsItem =
-    !bodyFromFetch && !fb && ang && readerBody === ang ? { ...item, angle: "" } : item;
+    !rewrittenMarkdown && !bodyFromFetch && !fb && ang && readerBody === ang ? { ...item, angle: "" } : item;
+
+  const sourceLabel = newsSourceLabel(news.source, news.url);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     headline: item.title,
-    description: item.summary?.slice(0, 200) || undefined,
+    description: (news.seo_description ?? item.summary)?.slice(0, 200) || undefined,
     datePublished: item.date,
     dateModified: item.date,
     url: `${SITE_URL}/article/${item.id}`,
@@ -224,7 +160,18 @@ export default async function ArticlePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ArticleReader item={itemForReader} body={readerBody} initialChatOpen={initialChatOpen} voteTheories={voteTheories} />
+      <ArticleReader
+        item={itemForReader}
+        body={rewrittenMarkdown ? "" : readerBody}
+        bodyMarkdown={rewrittenMarkdown || undefined}
+        sourceAttribution={
+          articleUrl
+            ? { label: sourceLabel, url: articleUrl, isRewritten: Boolean(rewrittenMarkdown) }
+            : undefined
+        }
+        initialChatOpen={initialChatOpen}
+        voteTheories={voteTheories}
+      />
     </>
   );
 }

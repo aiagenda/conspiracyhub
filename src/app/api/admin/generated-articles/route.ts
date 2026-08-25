@@ -3,6 +3,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { sanitizeSources } from "@/lib/generatedArticleSourceUrls";
 import { pageViewStatsByPaths } from "@/lib/adminPageViewCounts";
+import { countArticleWords } from "@/lib/server/articleExpand";
+import { runExpandExistingArticleCore } from "@/lib/server/generateArticleCore";
+
+export const maxDuration = 300;
 
 function admin() {
   return createClient(
@@ -21,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const { data, count, error } = await db
       .from("generated_articles")
-      .select("id, title, slug, published_at, category, status", { count: "exact" })
+      .select("id, title, slug, published_at, category, status, content", { count: "exact" })
       .eq("status", "published")
       .order("published_at", { ascending: false })
       .range(from, from + limit - 1);
@@ -42,11 +46,13 @@ export async function GET(req: NextRequest) {
 
     const posts = rows.map((p) => {
       const s = viewStats[`/blog/${p.slug}`] ?? { totalLoads: 0, uniqueReaders: 0 };
+      const content = (p as { content?: string }).content ?? "";
       return {
         ...p,
         view_count: s.totalLoads,
         unique_viewers: s.uniqueReaders,
         has_oracle: oracleGenIds.has(p.id),
+        word_count: countArticleWords(content),
       };
     });
 
@@ -86,11 +92,62 @@ export async function DELETE(req: NextRequest) {
  * POST body:
  * - `{ "action": "delete_all_published" }` — remove every published report (destructive).
  * - `{ "action": "sanitize_all_sources" }` — strip non-whitelisted source URLs in-place (all statuses).
+ * - `{ "action": "expand_article", "id": "<uuid>" }` — long-form expand in place (same slug).
+ * - `{ "action": "expand_top_short", "limit"?: number, "max_words"?: number }` — expand most-viewed short posts.
  */
 export async function POST(req: NextRequest) {
   try {
     const db = admin();
-    const body = (await req.json()) as { action?: string };
+    const body = (await req.json()) as { action?: string; id?: string; limit?: number; max_words?: number };
+
+    if (body.action === "expand_article") {
+      const id = String(body.id ?? "").trim();
+      if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+      const { status, payload } = await runExpandExistingArticleCore(id);
+      return NextResponse.json(payload, { status });
+    }
+
+    if (body.action === "expand_top_short") {
+      const limit = Math.min(10, Math.max(1, Number(body.limit) || 3));
+      const maxWords = Math.max(400, Number(body.max_words) || 1000);
+
+      const { data: rows, error } = await db
+        .from("generated_articles")
+        .select("id, slug, title, content")
+        .eq("status", "published");
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      const paths = (rows ?? []).map((r) => `/blog/${r.slug}`);
+      const viewStats = await pageViewStatsByPaths(db, paths);
+
+      const candidates = (rows ?? [])
+        .map((r) => ({
+          id: r.id,
+          title: r.title,
+          slug: r.slug,
+          word_count: countArticleWords(r.content ?? ""),
+          unique_viewers: viewStats[`/blog/${r.slug}`]?.uniqueReaders ?? 0,
+        }))
+        .filter((r) => r.word_count < maxWords && r.unique_viewers > 0)
+        .sort((a, b) => b.unique_viewers - a.unique_viewers)
+        .slice(0, limit);
+
+      const results: Array<Record<string, unknown>> = [];
+      for (const c of candidates) {
+        const { status, payload } = await runExpandExistingArticleCore(c.id);
+        results.push({
+          id: c.id,
+          title: c.title,
+          slug: c.slug,
+          unique_viewers: c.unique_viewers,
+          words_before: c.word_count,
+          ok: status >= 200 && status < 300,
+          ...(typeof payload === "object" && payload !== null ? payload : { error: String(payload) }),
+        });
+      }
+
+      return NextResponse.json({ ok: true, expanded: results.length, results });
+    }
 
     if (body.action === "delete_all_published") {
       const { error, count } = await db.from("generated_articles").delete({ count: "exact" }).eq("status", "published");

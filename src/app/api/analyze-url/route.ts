@@ -11,6 +11,8 @@ import type { OracleAnalysis } from "@/types";
 import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 import { getPostHogClient } from "@/lib/posthog-server";
 
+export const maxDuration = 60; // PDF extraction (FOIA / patent docs) needs headroom beyond the default
+
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
