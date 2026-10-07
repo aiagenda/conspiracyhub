@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   checkCronAuth,
+  ensureDailyIngestJobs,
   executeJob,
   matchesCronNow,
 } from "@/lib/server/scraperScheduler";
@@ -25,6 +26,8 @@ async function runTick() {
   } catch (e) {
     console.error("[scheduler] expire trials", e);
   }
+
+  await ensureDailyIngestJobs();
 
   const { data: jobs, error } = await db
     .from("scraper_jobs")
