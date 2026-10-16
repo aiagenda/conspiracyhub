@@ -111,7 +111,6 @@ export async function DELETE(req: NextRequest) {
 /**
  * POST body:
  * - `{ "action": "delete_all_published" }` — remove every published report (destructive).
- * - `{ "action": "sanitize_all_sources" }` — strip non-whitelisted source URLs in-place (all statuses).
  * - `{ "action": "expand_article", "id": "<uuid>" }` — long-form expand in place (same slug).
  * - `{ "action": "expand_top_short", "limit"?: number, "max_words"?: number }` — expand most-viewed short posts.
  */
@@ -236,35 +235,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, deleted: count ?? 0 });
     }
 
-    if (body.action === "sanitize_all_sources") {
-      const pageSize = 100;
-      let lastId: string | null = null;
-      let updated = 0;
-      for (;;) {
-        let q = db
-          .from("generated_articles")
-          .select("id, sources")
-          .order("id", { ascending: true })
-          .limit(pageSize);
-        if (lastId) q = q.gt("id", lastId);
-        const { data: rows, error } = await q;
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        if (!rows?.length) break;
-        for (const row of rows) {
-          const next = sanitizeSources(row.sources);
-          const { error: upErr } = await db.from("generated_articles").update({ sources: next }).eq("id", row.id);
-          if (!upErr) updated += 1;
-        }
-        lastId = rows[rows.length - 1]?.id ?? null;
-        if (rows.length < pageSize) break;
-      }
-      try {
-        revalidatePath("/blog");
-      } catch {
-        /* */
-      }
-      return NextResponse.json({ ok: true, rowsTouched: updated });
-    }
+    // `sanitize_all_sources` was removed with the editorial rework. It rewrote `sources`
+    // on every row, which the generated_article_updated_at trigger correctly reads as an
+    // unreviewed content change — running it would have reverted the whole archive to
+    // draft and emptied the public site. It is also obsolete: sources are now stored with
+    // the title and URL of the document actually retrieved, so they no longer drift apart.
+
 
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (e) {

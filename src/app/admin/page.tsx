@@ -768,33 +768,6 @@ function AdminConsole() {
     }
   }
 
-  async function sanitizeAllReportSources() {
-    if (
-      !confirm(
-        "Strip non-whitelisted URLs from every generated article’s sources (titles & descriptions stay)? Safe to run more than once.",
-      )
-    ) {
-      return;
-    }
-    setBlogAdminBusy("sanitize");
-    setErr("");
-    try {
-      const res = await fetchWithSupabaseAuth("/api/admin/generated-articles", {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({ action: "sanitize_all_sources" }),
-      });
-      const d = (await res.json().catch(() => ({}))) as { error?: string; rowsTouched?: number };
-      if (!res.ok) {
-        setErr(d.error ?? res.statusText);
-        return;
-      }
-      await loadBlogPosts(blogPage);
-    } finally {
-      setBlogAdminBusy("");
-    }
-  }
-
   async function markRead(id: string, read: boolean) {
     await fetchWithSupabaseAuth("/api/admin/messages", {
       method: "PATCH",
@@ -2400,7 +2373,7 @@ function AdminConsole() {
                   Blog maintenance
                 </div>
                 <p className="mt-3 text-[12px] leading-relaxed" style={{ color: muted }}>
-                  Sanitize strips non-whitelisted source URLs in every stored report (titles stay). Delete all removes every published /blog post (votes and Oracle rows for those reports follow DB cascades).
+                  Delete all removes every published /blog post (votes and Oracle rows for those reports follow DB cascades).
                   <span className="mt-2 block">
                     <strong style={{ color: "#ccaa44" }}>Oracle ↻</strong> (soronként) — egy riport elemzését törli és azonnal újrafuttatja.{" "}
                     <strong style={{ color: "var(--foreground)" }}>Oracle RESET ALL · analysis</strong> csak{" "}
@@ -2419,15 +2392,6 @@ function AdminConsole() {
                     style={{ borderColor: "#2a4030", color: "var(--green)" }}
                   >
                     {blogAdminBusy === "expand_top" ? "Expanding…" : "Expand top 3 short posts"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={blogAdminBusy !== "" || bulkOracleBusy !== ""}
-                    onClick={() => void sanitizeAllReportSources()}
-                    className="rounded-md border px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider disabled:opacity-40"
-                    style={{ borderColor: "#1a3320", color: "var(--green-dim)" }}
-                  >
-                    {blogAdminBusy === "sanitize" ? "Sanitizing…" : "Sanitize all source URLs"}
                   </button>
                   <button
                     type="button"
