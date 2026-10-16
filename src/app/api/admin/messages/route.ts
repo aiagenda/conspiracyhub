@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -8,8 +9,10 @@ function admin() {
   );
 }
 
-// GET all messages (paginated) — open for now; protect with auth before production.
+// GET all messages (paginated), restricted to administrators.
 export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);
   const limit = 30;
@@ -27,6 +30,8 @@ export async function GET(req: NextRequest) {
 
 // PATCH mark as read
 export async function PATCH(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   const { id, read } = await req.json() as { id: string; read: boolean };
   const { error } = await admin()
     .from("contact_messages")
@@ -39,6 +44,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE a message
 export async function DELETE(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   const { id } = await req.json() as { id: string };
   const { error } = await admin().from("contact_messages").delete().eq("id", id);
 

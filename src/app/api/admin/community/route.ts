@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,6 +11,8 @@ function admin() {
 
 // GET — list threads (paginated, with post count)
 export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { searchParams } = new URL(req.url);
@@ -60,6 +63,8 @@ export async function GET(req: NextRequest) {
 
 // PATCH — set thread status (remove / restore)
 export async function PATCH(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { id, status } = (await req.json()) as { id: string; status: string };
@@ -76,6 +81,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE — permanently delete a thread + its posts
 export async function DELETE(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { id } = (await req.json()) as { id: string };

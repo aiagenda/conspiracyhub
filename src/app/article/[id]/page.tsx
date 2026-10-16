@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import PublicationHeader from "@/components/PublicationHeader";
+import { getSiteUrl } from "@/lib/siteUrl";
 import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
 import { newsSourceLabel } from "@/lib/newsSourceLabel";
-import { fetchNewsSourceBody } from "@/lib/server/fetchNewsSourceBody";
+import { fetchNewsSourceContent } from "@/lib/server/fetchNewsSourceBody";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+const SITE_URL = getSiteUrl();
 
 export async function generateMetadata({
   params,
@@ -74,11 +77,11 @@ export default async function ArticlePage({
     chatVal === "1" || chatVal === "open" || chatVal === "true" || chatVal === "yes";
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) return <div className="min-h-screen bg-[#050c07] text-[#ff3333] p-8">[ERROR] Missing env.</div>;
+  if (!url || !key) return <div className="publication-page"><PublicationHeader /><div className="publication-shell publication-empty"><h1>Reporting is temporarily unavailable</h1><p>Please try again later.</p></div></div>;
 
   const admin = createClient(url, key);
   const { data: news } = await admin.from("news_items").select("*").eq("id", id).single();
-  if (!news) return <div className="min-h-screen bg-[#050c07] text-[#ff3333] p-8">[ERROR] Article not found.</div>;
+  if (!news) return notFound();
 
   const articleUrl = news.url ?? "";
   const isReddit = /reddit\.com\/r\//.test(articleUrl);
@@ -88,9 +91,11 @@ export default async function ArticlePage({
     news.rewrite_status === "ready" && typeof news.body_html === "string" ? news.body_html.trim() : "";
 
   let body = "";
+  let fetchedBodyKind: "source" | "summary" = "summary";
   if (!rewrittenMarkdown) {
-    const fetched = await fetchNewsSourceBody(news);
-    body = fetched;
+    const fetched = await fetchNewsSourceContent(news);
+    body = fetched.text;
+    fetchedBodyKind = fetched.extraction === "body" ? "source" : "summary";
     if (isReddit && articleUrl) {
       const { fetchRedditArticleBody } = await import("@/lib/server/redditPostBody");
       const r = await fetchRedditArticleBody(articleUrl);
@@ -158,12 +163,13 @@ export default async function ArticlePage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <ArticleReader
         item={itemForReader}
         body={rewrittenMarkdown ? "" : readerBody}
         bodyMarkdown={rewrittenMarkdown || undefined}
+        bodyKind={bodyFromFetch ? fetchedBodyKind : "summary"}
         sourceAttribution={
           articleUrl
             ? { label: sourceLabel, url: articleUrl, isRewritten: Boolean(rewrittenMarkdown) }

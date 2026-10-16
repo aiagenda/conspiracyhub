@@ -7,7 +7,7 @@ import { isM5PlusLast24h, magColor, seismicTimeAgo, type SeismicPayload } from "
 const RAJ = "var(--font-raj), sans-serif";
 
 /** Compact M5+ last-24h strip on feed page 1. Hidden when the catalog is quiet. */
-export default function SeismicFeedStrip() {
+export default function SeismicFeedStrip({ compact = false }: { compact?: boolean }) {
   const [payload, setPayload] = useState<SeismicPayload | null>(null);
 
   useEffect(() => {
@@ -21,6 +21,8 @@ export default function SeismicFeedStrip() {
 
   const hits = (payload?.events ?? []).filter(isM5PlusLast24h).slice(0, 3);
   if (!hits.length) return null;
+
+  if (compact) return <aside className="desk-seismic" aria-label="Seismic monitor: magnitude 5 and above, past 24 hours"><div className="desk-seismic-title"><span><i aria-hidden="true">◈</i> SEISMIC WATCH</span><Link href="/seismic">M5+ / 24H ↗</Link></div><div className="desk-seismic-events">{hits.map(e => <Link key={e.id} href="/seismic" title={`${e.place} · ${seismicTimeAgo(e.time)}`}><strong style={{ color: magColor(e.mag) }}>M{e.mag.toFixed(1)}</strong><span>{e.place}<small>{seismicTimeAgo(e.time)}</small></span></Link>)}</div></aside>;
 
   return (
     <div

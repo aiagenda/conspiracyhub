@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getFeedMinScore } from "@/lib/feedMinScore";
@@ -12,6 +13,8 @@ function admin() {
 
 // GET — list articles (paginated, with oracle analysis indicator)
 export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { searchParams } = new URL(req.url);
@@ -78,6 +81,8 @@ export async function GET(req: NextRequest) {
 
 // DELETE — remove an article + its oracle analysis
 export async function DELETE(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { id } = (await req.json()) as { id: string };

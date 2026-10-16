@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
 import { humanizeCronUtc } from "@/lib/cronHuman";
@@ -24,6 +27,8 @@ import { PostHogAdminSection } from "@/components/admin/PostHogAdminSection";
 import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
 import { BragStudioSection } from "@/components/admin/BragStudioSection";
+import { AdminAccessGate } from "@/components/admin/AdminAccessGate";
+import EditorialReviewSection from "@/components/admin/EditorialReviewSection";
 import { TechDeskSection } from "@/components/admin/TechDeskSection";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -132,6 +137,10 @@ interface ScraperJob {
   config: Record<string, unknown> | null;
   last_run: ScraperRun | null;
   runs: ScraperRun[];
+  next_run_at?: string | null;
+  retry_at?: string | null;
+  lease_expires_at?: string | null;
+  failure_count?: number;
 }
 
 function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
@@ -217,8 +226,12 @@ function TableShell({ title, children }: { title: string; children: React.ReactN
 }
 
 export default function AdminPage() {
+  return <AdminAccessGate><AdminConsole /></AdminAccessGate>;
+}
+
+function AdminConsole() {
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
-  const [contentSubTab, setContentSubTab] = useState<ContentSubTab>("twitter");
+  const [contentSubTab, setContentSubTab] = useState<ContentSubTab>("review");
   const [automationSubTab, setAutomationSubTab] = useState<AutomationSubTab>("ingest");
 
   const [stats, setStats] = useState<Stats | null>(null);
@@ -291,7 +304,7 @@ export default function AdminPage() {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch("/api/admin/stats");
+      const res = await fetchWithSupabaseAuth("/api/admin/stats");
       if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
       setStats(await res.json());
     } catch (e: unknown) {
@@ -302,7 +315,7 @@ export default function AdminPage() {
   }, []);
 
   const loadMessages = useCallback(async (page = 1) => {
-    const res = await fetch(`/api/admin/messages?page=${page}`);
+    const res = await fetchWithSupabaseAuth(`/api/admin/messages?page=${page}`);
     if (!res.ok) return;
     const d = await res.json();
     setMessages(d.messages ?? []);
@@ -311,7 +324,7 @@ export default function AdminPage() {
   }, []);
 
   const loadScrapers = useCallback(async () => {
-    const res = await fetch("/api/admin/scrapers");
+    const res = await fetchWithSupabaseAuth("/api/admin/scrapers");
     if (!res.ok) return;
     const d = await res.json() as { jobs?: ScraperJob[] };
     setScrapers(d.jobs ?? []);
@@ -320,7 +333,7 @@ export default function AdminPage() {
   const loadUsers = useCallback(async (page = 1, planFilter: string = "all") => {
     const params = new URLSearchParams({ page: String(page) });
     if (planFilter !== "all") params.set("plan", planFilter);
-    const res = await fetch(`/api/admin/users?${params}`);
+    const res = await fetchWithSupabaseAuth(`/api/admin/users?${params}`);
     if (!res.ok) return;
     const d = await res.json();
     setUsers(d.users ?? []);
@@ -330,7 +343,7 @@ export default function AdminPage() {
   }, []);
 
   const loadThreads = useCallback(async (page = 1) => {
-    const res = await fetch(`/api/admin/community?page=${page}`);
+    const res = await fetchWithSupabaseAuth(`/api/admin/community?page=${page}`);
     if (!res.ok) return;
     const d = await res.json();
     setThreads(d.threads ?? []);
@@ -342,7 +355,7 @@ export default function AdminPage() {
   const loadArticles = useCallback(async (page = 1, minScore = 0) => {
     const params = new URLSearchParams({ page: String(page) });
     if (minScore > 0) params.set("min_score", String(minScore));
-    const res = await fetch(`/api/admin/content?${params}`);
+    const res = await fetchWithSupabaseAuth(`/api/admin/content?${params}`);
     if (!res.ok) return;
     const d = await res.json();
     setArticles(d.articles ?? []);
@@ -352,7 +365,7 @@ export default function AdminPage() {
   }, []);
 
   const loadBlogPosts = useCallback(async (page = 1) => {
-    const res = await fetch(`/api/admin/generated-articles?page=${page}`);
+    const res = await fetchWithSupabaseAuth(`/api/admin/generated-articles?page=${page}`);
     if (!res.ok) return;
     const d = await res.json() as { posts?: AdminBlogPost[]; total?: number };
     setBlogPosts(d.posts ?? []);
@@ -361,6 +374,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
+    queueMicrotask(() => {
     loadStats();
     loadMessages();
     loadScrapers();
@@ -368,15 +382,17 @@ export default function AdminPage() {
     loadThreads();
     loadArticles();
     void loadBlogPosts(1);
+    });
   }, [loadStats, loadMessages, loadScrapers, loadUsers, loadThreads, loadArticles, loadBlogPosts]);
 
   useEffect(() => {
     try {
-      setAnalyticsSuppress(typeof window !== "undefined" && localStorage.getItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY) === "1");
+      const suppress = localStorage.getItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY) === "1";
+      queueMicrotask(() => setAnalyticsSuppress(suppress));
     } catch {
       /* */
     }
-    void fetch("/api/track/viewer-id")
+    void fetchWithSupabaseAuth("/api/track/viewer-id")
       .then((r) => r.json())
       .then((d: { fingerprint?: string; client_ip?: string }) => {
         if (typeof d.fingerprint === "string") setAnalyticsViewerId(d.fingerprint);
@@ -400,7 +416,7 @@ export default function AdminPage() {
     if (!confirm(`Set user plan to ${plan.toUpperCase()}?`)) return;
     setUserBusy(id);
     try {
-      await fetch("/api/admin/users", {
+      await fetchWithSupabaseAuth("/api/admin/users", {
         method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify({ id, plan }),
@@ -421,7 +437,7 @@ export default function AdminPage() {
         .split("\n")
         .map((u) => u.trim())
         .filter((u) => u.startsWith("http"));
-      const res = await fetch("/api/admin/generate-lore", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generate-lore", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ topic: loreTopic.trim(), angle: loreAngle.trim() || undefined, seedUrls }),
@@ -447,13 +463,13 @@ export default function AdminPage() {
     setThreadBusy(id);
     try {
       if (permanent) {
-        await fetch("/api/admin/community", {
+        await fetchWithSupabaseAuth("/api/admin/community", {
           method: "DELETE",
           headers: JSON_HEADERS,
           body: JSON.stringify({ id }),
         });
       } else {
-        await fetch("/api/admin/community", {
+        await fetchWithSupabaseAuth("/api/admin/community", {
           method: "PATCH",
           headers: JSON_HEADERS,
           body: JSON.stringify({ id, status: "removed" }),
@@ -469,7 +485,7 @@ export default function AdminPage() {
     if (!confirm(`Delete article "${title.slice(0, 60)}…"?\nThis also removes its Oracle analysis.`)) return;
     setArticleBusy(id);
     try {
-      await fetch("/api/admin/content", {
+      await fetchWithSupabaseAuth("/api/admin/content", {
         method: "DELETE",
         headers: JSON_HEADERS,
         body: JSON.stringify({ id }),
@@ -496,7 +512,7 @@ export default function AdminPage() {
         setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
         return;
       }
-      const res = await fetch("/api/admin/rescore", {
+      const res = await fetchWithSupabaseAuth("/api/admin/rescore", {
         method: "POST",
         headers: { ...JSON_HEADERS, Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ newsId: id }),
@@ -532,7 +548,7 @@ export default function AdminPage() {
         setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
         return;
       }
-      const res = await fetch("/api/admin/oracle-brave-refresh", {
+      const res = await fetchWithSupabaseAuth("/api/admin/oracle-brave-refresh", {
         method: "POST",
         headers: { ...JSON_HEADERS, Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(opts),
@@ -559,7 +575,7 @@ export default function AdminPage() {
     setBlogAdminBusy(id);
     setErr("");
     try {
-      const res = await fetch("/api/admin/generated-articles", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generated-articles", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "expand_article", id }),
@@ -586,7 +602,7 @@ export default function AdminPage() {
     setBlogAdminBusy("expand_top");
     setErr("");
     try {
-      const res = await fetch("/api/admin/generated-articles", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generated-articles", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "expand_top_short", limit: 3, max_words: 1000 }),
@@ -615,7 +631,7 @@ export default function AdminPage() {
     setBlogAdminBusy(id);
     setErr("");
     try {
-      const res = await fetch("/api/admin/generated-articles", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generated-articles", {
         method: "DELETE",
         headers: JSON_HEADERS,
         body: JSON.stringify({ id }),
@@ -650,7 +666,7 @@ export default function AdminPage() {
         setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
         return;
       }
-      const res = await fetch("/api/admin/oracle-rerun", {
+      const res = await fetchWithSupabaseAuth("/api/admin/oracle-rerun", {
         method: "POST",
         headers: {
           ...JSON_HEADERS,
@@ -698,7 +714,7 @@ export default function AdminPage() {
         setErr("Sign in to this site in this browser (admin account) so the request can be authorized.");
         return;
       }
-      const res = await fetch("/api/admin/oracle-rerun-bulk", {
+      const res = await fetchWithSupabaseAuth("/api/admin/oracle-rerun-bulk", {
         method: "POST",
         headers: {
           ...JSON_HEADERS,
@@ -734,7 +750,7 @@ export default function AdminPage() {
     setBlogAdminBusy("delete_all");
     setErr("");
     try {
-      const res = await fetch("/api/admin/generated-articles", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generated-articles", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "delete_all_published" }),
@@ -763,7 +779,7 @@ export default function AdminPage() {
     setBlogAdminBusy("sanitize");
     setErr("");
     try {
-      const res = await fetch("/api/admin/generated-articles", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generated-articles", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "sanitize_all_sources" }),
@@ -780,7 +796,7 @@ export default function AdminPage() {
   }
 
   async function markRead(id: string, read: boolean) {
-    await fetch("/api/admin/messages", {
+    await fetchWithSupabaseAuth("/api/admin/messages", {
       method: "PATCH",
       headers: JSON_HEADERS,
       body: JSON.stringify({ id, read }),
@@ -792,7 +808,7 @@ export default function AdminPage() {
 
   async function deleteMsg(id: string) {
     if (!confirm("Delete this message?")) return;
-    await fetch("/api/admin/messages", {
+    await fetchWithSupabaseAuth("/api/admin/messages", {
       method: "DELETE",
       headers: JSON_HEADERS,
       body: JSON.stringify({ id }),
@@ -860,7 +876,7 @@ export default function AdminPage() {
   async function updateScraper(job: ScraperJob, patch: Partial<Pick<ScraperJob, "enabled" | "schedule_cron" | "config">>) {
     setScraperBusy(job.id);
     try {
-      await fetch("/api/admin/scrapers", {
+      await fetchWithSupabaseAuth("/api/admin/scrapers", {
         method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify({ id: job.id, ...patch }),
@@ -875,7 +891,7 @@ export default function AdminPage() {
     setScraperBusy("pursue-fetch");
     setUapBriefHint({ variant: "info", text: "Syncing PURSUE catalog (222 records from war.gov manifest)…" });
     try {
-      const res = await fetch("/api/admin/scrapers", {
+      const res = await fetchWithSupabaseAuth("/api/admin/scrapers", {
         method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "fetch_pursue" }),
@@ -943,7 +959,7 @@ export default function AdminPage() {
     setScraperBusy("uap-briefs");
     setUapBriefHint({ text: "Generating intelligence briefs… (may take ~1 min)", variant: "info" });
     try {
-      const res = await fetch("/api/admin/scrapers", {
+      const res = await fetchWithSupabaseAuth("/api/admin/scrapers", {
         method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "enrich_uap_briefs", limit: 12 }),
@@ -993,7 +1009,7 @@ export default function AdminPage() {
     setScraperBusy(job.id);
     if (job.target === "news_scraper") setNewsIngestHint(null);
     try {
-      const res = await fetch("/api/admin/scrapers", {
+      const res = await fetchWithSupabaseAuth("/api/admin/scrapers", {
         method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify({ action: "run", id: job.id }),
@@ -1206,6 +1222,12 @@ export default function AdminPage() {
             )}
           </div>
         </div>
+
+        <p className="mt-3 text-[11px] leading-relaxed" style={{ color: muted }}>
+          {job.retry_at ? `Retry due: ${new Date(job.retry_at).toLocaleString()} · attempt ${(job.failure_count ?? 0) + 1} of 3`
+            : job.next_run_at ? `Next due: ${new Date(job.next_run_at).toLocaleString()}` : "Next occurrence will be reconciled by the scheduler."}
+          {job.lease_expires_at ? ` · Lease expires: ${new Date(job.lease_expires_at).toLocaleString()}` : ""}
+        </p>
 
         {job.target === "uap_scraper" && uapBriefHint ? (
           <div
@@ -1441,34 +1463,34 @@ export default function AdminPage() {
       >
         <div className="min-w-0">
           <p className="mb-0.5 text-[10px] uppercase tracking-[0.2em]" style={{ color: muted }}>
-            ConspiracyHub
+            The Theorist
           </p>
           <h1 className="font-raj text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
-            Operations console
+            Editorial & operations desk
           </h1>
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-          <a
+          <Link
             href="/"
             className="rounded-md border px-3 py-2 text-[12px] no-underline"
             style={{ borderColor: "#1a2a22", color: muted }}
           >
             Feed
-          </a>
-          <a
+          </Link>
+          <Link
             href="/search"
             className="rounded-md border px-3 py-2 text-[12px] no-underline"
             style={{ borderColor: "#1a2a22", color: muted }}
           >
             Search
-          </a>
-          <a
+          </Link>
+          <Link
             href="/community"
             className="rounded-md border px-3 py-2 text-[12px] no-underline"
             style={{ borderColor: "#1a2a22", color: muted }}
           >
             Community
-          </a>
+          </Link>
           <button
             type="button"
             onClick={() => {
@@ -1605,11 +1627,11 @@ export default function AdminPage() {
               ) : null}
             </div>
             <div className="flex flex-wrap gap-3 text-[12px]" style={{ color: "var(--green-dim)" }}>
-              <a href="/guide" className="no-underline hover:underline">Guide</a>
-              <a href="/uap" className="no-underline hover:underline">UAP</a>
-              <a href="/outbreaks" className="no-underline hover:underline">Outbreaks</a>
-              <a href="/seismic" className="no-underline hover:underline">Seismic</a>
-              <a href="/insider-radar" className="no-underline hover:underline">Insider radar</a>
+              <Link href="/guide" className="no-underline hover:underline">Guide</Link>
+              <Link href="/uap" className="no-underline hover:underline">UAP</Link>
+              <Link href="/outbreaks" className="no-underline hover:underline">Outbreaks</Link>
+              <Link href="/seismic" className="no-underline hover:underline">Seismic</Link>
+              <Link href="/insider-radar" className="no-underline hover:underline">Insider radar</Link>
             </div>
           </section>
           )}
@@ -2135,6 +2157,7 @@ export default function AdminPage() {
           <section id="content" className="space-y-5">
             <SectionHeading title="Content" accent="#ffaa00" />
             <ContentSubTabBar active={contentSubTab} onChange={setContentSubTab} />
+            {contentSubTab === "review" && <EditorialReviewSection />}
 
             {contentSubTab === "twitter" && (
               <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
@@ -3015,10 +3038,10 @@ export default function AdminPage() {
                 </p>
                 <p className="mb-3">Legal and help content for visitors:</p>
                 <div className="flex flex-wrap gap-2">
-                  <a href="/privacy" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Privacy</a>
-                  <a href="/terms" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Terms</a>
-                  <a href="/faq" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>FAQ</a>
-                  <a href="/contact" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Contact form</a>
+                  <Link href="/privacy" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Privacy</Link>
+                  <Link href="/terms" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Terms</Link>
+                  <Link href="/faq" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>FAQ</Link>
+                  <Link href="/contact" className="rounded border px-3 py-1.5 text-[12px] no-underline" style={{ borderColor: "#1a2a22", color: "var(--green-dim)" }}>Contact form</Link>
                 </div>
               </div>
             </div>

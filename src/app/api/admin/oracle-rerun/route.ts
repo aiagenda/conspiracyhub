@@ -1,7 +1,8 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runOraclePipelineInsert } from "@/lib/server/oraclePipeline";
-import { requireAdminSession } from "@/lib/server/requireAdminSession";
+
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,10 +13,10 @@ function getAdminClient() {
 
 /** POST `{ newsId }` or `{ generatedArticleId }` — admin-only fresh Oracle run (new DB row). */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const admin = getAdminClient();
-    const gate = await requireAdminSession(admin, req);
-    if ("response" in gate) return gate.response;
 
     const body = (await req.json()) as { newsId?: string; generatedArticleId?: string };
     const newsId = body.newsId?.trim();

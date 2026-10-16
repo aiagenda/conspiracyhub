@@ -1,6 +1,7 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminSession } from "@/lib/server/requireAdminSession";
+
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,10 +22,10 @@ function getAdminClient() {
  * Does NOT run any Oracle pipeline — this is a clear/reset, not a re-run.
  */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const admin = getAdminClient();
-    const gate = await requireAdminSession(admin, req);
-    if ("response" in gate) return gate.response;
 
     const body = (await req.json()) as { scope?: string };
     const scope = body.scope === "analysis" ? "analysis" : body.scope === "feed" ? "feed" : null;

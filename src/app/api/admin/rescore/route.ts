@@ -1,8 +1,9 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
 import { SYSTEM_SCORE } from "@/lib/prompts";
-import { requireAdminSession } from "@/lib/server/requireAdminSession";
+
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,6 +18,8 @@ function getAdminClient() {
  * Admin + signed-in required.
  */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     if (!process.env.OPENAI_API_KEY?.trim()) {
       return NextResponse.json(
@@ -26,8 +29,6 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getAdminClient();
-    const gate = await requireAdminSession(admin, req);
-    if ("response" in gate) return gate.response;
 
     const body = (await req.json()) as { newsId?: string };
     const newsId = body.newsId?.trim();

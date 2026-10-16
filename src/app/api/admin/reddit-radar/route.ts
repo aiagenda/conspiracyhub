@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import {
   clearStaleRedditMatches,
@@ -10,7 +11,9 @@ import {
 export const maxDuration = 180;
 
 /** List matches, scan Reddit, generate drafts, or update status. */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const data = await listRedditMatches(30);
     return NextResponse.json(data);
@@ -20,6 +23,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const body = (await req.json()) as Record<string, unknown>;
     const action = String(body.action ?? "scan");

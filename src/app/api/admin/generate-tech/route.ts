@@ -1,7 +1,9 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { runTechArticleCore, TECH_CATEGORY } from "@/lib/server/generateTechArticle";
+import { publishReviewedArticle, type EditorialRow } from "@/lib/server/editorialAdmin";
 import { countArticleWords } from "@/lib/server/articleExpand";
 
 export const maxDuration = 300;
@@ -17,6 +19,8 @@ function admin() {
  *   admin panel — the public /blog/[slug] route only serves `status = 'published'`.
  */
 export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
 
@@ -76,6 +80,8 @@ export async function GET(req: NextRequest) {
  * - `{ action: "delete", id }`    — delete outright
  */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   let body: {
     action?: string;
     id?: string;
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
       const db = admin();
       const { data: row, error: findErr } = await db
         .from("generated_articles")
-        .select("slug, category")
+        .select("*")
         .eq("id", id)
         .single();
       if (findErr || !row) return NextResponse.json({ error: findErr?.message ?? "not_found" }, { status: 404 });
@@ -112,12 +118,11 @@ export async function POST(req: NextRequest) {
       if (action === "delete") {
         const { error } = await db.from("generated_articles").delete().eq("id", id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      } else if (action === "publish") {
+        const outcome = await publishReviewedArticle(db, row as EditorialRow);
+        if (outcome.status !== 200) return NextResponse.json(outcome.body, { status: outcome.status });
       } else {
-        const status = action === "publish" ? "published" : "draft";
-        const patch: Record<string, unknown> = { status };
-        // Publishing sets the visible date to now, so the /ai order reflects release time.
-        if (action === "publish") patch.published_at = new Date().toISOString();
-        const { error } = await db.from("generated_articles").update(patch).eq("id", id);
+        const { error } = await db.from("generated_articles").update({ status: "draft" }).eq("id", id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
@@ -144,7 +149,7 @@ export async function POST(req: NextRequest) {
     sourceUrl,
     sourceText,
     angle: body.angle ? String(body.angle).trim() : undefined,
-    publish: body.publish === true,
+    publish: false, // Publication always uses the shared evidence-review action.
   });
 
   return NextResponse.json(payload, { status });

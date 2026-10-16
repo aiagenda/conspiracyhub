@@ -21,6 +21,13 @@ export const TRUSTED_SOURCE_DOMAINS = [
   // A site that weighs "documented vs speculation" needs the debunk side on hand —
   // without these the model can only cite sources that support a claim.
   "wikipedia.org",
+  "nuforc.org",
+  "the-theorist.com",
+  "bellingcat.com",
+  "eff.org",
+  "occrp.org",
+  "themarkup.org",
+  "whistleblower.org",
   "britannica.com",
   "theconversation.com",
   "snopes.com",

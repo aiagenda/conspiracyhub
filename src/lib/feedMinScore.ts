@@ -1,5 +1,5 @@
 /** Default minimum AI priority score for ingest and public feed. Override with SCRAPER_MIN_SCORE or FEED_MIN_SCORE. */
-export const FEED_MIN_SCORE_DEFAULT = 80;
+export const FEED_MIN_SCORE_DEFAULT = 60;
 
 /** Email/push alerts only for exceptional scores (above feed cutoff). */
 export const ALERT_MIN_SCORE_DEFAULT = 85;

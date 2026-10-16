@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { callOpenAIJSON } from "@/lib/openai";
@@ -494,8 +495,10 @@ async function generateForCandidate(candidate: TwitterCandidate, apiKey: string)
   return mapVariants(candidate, result);
 }
 
-/** Open access for now — same as other /api/admin/* routes. */
+/** Administrator-only drafts. */
 export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   const admin = getAdmin();
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -582,6 +585,8 @@ export async function GET(req: NextRequest) {
  * the cached batch on reload) and returns one fresh replacement pick so the list stays full.
  */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   const admin = getAdmin();
   let body: Record<string, unknown>;
   try {

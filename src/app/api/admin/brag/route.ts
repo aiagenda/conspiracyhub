@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createAndRunBragJob,
@@ -9,7 +10,9 @@ import { BRAG_TONE_PRESETS, type BragFormat } from "@/lib/server/bragProjectCont
 
 export const maxDuration = 300;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const jobs = await listBragJobs(25);
     return NextResponse.json({ jobs, tones: BRAG_TONE_PRESETS });
@@ -19,6 +22,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const body = (await req.json()) as CreateBragJobParams & { action?: string; jobId?: string };
 

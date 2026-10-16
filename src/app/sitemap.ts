@@ -1,12 +1,16 @@
 import type { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { TOPICS } from "@/lib/topics";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
 export const revalidate = 3600; // rebuild sitemap every hour
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+import { getSiteUrl } from "@/lib/siteUrl";
+
+const SITE_URL = getSiteUrl();
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
+  ...["/ai", "/topics", "/data", "/about", ...TOPICS.map(t => `/topics/${t.slug}`)].map(path => ({ url: `${SITE_URL}${path}`, changeFrequency: "weekly" as const, priority: 0.7 })),
   { url: SITE_URL, lastModified: new Date(), changeFrequency: "hourly", priority: 1.0 },
   { url: `${SITE_URL}/uap`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
   ...(SHOW_COMMUNITY

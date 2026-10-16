@@ -11,6 +11,7 @@ import {
   type ImageSlot,
 } from "@/lib/server/inlineArticleImages";
 import { SYSTEM_NEWS_REWRITE } from "@/lib/prompts";
+import { reviewArticleEvidence } from "@/lib/server/editorialReview";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com";
 
@@ -27,6 +28,7 @@ export type NewsItemRewriteRow = {
   image?: string | null;
   body_html?: string | null;
   rewrite_status?: string | null;
+  published_at?: string | null;
 };
 
 type RewritePayload = {
@@ -51,14 +53,16 @@ export async function rewriteNewsArticleBody(
   const result = await callOpenAIJSON<RewritePayload>({
     apiKey,
     system: SYSTEM_NEWS_REWRITE,
-    user: `Rewrite this news story as an SEO-optimized feed article for The Theorist.
+    user: `Write an attributed, factual news brief or explainer for The Theorist.
 
 Original headline: "${row.title}"
 Section: ${row.section ?? "news"}
-AI threat score: ${row.score ?? 0}%
-Conspiracy angle (weave in naturally): ${row.angle || "investigate hidden agendas and official narratives"}
+Editorial question (only if supported): ${row.angle || "What happened and why does it matter?"}
+Writing date: ${new Date().toISOString().slice(0, 10)}
+Source publication date: ${row.published_at || "unknown; avoid current-news wording"}
+Format: ${wordCount(rawBody) < 400 ? "brief, 150–300 words maximum" : "explainer, 350–700 words maximum"}
 Source outlet: ${sourceLabel}
-Source URL (cite at end, do not copy verbatim): ${sourceUrl}
+Source URL (copy exactly in an inline citation): ${sourceUrl}
 Source images available from article: ${sourceImages.length}
 
 --- SOURCE TEXT (paraphrase; do not plagiarize) ---
@@ -73,7 +77,7 @@ Site: ${SITE_URL}`,
   if (!result.body_markdown?.trim()) {
     throw new Error("empty_rewrite");
   }
-  if (wordCount(result.body_markdown) < 180) {
+  if (wordCount(result.body_markdown) < 100) {
     throw new Error("rewrite_too_short");
   }
 
@@ -110,8 +114,9 @@ export async function rewriteNewsItem(
     return "ready";
   }
 
-  const { text: rawBody, images: sourceImages } = await fetchNewsSourceContent(row);
-  if (rawBody.trim().length < 80) {
+  const source = await fetchNewsSourceContent(row);
+  const { text: rawBody, images: sourceImages } = source;
+  if (source.extraction !== "body" || wordCount(rawBody) < 80) {
     await admin
       .from("news_items")
       .update({ rewrite_status: "skipped", body_html: null })
@@ -122,11 +127,22 @@ export async function rewriteNewsItem(
   try {
     const { body_markdown, seo_description } = await rewriteNewsArticleBody(
       apiKey,
-      row,
+      { ...row, url: source.resolvedUrl || row.url, published_at: source.publishedAt ?? row.published_at },
       rawBody,
       sourceImages,
     );
-    await admin
+    const checks = await reviewArticleEvidence({
+      apiKey,
+      article: { title: row.title, content: body_markdown },
+      findings: [{ title: source.title || row.title, url: source.resolvedUrl || row.url || "", text: rawBody, publishedAt: source.publishedAt ?? row.published_at }],
+      minimumSources: 1,
+    });
+    if (!checks.passed) {
+      console.warn(`[news-rewrite] ${row.id} held for review: ${checks.issues.join("; ")}`);
+      await admin.from("news_items").update({ rewrite_status: "skipped", body_html: null }).eq("id", row.id);
+      return "skipped";
+    }
+    const { error: saveError } = await admin
       .from("news_items")
       .update({
         body_html: body_markdown,
@@ -134,6 +150,7 @@ export async function rewriteNewsItem(
         rewrite_status: "ready",
       })
       .eq("id", row.id);
+    if (saveError) throw new Error(saveError.message);
     return "ready";
   } catch (e) {
     const msg = e instanceof Error ? e.message : "rewrite_failed";
@@ -164,15 +181,17 @@ export async function loadPendingRewriteCandidates(
   limit: number,
 ): Promise<NewsItemRewriteRow[]> {
   const minScore = getFeedMinScore();
-  const { data } = await admin
-    .from("news_items")
-    .select(
-      "id, title, summary, angle, score, section, url, source, guardian_id, image, body_html, rewrite_status",
-    )
-    .gte("score", minScore)
-    .in("rewrite_status", ["pending", "failed"])
-    .order("published_at", { ascending: false })
-    .limit(limit);
-
-  return (data ?? []) as NewsItemRewriteRow[];
+  const select = "id, title, summary, angle, score, section, url, source, guardian_id, image, published_at, body_html, rewrite_status";
+  // Oldest pending first. Failed items cannot permanently starve fresh work.
+  const { data: pending } = await admin.from("news_items").select(select)
+    .gte("score", minScore).eq("rewrite_status", "pending")
+    .order("published_at", { ascending: true }).limit(limit);
+  const rows = (pending ?? []) as NewsItemRewriteRow[];
+  if (rows.length < limit) {
+    const { data: failed } = await admin.from("news_items").select(select)
+      .gte("score", minScore).eq("rewrite_status", "failed")
+      .order("published_at", { ascending: true }).limit(limit - rows.length);
+    rows.push(...((failed ?? []) as NewsItemRewriteRow[]));
+  }
+  return rows;
 }

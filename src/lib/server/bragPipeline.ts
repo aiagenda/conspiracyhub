@@ -156,20 +156,27 @@ async function copyMusicAsset(jobDir: string): Promise<boolean> {
 async function writeJobWorkspace(jobId: string, plan: BragPlanPayload, format: BragFormat): Promise<string> {
   const jobDir = path.join(bragJobsDir(), jobId);
   await mkdir(jobDir, { recursive: true });
-  await writeFile(path.join(jobDir, "index.html"), buildBragCompositionHtml(plan, format), "utf8");
+  const hasMusic = await copyMusicAsset(jobDir);
+  await writeFile(path.join(jobDir, "index.html"), buildBragCompositionHtml(plan, format, { includeAudio: hasMusic }), "utf8");
   await writeFile(path.join(jobDir, "hyperframes.json"), JSON.stringify(bragHyperframesJson(), null, 2), "utf8");
   await writeFile(path.join(jobDir, "package.json"), JSON.stringify(bragPackageJson(jobId), null, 2), "utf8");
   await writeFile(path.join(jobDir, "brag-plan.json"), JSON.stringify(plan, null, 2), "utf8");
-  await copyMusicAsset(jobDir);
   return jobDir;
 }
 
 async function renderHyperframes(jobDir: string): Promise<string> {
-  await execFileAsync("npx", ["--yes", "hyperframes@0.7.78", "lint"], {
+  const lint = await execFileAsync("npx", ["--yes", "hyperframes@0.7.78", "lint"], {
     cwd: jobDir,
     timeout: 120_000,
     env: { ...process.env, CI: "1" },
+  }).catch((e: { stdout?: string; stderr?: string }) => {
+    const out = String(e.stdout ?? "") + String(e.stderr ?? "");
+    // Warnings-only (timeline density) — proceed to render.
+    if (/◇\s+0 error/i.test(out) || (out.includes("warning(s)") && !out.includes("error(s)"))) return null;
+    throw e;
   });
+
+  void lint;
 
   const outPath = path.join(jobDir, "brag.mp4");
   await execFileAsync(

@@ -1,14 +1,12 @@
+import { checkCronAuth } from "@/lib/server/cronAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 
-// 2500-3500 word articles plus the pre-writing web research push generation well past the
-// old 120s budget. 300s is the Vercel Pro ceiling (same as the scraper route).
+// Source retrieval, writing and independent evidence review share this budget.
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const secret = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
+  if (!checkCronAuth(req.headers.get("authorization"))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+
 import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
 
@@ -73,7 +75,7 @@ export function TechDeskSection() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/generate-tech");
+      const res = await fetchWithSupabaseAuth("/api/admin/generate-tech");
       const d = (await res.json()) as { articles?: TechArticle[]; error?: string };
       if (!res.ok) throw new Error(d.error ?? res.statusText);
       setArticles(d.articles ?? []);
@@ -85,7 +87,7 @@ export function TechDeskSection() {
   }, []);
 
   useEffect(() => {
-    void load();
+    queueMicrotask(() => { void load(); });
   }, [load]);
 
   async function generate() {
@@ -97,7 +99,7 @@ export function TechDeskSection() {
     setError("");
     setResult(null);
     try {
-      const res = await fetch("/api/admin/generate-tech", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generate-tech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -125,7 +127,7 @@ export function TechDeskSection() {
     setBusyId(id);
     setError("");
     try {
-      const res = await fetch("/api/admin/generate-tech", {
+      const res = await fetchWithSupabaseAuth("/api/admin/generate-tech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, id }),
@@ -149,7 +151,7 @@ export function TechDeskSection() {
     setPreviewLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/admin/generate-tech?id=${encodeURIComponent(id)}`);
+      const res = await fetchWithSupabaseAuth(`/api/admin/generate-tech?id=${encodeURIComponent(id)}`);
       const d = (await res.json()) as { article?: DraftDetail; error?: string };
       if (!res.ok || !d.article) throw new Error(d.error ?? res.statusText);
       setPreview(d.article);

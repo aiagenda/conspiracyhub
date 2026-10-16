@@ -3,8 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import {
   checkCronAuth,
   executeJob,
-  matchesCronNow,
 } from "@/lib/server/scraperScheduler";
+import { scheduleDueAt } from "@/lib/server/schedulerTiming";
 import { expireExpiredProTrials } from "@/lib/server/proTrial";
 
 export const maxDuration = 300;
@@ -28,26 +28,36 @@ async function runTick() {
 
   const { data: jobs, error } = await db
     .from("scraper_jobs")
-    .select("id,job_key,name,target,schedule_cron,enabled,config")
+    .select("id,job_key,name,target,schedule_cron,enabled,config,next_run_at,retry_at,lease_expires_at")
     .eq("enabled", true);
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(`Apply 20261015130000_durable_scheduler before running the scheduler: ${error.message}`);
   const now = new Date();
-  const due = (jobs ?? []).filter((j) => matchesCronNow(j.schedule_cron, now));
+  const candidates = await Promise.all((jobs ?? []).map(async (job) => {
+    let latest: string | null = null;
+    if (!job.next_run_at && !job.retry_at) {
+      // A first tick after migration should not repeat a successfully completed occurrence.
+      const { data, error: lastError } = await db.from("scraper_runs").select("started_at")
+        .eq("job_id", job.id).eq("status", "success").order("started_at", { ascending: false }).limit(1).maybeSingle();
+      if (lastError) throw new Error(lastError.message);
+      latest = data?.started_at ?? null;
+    }
+    return { job, dueAt: scheduleDueAt(job, now, latest) };
+  }));
+  const due = candidates.filter(({ job, dueAt }) => dueAt <= now &&
+    (!job.lease_expires_at || Date.parse(job.lease_expires_at) <= now.getTime()))
+    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
+  // At most two concurrent workers share the tick’s 300-second request budget.
+  // Remaining overdue jobs stay durable and are picked up on a later tick.
+  const results = await Promise.all(due.slice(0, 2).map(async ({ job, dueAt }) => ({
+    job_id: job.id, job_key: job.job_key, name: job.name,
+    ...await executeJob(job, "cron", dueAt),
+  })));
 
-  const results: Array<Record<string, unknown>> = [];
-  for (const job of due) {
-    const res = await executeJob(job, "cron");
-    results.push({
-      job_id: job.id,
-      job_key: job.job_key,
-      name: job.name,
-      ...res,
-    });
-  }
   return {
     tick_at: now.toISOString(),
     due_count: due.length,
+    deferred_count: Math.max(0, due.length - 2),
     pro_trials_expired: trialExpired,
     results,
   };

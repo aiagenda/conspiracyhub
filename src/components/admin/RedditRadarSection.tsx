@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+
 import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
 
@@ -68,7 +70,7 @@ export function RedditRadarSection() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/reddit-radar");
+      const res = await fetchWithSupabaseAuth("/api/admin/reddit-radar");
       const d = await res.json();
       if (d.error) setError(d.error);
       else {
@@ -82,14 +84,14 @@ export function RedditRadarSection() {
   }, []);
 
   useEffect(() => {
-    void load();
+    queueMicrotask(() => { void load(); });
   }, [load]);
 
   async function scan() {
     setScanning(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/reddit-radar", {
+      const res = await fetchWithSupabaseAuth("/api/admin/reddit-radar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "scan" }),
@@ -111,7 +113,7 @@ export function RedditRadarSection() {
     setClearing(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/reddit-radar", {
+      const res = await fetchWithSupabaseAuth("/api/admin/reddit-radar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "clear_stale" }),
@@ -132,7 +134,7 @@ export function RedditRadarSection() {
     setDraftingId(id);
     setError("");
     try {
-      const res = await fetch("/api/admin/reddit-radar", {
+      const res = await fetchWithSupabaseAuth("/api/admin/reddit-radar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "draft", matchId: id }),
@@ -152,7 +154,7 @@ export function RedditRadarSection() {
   }
 
   async function setStatus(id: string, status: "posted" | "dismissed") {
-    await fetch("/api/admin/reddit-radar", {
+    await fetchWithSupabaseAuth("/api/admin/reddit-radar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: status, matchId: id }),

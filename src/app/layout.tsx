@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Rajdhani, Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
+import "./publication.css";
+import "./intelligence-reader.css";
+import "./intelligence-desk.css";
+import { getSiteUrl } from "@/lib/siteUrl";
 import SiteFooter from "@/components/SiteFooter";
 import PageTracker from "@/components/PageTracker";
 import SendFeedbackWidget from "@/components/SendFeedbackWidget";
@@ -17,15 +21,15 @@ const mono = Share_Tech_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
+const SITE_URL = getSiteUrl();
 
 const OG_DESCRIPTION =
-  "AI-curated conspiracy investigation feed. GPT-4o scores and ranks the most significant government cover-ups, UAP sightings, classified patent secrets, and underground theories — updated daily.";
+  "News, analysis and public records on technology, surveillance, institutional power and unexplained events. Explore the story and inspect the evidence.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "The Theorist — AI Conspiracy Investigation Feed",
+    default: "The Theorist — AI Investigative Intelligence",
     template: "%s | The Theorist",
   },
   description: OG_DESCRIPTION,
@@ -33,11 +37,11 @@ export const metadata: Metadata = {
     "conspiracy theories",
     "UAP",
     "UFO",
-    "government cover-up",
+    "public accountability",
     "AI news feed",
     "declassified documents",
-    "deep state",
-    "classified secrets",
+    "institutional power",
+    "public records",
     "investigative intelligence",
     "FOIA",
   ],
@@ -60,12 +64,12 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: SITE_URL,
     siteName: "The Theorist",
-    title: "The Theorist — AI Conspiracy Investigation Feed",
+    title: "The Theorist — AI Investigative Intelligence",
     description: OG_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "The Theorist — AI Conspiracy Investigation Feed",
+    title: "The Theorist — AI Investigative Intelligence",
     description: OG_DESCRIPTION,
     site: "@TheTheoristAI",
   },

@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { runLoreDossierCore } from "@/lib/server/generateArticleCore";
 
@@ -9,6 +10,8 @@ export const maxDuration = 300;
  * No extra auth — same trust model as other /api/admin/* routes (admin page only).
  */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
 
   let body: { topic?: string; angle?: string; seedUrls?: string[] };
   try {

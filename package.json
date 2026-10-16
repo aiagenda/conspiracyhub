@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "brag:render": "tsx scripts/brag-render.ts",
-    "rewrite:news": "npx tsx scripts/rewrite-news-pending.ts"
+    "rewrite:news": "npx tsx scripts/rewrite-news-pending.ts",
+    "test": "node --import ./tests/register.mjs --test tests/*.test.ts",
+    "preview:local": "node scripts/preview-local.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

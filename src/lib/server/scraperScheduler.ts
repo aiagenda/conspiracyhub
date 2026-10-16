@@ -8,6 +8,9 @@ import { runInsiderRadarTwitterRefresh } from "@/lib/server/insiderRadarIngest";
 import { runRedditRadarScan } from "@/lib/server/redditRadar";
 import { runSeismicRefresh } from "@/lib/server/seismicFeeds";
 import { sendWeeklyBriefing } from "@/lib/server/weeklyBriefing";
+export { checkCronAuth } from "@/lib/server/cronAuth";
+import { cronOccurrence, scheduleDueAt } from "@/lib/server/schedulerTiming";
+export { matchesCronNow } from "@/lib/server/schedulerTiming";
 
 export type ScraperJob = {
   id: string;
@@ -26,74 +29,17 @@ export type ScraperJob = {
   schedule_cron: string;
   enabled: boolean;
   config: Record<string, unknown> | null;
+  next_run_at?: string | null;
+  retry_at?: string | null;
+  lease_expires_at?: string | null;
+  failure_count?: number;
 };
-
-type RunStatus = "running" | "success" | "failed" | "skipped";
 
 function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error("Missing Supabase env");
   return createClient(url, key);
-}
-
-export function checkCronAuth(authHeader: string | null): boolean {
-  const secret = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
-  return secret === process.env.CRON_SECRET || process.env.NODE_ENV !== "production";
-}
-
-/** Supports 5-part cron with wildcard, number, step, and comma-list tokens. */
-export function matchesCronNow(cronExpr: string, now = new Date()): boolean {
-  const parts = cronExpr.trim().split(/\s+/);
-  if (parts.length !== 5) return false;
-  const [min, hour, dom, mon, dow] = parts;
-  const vals = [now.getUTCMinutes(), now.getUTCHours(), now.getUTCDate(), now.getUTCMonth() + 1, now.getUTCDay()];
-
-  function match(part: string, value: number): boolean {
-    if (part === "*") return true;
-    if (part.includes(",")) return part.split(",").some((p) => match(p.trim(), value));
-    if (part.startsWith("*/")) {
-      const step = Number(part.slice(2));
-      return Number.isFinite(step) && step > 0 && value % step === 0;
-    }
-    const n = Number(part);
-    return Number.isFinite(n) && n === value;
-  }
-
-  return [min, hour, dom, mon, dow].every((part, idx) => match(part, vals[idx]));
-}
-
-
-async function insertRun(jobId: string, trigger: string) {
-  const db = admin();
-  const { data, error } = await db
-    .from("scraper_runs")
-    .insert({ job_id: jobId, trigger, status: "running" })
-    .select("id, started_at")
-    .single();
-  if (error || !data) throw new Error(error?.message ?? "Failed to create run");
-  return data as { id: string; started_at: string };
-}
-
-async function finishRun(
-  runId: string,
-  status: RunStatus,
-  fields: { httpStatus?: number; result?: unknown; error?: string; startedAt: string }
-) {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(fields.startedAt));
-  const db = admin();
-  await db
-    .from("scraper_runs")
-    .update({
-      status,
-      http_status: fields.httpStatus ?? null,
-      result: fields.result ?? null,
-      error_text: fields.error ?? null,
-      duration_ms: durationMs,
-      finished_at: finishedAt,
-    })
-    .eq("id", runId);
 }
 
 async function runNewsScraper(): Promise<{ ok: boolean; status: number; payload: unknown }> {
@@ -171,22 +117,22 @@ async function runWeeklyBriefingJob(): Promise<{ ok: boolean; status: number; pa
   }
 }
 
-export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
+export async function executeJob(job: ScraperJob, trigger: "cron" | "manual", scheduledFor?: Date) {
   const db = admin();
+  const now = new Date();
+  const nextAt = cronOccurrence(job.schedule_cron, now, "next").toISOString();
+  const { data, error } = await db.rpc("claim_scraper_job", {
+    p_job_id: job.id,
+    p_trigger: trigger,
+    p_scheduled_for: (scheduledFor ?? scheduleDueAt(job, now)).toISOString(),
+    p_next_run_at: nextAt,
+    p_expected_cron: job.schedule_cron,
+  });
+  if (error) throw new Error(`Scheduler claim unavailable. Apply migration 20261015130000_durable_scheduler: ${error.message}`);
+  const run = data as { id: string; started_at: string; attempt: number } | null;
+  if (!run) return { skipped: true, reason: "leased_or_not_due" };
 
-  const { data: latest } = await db
-    .from("scraper_runs")
-    .select("started_at,status")
-    .eq("job_id", job.id)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latest?.status === "running" && Date.now() - Date.parse(latest.started_at) < 15 * 60_000) {
-    return { skipped: true, reason: "already_running" };
-  }
-
-  const run = await insertRun(job.id, trigger);
+  let result: { ok: boolean; status: number; payload: unknown };
   try {
     const resp =
       job.target === "news_scraper"
@@ -207,189 +153,49 @@ export async function executeJob(job: ScraperJob, trigger: "cron" | "manual") {
                       ? await runWeeklyBriefingJob()
                       : await runUapScraper(job.config ?? {});
 
-    await finishRun(run.id, resp.ok ? "success" : "failed", {
-      startedAt: run.started_at,
-      httpStatus: resp.status,
-      result: resp.payload,
-      error: resp.ok ? undefined : (
-        typeof resp.payload === "object" && resp.payload !== null && "error" in (resp.payload as Record<string, unknown>)
-          ? String((resp.payload as Record<string, unknown>).error)
-          : `HTTP ${resp.status} — check server logs`
-      ),
-    });
-
-    return { skipped: false, ok: resp.ok, status: resp.status, payload: resp.payload };
+    result = resp;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    await finishRun(run.id, "failed", { startedAt: run.started_at, error: msg });
-    return { skipped: false, ok: false, status: 500, payload: { error: msg } };
+    result = { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
   }
-}
-
-const OUTBREAK_JOB = {
-  job_key: "outbreak_refresh",
-  name: "Outbreak intelligence refresh",
-  target: "outbreak_scraper",
-  schedule_cron: "0 9 * * *",
-  enabled: false,
-  config: {},
-} as const;
-
-const INSIDER_RADAR_JOB = {
-  job_key: "insider_radar_refresh",
-  name: "Insider Radar feed refresh",
-  target: "insider_radar_scraper",
-  schedule_cron: "0 9 * * *",
-  enabled: true,
-  config: {},
-} as const;
-
-const SEISMIC_JOB = {
-  job_key: "seismic_refresh",
-  name: "Seismic monitor refresh",
-  target: "seismic_scraper",
-  schedule_cron: "0 * * * *",
-  enabled: false,
-  config: {},
-} as const;
-
-const WEEKLY_BRIEFING_JOB = {
-  job_key: "weekly_briefing",
-  name: "Weekly intelligence briefing email",
-  target: "weekly_briefing",
-  schedule_cron: "0 9 * * 0",
-  enabled: true,
-  config: {},
-} as const;
-
-const SEARCH_CONSOLE_JOBS = [
-  {
-    job_key: "search_console_sync",
-    name: "Search Console sync",
-    target: "search_console",
-    schedule_cron: "0 7 * * 0",
-    enabled: true,
-    config: {},
-  },
-  {
-    job_key: "article_writer_gsc",
-    name: "Search Console SEO Article",
-    target: "article_writer",
-    schedule_cron: "0 8 * * 0",
-    enabled: true,
-    config: { mode: "search_console" },
-  },
-] as const;
-
-/** Idempotent — creates the job if migration was not applied yet. */
-async function ensureOutbreakScraperJob() {
-  const db = admin();
-  const { data: existing } = await db
-    .from("scraper_jobs")
-    .select("id")
-    .eq("job_key", OUTBREAK_JOB.job_key)
-    .maybeSingle();
-  if (existing) return;
-
-  const { error } = await db.from("scraper_jobs").upsert(OUTBREAK_JOB, { onConflict: "job_key" });
-  if (error) console.warn("[scraper] ensure outbreak_refresh job:", error.message);
-}
-
-async function ensureInsiderRadarScraperJob() {
-  const db = admin();
-  const { error } = await db.from("scraper_jobs").upsert({ ...INSIDER_RADAR_JOB }, { onConflict: "job_key" });
-  if (error) console.warn("[scraper] ensure insider_radar_refresh:", error.message);
-}
-
-async function ensureSeismicScraperJob() {
-  const db = admin();
-  const { error } = await db.from("scraper_jobs").upsert({ ...SEISMIC_JOB }, { onConflict: "job_key" });
-  if (error) console.warn("[scraper] ensure seismic_refresh:", error.message);
-}
-
-async function disableRedditRadarScraperJob() {
-  const db = admin();
-  const { error } = await db.from("scraper_jobs").update({ enabled: false }).eq("job_key", "reddit_radar_scan");
-  if (error) console.warn("[scraper] disable reddit_radar_scan:", error.message);
-}
-
-async function ensureWeeklyBriefingJob() {
-  const db = admin();
-  const { error } = await db.from("scraper_jobs").upsert({ ...WEEKLY_BRIEFING_JOB }, { onConflict: "job_key" });
-  if (error) console.warn("[scraper] ensure weekly_briefing:", error.message);
-}
-
-const UAP_FULL_JOB = {
-  job_key: "uap_full_refresh",
-  name: "UAP full intelligence refresh",
-  target: "uap_scraper",
-  schedule_cron: "0 9 * * *",
-  enabled: true,
-  config: { max_new: 70 },
-} as const;
-
-/** Idempotent — unified UAP scrape (news, documents, reference seed, NUFORC). */
-async function ensureUapFullScraperJob() {
-  const db = admin();
-  const { error } = await db.from("scraper_jobs").upsert({ ...UAP_FULL_JOB }, { onConflict: "job_key" });
-  if (error) console.warn("[scraper] ensure uap_full_refresh:", error.message);
-  await db.from("scraper_jobs").update({ enabled: false }).eq("job_key", "uap_nuforc");
-}
-
-/** Idempotent — GSC sync + SEO article jobs (migration 20260516120100). */
-async function ensureSearchConsoleScraperJobs() {
-  const db = admin();
-  for (const job of SEARCH_CONSOLE_JOBS) {
-    const { data: existing } = await db
-      .from("scraper_jobs")
-      .select("id")
-      .eq("job_key", job.job_key)
-      .maybeSingle();
-    if (existing) continue;
-    const { error } = await db.from("scraper_jobs").upsert({ ...job }, { onConflict: "job_key" });
-    if (error) console.warn(`[scraper] ensure ${job.job_key}:`, error.message);
+  const message = result.ok ? null : (
+    typeof result.payload === "object" && result.payload !== null && "error" in result.payload
+      ? String(result.payload.error) : `HTTP ${result.status} — check run details`
+  );
+  const { data: finished, error: finishError } = await db.rpc("finish_scraper_job", {
+    p_job_id: job.id, p_run_id: run.id, p_success: result.ok,
+    p_next_run_at: cronOccurrence(job.schedule_cron, new Date(), "next").toISOString(),
+    p_http_status: result.status, p_result: result.payload, p_error: message,
+  });
+  if (finishError || !finished) {
+    throw new Error(`Scheduler could not record completion: ${finishError?.message ?? "lease lost"}`);
   }
+  return { skipped: false, ...result, run_id: run.id, attempt: run.attempt };
 }
 
+/** Read-only: viewing the console must never reset an operator's enabled/schedule choices. */
 export async function getSchedulerSnapshot() {
   const db = admin();
-  await ensureOutbreakScraperJob();
-  await ensureInsiderRadarScraperJob();
-  await ensureSeismicScraperJob();
-  await disableRedditRadarScraperJob();
-  await ensureWeeklyBriefingJob();
-  await ensureUapFullScraperJob();
-  await ensureSearchConsoleScraperJobs();
   const { data: jobs, error: jobsErr } = await db
     .from("scraper_jobs")
-    .select("id,job_key,name,target,schedule_cron,enabled,config")
+    .select("id,job_key,name,target,schedule_cron,enabled,config,next_run_at,retry_at,lease_expires_at,failure_count")
     .order("name", { ascending: true });
-
-  if (jobsErr) throw new Error(jobsErr.message);
-
+  if (jobsErr) throw new Error(`Scheduler unavailable; apply 20261015130000_durable_scheduler if pending. ${jobsErr.message}`);
   const jobList = (jobs ?? []) as ScraperJob[];
   const jobIds = jobList.map((j) => j.id);
-  const { data: runs } = jobIds.length
-    ? await db
-        .from("scraper_runs")
-        .select("id,job_id,trigger,status,started_at,finished_at,duration_ms,http_status,error_text,result")
-        .in("job_id", jobIds)
-        .order("started_at", { ascending: false })
-        .limit(200)
-    : { data: [] as Array<Record<string, unknown>> };
-
+  const { data: runs, error: runsError } = jobIds.length
+    ? await db.from("scraper_runs")
+        .select("id,job_id,trigger,status,started_at,finished_at,duration_ms,http_status,error_text,result,scheduled_for,attempt")
+        .in("job_id", jobIds).order("started_at", { ascending: false }).limit(200)
+    : { data: [], error: null };
+  if (runsError) throw new Error(runsError.message);
   const grouped = new Map<string, Array<Record<string, unknown>>>();
-  for (const r of runs ?? []) {
-    const list = grouped.get(String(r.job_id)) ?? [];
-    list.push(r as Record<string, unknown>);
-    grouped.set(String(r.job_id), list);
+  for (const run of runs ?? []) {
+    const list = grouped.get(String(run.job_id)) ?? [];
+    list.push(run as Record<string, unknown>);
+    grouped.set(String(run.job_id), list);
   }
-
-  const jobsWithRuns = jobList.map((j) => ({
-    ...j,
-    runs: (grouped.get(j.id) ?? []).slice(0, 10),
-    last_run: (grouped.get(j.id) ?? [])[0] ?? null,
-  }));
-
-  return { jobs: jobsWithRuns };
+  return { jobs: jobList.map((job) => ({ ...job,
+    runs: (grouped.get(job.id) ?? []).slice(0, 10),
+    last_run: (grouped.get(job.id) ?? [])[0] ?? null,
+  })) };
 }

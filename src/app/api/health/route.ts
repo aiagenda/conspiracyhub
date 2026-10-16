@@ -61,8 +61,10 @@ export async function GET() {
         ts: Date.now(),
       });
     }
-    /** Ingest / per-source “online” if at least one row in this window (matches typical cron cadence). */
-    const since12h = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    // Source freshness is reported separately from whether a worker completed successfully.
+    const { data: newsJob } = await db.from("scraper_jobs").select("id")
+      .eq("target", "news_scraper").limit(1).maybeSingle();
+    const since12h = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString();
     const since1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
@@ -85,6 +87,8 @@ export async function GET() {
       lastRssRow,
       lastOracleRow,
       lastPostRow,
+      lastSuccessfulScraper,
+      lastStoredArticle,
     ] = await Promise.all([
       // Recent ingest: any article in last 12h? (column is published_at, not date)
       db.from("news_items").select("id", { count: "exact", head: true }).gte("published_at", since12h),
@@ -95,6 +99,7 @@ export async function GET() {
       // Scraper: last run status + timestamps for freshness
       db.from("scraper_runs")
         .select("status, started_at, finished_at")
+        .eq("job_id", newsJob?.id ?? "00000000-0000-0000-0000-000000000000")
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -121,6 +126,10 @@ export async function GET() {
         .maybeSingle(),
       db.from("oracle_analyses").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("thread_posts").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      db.from("scraper_runs").select("finished_at")
+        .eq("job_id", newsJob?.id ?? "00000000-0000-0000-0000-000000000000")
+        .eq("status", "success").order("finished_at", { ascending: false }).limit(1).maybeSingle(),
+      db.from("news_items").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     const uapScraperRun = uapJobRow.data?.id
@@ -153,9 +162,11 @@ export async function GET() {
 
     const ingestOk = (recentArticles.count ?? 0) > 0;
     const scraperStatus = lastScraper.data?.status ?? null;
-    const scraperOk = scraperStatus === "success" || scraperStatus === "running";
+    const successfulAt = lastSuccessfulScraper.data?.finished_at ?? null;
+    const runningFresh = scraperStatus === "running" && withinHours(lastScraper.data?.started_at, 1 / 6);
+    const scraperOk = runningFresh || (scraperStatus === "success" && withinHours(successfulAt, 26));
     const oracleOk = (oracleCount.count ?? 0) > 0;
-    const stat = (count: number | null) => ((count ?? 0) > 0 ? "online" : "degraded");
+    const stat = (count: number | null) => ((count ?? 0) > 0 ? "fresh" : "stale");
 
     const scraperAt =
       lastScraper.data?.finished_at ?? lastScraper.data?.started_at ?? null;
@@ -178,7 +189,10 @@ export async function GET() {
       gnews: stat(gnewsRecent.count),
       reddit: stat(redditRecent.count),
       rss: stat(rssRecent.count),
-      scraper: scraperOk ? "online" : scraperStatus === "failed" ? "error" : "idle",
+      scraper: scraperOk ? "online" : scraperStatus === "failed" ? "error" : scraperStatus === "running" ? "stalled" : "stale",
+      feed_updated_at: lastStoredArticle.data?.created_at ?? null,
+      last_successful_refresh: successfulAt,
+      source_status_meaning: "Content freshness only; a quiet source is not necessarily unavailable.",
       oracle: oracleOk ? "online" : "idle",
       community: communityOk ? "online" : "idle",
       uap: uapOk ? "online" : uapScraperRun.data?.status === "failed" ? "error" : "idle",

@@ -27,7 +27,7 @@ function escapeHtml(s: string): string {
 }
 
 /** Build a Hyperframes-ready index.html from a structured brag plan. */
-export function buildBragCompositionHtml(plan: BragPlanPayload, format: BragFormat): string {
+export function buildBragCompositionHtml(plan: BragPlanPayload, format: BragFormat, opts?: { includeAudio?: boolean }): string {
   const { width, height } = BRAG_FORMATS[format];
   const totalDuration = plan.scenes.reduce((s, sc) => s + sc.duration_sec, 0) || plan.total_duration_sec || 20;
 
@@ -43,16 +43,23 @@ export function buildBragCompositionHtml(plan: BragPlanPayload, format: BragForm
 
     sceneBlocks.push(`
       <div id="${id}" class="clip scene" data-start="${start}" data-duration="${dur}" data-track-index="1"
-           style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:80px;text-align:center;opacity:0;">
-        <div class="scanline-overlay"></div>
-        <div class="scene-label">${escapeHtml(scene.name.toUpperCase())}</div>
-        <h1 class="headline">${escapeHtml(scene.headline)}</h1>
-        ${scene.subline ? `<p class="subline">${escapeHtml(scene.subline)}</p>` : ""}
-        ${scene.detail ? `<p class="detail">${escapeHtml(scene.detail)}</p>` : ""}
+           style="position:absolute;inset:0;">
+        <div id="${id}-inner" class="scene-inner"
+             style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:80px;text-align:center;opacity:0;">
+          <div class="scanline-overlay"></div>
+          <div class="scene-label">${escapeHtml(scene.name.toUpperCase())}</div>
+          <h1 class="headline">${escapeHtml(scene.headline)}</h1>
+          ${scene.subline ? `<p class="subline">${escapeHtml(scene.subline)}</p>` : ""}
+          ${scene.detail ? `<p class="detail">${escapeHtml(scene.detail)}</p>` : ""}
+        </div>
       </div>`);
 
-    tweenLines.push(`      tl.fromTo("#${id}", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, ${start});`);
-    tweenLines.push(`      tl.to("#${id}", { opacity: 0, y: -16, duration: 0.4, ease: "power2.in" }, ${start + dur - 0.45});`);
+    const inner = `#${id}-inner`;
+    const exitStart = (start + dur - 0.45).toFixed(2);
+    const hardKill = (start + dur).toFixed(2);
+    tweenLines.push(`      tl.fromTo("${inner}", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, ${start});`);
+    tweenLines.push(`      tl.to("${inner}", { opacity: 0, y: -16, duration: 0.4, ease: "power2.in" }, ${exitStart});`);
+    tweenLines.push(`      tl.set("${inner}", { opacity: 0 }, ${hardKill});`);
   }
 
   return `<!doctype html>
@@ -60,19 +67,18 @@ export function buildBragCompositionHtml(plan: BragPlanPayload, format: BragForm
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=${width}, height=${height}" />
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: ${width}px; height: ${height}px; overflow: hidden; background: #050c07; }
-    body { font-family: "Share Tech Mono", monospace; color: #c8e8d0; }
+    body { font-family: monospace; color: #c8e8d0; }
     .scanline-overlay {
       pointer-events: none; position: absolute; inset: 0; opacity: 0.08;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.15) 2px, rgba(0,255,136,0.15) 4px);
     }
-    .scene-label { font-family: "Rajdhani", sans-serif; font-size: ${format === "vertical" ? 22 : 18}px; letter-spacing: 6px; color: #5a8068; margin-bottom: 24px; }
+    .scene-label { font-family: sans-serif; font-size: ${format === "vertical" ? 22 : 18}px; letter-spacing: 6px; color: #5a8068; margin-bottom: 24px; font-weight: 700; }
     .headline {
-      font-family: "Rajdhani", sans-serif; font-weight: 700; color: #00ff88;
+      font-family: sans-serif; font-weight: 700; color: #00ff88;
       font-size: ${format === "vertical" ? 72 : 88}px; line-height: 1.05; max-width: 90%;
       text-shadow: 0 0 40px rgba(0,255,136,0.25);
     }
@@ -80,7 +86,7 @@ export function buildBragCompositionHtml(plan: BragPlanPayload, format: BragForm
     .detail { margin-top: 20px; font-size: ${format === "vertical" ? 22 : 24}px; color: #7aaa8a; max-width: 80%; line-height: 1.5; }
     .logo-bar {
       position: absolute; bottom: 48px; left: 0; right: 0; text-align: center;
-      font-family: "Rajdhani", sans-serif; font-size: 22px; letter-spacing: 4px; color: #5a8068;
+      font-family: sans-serif; font-size: 22px; letter-spacing: 4px; color: #5a8068;
     }
   </style>
 </head>
@@ -90,8 +96,8 @@ export function buildBragCompositionHtml(plan: BragPlanPayload, format: BragForm
     ${sceneBlocks.join("\n")}
     <div class="logo-bar">◈ THE THEORIST · the-theorist.com</div>
   </div>
-  <audio id="bgm" data-start="0" data-duration="${totalDuration}" data-track-index="2" data-volume="0.35"
-         src="assets/music/track.mp3"></audio>
+  ${opts?.includeAudio !== false ? `<audio id="bgm" data-start="0" data-duration="${totalDuration}" data-track-index="2" data-volume="0.35"
+         src="assets/music/track.mp3"></audio>` : ""}
   <script>
     window.__timelines = window.__timelines || {};
     const tl = gsap.timeline({ paused: true });

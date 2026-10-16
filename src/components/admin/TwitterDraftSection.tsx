@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+
 import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
 
@@ -51,7 +53,7 @@ export function TwitterDraftSection() {
     }
     try {
       const url = refresh ? "/api/admin/twitter-draft?refresh=1" : "/api/admin/twitter-draft";
-      const res = await fetch(url);
+      const res = await fetchWithSupabaseAuth(url);
       const d = await res.json();
       if (d.error) {
         setError(d.hint ? `${d.error}: ${d.hint}` : d.error);
@@ -68,7 +70,7 @@ export function TwitterDraftSection() {
   }, []);
 
   useEffect(() => {
-    void loadDrafts(false);
+    queueMicrotask(() => { void loadDrafts(false); });
   }, [loadDrafts]);
 
   function copy(text: string, key: string) {
@@ -84,7 +86,7 @@ export function TwitterDraftSection() {
     // Optimistically remove the dismissed topic from view.
     setPicks((prev) => prev.filter((p) => p.article.id !== article.id));
     try {
-      const res = await fetch("/api/admin/twitter-draft", {
+      const res = await fetchWithSupabaseAuth("/api/admin/twitter-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "dismiss", id: article.id, kind: article.kind, shown }),

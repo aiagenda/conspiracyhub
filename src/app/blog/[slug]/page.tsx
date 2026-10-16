@@ -34,6 +34,10 @@ interface Article {
   sources: Array<{ title: string; url: string; description: string }>;
   published_at: string;
   mode: string;
+  updated_at?: string;
+  source_published_at?: string;
+  verified_at?: string;
+  editorial_checks?: { method?: string };
   faqs?: unknown;
 }
 
@@ -55,7 +59,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const canonicalUrl = `${SITE_URL}/blog/${slug}`;
   const ogImage = blogArticleOgImageUrl(data.title);
   return {
-    title: `${data.title} | The Theorist`,
+    title: data.title,
     description: data.meta_description,
     keywords: [data.focus_keyword, ...(data.secondary_keywords ?? []), ...(data.tags ?? [])].join(", "),
     alternates: { canonical: canonicalUrl },
@@ -137,7 +141,7 @@ export default async function BlogArticlePage({
     "";
 
   const inlineHero = firstMarkdownImageUrl(article.content);
-  const heroImage = inlineHero ?? blogArticleOgImageUrl(article.title);
+  const heroImage = inlineHero;
 
   const item: NewsItem = {
     id: article.id,
@@ -147,7 +151,7 @@ export default async function BlogArticlePage({
     image: heroImage,
     date: article.published_at,
     section: article.category,
-    score: 55,
+    score: 0, // Compatibility field; generated articles have no relevance score.
     angle:
       (typeof article.meta_description === "string" && article.meta_description.trim()) ||
       (typeof article.excerpt === "string" && article.excerpt.trim()) ||
@@ -172,9 +176,9 @@ export default async function BlogArticlePage({
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd).replace(/</g, "\\u003c") }} />
       {faqLd ? (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd).replace(/</g, "\\u003c") }} />
       ) : null}
       <GeneratedArticleReader
         item={item}
@@ -184,6 +188,10 @@ export default async function BlogArticlePage({
         initialChatOpen={initialChatOpen}
         voteTheories={voteTheories}
         mode={article.mode}
+        updatedAt={article.updated_at}
+        sourcePublishedAt={article.source_published_at}
+        checkedAt={article.verified_at}
+        reviewMethod={article.editorial_checks?.method}
       />
     </>
   );

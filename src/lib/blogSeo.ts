@@ -9,9 +9,8 @@ export type RelatedBlogArticle = {
   category: string;
 };
 
-export function getSiteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-theorist.com").replace(/\/$/, "");
-}
+import { getSiteUrl } from "@/lib/siteUrl";
+export { getSiteUrl };
 
 /** Dynamic OG image (SVG) with article title overlay. */
 export function blogArticleOgImageUrl(title: string): string {
@@ -68,6 +67,7 @@ export function buildArticleJsonLd(article: {
   focus_keyword: string;
   secondary_keywords?: string[];
   published_at: string;
+  updated_at?: string | null;
   category: string;
   excerpt?: string;
 }, canonical: string) {
@@ -79,7 +79,7 @@ export function buildArticleJsonLd(article: {
     description: article.meta_description,
     keywords: [article.focus_keyword, ...(article.secondary_keywords ?? [])].filter(Boolean).join(", "),
     datePublished: article.published_at,
-    dateModified: article.published_at,
+    dateModified: article.updated_at || article.published_at,
     url: canonical,
     articleSection: article.category,
     image: [blogArticleOgImageUrl(article.title), defaultOgImageUrl()],

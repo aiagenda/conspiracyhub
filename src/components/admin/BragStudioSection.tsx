@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+
 import { useCallback, useEffect, useState } from "react";
 import { muted } from "@/components/admin/constants";
 
@@ -55,7 +57,7 @@ export function BragStudioSection() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/brag");
+      const res = await fetchWithSupabaseAuth("/api/admin/brag");
       const d = (await res.json()) as { jobs?: BragJob[]; error?: string };
       if (!res.ok) throw new Error(d.error ?? res.statusText);
       setJobs(d.jobs ?? []);
@@ -67,14 +69,14 @@ export function BragStudioSection() {
   }, []);
 
   useEffect(() => {
-    void load();
+    queueMicrotask(() => { void load(); });
   }, [load]);
 
   async function generate() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/brag", {
+      const res = await fetchWithSupabaseAuth("/api/admin/brag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tone, format, title: title.trim() || undefined, creativeDirection: creativeDirection.trim() || undefined }),
@@ -93,7 +95,7 @@ export function BragStudioSection() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/brag", {
+      const res = await fetchWithSupabaseAuth("/api/admin/brag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "rerender", jobId }),

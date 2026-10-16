@@ -9,13 +9,6 @@ import {
 } from "@/lib/continueReading";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
-function scoreColor(s: number | undefined) {
-  if (s == null) return "#00bb66";
-  if (s >= 70) return "#ff3333";
-  if (s >= 50) return "#ffaa00";
-  return "#00bb66";
-}
-
 export default function ContinueReadingBanner() {
   const [entry, setEntry] = useState<ContinueReadingEntry | null>(null);
 
@@ -24,7 +17,7 @@ export default function ContinueReadingBanner() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    queueMicrotask(refresh);
     window.addEventListener(CONTINUE_READING_EVENT, refresh);
     window.addEventListener("storage", refresh);
     return () => {
@@ -78,54 +71,7 @@ export default function ContinueReadingBanner() {
 
   if (!entry) return null;
 
-  const color = scoreColor(entry.score);
-
-  return (
-    <div
-      style={{
-        marginBottom: "1.25rem",
-        border: "1px solid #1a3320",
-        borderRadius: 4,
-        background: "rgba(0,255,136,0.03)",
-        padding: "12px 14px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 9, color: "#5a8068", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
-          Continue where you left off
-        </div>
-        <div style={{ fontSize: 12, color: "#c8e8d0", lineHeight: 1.4 }}>
-          {entry.title}
-          {entry.score != null ? (
-            <span style={{ marginLeft: 8, color, fontFamily: "var(--font-raj), sans-serif", fontWeight: 700 }}>
-              {entry.score}%
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <Link
-        href={entry.path}
-        style={{
-          fontFamily: "var(--font-raj), sans-serif",
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: 2,
-          textTransform: "uppercase",
-          padding: "6px 12px",
-          border: "1px solid #00bb66",
-          color: "#00ff88",
-          textDecoration: "none",
-          borderRadius: 3,
-          whiteSpace: "nowrap",
-        }}
-      >
-        Resume →
-      </Link>
-    </div>
-  );
+  // Storage may contain old entries; only internal article/board paths are navigable.
+  if (!/^\/(?:article|blog|board)\/[^\s]+$/.test(entry.path)) return null;
+  return <aside className="publication-continue" aria-label="Continue reading"><div><span>Continue reading</span><Link href={entry.path}>{entry.title}</Link></div><Link href={entry.path} className="publication-text-link">Resume →</Link></aside>;
 }

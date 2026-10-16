@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { listAllAuthUsers } from "@/lib/server/listAuthUsers";
@@ -54,6 +55,8 @@ async function loadProfilesByIds(db: ReturnType<typeof admin>, ids: string[]) {
 
 // GET — list registered auth users merged with plan/profile data
 export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { searchParams } = new URL(req.url);
@@ -119,6 +122,8 @@ export async function GET(req: NextRequest) {
 
 // PATCH — change plan for a user (manual override)
 export async function PATCH(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const db = admin();
     const { id, plan, note } = (await req.json()) as { id: string; plan: string; note?: string };

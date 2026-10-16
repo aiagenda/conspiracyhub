@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { runEnrichUapBriefs } from "@/app/api/uap-sightings/route";
 import { runPursueDocumentIngest } from "@/lib/server/uapIngest";
@@ -5,6 +6,7 @@ import {
   executeJob,
   getSchedulerSnapshot,
 } from "@/lib/server/scraperScheduler";
+import { isValidCron } from "@/lib/server/schedulerTiming";
 import { createClient } from "@supabase/supabase-js";
 
 export const maxDuration = 300;
@@ -16,8 +18,10 @@ function admin() {
   return createClient(url, key);
 }
 
-/** Open access for now — protect with auth before production hardening. */
-export async function GET() {
+/** Scheduler state is restricted to verified administrators. */
+export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     return NextResponse.json(await getSchedulerSnapshot());
   } catch (e) {
@@ -30,6 +34,8 @@ export async function GET() {
 
 /** Update schedule/enabled/config, or run a job now via { action:"run", id }. */
 export async function PATCH(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     const body = (await req.json()) as Record<string, unknown>;
     const action = String(body.action ?? "update");
@@ -81,7 +87,11 @@ export async function PATCH(req: NextRequest) {
 
     const patch: Record<string, unknown> = {};
     if ("enabled" in body) patch.enabled = !!body.enabled;
-    if ("schedule_cron" in body) patch.schedule_cron = String(body.schedule_cron ?? "").trim();
+    if ("schedule_cron" in body) {
+      const schedule = String(body.schedule_cron ?? "").trim();
+      if (!isValidCron(schedule)) return NextResponse.json({ error: "Use a valid five-field UTC cron schedule." }, { status: 400 });
+      patch.schedule_cron = schedule;
+    }
     if ("config" in body && body.config && typeof body.config === "object") {
       patch.config = body.config;
     }

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { analyticsExcludedFingerprints } from "@/lib/analyticsExclude";
 import { pageViewsByCountrySince } from "@/lib/adminPageViewCounts";
@@ -20,8 +21,10 @@ function withExcludedFingerprints<T extends { not: (c: string, op: string, v: st
   return q.not("fingerprint", "in", `(${excludedFp.join(",")})`);
 }
 
-/** Open access for now — re-enable ADMIN_SECRET check before production hardening. */
-export async function GET() {
+/** Internal operational statistics, restricted to administrators. */
+export async function GET(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   const db = admin();
   const excludedFp = analyticsExcludedFingerprints();
   const now = Date.now();

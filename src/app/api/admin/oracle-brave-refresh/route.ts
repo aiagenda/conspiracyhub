@@ -1,6 +1,7 @@
+import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminSession } from "@/lib/server/requireAdminSession";
+
 import { buildBraveQuery } from "@/lib/braveNodeQuery";
 import { searchBrave } from "@/lib/braveSearch";
 import { fetchArticleRelatedCoverage } from "@/lib/server/relatedCoverage";
@@ -23,14 +24,14 @@ function getAdminClient() {
  * Admin-only.
  */
 export async function POST(req: NextRequest) {
+  const access = await requireAdminRequest(req);
+  if ("response" in access) return access.response;
   try {
     if (!process.env.BRAVE_SEARCH_API_KEY?.trim()) {
       return NextResponse.json({ error: "brave_missing", message: "BRAVE_SEARCH_API_KEY not configured." }, { status: 503 });
     }
 
     const admin = getAdminClient();
-    const gate = await requireAdminSession(admin, req);
-    if ("response" in gate) return gate.response;
 
     const body = (await req.json()) as { newsId?: string; generatedArticleId?: string };
     const newsId = body.newsId?.trim() || null;
