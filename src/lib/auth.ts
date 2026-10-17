@@ -4,6 +4,32 @@ export function signInWithEmail(email: string, password: string) {
   return getSupabaseBrowserClient().auth.signInWithPassword({ email, password });
 }
 
+/** Browser autofill often skips React onChange — read controlled inputs from the DOM before submit. */
+export function readAuthFieldValues(
+  emailInput: HTMLInputElement | null,
+  passwordInput: HTMLInputElement | null,
+  stateEmail: string,
+  statePassword: string,
+): { email: string; password: string } {
+  const email = (stateEmail.trim() || emailInput?.value.trim() || "").trim();
+  const password = statePassword || passwordInput?.value || "";
+  return { email, password };
+}
+
+/** After signInWithPassword, the session cookie can lag behind onAuthStateChange by a tick. */
+export async function waitForSupabaseSession(maxMs = 3000): Promise<boolean> {
+  const client = getSupabaseBrowserClient();
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (session?.access_token) return true;
+    await new Promise((r) => setTimeout(r, 80));
+  }
+  return false;
+}
+
 export function signUpWithEmail(
   email: string,
   password: string,

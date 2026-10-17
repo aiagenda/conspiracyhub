@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import posthog from "posthog-js";
-import { resetPasswordForEmail, signInWithEmail, signUpWithEmail } from "@/lib/auth";
+import {
+  readAuthFieldValues,
+  resetPasswordForEmail,
+  signInWithEmail,
+  signUpWithEmail,
+  waitForSupabaseSession,
+} from "@/lib/auth";
 import { isSupabaseBrowserConfigured } from "@/lib/supabase";
 import { isBillingEnabled } from "@/lib/featureFlags";
 
@@ -32,6 +38,8 @@ export default function AuthModal({
   const [loading, setLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState<SignupSuccess | null>(null);
   const [forgotSuccessEmail, setForgotSuccessEmail] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTab(initialTab === "signup" ? "signup" : "signin");
@@ -81,8 +89,12 @@ export default function AuthModal({
       return;
     }
 
-    if (!email || !password) {
-      setError("Email and password required.");
+    const creds = readAuthFieldValues(emailInputRef.current, passwordInputRef.current, email, password);
+    if (creds.email !== email) setEmail(creds.email);
+    if (creds.password !== password) setPassword(creds.password);
+
+    if (!creds.email || !creds.password) {
+      setError("Email and password required. If fields look filled, type once in each box (browser autofill quirk).");
       return;
     }
     if (!isSupabaseBrowserConfigured()) {
@@ -95,18 +107,29 @@ export default function AuthModal({
     setLoading(true);
     try {
       if (tab === "signin") {
-        const { error: authError } = await signInWithEmail(email, password);
+        const { data, error: authError } = await signInWithEmail(creds.email, creds.password);
         if (authError) {
           setError(authError.message);
           return;
         }
-        posthog.identify(email.trim(), { email: email.trim() });
-        posthog.capture("user_signed_in", { email: email.trim() });
+        const hasSession = Boolean(data.session) || (await waitForSupabaseSession());
+        if (!hasSession) {
+          setError(
+            "Sign-in succeeded but no session was created. Confirm your email from the signup message, or use Forgot password.",
+          );
+          return;
+        }
+        try {
+          posthog.identify(creds.email, { email: creds.email });
+          posthog.capture("user_signed_in", { email: creds.email });
+        } catch {
+          /* analytics must not block login */
+        }
         onClose();
         return;
       }
 
-      const { data, error: authError } = await signUpWithEmail(email, password);
+      const { data, error: authError } = await signUpWithEmail(creds.email, creds.password);
       if (authError) {
         setError(authError.message);
         return;
@@ -548,7 +571,10 @@ export default function AuthModal({
                     EMAIL
                   </label>
                   <input
+                    ref={emailInputRef}
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void submit()}
@@ -684,7 +710,10 @@ export default function AuthModal({
                   EMAIL
                 </label>
                 <input
+                  ref={emailInputRef}
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="operative@theorist.io"
@@ -711,7 +740,10 @@ export default function AuthModal({
                   PASSWORD
                 </label>
                 <input
+                  ref={passwordInputRef}
                   type="password"
+                  name="password"
+                  autoComplete={tab === "signup" ? "new-password" : "current-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && void submit()}
