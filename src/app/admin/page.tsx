@@ -800,6 +800,7 @@ function AdminConsole() {
           j.target === "news_scraper" ||
           j.target === "uap_scraper" ||
           j.target === "outbreak_scraper" ||
+          j.target === "reddit_radar_scraper" ||
           j.target === "insider_radar_scraper" ||
           j.target === "seismic_scraper",
       ),
