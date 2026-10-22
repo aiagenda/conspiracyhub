@@ -8,6 +8,7 @@ import { getSiteUrl } from "@/lib/siteUrl";
 import SiteFooter from "@/components/SiteFooter";
 import PageTracker from "@/components/PageTracker";
 import SendFeedbackWidget from "@/components/SendFeedbackWidget";
+import { Analytics } from "@vercel/analytics/next";
 
 const raj = Rajdhani({
   variable: "--font-raj",
@@ -98,6 +99,7 @@ export default function RootLayout({
         </main>
         <SendFeedbackWidget />
         <SiteFooter />
+        <Analytics />
       </body>
     </html>
   );
