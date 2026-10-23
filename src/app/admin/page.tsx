@@ -800,6 +800,7 @@ function AdminConsole() {
           j.target === "news_scraper" ||
           j.target === "uap_scraper" ||
           j.target === "outbreak_scraper" ||
+          j.target === "reddit_radar_scraper" ||
           j.target === "insider_radar_scraper" ||
           j.target === "seismic_scraper",
       ),
@@ -2610,7 +2611,10 @@ function AdminConsole() {
               <strong style={{ color: "var(--foreground)" }}>Outbreak refresh</strong> rebuilds WHO + GPT outbreak cache (~1h TTL on page loads; use Run now to force). Not the same as the investigation article writers below.{" "}
               <strong style={{ color: "var(--foreground)" }}>Seismic refresh</strong> pulls USGS + EMSC feeds, merges duplicates, and busts the /seismic page cache (~5 min TTL on page loads).
               <span className="mt-2 block text-[11px]" style={{ color: muted }}>
-                Vercel cron hits <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
+                Cursor automation (07:00 UTC) can run each job via{" "}
+                <code className="text-[var(--green-dim)]">POST /api/scheduler/daily-ingest</code> with Bearer{" "}
+                <code className="text-[var(--green-dim)]">CRON_SECRET</code>. Vercel cron hits{" "}
+                <code className="text-[var(--green-dim)]">/api/scheduler/tick</code> (09:00 UTC on Hobby). Needs{" "}
                 <code className="text-[var(--green-dim)]">CRON_SECRET</code>, <code className="text-[var(--green-dim)]">SCRAPER_SECRET</code>, and{" "}
                 <code className="text-[var(--green-dim)]">OPENAI_API_KEY</code> for news scoring.
               </span>
