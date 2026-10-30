@@ -53,6 +53,23 @@ interface Article {
 
 // ── GENERIC RSS FETCHER ───────────────────────────────────────────────────────
 
+/**
+ * Rolling live coverage (liveblogs, "as it happened", minute-by-minute politics pages).
+ *
+ * These are append-only timestamped logs, not articles: ingesting them produced bodies
+ * full of "3.33pm GMT" fragments and reader Q&A, which is poor raw material even after a
+ * good rewrite, and their content keeps changing after the URL is stored.
+ */
+function isLiveCoverage(input: { title?: string; url?: string; type?: string }): boolean {
+  if ((input.type ?? "").toLowerCase() === "liveblog") return true;
+  const url = (input.url ?? "").toLowerCase();
+  if (/\/live\/|\/live-?blog|[?&]live=/.test(url)) return true;
+  const title = (input.title ?? "").toLowerCase();
+  // "… – UK politics live" only counts when `live` ends the headline. A bare word match
+  // also caught ordinary prose such as "change the way we live?".
+  return /[\s–—-]live\s*$|\blive (?:updates?|blog|coverage)\b|as it happened|minute[- ]by[- ]minute/.test(title);
+}
+
 async function fetchRSS(feedUrl: string, sourceId: string, section: string): Promise<Article[]> {
   try {
     const res = await fetch(feedUrl, {
@@ -76,7 +93,7 @@ async function fetchRSS(feedUrl: string, sourceId: string, section: string): Pro
           .trim()
           .slice(0, 200) ?? "";
       const pub = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? "";
-      if (title && link && link.startsWith("http")) {
+      if (title && link && link.startsWith("http") && !isLiveCoverage({ title, url: link })) {
         const idBase = sourceIdentity(sourceId, link);
         results.push({
           guardian_id: idBase,
@@ -123,6 +140,7 @@ async function fetchGuardian(): Promise<Article[]> {
   const mapResult = (a: unknown, sectionLabel: string) => {
     const row = a as {
       id?: string;
+      type?: string;
       webTitle?: string;
       webUrl?: string;
       webPublicationDate?: string;
@@ -130,6 +148,7 @@ async function fetchGuardian(): Promise<Article[]> {
     };
     const f = row.fields;
     if (!row.id || !row.webUrl) return;
+    if (isLiveCoverage({ title: row.webTitle, url: row.webUrl, type: row.type })) return;
     results.push({
       guardian_id: String(row.id),
       title: String(row.webTitle ?? ""),
