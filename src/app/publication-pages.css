@@ -40,6 +40,12 @@
 .journal-result p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 18px; color: var(--journal-muted); font-size: 14px; line-height: 1.65; }
 .journal-read { align-self: start; margin-top: auto; color: var(--journal-accent) !important; font: 12px/1.4 var(--font-share-tech-mono), monospace; text-decoration: none; text-transform: uppercase; letter-spacing: .04em; }
 .journal-read:hover { text-decoration: underline; }
+/* Record titles come from the agency's own catalogue — often long and all-caps, so
+   they are set smaller here than an article headline, which is written to be a headline. */
+.journal-results--records .journal-result h2 { font-size: clamp(17px, 1.3vw, 20px); line-height: 1.22; letter-spacing: .02em; }
+.journal-results--records .journal-result p { -webkit-line-clamp: 4; font-size: 13px; }
+.journal-result-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: auto; }
+.journal-result-links .journal-read { margin-top: 0; }
 .journal-pagination { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px 0; font: 12px/1.5 var(--font-share-tech-mono), monospace; }
 .journal-pagination a { padding: 10px 0; color: var(--journal-accent); }
 .journal-empty { margin-top: 12px; padding: 32px 24px; border: 1px solid var(--journal-line); background: var(--journal-panel); }

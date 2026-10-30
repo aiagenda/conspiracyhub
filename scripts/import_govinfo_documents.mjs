@@ -46,6 +46,32 @@ const TOPICS = [
   ["\"critical infrastructure\"", "CISA"], ["cybersecurity", "CISA"],
   ["\"nuclear weapons\"", "DOE"], ["\"government ethics\"", "GAO"],
   ["\"lobbying disclosure\"", "CONGRESS"], ["\"campaign finance\"", "CONGRESS"],
+  ["\"Operation Mongoose\"", "CIA"], ["\"Bay of Pigs\"", "CIA"],
+  ["\"Gulf of Tonkin\"", "DOD"], ["\"Phoenix Program\"", "CIA"],
+  ["\"Agent Orange\"", "VA"], ["\"Edgewood Arsenal\"", "DOD"],
+  ["\"Project 112\"", "DOD"], ["\"atomic veterans\"", "DOE"],
+  ["\"nuclear testing\"", "DOE"], ["\"mind control\"", "CIA"],
+  ["\"behavior modification\"", "CIA"], ["\"psychological operations\"", "DOD"],
+  ["\"psychological warfare\"", "DOD"], ["propaganda", "STATE"],
+  ["\"weather modification\"", "NOAA"], ["\"cloud seeding\"", "NOAA"],
+  ["geoengineering", "NOAA"], ["\"directed energy\"", "DOD"],
+  ["\"anomalous health incidents\"", "DNI"], ["\"Havana syndrome\"", "DNI"],
+  ["\"enhanced interrogation\"", "CIA"], ["\"extraordinary rendition\"", "CIA"],
+  ["Guantanamo", "DOD"], ["\"targeted killing\"", "DOD"],
+  ["\"drone strikes\"", "DOD"], ["\"counterintelligence\"", "FBI"],
+  ["\"security clearance\"", "DNI"], ["\"intelligence failures\"", "CONGRESS"],
+  ["\"9/11 Commission\"", "NARA"], ["\"terrorist surveillance\"", "NSA"],
+  ["\"Edward Snowden\"", "NSA"], ["\"bulk collection\"", "NSA"],
+  ["\"Fast and Furious\"", "FBI"], ["Waco", "FBI"], ["\"Ruby Ridge\"", "FBI"],
+  ["\"organized crime\"", "FBI"], ["\"narcotics trafficking\"", "DEA"],
+  ["\"money laundering\"", "TREASURY"], ["\"foreign influence\"", "DNI"],
+  ["disinformation", "DNI"], ["\"election security\"", "CISA"],
+  ["\"COVID-19 origins\"", "NIH"], ["\"laboratory leak\"", "NIH"],
+  ["\"dual use research\"", "NIH"], ["\"pandemic preparedness\"", "CDC"],
+  ["\"vaccine safety\"", "FDA"], ["\"Jeffrey Epstein\"", "CONGRESS"],
+  ["\"sex trafficking\"", "CONGRESS"], ["\"satellite reconnaissance\"", "NRO"],
+  ["\"Space Force\"", "DOD"], ["\"quantum computing\"", "NIST"],
+  ["semiconductor", "COMMERCE"], ["\"spectrum interference\"", "FCC"],
 ];
 
 /** Readable source label per GovInfo collection. */
@@ -105,10 +131,21 @@ const perTopic = perTopicIdx > -1 ? Number(process.argv[perTopicIdx + 1]) : 15;
 
 const existing = new Set();
 if (!dryRun) {
-  const res = await fetch(`${supabaseUrl}/rest/v1/reference_documents?select=canonical_url`, {
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-  });
-  for (const row of await res.json()) existing.add(row.canonical_url);
+  // PostgREST caps an unranged select at 1000 rows, so the index has to be paged in
+  // or every run re-collects documents it already holds.
+  for (let from = 0; ; from += 1000) {
+    const res = await fetch(`${supabaseUrl}/rest/v1/reference_documents?select=canonical_url`, {
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Range: `${from}-${from + 999}`,
+      },
+    });
+    const page = await res.json();
+    if (!Array.isArray(page) || page.length === 0) break;
+    for (const row of page) existing.add(row.canonical_url);
+    if (page.length < 1000) break;
+  }
   console.log(`already in the index: ${existing.size}`);
 }
 
