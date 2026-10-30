@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { href: "/insider-radar", label: "Insider Radar", tone: "amber" },
   { href: "/blog", label: "Analysis", tone: "purple" },
   { href: "/ai", label: "AI & Tech", tone: "cyan" },
+  { href: "/documents", label: "Documents", tone: "amber" },
   { href: "/toolkit", label: "Toolkit", tone: "green" },
   { href: "/topics", label: "Topics", tone: "green" },
   { href: "/search", label: "Search", tone: "green" },

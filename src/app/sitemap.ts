@@ -23,6 +23,7 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/search`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
   { url: `${SITE_URL}/guide`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.4 },
   { url: `${SITE_URL}/toolkit`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.45 },
+  { url: `${SITE_URL}/documents`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.75 },
   { url: `${SITE_URL}/faq`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.3 },
 ];
 
