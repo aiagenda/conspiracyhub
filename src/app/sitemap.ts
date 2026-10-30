@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { ARTICLE_CANONICAL_SLUG } from "@/lib/articleRedirects";
 import { TOPICS } from "@/lib/topics";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 
@@ -54,7 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .order("published_at", { ascending: false })
     .limit(500);
 
-  const blogRoutes: MetadataRoute.Sitemap = (blogPosts ?? []).map(row => ({
+  const blogRoutes: MetadataRoute.Sitemap = (blogPosts ?? []).filter((row) => !ARTICLE_CANONICAL_SLUG[row.slug]).map(row => ({
     url: `${SITE_URL}/blog/${row.slug}`,
     lastModified: row.published_at ? new Date(row.published_at) : new Date(),
     changeFrequency: "monthly" as const,

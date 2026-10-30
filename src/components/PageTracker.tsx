@@ -10,11 +10,12 @@ export default function PageTracker() {
   useEffect(() => {
     if (!pathname) return;
     try {
-      if (typeof window !== "undefined" && localStorage.getItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY) === "1") {
-        return;
+      if (pathname.startsWith("/admin")) {
+        localStorage.setItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY, "1");
       }
+      if (localStorage.getItem(ANALYTICS_SUPPRESS_LOCAL_STORAGE_KEY) === "1") return;
     } catch {
-      /* private mode / blocked storage */
+      if (pathname.startsWith("/admin")) return;
     }
     fetch("/api/track", {
       method: "POST",

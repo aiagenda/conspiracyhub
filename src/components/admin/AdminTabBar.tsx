@@ -10,9 +10,6 @@ import {
   muted,
 } from "@/components/admin/constants";
 
-const tabBtn =
-  "rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors";
-
 const subTabBtn =
   "rounded border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors";
 
@@ -27,27 +24,28 @@ export function AdminTabBar({
 }) {
   return (
     <nav
-      className="sticky top-0 z-20 -mx-1 flex flex-wrap gap-1.5 border-b pb-4"
-      style={{ borderColor: "#1a2a22", background: "var(--background)" }}
+      className="sticky top-0 z-20 flex flex-wrap gap-1 rounded-2xl border p-1"
+      style={{ borderColor: "#1a2a22", background: "#080c09" }}
       aria-label="Admin sections"
     >
       {ADMIN_TABS.map((t) => {
         const on = active === t.id;
+        const accent = t.accent ?? "var(--green)";
         return (
           <button
             key={t.id}
             type="button"
             onClick={() => onChange(t.id)}
-            className={tabBtn}
+            className="rounded-xl px-4 py-2.5 text-[12px] font-semibold tracking-wide transition-colors"
             style={{
-              borderColor: on ? (t.accent ?? "var(--green-dark)") : "#1a2a22",
-              background: on ? (t.accent ? "rgba(255,170,0,0.1)" : "rgba(0,187,102,0.1)") : "transparent",
-              color: on ? (t.accent ?? "var(--green)") : muted,
+              background: on ? "rgba(125,255,179,0.08)" : "transparent",
+              color: on ? accent : muted,
+              boxShadow: on ? `inset 0 0 0 1px ${accent}` : "none",
             }}
           >
             {t.label}
             {t.id === "inbox" && inboxUnread > 0 ? (
-              <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px]" style={{ background: "rgba(255,100,100,0.2)", color: "#ff8888" }}>
+              <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[9px]" style={{ background: "rgba(255,100,100,0.2)", color: "#ff8888" }}>
                 {inboxUnread}
               </span>
             ) : null}
@@ -124,12 +122,9 @@ export function AutomationSubTabBar({
   );
 }
 
-export function SectionHeading({ title, accent = "var(--green-dark)" }: { title: string; accent?: string }) {
+export function SectionHeading({ title, accent = "#7dffb3" }: { title: string; accent?: string }) {
   return (
-    <h2
-      className="font-raj mb-5 text-[13px] font-bold uppercase tracking-[0.18em]"
-      style={{ color: "var(--foreground)", borderLeft: `2px solid ${accent}`, paddingLeft: 10 }}
-    >
+    <h2 className="font-raj mb-5 text-2xl font-bold tracking-tight" style={{ color: accent === "#ffaa00" ? "#ffaa00" : "var(--foreground)" }}>
       {title}
     </h2>
   );

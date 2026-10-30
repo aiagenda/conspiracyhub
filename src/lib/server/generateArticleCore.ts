@@ -462,12 +462,19 @@ Related article: ${top.url}`;
           .filter(Boolean),
       );
 
-      const target =
-        opportunities.find(
-          (o) =>
-            !existingKeywords.has(o.query.toLowerCase()) &&
-            !o.query.split(" ").every((w: string) => existingKeywords.has(w)),
-        ) ?? opportunities[0];
+      const target = opportunities.find((o) => {
+        const query = o.query.toLowerCase().trim();
+        const words = query.split(/\s+/).filter(Boolean);
+        if (words.length < 3) return false;
+        if (o.impressions < 10 || o.position > 20) return false;
+        if (/\b(github|reddit|apk|exiftool|deeptutor)\b/.test(query)) return false;
+        if (/^theorists?$/.test(query)) return false;
+        return !existingKeywords.has(query) && !words.every((w: string) => existingKeywords.has(w));
+      });
+
+      if (!target) {
+        return { status: 404, payload: { error: "no_actionable_search_query" } };
+      }
 
       researchQuery = target.query;
       prompt = `Write a comprehensive, SEO-optimized investigation article targeting this exact search query: "${target.query}"
@@ -623,7 +630,19 @@ Include the official source URL prominently. Internal links: reference "${SITE_U
         "MKNaomi and biological weapons: the CIA's secret experiments",
         "Operation Mockingbird: the CIA's media infiltration program",
       ];
-      const topic = EVERGREEN_TOPICS[Math.floor(Math.random() * EVERGREEN_TOPICS.length)];
+      const start = Math.floor(Math.random() * EVERGREEN_TOPICS.length);
+      let topic = "";
+      for (let i = 0; i < EVERGREEN_TOPICS.length; i++) {
+        const candidate = EVERGREEN_TOPICS[(start + i) % EVERGREEN_TOPICS.length];
+        const already = await findExistingStory(admin, candidate);
+        if (!already) {
+          topic = candidate;
+          break;
+        }
+      }
+      if (!topic) {
+        return { status: 200, payload: { success: true, skipped: true, reason: "named_topics_already_covered" } };
+      }
       primaryCitationUrls = [];
       researchQuery = topic;
       prompt = `Write a comprehensive, SEO-optimized deep-dive article about: "${topic}"

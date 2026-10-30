@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canonicalSourceUrl, type EditorialChecks } from "@/lib/editorialQuality";
-import { sameStoryTitle, storySlug } from "@/lib/server/storyIdentity";
+import { sameStoryTitle, storySlug, storyTopicKey } from "@/lib/server/storyIdentity";
 
 /** Stable story identity and legacy title/source checks; existing editorial work is never overwritten. */
 export async function findExistingStory(admin: SupabaseClient, topic: string, primaryUrl?: string) {
@@ -11,7 +11,9 @@ export async function findExistingStory(admin: SupabaseClient, topic: string, pr
   const { data: candidates, error: queryError } = await admin.from("generated_articles")
     .select("id,title,slug,status,focus_keyword,sources").order("created_at", { ascending: false }).limit(1000);
   if (queryError) throw new Error(queryError.message);
+  const topicKey = storyTopicKey(topic);
   return (candidates ?? []).find((row) => sameStoryTitle(row.title, topic) || sameStoryTitle(row.focus_keyword || "", topic)
+    || (topicKey !== null && (storyTopicKey(row.title) === topicKey || storyTopicKey(row.focus_keyword || "") === topicKey))
     || (primaryUrl && Array.isArray(row.sources) && row.sources.some((source: { url?: string }) => canonicalSourceUrl(source.url || "") === canonicalSourceUrl(primaryUrl)))) ?? null;
 }
 

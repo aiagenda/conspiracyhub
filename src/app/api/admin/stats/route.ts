@@ -26,7 +26,15 @@ export async function GET(req: NextRequest) {
   const access = await requireAdminRequest(req);
   if ("response" in access) return access.response;
   const db = admin();
-  const excludedFp = analyticsExcludedFingerprints();
+  const { data: operatorRows } = await db
+    .from("page_views")
+    .select("fingerprint")
+    .like("path", "/admin%")
+    .limit(2000);
+  const operatorFp = (operatorRows ?? [])
+    .map((row) => String(row.fingerprint ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  const excludedFp = [...new Set([...analyticsExcludedFingerprints(), ...operatorFp])];
   const now = Date.now();
   const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const since7d  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
@@ -96,6 +104,7 @@ export async function GET(req: NextRequest) {
   // aggregate top paths
   const pathCounts: Record<string, number> = {};
   (topPaths.data ?? []).forEach((r) => {
+    if (String(r.path ?? "").startsWith("/admin")) return;
     pathCounts[r.path] = (pathCounts[r.path] ?? 0) + 1;
   });
   const topPathsSorted = Object.entries(pathCounts)

@@ -64,6 +64,15 @@ async function hogqlQuery(sql: string): Promise<HogQLResponse> {
   return (await res.json()) as HogQLResponse;
 }
 
+/** Anyone who opened /admin is the operator, not a reader. */
+const EXCLUDE_OPERATORS = `person_id NOT IN (
+  SELECT person_id FROM events
+  WHERE event = '$pageview'
+    AND properties.$pathname LIKE '/admin%'
+    AND person_id IS NOT NULL
+    AND timestamp > now() - INTERVAL 180 DAY
+) AND (properties.$pathname IS NULL OR properties.$pathname NOT LIKE '/admin%')`;
+
 function scalarCount(data: HogQLResponse): number {
   const cell = data.results?.[0]?.[0];
   const n = Number(cell);
@@ -125,21 +134,22 @@ export async function fetchPostHogAdminStats(): Promise<PostHogAdminStats> {
   try {
     const [pv24, pv7, u24, u7, pages, events, referrers] = await Promise.all([
       hogqlQuery(
-        `SELECT count() FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 24 HOUR`,
+        `SELECT count() FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 24 HOUR AND ${EXCLUDE_OPERATORS}`,
       ),
       hogqlQuery(
-        `SELECT count() FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY`,
+        `SELECT count() FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY AND ${EXCLUDE_OPERATORS}`,
       ),
       hogqlQuery(
-        `SELECT count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 24 HOUR`,
+        `SELECT count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 24 HOUR AND ${EXCLUDE_OPERATORS}`,
       ),
       hogqlQuery(
-        `SELECT count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY`,
+        `SELECT count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY AND ${EXCLUDE_OPERATORS}`,
       ),
       hogqlQuery(`
         SELECT properties.$pathname AS path, count() AS c
         FROM events
         WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY
+          AND ${EXCLUDE_OPERATORS}
         GROUP BY path
         ORDER BY c DESC
         LIMIT 12
@@ -148,6 +158,7 @@ export async function fetchPostHogAdminStats(): Promise<PostHogAdminStats> {
         SELECT event, count() AS c
         FROM events
         WHERE timestamp > now() - INTERVAL 7 DAY
+          AND ${EXCLUDE_OPERATORS}
           AND event NOT IN ('$pageview', '$pageleave', '$autocapture', '$identify', '$set')
         GROUP BY event
         ORDER BY c DESC
@@ -157,6 +168,7 @@ export async function fetchPostHogAdminStats(): Promise<PostHogAdminStats> {
         SELECT coalesce(nullIf(properties.$referring_domain, ''), '(direct)') AS ref, count() AS c
         FROM events
         WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY
+          AND ${EXCLUDE_OPERATORS}
         GROUP BY ref
         ORDER BY c DESC
         LIMIT 12

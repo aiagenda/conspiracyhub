@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalSourceUrl, assessEditorialQuality, articleCitationUrls } from '../src/lib/editorialQuality';
 import { manualReviewIssues } from '../src/lib/server/editorialAdmin';
-import { sourceIdentity, storySlug } from '../src/lib/server/storyIdentity';
+import { sourceIdentity, storySlug, storyTopicKey } from '../src/lib/server/storyIdentity';
 import { displayReaderReaction } from '../src/lib/readerReactionVote';
 const now = new Date('2026-10-15T12:00:00Z');
 const evidence = ['https://nasa.gov/report', 'https://reuters.com/report'].map(url => ({ title: 'Evidence', url, text: 'evidence '.repeat(100), publishedAt: '2026-10-14' }));
@@ -17,6 +17,11 @@ test('long common RSS prefixes do not collide', () => {
  const a = 'https://news.google.com/rss/articles/story-a'; const b = 'https://news.google.com/rss/articles/story-b';
  assert.notEqual(sourceIdentity('gnews', a), sourceIdentity('gnews', b));
  assert.equal(sourceIdentity('rss', a), sourceIdentity('rss', a+'?utm_source=feed'));
+});
+test('named investigations share one topic key', () => {
+  assert.equal(storyTopicKey('Debunking the Adrenochrome Conspiracy'), 'adrenochrome');
+  assert.equal(storyTopicKey('The CIA MK-ULTRA program'), 'mkultra');
+  assert.equal(storyTopicKey('A local fish die-off'), null);
 });
 test('story slugs remain stable between runs', () => {
  assert.equal(storySlug('A story', evidence[0].url), storySlug('A story', evidence[0].url+'?utm_campaign=x'));

@@ -10,7 +10,7 @@ export type AutomationSubTab = "ingest" | "seo" | "writers" | "lore" | "tech";
 
 export const ADMIN_TABS: { id: AdminTab; label: string; accent?: string }[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "audience", label: "Audience" },
+  { id: "audience", label: "Audience", accent: "#7dffb3" },
   { id: "content", label: "Content", accent: "#ffaa00" },
   { id: "automation", label: "Automation" },
   { id: "inbox", label: "Inbox" },

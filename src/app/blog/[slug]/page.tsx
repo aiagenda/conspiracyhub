@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { canonicalArticleSlug } from "@/lib/articleRedirects";
 import GeneratedArticleReader from "@/components/GeneratedArticleReader";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import {
@@ -43,6 +44,8 @@ interface Article {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  const canonicalSlug = canonicalArticleSlug(slug);
+  if (canonicalSlug) permanentRedirect(`/blog/${canonicalSlug}`);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) return {};
@@ -93,6 +96,8 @@ export default async function BlogArticlePage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
+  const canonicalSlug = canonicalArticleSlug(slug);
+  if (canonicalSlug) permanentRedirect(`/blog/${canonicalSlug}`);
   const sp = (await searchParams) ?? {};
   const rawChat = sp.chat;
   const chatVal = Array.isArray(rawChat) ? rawChat[0] : rawChat;

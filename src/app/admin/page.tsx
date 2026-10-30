@@ -146,22 +146,50 @@ interface ScraperJob {
 function MiniBar({ data }: { data: { hour: string; count: number }[] }) {
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
-    <div
-      className="flex w-full items-end gap-0.5 px-1"
-      style={{ height: 112, minHeight: 112 }}
-    >
+    <div className="flex w-full items-end gap-1" style={{ height: 148 }}>
       {data.map((d) => (
         <div
           key={d.hour}
           title={`${d.hour}:00 — ${d.count} views`}
-          className="min-w-0 flex-1 rounded-sm transition-[height]"
+          className="min-w-0 flex-1 rounded-t-md"
           style={{
-            height: `${Math.max(4, (d.count / max) * 100)}%`,
-            background: d.count ? "rgba(0, 187, 102, 0.45)" : "#0f1510",
+            height: `${Math.max(6, (d.count / max) * 100)}%`,
+            background: d.count ? "linear-gradient(180deg, #7dffb3 0%, rgba(0,187,102,0.35) 100%)" : "#101612",
           }}
         />
       ))}
     </div>
+  );
+}
+
+function RankBars({
+  rows,
+  empty,
+}: {
+  rows: { key: string; label: React.ReactNode; count: number; hint?: string }[];
+  empty: string;
+}) {
+  const max = Math.max(...rows.map((row) => row.count), 1);
+  if (!rows.length) {
+    return <p className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>{empty}</p>;
+  }
+  return (
+    <ul className="space-y-3.5 px-4 py-4">
+      {rows.map((row) => (
+        <li key={row.key}>
+          <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[13px]">
+            <span className="min-w-0 truncate" style={{ color: "var(--foreground)" }}>{row.label}</span>
+            <span className="shrink-0 tabular-nums" style={{ color: muted }}>{row.hint ?? row.count}</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "#121a14" }}>
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${Math.max(6, (row.count / max) * 100)}%`, background: "#00bb66" }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -187,22 +215,34 @@ function StatTile({
   value,
   sub,
   danger,
+  onClick,
 }: {
   title: string;
   value: string | number;
   sub?: string;
   danger?: boolean;
+  onClick?: () => void;
 }) {
+  const interactive = Boolean(onClick);
   return (
     <div
-      className="flex min-w-0 flex-col gap-1 rounded-lg p-4"
-      style={{ background: cardBg, border }}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={interactive ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.();
+        }
+      } : undefined}
+      className="flex min-w-0 flex-col gap-1 rounded-2xl p-4 text-left"
+      style={{ background: "#080c09", border: "1px solid #1a2a22", cursor: interactive ? "pointer" : "default" }}
     >
-      <span className="text-[10px] uppercase tracking-widest" style={{ color: muted }}>
+      <span className="text-[11px] uppercase tracking-[0.16em]" style={{ color: muted }}>
         {title}
       </span>
       <span
-        className="font-raj text-2xl font-bold tracking-tight sm:text-3xl"
+        className="font-raj text-2xl font-bold tracking-tight tabular-nums sm:text-3xl"
         style={{ color: danger ? "#ff6666" : "var(--foreground)" }}
       >
         {value}
@@ -214,7 +254,7 @@ function StatTile({
 
 function TableShell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg" style={{ background: cardBg, border }}>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
       <div className="border-b px-4 py-3" style={{ borderColor: "#1a2a22" }}>
         <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
           {title}
@@ -1433,7 +1473,7 @@ function AdminConsole() {
       className="flex min-h-screen w-full flex-col"
       style={{
         background: "var(--background)",
-        fontFamily: "var(--font-share-tech-mono), monospace",
+        fontFamily: "var(--font-raj), sans-serif",
       }}
     >
       {/* Top bar — full width */}
@@ -1447,11 +1487,11 @@ function AdminConsole() {
         }}
       >
         <div className="min-w-0">
-          <p className="mb-0.5 text-[10px] uppercase tracking-[0.2em]" style={{ color: muted }}>
+          <p className="mb-0.5 text-[11px] uppercase tracking-[0.18em]" style={{ color: "#7dffb3" }}>
             The Theorist
           </p>
-          <h1 className="font-raj text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
-            Editorial & operations desk
+          <h1 className="font-raj text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            Desk
           </h1>
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
@@ -1531,9 +1571,9 @@ function AdminConsole() {
             <SectionHeading title="Dashboard" />
             {stats && (
               <div className="mb-4 grid w-full grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <StatTile title="PRO subscribers" value={stats.subscribers?.pro ?? 0} sub={`MRR: $${stats.subscribers?.mrr ?? 0}`} />
-                <StatTile title="Free users" value={stats.subscribers?.free ?? 0} sub={`+${stats.subscribers?.newLast7d ?? 0} last 7d`} />
-                <StatTile title="Page views (24h)" value={stats.pageViews.last24h} sub={`7d: ${stats.pageViews.last7d}`} />
+                <StatTile title="PRO subscribers" value={stats.subscribers?.pro ?? 0} sub={`MRR: $${stats.subscribers?.mrr ?? 0}`} onClick={() => setActiveTab("audience")} />
+                <StatTile title="Free users" value={stats.subscribers?.free ?? 0} sub={`+${stats.subscribers?.newLast7d ?? 0} last 7d`} onClick={() => setActiveTab("audience")} />
+                <StatTile title="Page views (24h)" value={stats.pageViews.last24h} sub={`7d: ${stats.pageViews.last7d}`} onClick={() => setActiveTab("audience")} />
                 <StatTile title="Articles indexed" value={stats.content.totalArticles} sub={`${stats.content.oracleAnalyses} oracle · ${stats.content.threads} threads`} />
                 <StatTile title="API errors (24h)" value={stats.api.errors24h} danger={stats.api.errors24h > 0} sub={`of ${stats.api.calls24h} calls · avg ${stats.api.avgMs}ms`} />
                 <StatTile title="Unread inbox" value={stats.contact.unread} danger={stats.contact.unread > 0} />
@@ -1542,7 +1582,7 @@ function AdminConsole() {
             {!stats && !err && (
               <p className="text-sm" style={{ color: muted }}>Loading metrics…</p>
             )}
-            <div className="rounded-lg border p-4" style={{ background: cardBg, border }}>
+            <div className="rounded-2xl border p-4" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>Quick actions</p>
               <div className="flex flex-wrap gap-2">
                 {mainNewsIngestJob ? (
@@ -1622,12 +1662,238 @@ function AdminConsole() {
           )}
 
           {activeTab === "audience" && (
-          <>
-          <section id="subscribers" className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-                ◈ Subscribers
+          <div className="space-y-12">
+          <section id="readers">
+            <PostHogAdminSection data={stats?.posthog ?? null} />
+          </section>
+          {/* ── TRAFFIC ── */}
+          <section id="traffic" className="space-y-6">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#7dffb3" }}>On-site</p>
+              <h2 className="font-raj mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
+                First-party traffic
               </h2>
+              <p className="mt-1 max-w-xl text-[13px] leading-relaxed" style={{ color: muted }}>
+                Counted by the site. Visits from this admin browser are left out.
+              </p>
+            </div>
+
+            {stats && (
+              <>
+                <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3">
+                  <div className="min-w-0 rounded-2xl border xl:col-span-2" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
+                    <div className="border-b px-4 py-3" style={{ borderColor: "#1a2a22" }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
+                        Page views — last 24 hours
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <MiniBar data={stats.charts.viewsHourly} />
+                      <div className="mt-2 flex justify-between text-[10px] uppercase" style={{ color: muted }}>
+                        <span>24h ago</span>
+                        <span>now</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-w-0 space-y-3 rounded-2xl border p-4" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: muted }}>
+                      Health
+                    </p>
+                    <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
+                      API error rate, 24h:{" "}
+                      <strong style={{ color: "var(--foreground)" }}>
+                        {stats.api.calls24h
+                          ? `${((stats.api.errors24h / stats.api.calls24h) * 100).toFixed(1)}%`
+                          : "—"}
+                      </strong>
+                      <span> of {stats.api.calls24h} calls</span>
+                    </p>
+                    <details className="border-t pt-3" style={{ borderColor: "#1a2a22" }}>
+                      <summary className="cursor-pointer text-[12px]" style={{ color: muted }}>
+                        Exclude this browser
+                      </summary>
+                      <label className="flex cursor-pointer items-start gap-2 text-[13px] leading-relaxed" style={{ color: muted }}>
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={analyticsSuppress}
+                          onChange={(e) => setAnalyticsSuppressBrowser(e.target.checked)}
+                        />
+                        <span>Do not send page views from this browser (local only).</span>
+                      </label>
+                      {analyticsViewerId ? (
+                        <p className="mt-2 break-all font-mono text-[11px] leading-snug" style={{ color: muted }}>
+                          Viewer id — add to server env{" "}
+                          <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_FINGERPRINTS</code> to drop past rows from stats:{" "}
+                          <span style={{ color: "var(--foreground)" }}>{analyticsViewerId}</span>{" "}
+                          <button
+                            type="button"
+                            className="text-[var(--green)] underline decoration-dotted underline-offset-2"
+                            onClick={() => void navigator.clipboard.writeText(analyticsViewerId).catch(() => {})}
+                          >
+                            Copy
+                          </button>
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: muted }}>
+                        Env <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_IPS</code> (comma-separated, same IP the edge sees) excludes that traffic from inserts and from these aggregates everywhere.
+                      </p>
+                      {analyticsViewerId ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="rounded border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
+                            style={{ borderColor: "#1a2a22", color: "var(--green)" }}
+                            onClick={() =>
+                              void navigator.clipboard
+                                .writeText(`ANALYTICS_EXCLUDE_FINGERPRINTS=${analyticsViewerId}`)
+                                .catch(() => {})
+                            }
+                          >
+                            Copy exclude-fingerprint line
+                          </button>
+                          {analyticsClientIp ? (
+                            <button
+                              type="button"
+                              className="rounded border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
+                              style={{ borderColor: "#1a2a22", color: "var(--green)" }}
+                              onClick={() =>
+                                void navigator.clipboard
+                                  .writeText(`ANALYTICS_EXCLUDE_IPS=${analyticsClientIp}`)
+                                  .catch(() => {})
+                              }
+                            >
+                              Copy exclude-IP line
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </details>
+                  </div>
+                </div>
+
+                <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-2">
+                  <TableShell title="Top pages (7 days)">
+                    <RankBars
+                      empty="No path data yet"
+                      rows={stats.charts.topPaths.map((p) => ({
+                        key: p.path,
+                        label: <span className="font-mono text-[12px]">{p.path}</span>,
+                        count: p.count,
+                      }))}
+                    />
+                  </TableShell>
+                  <TableShell title="Top countries (7 days)">
+                    <RankBars
+                      empty="No country data yet"
+                      rows={(stats.charts.topCountries ?? []).map((c) => ({
+                        key: c.country,
+                        label: (
+                          <>
+                            <span className="mr-2" aria-hidden>{countryCodeToFlag(c.country)}</span>
+                            {countryLabel(c.country)}
+                          </>
+                        ),
+                        count: c.views,
+                        hint: `${c.views} views · ${c.unique} people`,
+                      }))}
+                    />
+                  </TableShell>
+                </div>
+
+                <details className="rounded-2xl border px-4 py-3" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
+                  <summary className="cursor-pointer text-[12px]" style={{ color: muted }}>API routes and latest contact</summary>
+                  <div className="mt-4 grid w-full grid-cols-1 gap-4">
+                  <TableShell title="Top API routes (24h)">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Route
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Calls
+                          </th>
+                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
+                            Errors
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.charts.topRoutes.map((r) => (
+                          <tr key={r.route} className="hover:bg-[#0f1510]">
+                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {r.route}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
+                              {r.total}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-right tabular-nums" style={{ borderColor: "#111816", color: r.errors > 0 ? "#ff6666" : muted }}>
+                              {r.errors}
+                            </td>
+                          </tr>
+                        ))}
+                        {stats.charts.topRoutes.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
+                              No API log rows yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </TableShell>
+
+                {stats.contact.recent.length > 0 && (
+                  <TableShell title="Latest contact (snapshot)">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>When</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>From</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Category</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Subject</th>
+                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Read</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.contact.recent.map((r) => (
+                          <tr key={r.id} className="hover:bg-[#0f1510]">
+                            <td className="whitespace-nowrap border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
+                              {new Date(r.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
+                            </td>
+                            <td className="max-w-[140px] truncate border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {r.name}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-[12px] uppercase" style={{ borderColor: "#111816", color: muted }}>
+                              {r.category}
+                            </td>
+                            <td className="max-w-[1px] truncate border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
+                              {r.subject}
+                            </td>
+                            <td className="border-b px-4 py-2.5 text-[12px]" style={{ borderColor: "#111816", color: r.read ? muted : "var(--green)" }}>
+                              {r.read ? "yes" : "no"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableShell>
+                )}
+                  </div>
+                </details>
+              </>
+            )}
+          </section>
+
+          <section id="subscribers" className="space-y-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#7dffb3" }}>Accounts</p>
+                <h2 className="font-raj mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
+                  Subscribers
+                </h2>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {(["all", "pro", "free"] as const).map((f) => (
                   <button key={f} type="button"
@@ -1646,31 +1912,22 @@ function AdminConsole() {
             {/* Revenue tiles */}
             {userSummary && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>MRR</div>
-                  <div className="font-raj text-3xl font-bold" style={{ color: "var(--green)" }}>${userSummary.mrr}</div>
-                  <div className="text-[11px] mt-1" style={{ color: muted }}>$7 × {userSummary.totalPro} PRO</div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>ARR (projected)</div>
-                  <div className="font-raj text-3xl font-bold" style={{ color: "#00ff88" }}>${userSummary.mrr * 12}</div>
-                  <div className="text-[11px] mt-1" style={{ color: muted }}>annualized</div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>PRO subscribers</div>
-                  <div className="font-raj text-3xl font-bold" style={{ color: "var(--foreground)" }}>{userSummary.totalPro}</div>
-                  <div className="text-[11px] mt-1" style={{ color: muted }}>active</div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Free users</div>
-                  <div className="font-raj text-3xl font-bold" style={{ color: "var(--foreground)" }}>{userSummary.totalFree}</div>
-                  <div className="text-[11px] mt-1" style={{ color: muted }}>conversion pool</div>
-                </div>
+                {[
+                  { label: "MRR", value: `$${userSummary.mrr}`, detail: `$7 × ${userSummary.totalPro} PRO` },
+                  { label: "ARR", value: `$${userSummary.mrr * 12}`, detail: "projected" },
+                  { label: "PRO", value: String(userSummary.totalPro), detail: "paying" },
+                  { label: "Free", value: String(userSummary.totalFree), detail: "registered" },
+                ].map((tile) => (
+                  <div key={tile.label} className="rounded-2xl border p-4" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
+                    <div className="text-[11px] uppercase tracking-[0.16em]" style={{ color: muted }}>{tile.label}</div>
+                    <div className="font-raj mt-1 text-3xl font-bold tabular-nums" style={{ color: "var(--foreground)" }}>{tile.value}</div>
+                    <div className="mt-1 text-[12px]" style={{ color: muted }}>{tile.detail}</div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* User table */}
-            <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
+            <div className="overflow-hidden rounded-2xl border" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[780px] border-collapse text-left text-[13px]">
                   <thead>
@@ -1765,289 +2022,15 @@ function AdminConsole() {
             </div>
           </section>
 
-          {/* ── TRAFFIC ── */}
-          <section id="traffic" className="space-y-6">
-            <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-              Traffic &amp; API
-            </h2>
-
-            {/* PostHog — live product analytics */}
-            <div className="space-y-3 rounded-lg border p-4" style={{ background: cardBg, border, borderColor: "#2a1a3a" }}>
-              <h3 className="font-raj text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: "#c94dff" }}>
-                ◈ PostHog Analytics
-              </h3>
-              <PostHogAdminSection data={stats?.posthog ?? null} />
-            </div>
-
-            {stats && (
-              <>
-                <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3">
-                  <div className="min-w-0 xl:col-span-2" style={{ background: cardBg, border, borderRadius: 8 }}>
-                    <div className="border-b px-4 py-3" style={{ borderColor: "#1a2a22" }}>
-                      <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
-                        Page views — last 24 hours
-                      </span>
-                    </div>
-                    <div className="p-4">
-                      <MiniBar data={stats.charts.viewsHourly} />
-                      <div className="mt-2 flex justify-between text-[10px] uppercase" style={{ color: muted }}>
-                        <span>24h ago</span>
-                        <span>now</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="min-w-0 space-y-3 rounded-lg p-4" style={{ background: cardBg, border }}>
-                    <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
-                      Health
-                    </p>
-                    <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
-                      API route logs populate when requests are recorded to <code className="text-[var(--green-dim)]">api_request_logs</code>.
-                      Page views come from <code className="text-[var(--green-dim)]">/api/track</code> on navigation
-                      (country from Vercel edge headers when deployed).
-                    </p>
-                    <p className="text-[13px] leading-relaxed" style={{ color: muted }}>
-                      Error rate (24h):{" "}
-                      <strong style={{ color: "var(--foreground)" }}>
-                        {stats.api.calls24h
-                          ? `${((stats.api.errors24h / stats.api.calls24h) * 100).toFixed(1)}%`
-                          : "—"}
-                      </strong>
-                    </p>
-                    <div className="border-t pt-3" style={{ borderColor: "#1a2a22" }}>
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest" style={{ color: muted }}>
-                        Exclude your traffic
-                      </p>
-                      <label className="flex cursor-pointer items-start gap-2 text-[13px] leading-relaxed" style={{ color: muted }}>
-                        <input
-                          type="checkbox"
-                          className="mt-0.5"
-                          checked={analyticsSuppress}
-                          onChange={(e) => setAnalyticsSuppressBrowser(e.target.checked)}
-                        />
-                        <span>Do not send page views from this browser (local only).</span>
-                      </label>
-                      {analyticsViewerId ? (
-                        <p className="mt-2 break-all font-mono text-[11px] leading-snug" style={{ color: muted }}>
-                          Viewer id — add to server env{" "}
-                          <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_FINGERPRINTS</code> to drop past rows from stats:{" "}
-                          <span style={{ color: "var(--foreground)" }}>{analyticsViewerId}</span>{" "}
-                          <button
-                            type="button"
-                            className="text-[var(--green)] underline decoration-dotted underline-offset-2"
-                            onClick={() => void navigator.clipboard.writeText(analyticsViewerId).catch(() => {})}
-                          >
-                            Copy
-                          </button>
-                        </p>
-                      ) : null}
-                      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: muted }}>
-                        Env <code className="text-[var(--green-dim)]">ANALYTICS_EXCLUDE_IPS</code> (comma-separated, same IP the edge sees) excludes that traffic from inserts and from these aggregates everywhere.
-                      </p>
-                      {analyticsViewerId ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="rounded border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
-                            style={{ borderColor: "#1a2a22", color: "var(--green)" }}
-                            onClick={() =>
-                              void navigator.clipboard
-                                .writeText(`ANALYTICS_EXCLUDE_FINGERPRINTS=${analyticsViewerId}`)
-                                .catch(() => {})
-                            }
-                          >
-                            Copy exclude-fingerprint line
-                          </button>
-                          {analyticsClientIp ? (
-                            <button
-                              type="button"
-                              className="rounded border px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
-                              style={{ borderColor: "#1a2a22", color: "var(--green)" }}
-                              onClick={() =>
-                                void navigator.clipboard
-                                  .writeText(`ANALYTICS_EXCLUDE_IPS=${analyticsClientIp}`)
-                                  .catch(() => {})
-                              }
-                            >
-                              Copy exclude-IP line
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      <p className="mt-3 text-[10px] leading-relaxed" style={{ color: muted }}>
-                        To wipe all page view rows: apply migration <code className="text-[var(--green-dim)]">20260514120000_reset_page_views</code>{" "}
-                        (<code className="text-[var(--green-dim)]">supabase db push</code> or run{" "}
-                        <code className="text-[var(--green-dim)]">truncate public.page_views restart identity</code> in the SQL editor), then refresh stats.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3" style={{ minHeight: 280 }}>
-                  <TableShell title="Top pages (7 days)">
-                    <table className="w-full border-collapse text-left text-[13px]">
-                      <thead>
-                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Path
-                          </th>
-                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Views
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.charts.topPaths.map((p) => (
-                          <tr key={p.path} className="hover:bg-[#0f1510]">
-                            <td className="max-w-[1px] truncate border-b px-4 py-4 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
-                              {p.path}
-                            </td>
-                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
-                              {p.count}
-                            </td>
-                          </tr>
-                        ))}
-                        {stats.charts.topPaths.length === 0 && (
-                          <tr>
-                            <td colSpan={2} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
-                              No path data yet
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </TableShell>
-
-                  <TableShell title="Top countries (7 days)">
-                    <table className="w-full border-collapse text-left text-[13px]">
-                      <thead>
-                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Country
-                          </th>
-                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Views
-                          </th>
-                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Unique
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(stats.charts.topCountries ?? []).map((c) => (
-                          <tr key={c.country} className="hover:bg-[#0f1510]">
-                            <td className="border-b px-4 py-4" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
-                              <span className="mr-2" aria-hidden>{countryCodeToFlag(c.country)}</span>
-                              <span>{countryLabel(c.country)}</span>
-                              {c.country !== "XX" ? (
-                                <span className="ml-1.5 font-mono text-[10px]" style={{ color: muted }}>{c.country}</span>
-                              ) : null}
-                            </td>
-                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
-                              {c.views}
-                            </td>
-                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: muted }}>
-                              {c.unique}
-                            </td>
-                          </tr>
-                        ))}
-                        {(stats.charts.topCountries ?? []).length === 0 && (
-                          <tr>
-                            <td colSpan={3} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
-                              No country data yet — geo is recorded on Vercel after the migration is applied
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </TableShell>
-
-                  <TableShell title="Top API routes (24h)">
-                    <table className="w-full border-collapse text-left text-[13px]">
-                      <thead>
-                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Route
-                          </th>
-                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Calls
-                          </th>
-                          <th className="border-b px-4 py-2 text-right font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>
-                            Errors
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.charts.topRoutes.map((r) => (
-                          <tr key={r.route} className="hover:bg-[#0f1510]">
-                            <td className="max-w-[1px] truncate border-b px-4 py-4 font-mono text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
-                              {r.route}
-                            </td>
-                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: "var(--green)" }}>
-                              {r.total}
-                            </td>
-                            <td className="border-b px-4 py-4 text-right tabular-nums" style={{ borderColor: "#111816", color: r.errors > 0 ? "#ff6666" : muted }}>
-                              {r.errors}
-                            </td>
-                          </tr>
-                        ))}
-                        {stats.charts.topRoutes.length === 0 && (
-                          <tr>
-                            <td colSpan={3} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>
-                              No API log rows yet (instrument routes to write <code className="text-[var(--green-dim)]">api_request_logs</code>)
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </TableShell>
-                </div>
-
-                {stats.contact.recent.length > 0 && (
-                  <TableShell title="Latest contact (snapshot)">
-                    <table className="w-full border-collapse text-left text-[13px]">
-                      <thead>
-                        <tr className="sticky top-0 z-[1]" style={{ background: "#0a100c" }}>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>When</th>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>From</th>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Category</th>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Subject</th>
-                          <th className="border-b px-4 py-2 font-semibold uppercase tracking-wide" style={{ borderColor: "#1a2a22", color: muted }}>Read</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.contact.recent.map((r) => (
-                          <tr key={r.id} className="hover:bg-[#0f1510]">
-                            <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
-                              {new Date(r.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
-                            </td>
-                            <td className="max-w-[140px] truncate border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
-                              {r.name}
-                            </td>
-                            <td className="border-b px-4 py-4 text-[12px] uppercase" style={{ borderColor: "#111816", color: muted }}>
-                              {r.category}
-                            </td>
-                            <td className="max-w-[1px] truncate border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
-                              {r.subject}
-                            </td>
-                            <td className="border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: r.read ? muted : "var(--green)" }}>
-                              {r.read ? "yes" : "no"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </TableShell>
-                )}
-              </>
-            )}
-          </section>
-
           {/* ── COMMUNITY ── */}
           <section id="community" className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-raj text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--foreground)", borderLeft: "2px solid var(--green-dark)", paddingLeft: 10 }}>
-                Community threads
-              </h2>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#7dffb3" }}>Community</p>
+                <h2 className="font-raj mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
+                  Threads
+                </h2>
+              </div>
               <button type="button" onClick={() => void loadThreads(threadPage)} className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ borderColor: "#1a2a22", color: muted }}>
                 Refresh
               </button>
@@ -2055,22 +2038,20 @@ function AdminConsole() {
 
             {threadSummary && (
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Total threads</div>
-                  <div className="font-raj text-2xl font-bold" style={{ color: "var(--foreground)" }}>{threadSummary.total}</div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Oracle analyzed</div>
-                  <div className="font-raj text-2xl font-bold" style={{ color: "var(--green)" }}>{threadSummary.oracleAnalyzed}</div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: cardBg, border }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: muted }}>Removed</div>
-                  <div className="font-raj text-2xl font-bold" style={{ color: threadSummary.removed > 0 ? "#ffaa66" : muted }}>{threadSummary.removed}</div>
-                </div>
+                {[
+                  { label: "Threads", value: threadSummary.total, color: "var(--foreground)" },
+                  { label: "Oracle", value: threadSummary.oracleAnalyzed, color: "var(--green)" },
+                  { label: "Removed", value: threadSummary.removed, color: threadSummary.removed > 0 ? "#ffaa66" : muted },
+                ].map((tile) => (
+                  <div key={tile.label} className="rounded-2xl border p-4" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
+                    <div className="text-[11px] uppercase tracking-[0.16em]" style={{ color: muted }}>{tile.label}</div>
+                    <div className="font-raj mt-1 text-3xl font-bold tabular-nums" style={{ color: tile.color }}>{tile.value}</div>
+                  </div>
+                ))}
               </div>
             )}
 
-            <div className="overflow-hidden rounded-lg" style={{ background: cardBg, border }}>
+            <div className="overflow-hidden rounded-2xl border" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px] border-collapse text-left text-[13px]">
                   <thead>
@@ -2135,7 +2116,7 @@ function AdminConsole() {
               )}
             </div>
           </section>
-          </>
+          </div>
           )}
 
           {activeTab === "content" && (
