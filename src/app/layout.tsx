@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Rajdhani, Share_Tech_Mono } from "next/font/google";
+import { IBM_Plex_Sans, Rajdhani, Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
 import "./publication.css";
 import "./intelligence-reader.css";
@@ -12,6 +12,15 @@ import SendFeedbackWidget from "@/components/SendFeedbackWidget";
 const raj = Rajdhani({
   variable: "--font-raj",
   weight: ["400", "600", "700"],
+  subsets: ["latin"],
+});
+
+// Body typeface for article prose. Before this the reading column fell back to a
+// hardcoded Arial: no reading face was ever loaded, only the Rajdhani display font
+// and a monospace. Plex Sans holds up at 19px on a dark background.
+const body = IBM_Plex_Sans({
+  variable: "--font-body",
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
 });
 
@@ -86,7 +95,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${raj.variable} ${mono.variable} h-full antialiased`}
+      className={`${raj.variable} ${body.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <a href="#main-content" className="skip-link">
