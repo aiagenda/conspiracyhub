@@ -6,7 +6,6 @@ import { createClient } from "@supabase/supabase-js";
 import ArticleReader from "@/components/ArticleReader";
 import { omitIfHungarianScript } from "@/lib/locale";
 import { newsSourceLabel } from "@/lib/newsSourceLabel";
-import { fetchNewsSourceContent } from "@/lib/server/fetchNewsSourceBody";
 import { voteTheoriesFromOracleJson } from "@/lib/oracleVoteTheories";
 import type { NewsItem } from "@/types";
 
@@ -90,17 +89,15 @@ export default async function ArticlePage({
   const rewrittenMarkdown =
     news.rewrite_status === "ready" && typeof news.body_html === "string" ? news.body_html.trim() : "";
 
-  let body = "";
-  let fetchedBodyKind: "source" | "summary" = "summary";
-  if (!rewrittenMarkdown) {
-    const fetched = await fetchNewsSourceContent(news);
-    body = fetched.text;
-    fetchedBodyKind = fetched.extraction === "body" ? "source" : "summary";
-    if (isReddit && articleUrl) {
-      const { fetchRedditArticleBody } = await import("@/lib/server/redditPostBody");
-      const r = await fetchRedditArticleBody(articleUrl);
-      redditThumbnail = r.thumbnail;
-    }
+  // An item without a rewrite shows the publisher's own summary and a link to the
+  // original. It used to render the full source text fetched at request time, which
+  // republished the publisher's article verbatim and — since extraction strips every
+  // heading and link — arrived as an unbroken wall of paragraphs, liveblog timestamps
+  // and "Related:" cross-promos included.
+  if (!rewrittenMarkdown && isReddit && articleUrl) {
+    const { fetchRedditArticleBody } = await import("@/lib/server/redditPostBody");
+    const r = await fetchRedditArticleBody(articleUrl);
+    redditThumbnail = r.thumbnail;
   }
 
   const { data: oracleAnalysis } = await admin
@@ -129,13 +126,12 @@ export default async function ArticlePage({
 
   const fallbackBody = omitIfHungarianScript(news.summary ?? "");
   const angleBody = omitIfHungarianScript(news.angle ?? "");
-  const bodyFromFetch = body.trim();
   const fb = fallbackBody.trim();
   const ang = angleBody.trim();
-  const readerBody = bodyFromFetch || fb || ang;
+  const readerBody = fb || ang;
   /** Avoid showing the same line twice (header angle + body) when angle is the only text we have. */
   const itemForReader: NewsItem =
-    !rewrittenMarkdown && !bodyFromFetch && !fb && ang && readerBody === ang ? { ...item, angle: "" } : item;
+    !rewrittenMarkdown && !fb && ang && readerBody === ang ? { ...item, angle: "" } : item;
 
   const sourceLabel = newsSourceLabel(news.source, news.url);
 
@@ -169,7 +165,7 @@ export default async function ArticlePage({
         item={itemForReader}
         body={rewrittenMarkdown ? "" : readerBody}
         bodyMarkdown={rewrittenMarkdown || undefined}
-        bodyKind={bodyFromFetch ? fetchedBodyKind : "summary"}
+        bodyKind="summary"
         sourceAttribution={
           articleUrl
             ? { label: sourceLabel, url: articleUrl, isRewritten: Boolean(rewrittenMarkdown) }

@@ -47,7 +47,14 @@ export default async function Home({ searchParams }: { searchParams?: Promise<Qu
   const minScore = getFeedMinScore();
   // Apply the same scope to the count and rows. Sorting happens BEFORE pagination.
   function scopedQuery(countOnly = false) {
-    let query = supabase.from("news_items").select("*", { count: "exact", head: countOnly }).gte("score", minScore);
+    // Only finished work is listed. An item without a rewrite has no article of our own
+    // behind it — it would open on the publisher's summary and a link out, which is not
+    // something to surface as a story in the feed.
+    let query = supabase
+      .from("news_items")
+      .select("*", { count: "exact", head: countOnly })
+      .gte("score", minScore)
+      .eq("rewrite_status", "ready");
     if (input.range === "week") query = query.gte("published_at", cutoff);
     if (input.topic) query = query.in("section", [...input.topic.sections]);
     return query;
