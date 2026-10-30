@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalSourceUrl, assessEditorialQuality, articleCitationUrls } from '../src/lib/editorialQuality';
+import { manualReviewIssues } from '../src/lib/server/editorialAdmin';
 import { sourceIdentity, storySlug } from '../src/lib/server/storyIdentity';
 import { displayReaderReaction } from '../src/lib/readerReactionVote';
 const now = new Date('2026-10-15T12:00:00Z');
@@ -34,6 +35,12 @@ test('unknown or future source date cannot substantiate breaking news', () => {
  assert.equal(assess({evidence:evidence.map(e=>({...e,publishedAt:'2027-01-01'}))}).passed,false);
 });
 test('a sourced brief can use one source only when explicitly configured', () => assert.equal(assess({content:content.replace(' and [Reuters](https://reuters.com/report)',''),evidence:[evidence[0]],minimumSources:1}).passed,true));
+test('desk publish accepts one inline source page and still rejects a bibliography-only link', () => {
+  const body = `${'Useful reporting '.repeat(60)} [NASA](https://nasa.gov/report)`;
+  const base = { id: '1', title: 'A sourced technology brief', slug: 'brief', status: 'draft', content: body, sources: [{ title: 'NASA', url: 'https://nasa.gov/report', description: 'report' }] };
+  assert.deepEqual(manualReviewIssues(base, { minimumDomains: 1 }), []);
+  assert.equal(manualReviewIssues({ ...base, content: 'Useful reporting '.repeat(60) }, { minimumDomains: 1 }).some(issue => issue.includes('article body')), true);
+});
 test('reader reaction counts never invent votes', () => {
  assert.deepEqual(displayReaderReaction(undefined,'story',99),{up:0,down:0,score:0});
  assert.deepEqual(displayReaderReaction({up:2,down:1,score:500}),{up:2,down:1,score:1});

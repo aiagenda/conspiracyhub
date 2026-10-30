@@ -294,7 +294,7 @@ function AdminConsole() {
   const [loreAngle, setLoreAngle] = useState("");
   const [loreSeedUrls, setLoreSeedUrls] = useState("");
   const [loreGenerating, setLoreGenerating] = useState(false);
-  const [loreResult, setLoreResult] = useState<{ ok: boolean; message: string; url?: string } | null>(null);
+  const [loreResult, setLoreResult] = useState<{ ok: boolean; message: string; url?: string; draftId?: string } | null>(null);
 
   const [analyticsViewerId, setAnalyticsViewerId] = useState<string | null>(null);
   const [analyticsClientIp, setAnalyticsClientIp] = useState<string | null>(null);
@@ -442,14 +442,26 @@ function AdminConsole() {
         headers: JSON_HEADERS,
         body: JSON.stringify({ topic: loreTopic.trim(), angle: loreAngle.trim() || undefined, seedUrls }),
       });
-      const data = (await res.json().catch(() => ({}))) as { success?: boolean; article?: { url?: string; title?: string }; error?: string };
-      if (data.success && data.article) {
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+        issues?: string[];
+        article?: { id?: string; url?: string; title?: string; status?: string; editorial_checks?: { issues?: string[] } };
+      };
+      const issues = data.article?.editorial_checks?.issues ?? data.issues ?? [];
+      if (data.success && data.article?.status === "published" && data.article.url) {
         setLoreResult({ ok: true, message: `Published: "${data.article.title}"`, url: data.article.url });
         setLoreTopic("");
         setLoreAngle("");
         setLoreSeedUrls("");
+      } else if (data.success && data.article) {
+        setLoreResult({
+          ok: false,
+          draftId: data.article.id,
+          message: `Saved as a draft, so the public page 404s. ${issues.join(" ") || "The text does not cite a real source page."} The same topic will keep returning this draft until you delete it.`,
+        });
       } else {
-        setLoreResult({ ok: false, message: data.error ?? "Unknown error" });
+        setLoreResult({ ok: false, message: issues.join(" ") || data.error || "Unknown error" });
       }
     } catch (e) {
       setLoreResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
@@ -2707,7 +2719,7 @@ function AdminConsole() {
             </h3>
             <div className="rounded-xl p-5 text-[12px] leading-relaxed sm:p-6 sm:px-7" style={{ background: cardBg, border: "1px solid #24322c", color: muted }}>
               Generates a <strong style={{ color: "var(--foreground)" }}>HYPOTHESIS dossier</strong> — speculative conspiracy analysis (Epstein, Illuminati, Hollywood, adrenochrome, etc.).
-              Published to <code className="text-[var(--green-dim)]">/blog</code> with a visible disclaimer badge. Uses a different AI prompt than standard Investigation Reports — no CIA-allowlist restriction.
+              Goes live on <code className="text-[var(--green-dim)]">/blog</code> with a disclaimer badge once the text cites a real source page. Otherwise it stays a draft and the public URL 404s. Uses a different AI prompt than standard Investigation Reports.
             </div>
             <div className="rounded-xl p-5 sm:p-6 sm:px-7 space-y-4" style={{ background: cardBg, border: "1px solid #3a1a4a" }}>
               {/* Topic */}
@@ -2776,6 +2788,31 @@ function AdminConsole() {
                     <a href={loreResult.url} target="_blank" rel="noopener noreferrer" className="ml-3 underline" style={{ color: "#00bb66" }}>
                       Open →
                     </a>
+                  )}
+                  {loreResult.draftId && (
+                    <button
+                      type="button"
+                      className="ml-3 underline"
+                      style={{ color: "#ff8080" }}
+                      onClick={() => {
+                        const id = loreResult.draftId;
+                        if (!id || !confirm("Delete this draft so a new dossier can be written?")) return;
+                        void fetchWithSupabaseAuth("/api/admin/generated-articles", {
+                          method: "DELETE",
+                          headers: JSON_HEADERS,
+                          body: JSON.stringify({ id }),
+                        }).then(async (res) => {
+                          if (!res.ok) {
+                            const body = (await res.json().catch(() => ({}))) as { error?: string };
+                            setLoreResult({ ok: false, message: body.error ?? "Could not delete the draft." });
+                            return;
+                          }
+                          setLoreResult({ ok: true, message: "Draft deleted. Generate again." });
+                        });
+                      }}
+                    >
+                      Delete draft
+                    </button>
                   )}
                 </div>
               )}

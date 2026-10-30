@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { runTechArticleCore, TECH_CATEGORY } from "@/lib/server/generateTechArticle";
-import { publishReviewedArticle, type EditorialRow } from "@/lib/server/editorialAdmin";
+import { publishDeskReviewedArticle, type EditorialRow } from "@/lib/server/editorialAdmin";
 import { countArticleWords } from "@/lib/server/articleExpand";
 
 export const maxDuration = 300;
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
         const { error } = await db.from("generated_articles").delete().eq("id", id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       } else if (action === "publish") {
-        const outcome = await publishReviewedArticle(db, row as EditorialRow);
+        const outcome = await publishDeskReviewedArticle(db, row as EditorialRow, { minimumDomains: 1, method: "human" });
         if (outcome.status !== 200) return NextResponse.json(outcome.body, { status: outcome.status });
       } else {
         const { error } = await db.from("generated_articles").update({ status: "draft" }).eq("id", id);

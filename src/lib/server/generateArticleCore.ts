@@ -8,7 +8,9 @@ import { mergeResearchSources, researchPromptBlock, researchTopic, type SourceRo
 import { countArticleWords, expandArticleIfShort } from "@/lib/server/articleExpand";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 import { getFeedMinScore } from "@/lib/feedMinScore";
+import { assessEditorialQuality } from "@/lib/editorialQuality";
 import { reviewArticleEvidence } from "@/lib/server/editorialReview";
+import { publishDeskReviewedArticle, type EditorialRow } from "@/lib/server/editorialAdmin";
 import { findExistingStory, saveReviewedArticle } from "@/lib/server/articlePublishing";
 import { storySlug } from "@/lib/server/storyIdentity";
 
@@ -197,6 +199,63 @@ export type LoreDossierParams = {
   seedUrls?: string[];
 };
 
+/** A dossier that already exists stays a draft until it has one real inline citation, then it goes live. */
+async function releaseExistingLore(
+  admin: ReturnType<typeof getAdmin>,
+  existing: { id: string; title: string; slug: string; status: string },
+): Promise<GenerateArticleResult> {
+  if (existing.status === "published") {
+    return {
+      status: 200,
+      payload: {
+        success: true,
+        skipped: true,
+        article: { ...existing, status: "published", url: `${SITE_URL}/blog/${existing.slug}` },
+      },
+    };
+  }
+  const { data: full, error } = await admin.from("generated_articles").select("*").eq("id", existing.id).maybeSingle();
+  if (error || !full) return { status: 500, payload: { error: error?.message ?? "not_found" } };
+  const outcome = await publishDeskReviewedArticle(admin, full as EditorialRow, { minimumDomains: 1, method: "hypothesis_dossier" });
+  if (outcome.status !== 200 && outcome.status !== 422) {
+    return { status: outcome.status, payload: { error: outcome.body.error ?? "publish_failed", issues: outcome.body.issues } };
+  }
+  if (outcome.status === 200) {
+    try {
+      revalidatePath("/blog");
+      revalidatePath(`/blog/${existing.slug}`);
+    } catch {
+      /* revalidatePath only valid during a Next.js request */
+    }
+    return {
+      status: 200,
+      payload: {
+        success: true,
+        article: {
+          id: existing.id,
+          title: full.title as string,
+          slug: existing.slug,
+          status: "published",
+          url: `${SITE_URL}/blog/${existing.slug}`,
+        },
+      },
+    };
+  }
+  return {
+    status: 200,
+    payload: {
+      success: true,
+      article: {
+        id: existing.id,
+        title: (full.title as string) ?? existing.title,
+        slug: existing.slug,
+        status: "draft",
+        editorial_checks: { passed: false, issues: outcome.body.issues ?? [outcome.body.error ?? "Could not publish this draft."] },
+      },
+    },
+  };
+}
+
 export async function runLoreDossierCore(params: LoreDossierParams): Promise<GenerateArticleResult> {
   if (!process.env.OPENAI_API_KEY) {
     return { status: 500, payload: { error: "OPENAI_API_KEY missing" } };
@@ -206,7 +265,7 @@ export async function runLoreDossierCore(params: LoreDossierParams): Promise<Gen
     const admin = getAdmin();
     const { topic, angle, seedUrls = [] } = params;
     const existing = await findExistingStory(admin, topic, seedUrls[0]);
-    if (existing) return { status: 200, payload: { success: true, skipped: true, reason: "story_already_exists", article: existing } };
+    if (existing) return releaseExistingLore(admin, existing);
 
     const seedBlock = seedUrls.length
       ? `\n\n--- SEED URLS (use these as primary citations):\n${seedUrls.map((u) => `- ${u}`).join("\n")}`
@@ -269,7 +328,12 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_
       { tier: "media", content: seoContent },
     );
 
-    const checks = await reviewArticleEvidence({ apiKey: process.env.OPENAI_API_KEY!, article: { title: article.title, content: seoContent }, findings });
+    // Hypothesis dossiers are labelled speculation. The news-style claim audit rejects that form
+    // and used to leave a draft while the admin UI still said "Published", which 404s on /blog.
+    const checks = {
+      ...assessEditorialQuality({ title: article.title, content: seoContent, evidence: findings, minimumSources: 1 }),
+      method: "hypothesis_dossier",
+    };
     const { data: inserted, error } = await saveReviewedArticle(admin, {
       title: article.title,
       slug: finalSlug,
@@ -292,11 +356,13 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_
 
     if (error) return { status: 500, payload: { error: error.message } };
 
-    try {
-      revalidatePath("/blog");
-      revalidatePath(`/blog/${finalSlug}`);
-    } catch {
-      /* revalidatePath only valid during a Next.js request */
+    if (inserted.status === "published") {
+      try {
+        revalidatePath("/blog");
+        revalidatePath(`/blog/${finalSlug}`);
+      } catch {
+        /* revalidatePath only valid during a Next.js request */
+      }
     }
 
     return {
