@@ -132,8 +132,8 @@ export function TechDeskSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, id }),
       });
-      const d = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok) throw new Error(d.error ?? res.statusText);
+      const d = (await res.json()) as { ok?: boolean; error?: string; issues?: string[] };
+      if (!res.ok) throw new Error(d.issues?.length ? d.issues.join(" ") : (d.error ?? res.statusText));
       if (preview?.id === id && action === "delete") setPreview(null);
       await load();
     } catch (e) {
