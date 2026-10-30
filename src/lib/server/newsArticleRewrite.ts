@@ -182,16 +182,20 @@ export async function loadPendingRewriteCandidates(
 ): Promise<NewsItemRewriteRow[]> {
   const minScore = getFeedMinScore();
   const select = "id, title, summary, angle, score, section, url, source, guardian_id, image, published_at, body_html, rewrite_status";
-  // Oldest pending first. Failed items cannot permanently starve fresh work.
+  // Newest pending first. This is a news feed: working oldest-first spent every run on
+  // stale stories while the current week stayed unwritten and therefore unpublished.
+  const retrySlots = Math.min(2, Math.max(1, Math.floor(limit / 4)));
   const { data: pending } = await admin.from("news_items").select(select)
     .gte("score", minScore).eq("rewrite_status", "pending")
-    .order("published_at", { ascending: true }).limit(limit);
+    .order("published_at", { ascending: false }).limit(limit - retrySlots);
   const rows = (pending ?? []) as NewsItemRewriteRow[];
-  if (rows.length < limit) {
-    const { data: failed } = await admin.from("news_items").select(select)
-      .gte("score", minScore).eq("rewrite_status", "failed")
-      .order("published_at", { ascending: true }).limit(limit - rows.length);
-    rows.push(...((failed ?? []) as NewsItemRewriteRow[]));
-  }
+
+  // Reserve capacity for retries. Previously failed rows were only picked up when fewer
+  // than `limit` items were pending, so with a backlog they were never retried at all —
+  // 28 of them sat untouched for two weeks and then all succeeded on a direct retry.
+  const { data: failed } = await admin.from("news_items").select(select)
+    .gte("score", minScore).eq("rewrite_status", "failed")
+    .order("published_at", { ascending: false }).limit(limit - rows.length);
+  rows.push(...((failed ?? []) as NewsItemRewriteRow[]));
   return rows;
 }
