@@ -40,9 +40,9 @@ export default async function DocumentsPage({
           <span className="journal-kicker">Primary sources</span>
           <h1>Public document index</h1>
           <p>
-            Official and declassified records held by the agencies themselves. Every entry opens the
-            agency&apos;s own page — nothing is mirrored or rehosted here, so what you read is the
-            record as its custodian publishes it.
+            Official and declassified records held by the agencies themselves. Where the custodian
+            publishes a scan, the title opens that document directly — nothing is mirrored or
+            rehosted here, so what you read is the record as its custodian publishes it.
           </p>
         </header>
 
@@ -99,21 +99,25 @@ export default async function DocumentsPage({
                     <span>{doc.agency}</span>
                     {doc.year ? <span>{doc.year}</span> : null}
                     {doc.collection ? <span>{doc.collection}</span> : null}
-                    <span>{hostOf(doc.canonical_url)}</span>
+                    <span>{hostOf(doc.pdf_url ?? doc.canonical_url)}</span>
+                    {doc.pdf_url ? <span className="journal-result-badge">PDF</span> : null}
                   </div>
                   <h2>
-                    <a href={doc.canonical_url} target="_blank" rel="noopener noreferrer">{doc.title}</a>
+                    {/* The scan is what the reader came for; the record page is a step on the way. */}
+                    <a href={doc.pdf_url ?? doc.canonical_url} target="_blank" rel="noopener noreferrer">
+                      {doc.title}
+                    </a>
                   </h2>
                   {doc.excerpt ? <p>{doc.excerpt}</p> : null}
                   <div className="journal-result-links">
-                    <a className="journal-read" href={doc.canonical_url} target="_blank" rel="noopener noreferrer">
-                      Open the official record <span aria-hidden="true">↗</span>
-                    </a>
                     {doc.pdf_url ? (
                       <a className="journal-read" href={doc.pdf_url} target="_blank" rel="noopener noreferrer">
-                        Scanned PDF <span aria-hidden="true">↗</span>
+                        Read the document <span aria-hidden="true">↗</span>
                       </a>
                     ) : null}
+                    <a className="journal-read" href={doc.canonical_url} target="_blank" rel="noopener noreferrer">
+                      {doc.pdf_url ? "Record page" : "Open the official record"} <span aria-hidden="true">↗</span>
+                    </a>
                   </div>
                 </article>
               ))}

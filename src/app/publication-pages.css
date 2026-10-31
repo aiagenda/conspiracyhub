@@ -44,6 +44,8 @@
    they are set smaller here than an article headline, which is written to be a headline. */
 .journal-results--records .journal-result h2 { font-size: clamp(17px, 1.3vw, 20px); line-height: 1.22; letter-spacing: .02em; }
 .journal-results--records .journal-result p { -webkit-line-clamp: 4; font-size: 13px; }
+/* Marks the records whose title opens the scan itself rather than a record page. */
+.journal-result-badge { padding: 1px 6px; border: 1px solid var(--journal-accent); color: var(--journal-accent); letter-spacing: .08em; }
 .journal-result-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: auto; }
 .journal-result-links .journal-read { margin-top: 0; }
 .journal-pagination { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px 0; font: 12px/1.5 var(--font-share-tech-mono), monospace; }
