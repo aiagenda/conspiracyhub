@@ -1,19 +1,13 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import PublicationHeader from "@/components/PublicationHeader";
-import AuthModal from "@/components/AuthModal";
 import NewsCard from "@/components/NewsCard";
-import ContinueReadingBanner from "@/components/ContinueReadingBanner";
 import HeadlineTicker from "@/components/HeadlineTicker";
 import IntelligenceStatus from "@/components/IntelligenceStatus";
 import SeismicFeedStrip from "@/components/SeismicFeedStrip";
-import FeedGuestArchiveCta from "@/components/FeedGuestArchiveCta";
 import type { NewsItem } from "@/types";
 import { getReadIds, READ_ARTICLES_EVENT } from "@/lib/readArticles";
-import { getCurrentUser } from "@/lib/auth";
-import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 import { TOPICS } from "@/lib/topics";
 export type FeedNotice = "missing_supabase_env" | "empty_database" | "load_error";
 export type FeedPagination = { page: number; pageSize: number; totalCount: number; totalPages: number };
@@ -21,26 +15,12 @@ export default function FeedScreen({ initialItems, feedNotice, feedPagination, s
   initialItems: NewsItem[]; feedNotice?: FeedNotice; feedPagination?: FeedPagination;
   sort?: "latest" | "priority"; topic?: string; range?: "week" | "all";
 }) {
-  const [auth, setAuth] = useState<"signin" | "signup" | null>(null);
-  const [isGuest, setIsGuest] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
-  const router = useRouter();
-  const params = useSearchParams();
-  const refreshUser = useCallback(() => { void getCurrentUser().then(user => setIsGuest(!user)).catch(() => {}); }, []);
-  useEffect(() => { refreshUser(); }, [refreshUser]);
-  useEffect(() => {
-    if (!isSupabaseBrowserConfigured()) return;
-    const { data: { subscription } } = getSupabaseBrowserClient().auth.onAuthStateChange((_event, session) => setIsGuest(!session?.user));
-    return () => subscription.unsubscribe();
-  }, []);
   useEffect(() => {
     function sync() { setReadIds(new Set(getReadIds())); }
     sync(); window.addEventListener("storage", sync); window.addEventListener(READ_ARTICLES_EVENT, sync);
     return () => { window.removeEventListener("storage", sync); window.removeEventListener(READ_ARTICLES_EVENT, sync); };
   }, []);
-  const queryAuth = params.get("auth");
-  const authTab = auth ?? (queryAuth === "signin" || queryAuth === "signup" ? queryAuth : null);
-  function closeAuth() { setAuth(null); const next = new URLSearchParams(params.toString()); next.delete("auth"); router.replace(next.size ? `/?${next}` : "/", { scroll: false }); refreshUser(); }
   function pageLink(page: number, nextSort = sort) {
     const next = new URLSearchParams();
     if (nextSort !== "latest") next.set("sort", nextSort);
@@ -59,7 +39,7 @@ export default function FeedScreen({ initialItems, feedNotice, feedPagination, s
         <div><p className="desk-overline"><span aria-hidden="true">■</span> INDEPENDENT MINDS. CONNECTED EVIDENCE.</p><h1>Investigation feed<span aria-hidden="true">_</span></h1></div>
         <Link href="/search#research" className="desk-investigate" aria-label="Investigate a source"><span aria-hidden="true">＋</span> Investigate a source <span aria-hidden="true">↗</span></Link>
       </section>
-      {firstPage ? <div className="desk-activity"><ContinueReadingBanner /><SeismicFeedStrip compact /></div> : null}
+      {firstPage ? <div className="desk-activity"><SeismicFeedStrip compact /></div> : null}
       <section aria-label="Browse reporting">
         <div className="desk-feed-toolbar">
           <div className="desk-feed-label"><span className="desk-live-dot" aria-hidden="true" /><h2>{topic ? TOPICS.find(t => t.slug === topic)?.title : "The latest signals"}</h2><span>{feedPagination?.totalCount ?? initialItems.length}</span></div>
@@ -77,8 +57,6 @@ export default function FeedScreen({ initialItems, feedNotice, feedPagination, s
         {feedPagination && feedPagination.totalPages > 1 ? <nav className="publication-pagination" aria-label="Reporting pages">{feedPagination.page > 1 ? <Link href={pageLink(feedPagination.page - 1)} className="publication-button publication-button-quiet">← Previous</Link> : <span />}<span>Page {feedPagination.page} of {feedPagination.totalPages}</span>{feedPagination.page < feedPagination.totalPages ? <Link href={pageLink(feedPagination.page + 1)} className="publication-button publication-button-quiet">Next →</Link> : <span />}</nav> : null}
       </section>
       <aside className="intelligence-next"><div><span className="publication-eyebrow">Keep digging</span><h2>Go beyond the feed.</h2></div><Link href="/blog">◈ In-depth analysis <span>→</span></Link><Link href="/toolkit">◈ Research toolkit <span>→</span></Link><Link href="/data">◈ All monitors <span>→</span></Link></aside>
-      {isGuest && initialItems.length > 0 ? <FeedGuestArchiveCta onRegister={() => setAuth("signup")} /> : null}
     </div>
-    {authTab ? <AuthModal initialTab={authTab} onClose={closeAuth} /> : null}
   </div>;
 }

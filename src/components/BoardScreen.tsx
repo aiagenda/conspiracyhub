@@ -7,7 +7,6 @@ import OracleLoadingScreen from "@/components/OracleLoadingScreen";
 import { MOCK_EDGES, MOCK_NODES } from "@/lib/mockData";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { isBillingEnabled } from "@/lib/featureFlags";
-import { trackContinueReading } from "@/lib/continueReading";
 import { correctNodeType } from "@/lib/nodeTypeCorrection";
 import type { Edge, NewsItem, Node, OracleAnalysis, NodeType, OracleTheory } from "@/types";
 
@@ -542,17 +541,6 @@ export default function BoardScreen({
   const [loading, setLoading] = useState(!initialAnalysis);
   const [accessBlock, setAccessBlock] = useState<BoardAccessBlock | null>(null);
 
-  useEffect(() => {
-    trackContinueReading({
-      ...(oracleMode === "generated"
-        ? { generatedArticleId: news.id }
-        : { newsId: news.id }),
-      title: news.title,
-      path: `/board/${news.id}`,
-      score: news.score,
-    });
-  }, [news.id, news.title, news.score, oracleMode]);
-
   const fetchOracle = useCallback(async () => {
     try {
       setAccessBlock(null);
@@ -664,8 +652,6 @@ export default function BoardScreen({
           polymarketContext={buildBoardPolymarketContext(news, analysis)}
           backHref={backHref}
           backLabel={backLabel}
-          newsId={oracleMode === "news" ? news.id : undefined}
-          generatedArticleId={oracleMode === "generated" ? news.id : undefined}
         />
       </div>
     </div>

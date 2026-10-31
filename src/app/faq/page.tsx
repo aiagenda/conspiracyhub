@@ -18,7 +18,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What is the Oracle?",
-    a: "Oracle is the AI analysis layer powered by GPT-4o. It reads an article and generates a threat score (0–100), a credibility verdict (True / Partially True / Questionable / Disinformation), a conspiracy angle and a connection map. Sign in to trigger new analyses; cached boards are visible to everyone.",
+    a: "Oracle is the AI analysis layer powered by GPT-4o. It reads an article and generates a threat score (0–100), a credibility verdict (True / Partially True / Questionable / Disinformation), a conspiracy angle and a connection map. Free for everyone, no account needed.",
   },
   {
     q: "What is the threat score?",

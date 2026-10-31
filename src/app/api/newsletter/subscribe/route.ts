@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { createHash } from "crypto";
+import { checkRateLimit, ipHash } from "@/lib/server/rateLimit";
+import { newToken, newsletterAdmin, sendConfirmation } from "@/lib/server/newsletter";
 
-function admin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-}
-
-function ipHash(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for") ?? "";
-  const ip = forwarded.split(",")[0].trim() || "unknown";
-  return createHash("sha256").update(ip).digest("hex").slice(0, 16);
-}
-
-/** Public newsletter signup — stored in contact_messages until a dedicated list exists. */
+/**
+ * Public newsletter signup.
+ *
+ * The response never says whether an address was already on the list: that would
+ * turn this endpoint into a way to test whether someone has subscribed.
+ */
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { email?: string; source?: string };
@@ -21,33 +16,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
 
-    const hash = ipHash(req);
-    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count } = await admin()
-      .from("contact_messages")
-      .select("*", { count: "exact", head: true })
-      .eq("ip_hash", hash)
-      .gte("created_at", cutoff);
-
-    if ((count ?? 0) >= 5) {
+    const admin = newsletterAdmin();
+    const limiter = await checkRateLimit(admin, req, { bucket: "newsletter", limit: 5, windowMinutes: 60 });
+    if (!limiter.allowed) {
       return NextResponse.json({ error: "Too many requests — try again later." }, { status: 429 });
     }
+    await limiter.record();
 
-    const source = (body.source ?? "feed").slice(0, 80);
-    const { error } = await admin().from("contact_messages").insert({
-      name: "Newsletter subscriber",
+    const { data: existing } = await admin
+      .from("newsletter_subscribers")
+      .select("token, confirmed_at")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (existing?.confirmed_at) return NextResponse.json({ ok: true });
+
+    if (existing) {
+      // Asked again before confirming — resend rather than mint a second token.
+      await sendConfirmation(email, existing.token as string);
+      return NextResponse.json({ ok: true });
+    }
+
+    const token = newToken();
+    const { error } = await admin.from("newsletter_subscribers").insert({
       email: email.slice(0, 200),
-      category: "other",
-      subject: "Weekly Oracle Brief — subscribe",
-      message: `Newsletter signup from ${source}. Add to weekly briefing list.`,
-      ip_hash: hash,
+      source: (body.source ?? "site").slice(0, 80),
+      ip_hash: ipHash(req),
+      token,
     });
-
     if (error) {
       console.error("[newsletter/subscribe]", error.message);
       return NextResponse.json({ error: "Could not save subscription" }, { status: 500 });
     }
 
+    await sendConfirmation(email, token);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[newsletter/subscribe]", e);

@@ -8,11 +8,9 @@ import PublicationHeader from "@/components/PublicationHeader";
 import LiveChat from "@/components/LiveChat";
 import PolymarketWidget from "@/components/PolymarketWidget";
 import VotePanel from "@/components/VotePanel";
-import SaveInvestigationButton from "@/components/SaveInvestigationButton";
 import { canOptimizeImage } from "@/lib/imageHosts";
 import { isLiveChatEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
 import { markArticleRead } from "@/lib/readArticles";
-import { trackContinueReading } from "@/lib/continueReading";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase";
 import { publicationDate, readingMinutes, safeSourceUrl, sectionLabel, sourceDomain } from "@/lib/editorialPresentation";
 import type { NewsItem } from "@/types";
@@ -56,7 +54,6 @@ export default function EditorialReader({ item, body = "", markdown = "", source
   const [filter, setFilter] = useState("");
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
-  const path = generatedSlug ? `/blog/${generatedSlug}` : `/article/${item.id}`;
   const investigationHref = boardHref ?? `/board/${item.id}`;
   const originalUrl = !generated ? safeSourceUrl(item.url) : undefined;
   const readingText = markdown || body || item.summary;
@@ -65,8 +62,7 @@ export default function EditorialReader({ item, body = "", markdown = "", source
   const sourceRows = sources.filter((source, index) => source.title && sources.findIndex(s => s.url === source.url && s.title === source.title) === index);
   useEffect(() => {
     markArticleRead(item.id);
-    trackContinueReading({ ...(generatedSlug ? { generatedArticleId: item.id } : { newsId: item.id }), title: item.title, path });
-  }, [item.id, item.title, generatedSlug, path]);
+  }, [item.id]);
 
   async function annotate() {
     if (!body || annotationState === "loading") return;
@@ -107,7 +103,7 @@ export default function EditorialReader({ item, body = "", markdown = "", source
         <div className="editorial-byline"><span>{generated || markdown || bodyKind === "summary" ? "The Theorist · AI-assisted" : sourceRows[0]?.title || sourceDomain(item.url)}</span><time dateTime={item.date}>{publicationDate(item.date)}</time><span>{readingMinutes(readingText)} min read</span>{updatedAt && updatedAt !== item.date ? <span>Updated <time dateTime={updatedAt}>{publicationDate(updatedAt)}</time></span> : null}</div>
         {(sourcePublishedAt || checkedAt) && <div className="editorial-byline">{sourcePublishedAt && <span>Source published <time dateTime={sourcePublishedAt}>{publicationDate(sourcePublishedAt)}</time></span>}{checkedAt && <span>{reviewMethod === "human" ? "Editorial review" : "Automated evidence check"} <time dateTime={checkedAt}>{publicationDate(checkedAt)}</time></span>}</div>}
         <div className="editorial-trust-line"><span>{hypothesis ? "Speculative interpretation. Sources provide context, not proof of the hypothesis." : generated || markdown ? "AI-generated synthesis. Check the original sources for evidence, quotations, and context." : bodyKind === "summary" ? "A short summary of external reporting. Read the original for the complete account." : "External reporting presented with source attribution. Optional AI annotations are separate interpretations."}</span><Link href="/about">Editorial standards ↗</Link></div>
-        <div className="editorial-actions"><a href="#article-sources" className="publication-button publication-button-quiet">Sources & context ↓</a><SaveInvestigationButton newsId={generated ? undefined : item.id} generatedArticleId={generated ? item.id : undefined} title={item.title} /><button type="button" className="publication-button publication-button-quiet" onClick={() => void share()}>{copied ? "Link copied" : "Copy link"}</button>{originalUrl ? <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="publication-text-link">Original reporting ↗</a> : null}</div>
+        <div className="editorial-actions"><a href="#article-sources" className="publication-button publication-button-quiet">Sources & context ↓</a><button type="button" className="publication-button publication-button-quiet" onClick={() => void share()}>{copied ? "Link copied" : "Copy link"}</button>{originalUrl ? <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="publication-text-link">Original reporting ↗</a> : null}</div>
         <span className="editorial-action-status" role="status">{copyError ? "Copy the page address from your browser to share this article." : copied ? "Article link copied to the clipboard." : ""}</span>
       </header>
       {showHero ? <figure className="editorial-hero"><div><Image src={item.image!} alt="" fill priority unoptimized={!canOptimizeImage(item.image!)} sizes="(max-width: 1100px) 100vw, 1100px" /></div><figcaption>Image accompanying this story{!generated && originalUrl ? <> · <a href={originalUrl} target="_blank" rel="noopener noreferrer">View original context</a></> : null}</figcaption></figure> : null}

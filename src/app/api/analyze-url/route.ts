@@ -8,8 +8,8 @@ import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } fro
 import { normalizeVerdict } from "@/lib/verdict";
 import { fetchUrlContent } from "@/lib/urlContent";
 import type { OracleAnalysis } from "@/types";
-import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 import { getPostHogClient } from "@/lib/posthog-server";
+import { checkRateLimit, ipHash } from "@/lib/server/rateLimit";
 
 export const maxDuration = 60; // PDF extraction (FOIA / patent docs) needs headroom beyond the default
 
@@ -24,16 +24,18 @@ export async function POST(req: NextRequest) {
   try {
     const admin = getAdminClient();
 
-    const auth = req.headers.get("authorization") ?? "";
-    if (!auth.startsWith("Bearer ")) return NextResponse.json({ error: "missing_token" }, { status: 401 });
-    const {
-      data: { user },
-      error: userErr,
-    } = await admin.auth.getUser(auth.replace("Bearer ", ""));
-    if (userErr || !user) return NextResponse.json({ error: "invalid_token" }, { status: 401 });
-
-    if (!(await userHasEffectivePro(admin, user.id))) {
-      return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+    // Open to anyone. What the sign-in wall was really protecting is the OpenAI
+    // bill, and a per-visitor limit protects that without asking for an account.
+    const limiter = await checkRateLimit(admin, req, {
+      bucket: "analyze_url",
+      limit: 5,
+      windowMinutes: 60,
+    });
+    if (!limiter.allowed) {
+      return NextResponse.json(
+        { error: "rate_limited", message: "That is five investigations this hour. Try again later." },
+        { status: 429 },
+      );
     }
 
     const body = await req.json();
@@ -47,6 +49,7 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    // A cached answer costs nothing to serve, so it does not spend the quota.
     if (cached) return NextResponse.json(cached);
 
     const article = await fetchUrlContent(urlStr);
@@ -90,10 +93,12 @@ export async function POST(req: NextRequest) {
     const { data: inserted, error: dbErr } = await admin.from("url_analyses").insert(payload).select("*").single();
     if (dbErr) {
       console.warn("[analyze-url] DB insert skipped:", dbErr.message);
+      await limiter.record();
       return NextResponse.json({ ...payload, id: null });
     }
+    await limiter.record();
     getPostHogClient().capture({
-      distinctId: user.id,
+      distinctId: `guest_${ipHash(req)}`,
       event: "url_analyzed",
       properties: { source_url: urlStr, verdict: payload.verdict },
     });

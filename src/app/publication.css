@@ -100,6 +100,16 @@
 .intelligence-next>a:hover { color:var(--pub-accent); }
 .publication-footer { border-top:1px solid var(--pub-line); background:var(--pub-bg); color:var(--pub-muted); font:10px/1.7 var(--font-share-tech-mono),monospace; padding:26px 28px; }
 .publication-footer-inner { max-width:1324px; margin:auto; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:20px; }
+/* The mailing list is the only thing the site asks a reader for, so it sits on
+   every page rather than in one block at the foot of the feed. */
+.publication-footer-brief { flex:1 0 100%; display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; padding-bottom:26px; margin-bottom:6px; border-bottom:1px solid var(--pub-line); }
+.publication-footer-brief h2 { font:700 26px/1.2 var(--font-raj),sans-serif; margin:0 0 10px; color:#b5d6c1; }
+.publication-footer-brief p:not(.publication-eyebrow) { font-size:13px; line-height:1.7; color:var(--pub-muted); max-width:52ch; margin:0; }
+.publication-footer-brief .publication-newsletter-form { margin-bottom:0; }
+.publication-footer-brief input { flex:1; min-width:160px; background:var(--pub-panel); border:1px solid var(--pub-line); color:var(--pub-ink); padding:12px; font-size:16px; border-radius:2px; }
+.newsletter-form label { display:block; margin-bottom:8px; }
+.newsletter-form [role="alert"] { margin:10px 0 0; color:#cc6666; font-size:12px; }
+.newsletter-done { margin:0; color:var(--pub-accent); font-size:13px; line-height:1.7; }
 .publication-footer a { color:var(--pub-muted); text-decoration:none; }
 .publication-footer a:hover { color:var(--pub-accent); }
 .publication-footer nav { display:flex; flex-wrap:wrap; gap:16px; }
@@ -187,7 +197,7 @@
   .intelligence-grid{grid-template-columns:1fr;gap:18px}.signal-media{height:180px}.signal-copy h2{font-size:24px}.signal-copy{padding:14px 16px 17px}.signal-investigate{font-size:12px;min-height:44px}.signal-summary{font-size:14px}
   .publication-continue{align-items:start;padding:14px 12px;gap:14px}.publication-continue>div a{font-size:16px}.publication-continue>.publication-text-link{font-size:10px}
   .intelligence-next{padding:18px;gap:8px}.intelligence-next>div{width:100%;margin-bottom:7px}.intelligence-next>a{width:100%;justify-content:space-between}
-  .publication-newsletter{grid-template-columns:1fr;gap:18px}.publication-footer{padding:24px 16px}.send-feedback-fab{position:static!important;margin:14px 16px;align-self:flex-end;box-shadow:none!important}
+  .publication-newsletter{grid-template-columns:1fr;gap:18px}.publication-footer-brief{grid-template-columns:1fr;gap:18px}.publication-footer{padding:24px 16px}.send-feedback-fab{position:static!important;margin:14px 16px;align-self:flex-end;box-shadow:none!important}
 }
 @media(prefers-reduced-motion:reduce) { .publication-page *, .publication-header * { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 

@@ -3,8 +3,8 @@ import { Resend } from "resend";
 import { callOpenAIJSON } from "@/lib/openai";
 import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insiderRadarIngest";
 import { loadSeismicPayload, pickSeismicHighlight } from "@/lib/server/seismicFeeds";
-import { isBillingEnabled, SHOW_COMMUNITY } from "@/lib/featureFlags";
-import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
+import { SHOW_COMMUNITY } from "@/lib/featureFlags";
+import { activeSubscribers, unsubscribeUrl } from "@/lib/server/newsletter";
 
 const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
 
@@ -258,7 +258,7 @@ function riskColor(level: string): string {
   }
 }
 
-function renderBriefingHtml(content: WeeklyBriefingContent, isPro: boolean): string {
+function renderBriefingHtml(content: WeeklyBriefingContent, optOut: string): string {
   const base = SITE();
 
   const heroHtml = content.hero
@@ -320,14 +320,6 @@ function renderBriefingHtml(content: WeeklyBriefingContent, isPro: boolean): str
        <p style="margin:8px 0"><a href="${base}/uap/${content.uap.id}" style="color:#00ff88">${escapeHtml(content.uap.title)}</a>${content.uap.location ? ` · ${escapeHtml(content.uap.location)}` : ""}</p>`
     : "";
 
-  const proCta =
-    isPro || !content.hero
-      ? ""
-      : `<div style="margin-top:20px;padding:14px;border:1px solid #ffaa00;border-radius:4px;background:rgba(255,170,0,0.06)">
-        <strong style="color:#ffcc66">◈ PRO unlock</strong>
-        <p style="color:#9ec8ae;font-size:13px;line-height:1.6;margin:8px 0 0">This week's #1 signal has a full Investigation Board with federal spending data and Oracle analysis. <a href="${base}/account" style="color:#00ff88">Upgrade to PRO</a> or use your Analyst Pass trial.</p>
-      </div>`;
-
   return `<div style="background:#050c07;color:#c8e8d0;font-family:monospace;padding:20px;max-width:560px">
     <h1 style="color:#00ff88;font-size:18px;letter-spacing:2px">◈ WEEKLY INTELLIGENCE BRIEFING</h1>
     <p style="color:#5a8068;font-size:11px;margin-bottom:12px">${content.weekLabel}</p>
@@ -339,8 +331,7 @@ function renderBriefingHtml(content: WeeklyBriefingContent, isPro: boolean): str
     ${insiderHtml}
     ${threadHtml}
     ${uapHtml}
-    ${proCta}
-    <p style="margin-top:24px;font-size:10px;color:#3a5040"><a href="${base}/account" style="color:#5a8068">Email preferences</a> · <a href="${base}" style="color:#5a8068">Open feed</a></p>
+    <p style="margin-top:24px;font-size:10px;color:#3a5040"><a href="${optOut}" style="color:#5a8068">Unsubscribe</a> · <a href="${base}" style="color:#5a8068">Open feed</a></p>
   </div>`;
 }
 
@@ -359,66 +350,53 @@ function buildSubject(content: WeeklyBriefingContent): string {
   return `◈ Weekly Brief — ${shortTitle} · ${content.hero.score}% priority`;
 }
 
-async function sendBatch(resend: Resend, emails: string[], subject: string, html: string) {
-  if (!emails.length) return 0;
-  const BATCH = 50;
+/**
+ * One message per recipient, each carrying its own unsubscribe link.
+ *
+ * This used to put fifty addresses in a single `to:`, which showed every
+ * subscriber the whole batch's email addresses. It also cannot work now: an
+ * opt-out link is specific to the person holding it.
+ */
+async function sendIndividually(
+  resend: Resend,
+  recipients: { email: string; token: string }[],
+  subject: string,
+  content: WeeklyBriefingContent,
+): Promise<number> {
   let sent = 0;
-  for (let i = 0; i < emails.length; i += BATCH) {
-    const chunk = emails.slice(i, i + BATCH);
-    await resend.emails.send({
-      from: fromAddress(),
-      to: chunk,
-      subject,
-      html,
-    });
-    sent += chunk.length;
-    if (i + BATCH < emails.length) await new Promise((r) => setTimeout(r, 300));
+  for (const { email, token } of recipients) {
+    const optOut = unsubscribeUrl(token);
+    try {
+      await resend.emails.send({
+        from: fromAddress(),
+        to: email,
+        subject,
+        html: renderBriefingHtml(content, optOut),
+        headers: {
+          // RFC 8058: lets the mail client offer a one-click unsubscribe of its own.
+          "List-Unsubscribe": `<${SITE()}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}>, <${optOut}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+      });
+      sent += 1;
+    } catch (e) {
+      console.warn("[weeklyBriefing] send failed for one recipient:", e instanceof Error ? e.message : e);
+    }
+    // Resend's free tier allows two requests a second.
+    await new Promise((r) => setTimeout(r, 600));
   }
   return sent;
 }
 
-/** Send weekly briefing to opted-in users (personalized PRO CTA per recipient). */
+/** Send the weekly briefing to everyone on the confirmed mailing list. */
 export async function sendWeeklyBriefing(admin: SupabaseClient): Promise<{ sent: number; articles: number }> {
   const content = await gatherWeeklyBriefingContent(admin);
   if (!content.hero && !content.moreArticles.length) return { sent: 0, articles: 0 };
 
-  const { data: users } = await admin
-    .from("user_profiles")
-    .select("email, plan, stripe_subscription_id, subscription_status, pro_trial_ends_at, pro_trial_granted_at, pro_trial_redeemed, email_weekly_briefing")
-    .eq("email_weekly_briefing", true);
-
-  const resend = getResend();
-  const subject = buildSubject(content);
+  const recipients = await activeSubscribers(admin);
   const articleCount = (content.hero ? 1 : 0) + content.moreArticles.length;
+  if (!recipients.length) return { sent: 0, articles: articleCount };
 
-  let sent = 0;
-  if (!isBillingEnabled()) {
-    const allEmails = (users ?? [])
-      .map((u) => String(u.email ?? "").trim())
-      .filter(Boolean);
-    if (allEmails.length) {
-      sent += await sendBatch(resend, allEmails, subject, renderBriefingHtml(content, true));
-    }
-    return { sent, articles: articleCount };
-  }
-
-  const proEmails: string[] = [];
-  const freeEmails: string[] = [];
-
-  for (const u of users ?? []) {
-    const email = String(u.email ?? "").trim();
-    if (!email) continue;
-    const pro = isEffectivePro(u as UserProfilePlanRow);
-    if (pro) proEmails.push(email);
-    else freeEmails.push(email);
-  }
-
-  if (proEmails.length) {
-    sent += await sendBatch(resend, proEmails, subject, renderBriefingHtml(content, true));
-  }
-  if (freeEmails.length) {
-    sent += await sendBatch(resend, freeEmails, subject, renderBriefingHtml(content, false));
-  }
-
+  const sent = await sendIndividually(getResend(), recipients, buildSubject(content), content);
   return { sent, articles: articleCount };
 }
