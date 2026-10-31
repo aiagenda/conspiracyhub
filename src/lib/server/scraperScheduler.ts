@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { runScraper } from "@/app/api/scraper/route";
+import { runUapScrape } from "@/app/api/uap-sightings/route";
 import { runUapFullScrape } from "@/lib/server/uapIngest";
+import { DAILY_INGEST_JOBS } from "@/lib/server/dailyIngestJobs";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
@@ -59,11 +61,24 @@ async function runUapScraper(config: Record<string, unknown> | null): Promise<{ 
     typeof maxNewRaw === "number" ? maxNewRaw : parseInt(String(maxNewRaw ?? "70"), 10) || 70,
     1
   ), 120);
+  const mode = (config?.mode as string) ?? "full";
   try {
-    const payload = await runUapFullScrape(maxNew);
+    const payload =
+      mode === "nuforc_only"
+        ? await runUapScrape(maxNew)
+        : await runUapFullScrape(maxNew);
     return { ok: true, status: 200, payload };
   } catch (e) {
     return { ok: false, status: 500, payload: { error: e instanceof Error ? e.message : String(e) } };
+  }
+}
+
+/** Idempotent — keeps five daily ingest jobs present, enabled, and configured for 09:00 UTC tick. */
+export async function ensureDailyIngestJobs() {
+  const db = admin();
+  for (const job of DAILY_INGEST_JOBS) {
+    const { error } = await db.from("scraper_jobs").upsert({ ...job }, { onConflict: "job_key" });
+    if (error) console.warn(`[scraper] ensure daily ingest ${job.job_key}:`, error.message);
   }
 }
 
