@@ -27,7 +27,6 @@ import {
 import { PostHogAdminSection } from "@/components/admin/PostHogAdminSection";
 import type { PostHogAdminStats } from "@/lib/posthogAdminStats";
 import { TwitterDraftSection } from "@/components/admin/TwitterDraftSection";
-import { BragStudioSection } from "@/components/admin/BragStudioSection";
 import { AdminAccessGate } from "@/components/admin/AdminAccessGate";
 import EditorialReviewSection from "@/components/admin/EditorialReviewSection";
 import { TechDeskSection } from "@/components/admin/TechDeskSection";
@@ -53,19 +52,6 @@ interface Stats {
     topCountries: { country: string; views: number; unique: number }[];
   };
   posthog?: PostHogAdminStats;
-}
-
-interface AdminThread {
-  id: string;
-  title: string;
-  body: string;
-  author_name: string;
-  category: string;
-  status: string;
-  post_count: number;
-  credibility_score: number | null;
-  oracle_analyzed: boolean;
-  created_at: string;
 }
 
 interface AdminArticle {
@@ -282,13 +268,6 @@ function AdminConsole() {
     variant: "success" | "error" | "info";
   } | null>(null);
 
-  // Community
-  const [threads, setThreads] = useState<AdminThread[]>([]);
-  const [threadTotal, setThreadTotal] = useState(0);
-  const [threadPage, setThreadPage] = useState(1);
-  const [threadSummary, setThreadSummary] = useState<{ total: number; removed: number; oracleAnalyzed: number } | null>(null);
-  const [threadBusy, setThreadBusy] = useState<string>("");
-
   // Content
   const [articles, setArticles] = useState<AdminArticle[]>([]);
   const [articleTotal, setArticleTotal] = useState(0);
@@ -350,16 +329,6 @@ function AdminConsole() {
     setScrapers(d.jobs ?? []);
   }, []);
 
-  const loadThreads = useCallback(async (page = 1) => {
-    const res = await fetchWithSupabaseAuth(`/api/admin/community?page=${page}`);
-    if (!res.ok) return;
-    const d = await res.json();
-    setThreads(d.threads ?? []);
-    setThreadTotal(d.total ?? 0);
-    setThreadPage(page);
-    if (d.summary) setThreadSummary(d.summary);
-  }, []);
-
   const loadArticles = useCallback(async (page = 1, minScore = 0) => {
     const params = new URLSearchParams({ page: String(page) });
     if (minScore > 0) params.set("min_score", String(minScore));
@@ -386,11 +355,10 @@ function AdminConsole() {
     loadStats();
     loadMessages();
     loadScrapers();
-    loadThreads();
     loadArticles();
     void loadBlogPosts(1);
     });
-  }, [loadStats, loadMessages, loadScrapers, loadThreads, loadArticles, loadBlogPosts]);
+  }, [loadStats, loadMessages, loadScrapers, loadArticles, loadBlogPosts]);
 
   useEffect(() => {
     try {
@@ -458,29 +426,6 @@ function AdminConsole() {
       setLoreResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
     } finally {
       setLoreGenerating(false);
-    }
-  }
-
-  async function removeThread(id: string, permanent = false) {
-    if (!confirm(permanent ? "Permanently delete this thread and all its posts?" : "Remove this thread from public view?")) return;
-    setThreadBusy(id);
-    try {
-      if (permanent) {
-        await fetchWithSupabaseAuth("/api/admin/community", {
-          method: "DELETE",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ id }),
-        });
-      } else {
-        await fetchWithSupabaseAuth("/api/admin/community", {
-          method: "PATCH",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ id, status: "removed" }),
-        });
-      }
-      await loadThreads(threadPage);
-    } finally {
-      setThreadBusy("");
     }
   }
 
@@ -1460,19 +1405,11 @@ function AdminConsole() {
           >
             Search
           </Link>
-          <Link
-            href="/community"
-            className="rounded-md border px-3 py-2 text-[12px] no-underline"
-            style={{ borderColor: "#1a2a22", color: muted }}
-          >
-            Community
-          </Link>
           <button
             type="button"
             onClick={() => {
               void loadStats();
               void loadMessages(msgPage);
-              void loadThreads(threadPage);
               void loadArticles(articlePage, articleScoreFilter);
               void loadBlogPosts(blogPage);
               void loadScrapers();
@@ -1838,100 +1775,6 @@ function AdminConsole() {
 
           <NewsletterPanel />
 
-          {/* ── COMMUNITY ── */}
-          <section id="community" className="space-y-5">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#7dffb3" }}>Community</p>
-                <h2 className="font-raj mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
-                  Threads
-                </h2>
-              </div>
-              <button type="button" onClick={() => void loadThreads(threadPage)} className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ borderColor: "#1a2a22", color: muted }}>
-                Refresh
-              </button>
-            </div>
-
-            {threadSummary && (
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Threads", value: threadSummary.total, color: "var(--foreground)" },
-                  { label: "Oracle", value: threadSummary.oracleAnalyzed, color: "var(--green)" },
-                  { label: "Removed", value: threadSummary.removed, color: threadSummary.removed > 0 ? "#ffaa66" : muted },
-                ].map((tile) => (
-                  <div key={tile.label} className="rounded-2xl border p-4" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
-                    <div className="text-[11px] uppercase tracking-[0.16em]" style={{ color: muted }}>{tile.label}</div>
-                    <div className="font-raj mt-1 text-3xl font-bold tabular-nums" style={{ color: tile.color }}>{tile.value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="overflow-hidden rounded-2xl border" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse text-left text-[13px]">
-                  <thead>
-                    <tr style={{ background: "#0a100c" }}>
-                      {["Title", "Author", "Category", "Posts", "Credibility", "Oracle", "Date", "Actions"].map((h) => (
-                        <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {threads.length === 0 && (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No threads found.</td></tr>
-                    )}
-                    {threads.map((t) => (
-                      <tr key={t.id} className="hover:bg-[#0f1510]">
-                        <td className="max-w-[200px] border-b px-4 py-4" style={{ borderColor: "#111816" }}>
-                          <a href={`/community?thread=${t.id}`} target="_blank" rel="noreferrer" className="text-[12px] no-underline hover:underline line-clamp-1" style={{ color: "var(--foreground)" }}>
-                            {t.title}
-                          </a>
-                        </td>
-                        <td className="max-w-[100px] truncate border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>{t.author_name}</td>
-                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px] uppercase" style={{ borderColor: "#111816", color: muted }}>{t.category}</td>
-                        <td className="border-b px-4 py-4 text-center text-[12px] tabular-nums" style={{ borderColor: "#111816", color: "var(--foreground)" }}>{t.post_count ?? 0}</td>
-                        <td className="border-b px-4 py-4 text-center text-[12px] tabular-nums" style={{ borderColor: "#111816", color: t.credibility_score && t.credibility_score >= 60 ? "var(--green)" : muted }}>
-                          {t.credibility_score != null ? `${t.credibility_score}%` : "—"}
-                        </td>
-                        <td className="border-b px-4 py-4 text-center text-[11px]" style={{ borderColor: "#111816", color: t.oracle_analyzed ? "var(--green)" : muted }}>
-                          {t.oracle_analyzed ? "✓" : "—"}
-                        </td>
-                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: muted }}>
-                          {new Date(t.created_at).toLocaleDateString("en-GB")}
-                        </td>
-                        <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
-                          <div className="flex gap-1.5">
-                            <button
-                              type="button"
-                              disabled={threadBusy === t.id}
-                              onClick={() => void removeThread(t.id, false)}
-                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
-                              style={{ borderColor: "#4a2a1a", color: "#ffaa66" }}
-                            >Hide</button>
-                            <button
-                              type="button"
-                              disabled={threadBusy === t.id}
-                              onClick={() => void removeThread(t.id, true)}
-                              className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
-                              style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
-                            >Delete</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {threadTotal > 40 && (
-                <div className="flex items-center gap-3 border-t px-4 py-3" style={{ borderColor: "#1a2a22" }}>
-                  <button type="button" disabled={threadPage <= 1} onClick={() => void loadThreads(threadPage - 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>← Prev</button>
-                  <span className="text-[12px]" style={{ color: muted }}>Page {threadPage} · {threadTotal} total</span>
-                  <button type="button" disabled={threadPage * 40 >= threadTotal} onClick={() => void loadThreads(threadPage + 1)} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
-                </div>
-              )}
-            </div>
-          </section>
           </div>
           )}
 
@@ -1944,12 +1787,6 @@ function AdminConsole() {
             {contentSubTab === "twitter" && (
               <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
                 <TwitterDraftSection />
-              </div>
-            )}
-
-            {contentSubTab === "brag" && (
-              <div className="rounded-lg border p-5" style={{ background: cardBg, border }}>
-                <BragStudioSection />
               </div>
             )}
 
