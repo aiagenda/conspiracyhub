@@ -34,7 +34,7 @@ export default async function DocumentsPage({
 
   return (
     <div className="journal-page">
-      <PublicationHeader section="Documents" />
+      <PublicationHeader section="Declassified" />
       <div className="journal-shell">
         <header className="journal-hero">
           <span className="journal-kicker">Primary sources</span>
