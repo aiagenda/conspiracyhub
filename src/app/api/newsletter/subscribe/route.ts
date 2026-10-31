@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, ipHash } from "@/lib/server/rateLimit";
 import { newToken, newsletterAdmin, sendConfirmation } from "@/lib/server/newsletter";
 
+const MAIL_FAILED = "We could not send the confirmation email. Please try again shortly.";
+
 /**
  * Public newsletter signup.
  *
@@ -33,7 +35,8 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       // Asked again before confirming — resend rather than mint a second token.
-      await sendConfirmation(email, existing.token as string);
+      const resent = await sendConfirmation(email, existing.token as string);
+      if (!resent.ok) return NextResponse.json({ error: MAIL_FAILED }, { status: 502 });
       return NextResponse.json({ ok: true });
     }
 
@@ -49,7 +52,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Could not save subscription" }, { status: 500 });
     }
 
-    await sendConfirmation(email, token);
+    // The row stands either way, so a later retry can still reach them — but the
+    // reader must not be told to check an inbox nothing was sent to.
+    const sent = await sendConfirmation(email, token);
+    if (!sent.ok) return NextResponse.json({ error: MAIL_FAILED }, { status: 502 });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[newsletter/subscribe]", e);

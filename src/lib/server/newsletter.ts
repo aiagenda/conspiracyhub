@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { sendEmail, type SendResult } from "@/lib/server/email";
 import { getSiteUrl } from "@/lib/siteUrl";
 
 /**
@@ -18,15 +18,6 @@ export function newsletterAdmin(): SupabaseClient {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error("Supabase env missing");
   return createClient(url, key);
-}
-
-function resend(): Resend | null {
-  const key = process.env.RESEND_API_KEY;
-  return key ? new Resend(key) : null;
-}
-
-function fromAddress(): string {
-  return process.env.RESEND_FROM ?? "The Theorist <alerts@thetheorist.local>";
 }
 
 export function newToken(): string {
@@ -59,17 +50,9 @@ export async function activeSubscribers(admin: SupabaseClient): Promise<Subscrib
   return rows;
 }
 
-export async function sendConfirmation(email: string, token: string): Promise<void> {
-  const client = resend();
-  // Without a mail provider configured the row still stands; it simply stays
-  // unconfirmed, which is the safe end to fail at.
-  if (!client) {
-    console.warn("[newsletter] RESEND_API_KEY missing — confirmation not sent to", email);
-    return;
-  }
+export async function sendConfirmation(email: string, token: string): Promise<SendResult> {
   const link = confirmUrl(token);
-  await client.emails.send({
-    from: fromAddress(),
+  return sendEmail({
     to: email,
     subject: "Confirm your subscription to The Weekly Oracle Brief",
     html: `<div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;line-height:1.6;color:#0b0f0d">

@@ -1,24 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
 import { callOpenAIJSON } from "@/lib/openai";
 import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insiderRadarIngest";
 import { loadSeismicPayload, pickSeismicHighlight } from "@/lib/server/seismicFeeds";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
+import { sendEmail } from "@/lib/server/email";
 import { activeSubscribers, unsubscribeUrl } from "@/lib/server/newsletter";
 
 const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
 
 const RISK_RANK: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-
-function getResend() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY missing");
-  return new Resend(key);
-}
-
-function fromAddress() {
-  return process.env.RESEND_FROM ?? "The Theorist <alerts@thetheorist.local>";
-}
 
 type BriefArticle = { id: string; title: string; score: number; angle: string };
 type BriefThread = { id: string; title: string; post_count: number; upvotes: number };
@@ -358,7 +348,6 @@ function buildSubject(content: WeeklyBriefingContent): string {
  * opt-out link is specific to the person holding it.
  */
 async function sendIndividually(
-  resend: Resend,
   recipients: { email: string; token: string }[],
   subject: string,
   content: WeeklyBriefingContent,
@@ -366,26 +355,42 @@ async function sendIndividually(
   let sent = 0;
   for (const { email, token } of recipients) {
     const optOut = unsubscribeUrl(token);
-    try {
-      await resend.emails.send({
-        from: fromAddress(),
-        to: email,
-        subject,
-        html: renderBriefingHtml(content, optOut),
-        headers: {
-          // RFC 8058: lets the mail client offer a one-click unsubscribe of its own.
-          "List-Unsubscribe": `<${SITE()}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}>, <${optOut}>`,
-          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-        },
-      });
-      sent += 1;
-    } catch (e) {
-      console.warn("[weeklyBriefing] send failed for one recipient:", e instanceof Error ? e.message : e);
-    }
+    const result = await sendEmail({
+      to: email,
+      subject,
+      html: renderBriefingHtml(content, optOut),
+      headers: {
+        // RFC 8058: lets the mail client offer a one-click unsubscribe of its own.
+        "List-Unsubscribe": `<${SITE()}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}>, <${optOut}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    if (result.ok) sent += 1;
+    else console.warn("[weeklyBriefing] send failed for one recipient:", result.reason);
     // Resend's free tier allows two requests a second.
     await new Promise((r) => setTimeout(r, 600));
   }
   return sent;
+}
+
+/**
+ * What this week's issue would look like, without sending anything.
+ *
+ * The admin panel needs to answer "is there even a briefing to send" before the
+ * button is pressed, and a test send needs the same HTML the real one uses.
+ */
+export async function buildWeeklyBriefingPreview(
+  admin: SupabaseClient,
+): Promise<{ subject: string; html: string; articles: number; weekLabel: string }> {
+  const content = await gatherWeeklyBriefingContent(admin);
+  const articles = (content.hero ? 1 : 0) + content.moreArticles.length;
+  if (!articles) return { subject: "", html: "", articles: 0, weekLabel: content.weekLabel };
+  return {
+    subject: buildSubject(content),
+    html: renderBriefingHtml(content, `${SITE()}/newsletter/unsubscribe?token=preview`),
+    articles,
+    weekLabel: content.weekLabel,
+  };
 }
 
 /** Send the weekly briefing to everyone on the confirmed mailing list. */
@@ -397,6 +402,6 @@ export async function sendWeeklyBriefing(admin: SupabaseClient): Promise<{ sent:
   const articleCount = (content.hero ? 1 : 0) + content.moreArticles.length;
   if (!recipients.length) return { sent: 0, articles: articleCount };
 
-  const sent = await sendIndividually(getResend(), recipients, buildSubject(content), content);
+  const sent = await sendIndividually(recipients, buildSubject(content), content);
   return { sent, articles: articleCount };
 }

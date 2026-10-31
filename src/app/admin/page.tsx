@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { fetchWithSupabaseAuth } from "@/lib/authFetch";
+import NewsletterPanel from "@/components/admin/NewsletterPanel";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { PAGE_CONTENT_MAX, PAGE_CONTENT_PADDING } from "@/lib/pageShell";
@@ -52,19 +53,6 @@ interface Stats {
     topCountries: { country: string; views: number; unique: number }[];
   };
   posthog?: PostHogAdminStats;
-}
-
-interface AdminUser {
-  id: string;
-  email: string;
-  plan: "free" | "pro";
-  subscription_status: string | null;
-  subscription_current_period_end: string | null;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
-  created_at: string;
-  last_sign_in_at: string | null;
-  profile_pending?: boolean;
 }
 
 interface AdminThread {
@@ -294,14 +282,6 @@ function AdminConsole() {
     variant: "success" | "error" | "info";
   } | null>(null);
 
-  // Subscribers
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [userTotal, setUserTotal] = useState(0);
-  const [userPage, setUserPage] = useState(1);
-  const [userPlanFilter, setUserPlanFilter] = useState<"all" | "pro" | "free">("all");
-  const [userSummary, setUserSummary] = useState<{ totalPro: number; totalFree: number; mrr: number } | null>(null);
-  const [userBusy, setUserBusy] = useState<string>("");
-
   // Community
   const [threads, setThreads] = useState<AdminThread[]>([]);
   const [threadTotal, setThreadTotal] = useState(0);
@@ -370,18 +350,6 @@ function AdminConsole() {
     setScrapers(d.jobs ?? []);
   }, []);
 
-  const loadUsers = useCallback(async (page = 1, planFilter: string = "all") => {
-    const params = new URLSearchParams({ page: String(page) });
-    if (planFilter !== "all") params.set("plan", planFilter);
-    const res = await fetchWithSupabaseAuth(`/api/admin/users?${params}`);
-    if (!res.ok) return;
-    const d = await res.json();
-    setUsers(d.users ?? []);
-    setUserTotal(d.total ?? 0);
-    setUserPage(page);
-    if (d.summary) setUserSummary(d.summary);
-  }, []);
-
   const loadThreads = useCallback(async (page = 1) => {
     const res = await fetchWithSupabaseAuth(`/api/admin/community?page=${page}`);
     if (!res.ok) return;
@@ -418,12 +386,11 @@ function AdminConsole() {
     loadStats();
     loadMessages();
     loadScrapers();
-    loadUsers();
     loadThreads();
     loadArticles();
     void loadBlogPosts(1);
     });
-  }, [loadStats, loadMessages, loadScrapers, loadUsers, loadThreads, loadArticles, loadBlogPosts]);
+  }, [loadStats, loadMessages, loadScrapers, loadThreads, loadArticles, loadBlogPosts]);
 
   useEffect(() => {
     try {
@@ -450,22 +417,6 @@ function AdminConsole() {
       /* */
     }
     setAnalyticsSuppress(next);
-  }
-
-  async function changeUserPlan(id: string, plan: "free" | "pro") {
-    if (!confirm(`Set user plan to ${plan.toUpperCase()}?`)) return;
-    setUserBusy(id);
-    try {
-      await fetchWithSupabaseAuth("/api/admin/users", {
-        method: "PATCH",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({ id, plan }),
-      });
-      await loadUsers(userPage, userPlanFilter);
-      await loadStats();
-    } finally {
-      setUserBusy("");
-    }
   }
 
   async function generateLoreDossier() {
@@ -1521,7 +1472,6 @@ function AdminConsole() {
             onClick={() => {
               void loadStats();
               void loadMessages(msgPage);
-              void loadUsers(userPage, userPlanFilter);
               void loadThreads(threadPage);
               void loadArticles(articlePage, articleScoreFilter);
               void loadBlogPosts(blogPage);
@@ -1886,141 +1836,7 @@ function AdminConsole() {
             )}
           </section>
 
-          <section id="subscribers" className="space-y-5">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#7dffb3" }}>Accounts</p>
-                <h2 className="font-raj mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
-                  Subscribers
-                </h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(["all", "pro", "free"] as const).map((f) => (
-                  <button key={f} type="button"
-                    onClick={() => { setUserPlanFilter(f); void loadUsers(1, f); }}
-                    className="rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
-                    style={{
-                      borderColor: userPlanFilter === f ? "var(--green-dark)" : "#1a2a22",
-                      background: userPlanFilter === f ? "rgba(0,187,102,0.08)" : "transparent",
-                      color: userPlanFilter === f ? "var(--green)" : muted,
-                    }}
-                  >{f}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Revenue tiles */}
-            {userSummary && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  { label: "MRR", value: `$${userSummary.mrr}`, detail: `$7 × ${userSummary.totalPro} PRO` },
-                  { label: "ARR", value: `$${userSummary.mrr * 12}`, detail: "projected" },
-                  { label: "PRO", value: String(userSummary.totalPro), detail: "paying" },
-                  { label: "Free", value: String(userSummary.totalFree), detail: "registered" },
-                ].map((tile) => (
-                  <div key={tile.label} className="rounded-2xl border p-4" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
-                    <div className="text-[11px] uppercase tracking-[0.16em]" style={{ color: muted }}>{tile.label}</div>
-                    <div className="font-raj mt-1 text-3xl font-bold tabular-nums" style={{ color: "var(--foreground)" }}>{tile.value}</div>
-                    <div className="mt-1 text-[12px]" style={{ color: muted }}>{tile.detail}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="overflow-hidden rounded-2xl border" style={{ background: "#080c09", borderColor: "#1a2a22" }}>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px] border-collapse text-left text-[13px]">
-                  <thead>
-                    <tr style={{ background: "#0a100c" }}>
-                      {["Email", "Plan", "Status", "Period end", "Stripe sub", "Registered", "Last login", "Actions"].map((h) => (
-                        <th key={h} className="border-b px-4 py-4 text-[10px] font-semibold uppercase tracking-widest" style={{ borderColor: "#1a2a22", color: muted }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.length === 0 && (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-[13px]" style={{ color: muted }}>No users found.</td></tr>
-                    )}
-                    {users.map((u) => (
-                      <tr key={u.id} className="hover:bg-[#0f1510]">
-                        <td className="max-w-[220px] truncate border-b px-4 py-4 font-mono text-[11px]" style={{ borderColor: "#111816", color: "var(--foreground)" }}>
-                          {u.email || "(no email)"}
-                          {u.profile_pending && (
-                            <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide" style={{ border: "1px solid #3a3020", color: "#ccaa44" }} title="Auth account exists; profile row not synced yet">
-                              pending
-                            </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap border-b px-4 py-4" style={{ borderColor: "#111816" }}>
-                          <span className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider" style={{
-                            border: `1px solid ${u.plan === "pro" ? "var(--green-dark)" : "#1a2a22"}`,
-                            color: u.plan === "pro" ? "var(--green)" : muted,
-                            background: u.plan === "pro" ? "rgba(0,187,102,0.10)" : "transparent",
-                          }}>{u.plan}</span>
-                        </td>
-                        <td className="whitespace-nowrap border-b px-4 py-4 text-[11px]" style={{ borderColor: "#111816", color: u.subscription_status === "active" ? "var(--green)" : u.subscription_status === "canceled" ? "#ff8888" : muted }}>
-                          {u.subscription_status ?? "—"}
-                        </td>
-                        <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
-                          {u.subscription_current_period_end ? new Date(u.subscription_current_period_end).toLocaleDateString("en-GB") : "—"}
-                        </td>
-                        <td className="border-b px-4 py-4 font-mono text-[10px]" style={{ borderColor: "#111816", color: muted }}>
-                          {u.stripe_subscription_id ? (
-                            <a href={`https://dashboard.stripe.com/subscriptions/${u.stripe_subscription_id}`} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: "var(--green-dim)" }}>
-                              {u.stripe_subscription_id.slice(0, 14)}…
-                            </a>
-                          ) : "—"}
-                        </td>
-                        <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
-                          {new Date(u.created_at).toLocaleDateString("en-GB")}
-                        </td>
-                        <td className="whitespace-nowrap border-b px-4 py-4 text-[12px]" style={{ borderColor: "#111816", color: muted }}>
-                          {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("en-GB") : "—"}
-                        </td>
-                        <td className="border-b px-4 py-4" style={{ borderColor: "#111816" }}>
-                          <div className="flex gap-1.5">
-                            {u.plan === "free" ? (
-                              <button
-                                type="button"
-                                disabled={userBusy === u.id}
-                                onClick={() => void changeUserPlan(u.id, "pro")}
-                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
-                                style={{ borderColor: "var(--green-dark)", color: "var(--green)" }}
-                              >→ PRO</button>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={userBusy === u.id}
-                                onClick={() => void changeUserPlan(u.id, "free")}
-                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide disabled:opacity-40"
-                                style={{ borderColor: "#4a1a1a", color: "#ff8888" }}
-                              >→ Free</button>
-                            )}
-                            {u.stripe_customer_id && (
-                              <a
-                                href={`https://dashboard.stripe.com/customers/${u.stripe_customer_id}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="rounded border px-3.5 py-2.5 text-[10px] uppercase tracking-wide no-underline"
-                                style={{ borderColor: "#1a2a22", color: muted }}
-                              >Stripe ↗</a>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {userTotal > 50 && (
-                <div className="flex items-center gap-3 border-t px-4 py-3" style={{ borderColor: "#1a2a22" }}>
-                  <button type="button" disabled={userPage <= 1} onClick={() => { const p = userPage - 1; void loadUsers(p, userPlanFilter); }} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>← Prev</button>
-                  <span className="text-[12px]" style={{ color: muted }}>Page {userPage} · {userTotal} total</span>
-                  <button type="button" disabled={userPage * 50 >= userTotal} onClick={() => { const p = userPage + 1; void loadUsers(p, userPlanFilter); }} className="rounded border px-3 py-1.5 text-[11px] disabled:opacity-40" style={{ borderColor: "#1a2a22", color: muted }}>Next →</button>
-                </div>
-              )}
-            </div>
-          </section>
+          <NewsletterPanel />
 
           {/* ── COMMUNITY ── */}
           <section id="community" className="space-y-5">
