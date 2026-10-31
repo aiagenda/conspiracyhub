@@ -4,6 +4,7 @@ import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insider
 import { loadSeismicPayload, pickSeismicHighlight } from "@/lib/server/seismicFeeds";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
 import { sendEmail } from "@/lib/server/email";
+import { emailColors, emailShell } from "@/lib/server/emailLayout";
 import { activeSubscribers, unsubscribeUrl } from "@/lib/server/newsletter";
 
 const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.the-theorist.com").replace(/\/$/, "");
@@ -310,19 +311,26 @@ function renderBriefingHtml(content: WeeklyBriefingContent, optOut: string): str
        <p style="margin:8px 0"><a href="${base}/uap/${content.uap.id}" style="color:#00ff88">${escapeHtml(content.uap.title)}</a>${content.uap.location ? ` · ${escapeHtml(content.uap.location)}` : ""}</p>`
     : "";
 
-  return `<div style="background:#050c07;color:#c8e8d0;font-family:monospace;padding:20px;max-width:560px">
-    <h1 style="color:#00ff88;font-size:18px;letter-spacing:2px">◈ WEEKLY INTELLIGENCE BRIEFING</h1>
-    <p style="color:#5a8068;font-size:11px;margin-bottom:12px">${content.weekLabel}</p>
-    ${heroHtml}
-    ${leadHtml}
-    ${moreHtml}
-    ${outbreakHtml}
-    ${seismicHtml}
-    ${insiderHtml}
-    ${threadHtml}
-    ${uapHtml}
-    <p style="margin-top:24px;font-size:10px;color:#3a5040"><a href="${optOut}" style="color:#5a8068">Unsubscribe</a> · <a href="${base}" style="color:#5a8068">Open feed</a></p>
-  </div>`;
+  // The brief used to be a bare <div>, which Gmail drops onto a white page as a
+  // narrow dark box. It now sits in the same shell as every other message.
+  return emailShell({
+    preheader: content.hero
+      ? `${content.hero.title.slice(0, 90)} — ${content.hero.score}% priority`
+      : `This week's signals from The Theorist.`,
+    kicker: "Weekly Intelligence Briefing",
+    heading: content.weekLabel,
+    body: `<div style="font-family:${emailColors.MONO};color:${emailColors.INK};font-size:14px;line-height:1.7">
+      ${heroHtml}
+      ${leadHtml}
+      ${moreHtml}
+      ${outbreakHtml}
+      ${seismicHtml}
+      ${insiderHtml}
+      ${threadHtml}
+      ${uapHtml}
+    </div>`,
+    footnote: `<a href="${optOut}" style="color:${emailColors.MUTED}">Unsubscribe</a> &middot; <a href="${base}" style="color:${emailColors.MUTED}">Open the feed</a> &middot; You asked for this at the-theorist.com.`,
+  });
 }
 
 function escapeHtml(s: string): string {

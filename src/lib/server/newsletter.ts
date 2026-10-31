@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail, type SendResult } from "@/lib/server/email";
+import { emailButton, emailParagraph, emailPlainText, emailShell } from "@/lib/server/emailLayout";
 import { getSiteUrl } from "@/lib/siteUrl";
 
 /**
@@ -55,10 +56,26 @@ export async function sendConfirmation(email: string, token: string): Promise<Se
   return sendEmail({
     to: email,
     subject: "Confirm your subscription to The Weekly Oracle Brief",
-    html: `<div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;line-height:1.6;color:#0b0f0d">
-      <p>Someone — we hope you — asked for the weekly briefing from The Theorist.</p>
-      <p><a href="${link}" style="color:#00bb66;font-weight:700">Confirm the subscription →</a></p>
-      <p style="color:#5a8068;font-size:13px">If it was not you, ignore this message and nothing will be sent. The link confirms one address only.</p>
-    </div>`,
+    html: emailShell({
+      preheader: "One click and the weekly briefing starts arriving.",
+      kicker: "Weekly Oracle Brief",
+      heading: "Confirm your subscription",
+      body: [
+        emailParagraph("Someone &mdash; we hope you &mdash; asked for the weekly briefing from The Theorist: selected stories, research leads and public records worth a look."),
+        emailButton({ label: "Confirm the subscription", href: link }),
+        emailParagraph("Nothing is sent until you do. If the button does not work, open this link:", { muted: true }),
+        emailParagraph(`<a href="${link}" style="color:#00ff88;text-decoration:none;word-break:break-all">${link}</a>`, { muted: true }),
+      ].join("\n"),
+      footnote: "If this was not you, ignore the message and nothing will be sent. The link confirms one address only.",
+    }),
+    text: emailPlainText([
+      "CONFIRM YOUR SUBSCRIPTION",
+      "",
+      "Someone - we hope you - asked for the weekly briefing from The Theorist.",
+      "Nothing is sent until you confirm:",
+      link,
+      "",
+      "If this was not you, ignore this message. The link confirms one address only.",
+    ]),
   });
 }

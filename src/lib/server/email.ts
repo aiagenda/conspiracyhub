@@ -31,6 +31,8 @@ export async function sendEmail(message: {
   to: string | string[];
   subject: string;
   html: string;
+  /** Plain-text alternative. Worth sending: filters treat HTML-only mail worse. */
+  text?: string;
   headers?: Record<string, string>;
 }): Promise<SendResult> {
   const client = getResend();
