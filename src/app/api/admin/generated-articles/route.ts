@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       const { data: article, error } = await db.from("generated_articles").select("*").eq("id", id).maybeSingle();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       if (!article) return NextResponse.json({ error: "not_found" }, { status: 404 });
-      return NextResponse.json({ article, quality_issues: manualReviewIssues(article as EditorialRow) });
+      return NextResponse.json({ article, quality_issues: manualReviewIssues(article as EditorialRow, { minimumDomains: 0 }) });
     }
     const filter = params.get("status") ?? "published";
     if (!["draft", "published", "all"].includes(filter)) return NextResponse.json({ error: "invalid_status" }, { status: 400 });
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         unique_viewers: s.uniqueReaders,
         has_oracle: oracleGenIds.has(p.id),
         word_count: countArticleWords(content),
-        quality_issues: manualReviewIssues(p as EditorialRow),
+        quality_issues: manualReviewIssues(p as EditorialRow, { minimumDomains: 0 }),
       };
     });
 
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
         if (!required.every((key) => body.checks?.[key] === true) || String(body.review_note ?? "").trim().length < 20) {
           return NextResponse.json({ error: "Complete each review check and add a note of at least 20 characters." }, { status: 400 });
         }
-        const issues = manualReviewIssues(article);
+        const issues = manualReviewIssues(article, { minimumDomains: 0 });
         if (issues.length) return NextResponse.json({ error: "quality_issues", issues }, { status: 422 });
         const checkedAt = new Date().toISOString();
         const domains = new Set((article.sources ?? []).map((source) => canonicalSourceUrl(source.url ?? "")).filter(Boolean).map((url) => new URL(url).hostname));

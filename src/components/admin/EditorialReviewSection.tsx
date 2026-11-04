@@ -54,9 +54,9 @@ export default function EditorialReviewSection() {
   }
   const inputClass = "w-full rounded border border-emerald-900 bg-black/30 p-3 text-sm text-stone-200";
   const buttonClass = "rounded border border-emerald-800 px-4 py-2 text-sm disabled:opacity-40";
-  const issues = [...new Set([...(article?.editorial_checks?.issues ?? []), ...(article?.quality_issues ?? [])])];
+  const issues = [...new Set([...(article?.editorial_checks?.issues ?? []), ...(article?.quality_issues ?? [])])].filter((issue) => !/independent domain/i.test(issue));
   return <section className="space-y-5 text-stone-200">
-    <div><h2 className="text-2xl">Editorial review</h2><p className="mt-2 text-sm text-stone-400">Open sources, edit the draft, then review this version before publishing. Automated checks support editorial judgement.</p></div>
+    <div><h2 className="text-2xl">Editorial review</h2><p className="mt-2 text-sm text-stone-400">Edit the draft if you want, then publish it. Source-count checks are notes, not a gate.</p></div>
     <label className="block">Show <select className="ml-3 rounded bg-stone-900 p-2" value={filter} onChange={e => {setFilter(e.target.value);setPage(1);}}><option value="draft">Drafts awaiting review</option><option value="published">Published articles</option><option value="all">All articles</option></select></label>
     {error && <p role="alert" className="rounded border border-amber-800 p-3 text-amber-200">{error}</p>}
     <div className="grid gap-6 lg:grid-cols-[minmax(220px,1fr)_minmax(0,3fr)]">
@@ -73,7 +73,7 @@ export default function EditorialReviewSection() {
         {dirty && <p className="text-amber-200">Save your changes before reviewing. Saving removes any previous approval and unpublishes this version.</p>}
         {issues.length > 0 && <ul className="list-inside list-disc text-sm text-amber-200">{issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
         <fieldset disabled={busy || dirty} className="space-y-3 rounded border border-stone-800 p-4"><legend>Review this version</legend>{Object.entries(checks).map(([key,label]) => <label key={key} className="flex gap-3"><input type="checkbox" checked={!!confirmed[key]} onChange={e => setConfirmed({...confirmed,[key]:e.target.checked})} />{label}</label>)}<label className="block">Review note<textarea className={inputClass} value={note} onChange={e => setNote(e.target.value)} placeholder="Evidence checked, limitations, and corrections (at least 20 characters)" /></label><button className={buttonClass} disabled={note.trim().length < 20 || !Object.keys(checks).every(k => confirmed[k])} onClick={() => void act("review")}>Record human review</button></fieldset>
-        <div className="flex gap-3"><button className={buttonClass} disabled={busy || dirty || !article.editorial_checks?.passed || article.status === "published"} onClick={() => void act("publish")}>Publish reviewed article</button>{article.status === "published" && <><a className={buttonClass} href={`/blog/${article.slug}`} target="_blank" rel="noreferrer">Open article ↗</a><button className={buttonClass} disabled={busy || dirty} onClick={() => void act("unpublish")}>Return to draft</button></>}</div>
+        <div className="flex gap-3"><button className={buttonClass} disabled={busy || dirty || article.status === "published"} onClick={() => void act("publish")}>Publish</button>{article.status === "published" && <><a className={buttonClass} href={`/blog/${article.slug}`} target="_blank" rel="noreferrer">Open article ↗</a><button className={buttonClass} disabled={busy || dirty} onClick={() => void act("unpublish")}>Return to draft</button></>}</div>
       </div>}
     </div>
   </section>;
