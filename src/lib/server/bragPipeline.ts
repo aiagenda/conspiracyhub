@@ -3,7 +3,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { createClient } from "@supabase/supabase-js";
-import { callOpenAIJSON, WRITING_MODEL } from "@/lib/openai";
+import { callOpenAIJSON, REVIEW_MODEL } from "@/lib/openai";
 import {
   buildBragCompositionHtml,
   bragHyperframesJson,
@@ -130,7 +130,7 @@ Plan the brag video storyboard as JSON.`;
     system: PLAN_SYSTEM,
     user,
     maxTokens: 2500,
-    model: WRITING_MODEL,
+    model: REVIEW_MODEL,
   });
 }
 

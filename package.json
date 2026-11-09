@@ -12,7 +12,8 @@
     "test": "node --import ./tests/register.mjs --test tests/*.test.ts",
     "preview:local": "node scripts/preview-local.mjs",
     "compare:scoring": "npx tsx scripts/compare_scoring_models.ts",
-    "compare:costs": "npx tsx scripts/compare_model_costs.ts"
+    "compare:costs": "npx tsx scripts/compare_model_costs.ts",
+    "compare:writing": "npx tsx scripts/compare_writing_models.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

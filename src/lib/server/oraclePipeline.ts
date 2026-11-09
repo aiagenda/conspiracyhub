@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, ORACLE_MODEL } from "@/lib/openai";
 import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
 import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
@@ -122,6 +122,7 @@ export async function runOraclePipelineInsert(
       system: SYSTEM_ORACLE,
       user: oracleUserMessage,
       maxTokens: 8192,
+      model: ORACLE_MODEL,
       maxAttempts: 4,
     });
 

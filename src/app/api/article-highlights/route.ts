@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, ORACLE_MODEL } from "@/lib/openai";
 import { isBillingEnabled } from "@/lib/featureFlags";
 import { isEffectivePro, type UserProfilePlanRow } from "@/lib/userPlan";
 import { PROFILE_PLAN_SELECT } from "@/lib/server/proTrial";
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       system: SYSTEM_HIGHLIGHTS,
       user: `Article title: ${title ?? ""}\n\nArticle text:\n${String(text).slice(0, 6000)}`,
       maxTokens: 1200,
+      model: ORACLE_MODEL,
     });
 
     const all = (result.highlights ?? []).filter(h => typeof h.text === "string" && h.text.length > 1 && String(text).slice(0, 6000).includes(h.text) && typeof h.note === "string").slice(0, 8);

@@ -54,8 +54,35 @@ export const FAST_MODEL = "gpt-6-luna";
  */
 export const SCORING_MODEL = "gpt-4o-mini";
 
-/** Long-form drafting and editorial review, where output quality is the whole point. */
-export const WRITING_MODEL = "gpt-4o";
+/**
+ * Long-form drafting for generated_articles, which is what /blog publishes. Measured
+ * against gpt-4o on three researched topics via `npm run compare:writing`: 42-58%
+ * cheaper per article, no citations invented outside the research allowlist by either
+ * model, and drafts of 366-585 words against gpt-4o's steady 320-348. Length matters
+ * because expandArticleIfShort is deliberately inert for the automatic writers, so the
+ * first draft is the published article, and ARTICLE_TARGET_WORDS asks for 600-1200.
+ * It also attributes far more carefully, naming and dating a source and stating what
+ * the source cannot establish, where gpt-4o reports a single news item as settled fact.
+ * The tradeoff: it returns `faqs: []`, which the prompt permits, so pieces carry fewer
+ * FAQ rich snippets.
+ */
+export const WRITING_MODEL = "gpt-6.1-terra";
+
+/**
+ * Evidence review and the brag pipeline. These ride on the writing tier but are not
+ * drafting tasks — one is a fact-checking gate, the other drives video — and neither was
+ * part of the comparison above, so they stay on gpt-4o until measured on their own work.
+ */
+export const REVIEW_MODEL = "gpt-4o";
+
+/**
+ * Oracle graphs and article highlights. Pinned rather than left to a default: these four
+ * call sites named no model at all and so silently inherited the most expensive one, and
+ * analyze-url caps at maxDuration 60 while still having to fetch a URL and run a
+ * follow-up call. gpt-6.1-terra takes 56s on this prompt alone — it emits twice the
+ * output tokens for an oracle graph — so it cannot go here on latency, whatever it costs.
+ */
+export const ORACLE_MODEL = "gpt-4o";
 
 /** Models that bill reasoning tokens and reject the GPT-4o parameter names. */
 function isReasoningEra(model: string): boolean {
@@ -88,7 +115,7 @@ export async function callOpenAIJSON<T>({
   user,
   maxTokens = 1800,
   maxAttempts = 3,
-  model = WRITING_MODEL,
+  model,
   reasoningEffort = "none",
 }: {
   apiKey: string;
@@ -97,8 +124,11 @@ export async function callOpenAIJSON<T>({
   maxTokens?: number;
   /** Number of completion attempts on parse failure (default 3). */
   maxAttempts?: number;
-  /** OpenAI chat model id (default WRITING_MODEL). */
-  model?: string;
+  /**
+   * OpenAI chat model id. Required on purpose: four call sites once omitted it and ran
+   * on the gpt-4o default unnoticed, at 60x the cost of the work beside them.
+   */
+  model: string;
   /** GPT-5/6 only, ignored by GPT-4o. Raise it where the task is genuinely analytical. */
   reasoningEffort?: ReasoningEffort;
 }): Promise<T> {
