@@ -10,7 +10,8 @@
     "brag:render": "tsx scripts/brag-render.ts",
     "rewrite:news": "npx tsx scripts/rewrite-news-pending.ts",
     "test": "node --import ./tests/register.mjs --test tests/*.test.ts",
-    "preview:local": "node scripts/preview-local.mjs"
+    "preview:local": "node scripts/preview-local.mjs",
+    "compare:scoring": "npx tsx scripts/compare_scoring_models.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

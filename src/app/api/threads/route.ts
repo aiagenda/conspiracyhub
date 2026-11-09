@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { ARTICLE_THREAD_STARTER_FP, buildArticleThreadStarterRow } from "@/lib/articleThreadStarters";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 
 function getAdmin() {
@@ -376,7 +376,7 @@ export async function POST(req: NextRequest) {
             system: ORACLE_SYSTEM,
             user: context,
             maxTokens: 480,
-            model: "gpt-4o-mini",
+            model: FAST_MODEL,
           });
 
           const analysisShort = truncateChat(String(oracleResult.analysis ?? ""), ORACLE_ANALYSIS_MAX_CHARS);

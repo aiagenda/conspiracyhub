@@ -1,7 +1,7 @@
 import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, SCORING_MODEL } from "@/lib/openai";
 import { SYSTEM_SCORE } from "@/lib/prompts";
 
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       system: SYSTEM_SCORE,
       user: `Score these headlines:\n${headline}`,
       maxTokens: 200,
-      model: "gpt-4o-mini",
+      model: SCORING_MODEL,
     });
 
     const result = scored.scores?.[0];

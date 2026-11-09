@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import {
   getRedditOAuthToken,
   redditOAuthConfigured,
@@ -1177,7 +1177,7 @@ export async function generateRedditDraft(matchId: string): Promise<{
     system: REDDIT_DRAFT_SYSTEM,
     user: `Subreddit: r/${match.subreddit}\nReddit thread title: ${match.reddit_title}\nReddit URL: ${match.reddit_url}\nOur page: ${match.site_url}\nMatched article: ${match.matched_title}\n\n${context}`,
     maxTokens: 700,
-    model: "gpt-4o-mini",
+    model: FAST_MODEL,
   });
 
   const drafts: RedditDraftVariants = {

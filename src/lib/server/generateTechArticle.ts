@@ -2,7 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, WRITING_MODEL } from "@/lib/openai";
 import { fetchUrlContent } from "@/lib/urlContent";
 import { sanitizeSources, trustedArticleSourceUrl } from "@/lib/generatedArticleSourceUrls";
 import { createSourceUrlAllowlist, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
@@ -176,7 +176,7 @@ Internal links: reference "${SITE_URL}/ai" for the AI & Tech index.${researchBlo
       system: TECH_SYSTEM,
       user: userPrompt,
       maxTokens: 9000,
-      model: "gpt-4o",
+      model: WRITING_MODEL,
     });
 
     // ── 5. Originality measurement ──

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import { getFeedMinScore } from "@/lib/feedMinScore";
 import { newsSourceLabel } from "@/lib/newsSourceLabel";
 import { fetchNewsSourceContent } from "@/lib/server/fetchNewsSourceBody";
@@ -71,7 +71,7 @@ ${rawBody.slice(0, 6500)}
 
 Site: ${SITE_URL}`,
     maxTokens: 3200,
-    model: "gpt-4o-mini",
+    model: FAST_MODEL,
   });
 
   if (!result.body_markdown?.trim()) {

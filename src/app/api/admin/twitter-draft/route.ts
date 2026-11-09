@@ -1,7 +1,7 @@
 import { requireAdminRequest } from "@/lib/server/requireAdminSession";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 
 export const maxDuration = 120;
 
@@ -490,7 +490,7 @@ async function generateForCandidate(candidate: TwitterCandidate, apiKey: string)
     system: TWEET_SYSTEM,
     user: buildUserPrompt(candidate),
     maxTokens: 600,
-    model: "gpt-4o-mini",
+    model: FAST_MODEL,
   });
   return mapVariants(candidate, result);
 }

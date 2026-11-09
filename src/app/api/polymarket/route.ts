@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import { userHasEffectivePro } from "@/lib/server/requireEffectivePro";
 
 function getAdminClient() {
@@ -183,7 +183,7 @@ RULES:
 Return ONLY valid JSON: {"relevant": [{"index": 0, "reason": "one-line reason"}]}`,
       user: `Article topic: "${q}"\n\nMarkets:\n${marketList}`,
       maxTokens: 400,
-      model: "gpt-4o-mini",
+      model: FAST_MODEL,
     });
 
     const relevant = (result.relevant ?? []).slice(0, 4);

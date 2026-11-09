@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import { cleanOutbreakBlurb, plainTextFromHtml } from "@/lib/plainText";
 import { sortByPubDateDesc, sortByPublishedAtDesc } from "@/lib/sortByPubDate";
 
@@ -1207,7 +1207,7 @@ export async function runOutbreakRefresh(options?: { skipCache?: boolean }): Pro
           system: SYS,
           user: `"${item.title}"\n\n${item.description}\n\nSource: ${item.link}`,
           maxTokens: 900,
-          model: "gpt-4o-mini",
+          model: FAST_MODEL,
           maxAttempts: 2,
         });
         if (!isAnalysisAcceptable(analysis, item)) return null;

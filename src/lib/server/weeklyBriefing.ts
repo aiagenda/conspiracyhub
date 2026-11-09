@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import { readInsiderRadarCache, type InsiderPostRow } from "@/lib/server/insiderRadarIngest";
 import { loadSeismicPayload, pickSeismicHighlight } from "@/lib/server/seismicFeeds";
 import { SHOW_COMMUNITY } from "@/lib/featureFlags";
@@ -170,7 +170,7 @@ async function generateLeadSummary(hero: BriefArticle | null, more: BriefArticle
   try {
     const result = await callOpenAIJSON<{ summary: string }>({
       apiKey,
-      model: "gpt-4o-mini",
+      model: FAST_MODEL,
       maxTokens: 220,
       system: `You write the opening paragraph for a weekly intelligence email for The Theorist — a conspiracy/UAP/outbreak research site.
 

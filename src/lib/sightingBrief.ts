@@ -1,4 +1,4 @@
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, FAST_MODEL } from "@/lib/openai";
 import type { NuforcContentKind } from "@/lib/nuforcContent";
 
 export const SIGHTING_BRIEF_MIN_PLAIN = 1200;
@@ -86,7 +86,7 @@ export async function generateSightingBrief(
       system: SYSTEM_BRIEF,
       user: `Title: ${title}\nContent kind: ${contentKind}\n\nBody:\n${excerpt}`,
       maxTokens: 450,
-      model: "gpt-4o-mini",
+      model: FAST_MODEL,
     });
     const bullets = (result.bullets ?? []).filter((b) => typeof b === "string" && b.trim());
     if (bullets.length === 0) return buildLocalBrief(trimmed, title);

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import { callOpenAIJSON } from "@/lib/openai";
+import { callOpenAIJSON, WRITING_MODEL } from "@/lib/openai";
 import { sanitizeSources, trustedArticleSourceUrl } from "@/lib/generatedArticleSourceUrls";
 import { applyAllowlistToArticleSources, createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { enrichSourcesWithRealUrls } from "@/lib/searchSourceUrl";
@@ -292,7 +292,7 @@ Internal links: reference "${SITE_URL}/board" for the Investigation Board${SHOW_
       system: LORE_SYSTEM,
       user: prompt + researchBlock + allowlistBlock,
       maxTokens: 9000,
-      model: "gpt-4o",
+      model: WRITING_MODEL,
     });
 
     const expanded = await expandArticleIfShort({
@@ -678,7 +678,7 @@ Internal link: reference "${SITE_URL}/uap" for UAP topics, "${SITE_URL}/board" f
       system: ARTICLE_SYSTEM,
       user: userPrompt,
       maxTokens: 9000,
-      model: "gpt-4o",
+      model: WRITING_MODEL,
     });
 
     const expanded = await expandArticleIfShort({
