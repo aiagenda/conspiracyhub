@@ -1,15 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { callOpenAIJSON, ORACLE_MODEL } from "@/lib/openai";
-import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
-import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleHttpUrl, sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
-import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
+import { extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
+import { buildOracleGraph } from "@/lib/server/oracleGraph";
 import { normalizeVerdict } from "@/lib/verdict";
 import { buildBraveQuery } from "@/lib/braveNodeQuery";
 import { fetchArticleRelatedCoverage } from "@/lib/server/relatedCoverage";
 import { correctNodeType } from "@/lib/nodeTypeCorrection";
 import { searchBrave } from "@/lib/braveSearch";
-import type { Edge, Node, OracleAnalysis, OracleSource } from "@/types";
+import type { Edge, Node, OracleSource } from "@/types";
 
 function siteBase(): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "https://conspiracyhub.vercel.app";
@@ -104,7 +102,7 @@ export async function runOraclePipelineInsert(
     const bodyPreview = String(gen.content ?? "")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 2500);
+      .slice(0, 6500);
     articleLine = `Investigation report: ${primaryTitle}\nSummary: ${primaryExcerpt}\nBody preview:\n${bodyPreview}\nURL: ${primaryUrl}`;
     generatedArticleSources = gen.sources;
   }
@@ -113,24 +111,19 @@ export async function runOraclePipelineInsert(
     ? mergeUrlSeeds([primaryUrl], extractHttpsUrlsFromText(`${primaryExcerpt}\n${primaryUrl}`))
     : mergeUrlSeeds([primaryUrl], urlsFromGeneratedSources(generatedArticleSources), extractHttpsUrlsFromText(articleLine));
 
-  const oracleAllow = createSourceUrlAllowlist(oracleSeeds);
-  const oracleUserMessage = articleLine + oracleAllow.promptBlock;
-
   try {
-    const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
+    const { analysis: analysisAfterAllowlist, evidence } = await buildOracleGraph({
       apiKey: process.env.OPENAI_API_KEY!,
-      system: SYSTEM_ORACLE,
-      user: oracleUserMessage,
+      title: primaryTitle,
+      articleLine,
+      seedUrls: oracleSeeds,
       maxTokens: 8192,
-      model: ORACLE_MODEL,
-      maxAttempts: 4,
     });
-
-    const analysisMerged = await ensureOracleTheoriesAtLeastOne(analysisRaw, oracleUserMessage, {
-      apiKey: process.env.OPENAI_API_KEY!,
-    });
-
-    const analysisAfterAllowlist = oracleAllow.applyToOracleAnalysis(analysisMerged);
+    console.log(
+      `[oracle] ${primaryTitle.slice(0, 60)}: ${evidence.entities.length} entities, ` +
+        `${evidence.findings.length} source bodies, ${evidence.documents.length} documents, ` +
+        `${evidence.allowUrls.length} citable URLs`,
+    );
 
     const theoriesSanitized = (analysisAfterAllowlist.theories ?? []).map((t) => ({
       ...t,

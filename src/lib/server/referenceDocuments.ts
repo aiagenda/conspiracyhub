@@ -92,3 +92,66 @@ export async function loadDocumentIndex(filters: DocumentIndexFilters): Promise<
     return empty;
   }
 }
+
+export type ReferenceDocumentHit = Omit<ReferenceDocument, "id">;
+
+/**
+ * Keyword lookup over the declassified index, for the Oracle's evidence stage.
+ *
+ * `search_reference_documents` runs `websearch_to_tsquery`, which ANDs every term, so a
+ * sentence-shaped query matches nothing: measured against the live index, "MKULTRA"
+ * returns 468 rows and "COINTELPRO" 131, while "CIA MKULTRA mind control subprojects"
+ * returns 0. Callers must therefore pass short entity keywords, one subject each, and
+ * each is searched separately rather than joined into one query.
+ */
+export async function searchReferenceDocumentsByKeywords(
+  keywords: string[],
+  perKeyword = 4,
+  cap = 12,
+): Promise<ReferenceDocumentHit[]> {
+  const client = admin();
+  const terms = keywords
+    .map((k) => k.replace(/\s+/g, " ").trim().slice(0, 60))
+    .filter((k) => k.length >= 3)
+    .slice(0, 8);
+  if (!client || !terms.length) return [];
+
+  const perTerm = await Promise.all(
+    terms.map(async (term) => {
+      try {
+        const { data, error } = await client.rpc("search_reference_documents", {
+          p_query: term,
+          p_agency: "",
+          p_limit: perKeyword,
+          p_offset: 0,
+        });
+        return error ? [] : ((data ?? []) as (ReferenceDocumentHit & { id: string; total: number })[]);
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  // Round-robin across the terms so one prolific keyword cannot crowd the others out of
+  // the cap — a graph needs evidence on several entities, not ten documents on one.
+  const out: ReferenceDocumentHit[] = [];
+  const seen = new Set<string>();
+  for (let rank = 0; rank < perKeyword && out.length < cap; rank += 1) {
+    for (const rows of perTerm) {
+      const row = rows[rank];
+      if (!row?.canonical_url || seen.has(row.canonical_url)) continue;
+      seen.add(row.canonical_url);
+      out.push({
+        agency: row.agency,
+        title: row.title,
+        canonical_url: row.canonical_url,
+        excerpt: row.excerpt,
+        year: row.year,
+        collection: row.collection,
+        pdf_url: row.pdf_url,
+      });
+      if (out.length >= cap) break;
+    }
+  }
+  return out;
+}

@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { callOpenAIJSON, ORACLE_MODEL } from "@/lib/openai";
-import { ensureOracleTheoriesAtLeastOne } from "@/lib/oracleTheories";
-import { SYSTEM_ORACLE } from "@/lib/prompts";
 import { sanitizeOracleTheoryUrlStrings } from "@/lib/oracleSourceUrls";
-import { createSourceUrlAllowlist, extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
+import { extractHttpsUrlsFromText, mergeUrlSeeds } from "@/lib/sourceUrlAllowlist";
 import { normalizeVerdict } from "@/lib/verdict";
 import { fetchUrlContent } from "@/lib/urlContent";
-import type { OracleAnalysis } from "@/types";
+import { buildOracleGraph } from "@/lib/server/oracleGraph";
 import { getPostHogClient } from "@/lib/posthog-server";
 import { checkRateLimit, ipHash } from "@/lib/server/rateLimit";
 
-export const maxDuration = 60; // PDF extraction (FOIA / patent docs) needs headroom beyond the default
+/**
+ * Fetching the URL (PDF extraction for FOIA and patent documents is the slow case) is now
+ * followed by a retrieval stage and the graph call, so 60s no longer fits. The ceiling is
+ * generous rather than tuned: the work finishes when it finishes, and a graph truncated by
+ * the platform is worth nothing.
+ */
+export const maxDuration = 300;
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -56,24 +59,13 @@ export async function POST(req: NextRequest) {
 
     const articleLine = `Source URL: ${urlStr}\nContent extraction: ${article.source}\nTitle: ${article.title}\n\nContent:\n${article.text}`;
 
-    const oracleSeeds = mergeUrlSeeds([urlStr], extractHttpsUrlsFromText(articleLine));
-    const oracleAllow = createSourceUrlAllowlist(oracleSeeds);
-    const oracleUserMessage = articleLine + oracleAllow.promptBlock;
-
-    const analysisRaw = await callOpenAIJSON<OracleAnalysis>({
+    const { analysis } = await buildOracleGraph({
       apiKey: process.env.OPENAI_API_KEY!,
-      system: SYSTEM_ORACLE,
-      user: oracleUserMessage,
+      title: article.title,
+      articleLine,
+      seedUrls: mergeUrlSeeds([urlStr], extractHttpsUrlsFromText(articleLine)),
       maxTokens: 8192,
-      model: ORACLE_MODEL,
-      maxAttempts: 4,
     });
-
-    const analysisMerged = await ensureOracleTheoriesAtLeastOne(analysisRaw, oracleUserMessage, {
-      apiKey: process.env.OPENAI_API_KEY!,
-    });
-
-    const analysis = oracleAllow.applyToOracleAnalysis(analysisMerged);
 
     const theoriesOut = (analysis.theories ?? []).map((t) => ({
       ...t,

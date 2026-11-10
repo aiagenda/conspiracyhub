@@ -76,13 +76,27 @@ export const WRITING_MODEL = "gpt-6.1-terra";
 export const REVIEW_MODEL = "gpt-4o";
 
 /**
- * Oracle graphs and article highlights. Pinned rather than left to a default: these four
- * call sites named no model at all and so silently inherited the most expensive one, and
- * analyze-url caps at maxDuration 60 while still having to fetch a URL and run a
- * follow-up call. gpt-6.1-terra takes 56s on this prompt alone — it emits twice the
- * output tokens for an oracle graph — so it cannot go here on latency, whatever it costs.
+ * Oracle graphs and article highlights. The graph's whole job is to show connections
+ * between entities, so the metric is lateral edges — edges where neither end is the centre
+ * article. Measured by `npm run compare:oracle` on real stories, against the evidence-first
+ * prompt in buildOracleGraph:
+ *
+ *   archival investigation (COINTELPRO)   gpt-4o: 5 nodes,  4 edges,  0 lateral, 0 doc nodes, $0.065
+ *                                          terra: 10 nodes, 12 edges, 7 lateral, 4 doc nodes, $0.045
+ *   news stories (mean of two)            gpt-4o: 4.0 nodes, 3.5 edges, 0.5 lateral, $0.046
+ *                                          terra: 5.5 nodes, 7.0 edges, 3.5 lateral, $0.028
+ *
+ * The two changes are not separable: given the retrieved evidence, gpt-4o produces *fewer*
+ * lateral edges than it did without it (0 against 1 on the archival case) while costing
+ * half again as much, so retrieval only pays off on this model. It is also cheaper than the
+ * gpt-4o baseline it replaces, despite the much larger prompt.
+ *
+ * Two costs accepted knowingly. Latency: 75s on the heaviest case against gpt-4o's 19s,
+ * which is why every Oracle route now sets maxDuration explicitly. Theories: gpt-4o
+ * returned one documented theory on the archival story and terra none, on all three
+ * stories tested — the one axis where gpt-4o won, on a single sample.
  */
-export const ORACLE_MODEL = "gpt-4o";
+export const ORACLE_MODEL = "gpt-6.1-terra";
 
 /** Models that bill reasoning tokens and reject the GPT-4o parameter names. */
 function isReasoningEra(model: string): boolean {

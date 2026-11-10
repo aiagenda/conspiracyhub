@@ -4,6 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 import { runOraclePipelineInsert } from "@/lib/server/oraclePipeline";
 
 
+/**
+ * The Oracle run is a retrieval stage plus a graph call, and this route had no explicit
+ * limit at all — it was running on the platform default while doing minutes of work, so a
+ * truncated run looked like a model failure.
+ */
+export const maxDuration = 300;
+
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;

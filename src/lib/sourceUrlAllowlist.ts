@@ -70,6 +70,9 @@ export type SourceUrlAllowlist = {
   applyToOracleAnalysis: (analysis: OracleAnalysis) => OracleAnalysis;
 };
 
+/** URLs listed in the Oracle prompt block. */
+const ORACLE_PROMPT_URL_CAP = 70;
+
 export type SourceUrlAllowlistPromptStyle = "oracle" | "article";
 
 export function createSourceUrlAllowlist(
@@ -104,7 +107,10 @@ export function createSourceUrlAllowlist(
           '* theory "sources" array entries',
           '* top-level "sources" array item "url"',
           "Copy a URL verbatim from the list below, or use an empty string \"\" if none fits (never invent, guess, or use a different host/path).",
-          ...merged.slice(0, 35).map((u) => `- ${u}`),
+          // Printed cap is higher than the article style's: the Oracle's seeds now include
+          // every URL the retrieval stage found, and an allowlisted URL the model never
+          // sees is one it can never cite.
+          ...merged.slice(0, ORACLE_PROMPT_URL_CAP).map((u) => `- ${u}`),
         ].join("\n")
     : "";
 

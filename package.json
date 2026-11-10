@@ -13,7 +13,8 @@
     "preview:local": "node scripts/preview-local.mjs",
     "compare:scoring": "npx tsx scripts/compare_scoring_models.ts",
     "compare:costs": "npx tsx scripts/compare_model_costs.ts",
-    "compare:writing": "npx tsx scripts/compare_writing_models.ts"
+    "compare:writing": "npx tsx scripts/compare_writing_models.ts",
+    "compare:oracle": "npx tsx scripts/compare_oracle_graphs.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
