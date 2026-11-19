@@ -11,6 +11,16 @@ LOG="$LOG_DIR/daily-ingest-$(date -u +%F).log"
 
 keys=(news_main uap_nuforc outbreak_refresh reddit_radar_scan uap_full_refresh)
 
+probe_code=$(curl -sS --max-time 30 -o /dev/null -w "%{http_code}" \
+  -X POST "$SITE/api/scheduler/daily-ingest" \
+  -H "Authorization: Bearer $AUTH" \
+  -H "Content-Type: application/json" \
+  -d '{"job_key":"news_main"}')
+if [[ "$probe_code" == "404" ]]; then
+  echo "daily-ingest not deployed (HTTP 404); using scheduler tick fallback" | tee -a "$LOG"
+  exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run-daily-ingest-tick-fallback.sh"
+fi
+
 for key in "${keys[@]}"; do
   echo "=== $key $(date -u +%FT%TZ) ===" | tee -a "$LOG"
   http_code=$(curl -sS --max-time 600 -o /tmp/daily-ingest-body.json -w "%{http_code}" \
