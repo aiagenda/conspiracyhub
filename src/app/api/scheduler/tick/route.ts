@@ -7,6 +7,11 @@ import {
 } from "@/lib/server/scraperScheduler";
 import { scheduleDueAt } from "@/lib/server/schedulerTiming";
 import { expireExpiredProTrials } from "@/lib/server/proTrial";
+import {
+  dailyIngestJobKeyError,
+  parseDailyIngestJobKey,
+  runDailyIngestJobByKey,
+} from "@/lib/server/runDailyIngestJob";
 
 export const maxDuration = 300;
 
@@ -79,6 +84,34 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** POST with `{ "job_key": "news_main" }` runs one daily ingest job (same as daily-ingest). */
 export async function POST(req: NextRequest) {
-  return GET(req);
+  if (!checkCronAuth(req.headers.get("authorization"))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const body = (await req.json().catch(() => ({}))) as { job_key?: string };
+  const jobKey = parseDailyIngestJobKey(String(body.job_key ?? ""));
+  if (body.job_key !== undefined && String(body.job_key).trim() !== "") {
+    if (!jobKey) {
+      const err = dailyIngestJobKeyError(String(body.job_key ?? ""));
+      return NextResponse.json(err.body, { status: err.status });
+    }
+    try {
+      const out = await runDailyIngestJobByKey(jobKey);
+      return NextResponse.json(out.body, { status: out.status });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : String(e) },
+        { status: 500 },
+      );
+    }
+  }
+  try {
+    return NextResponse.json(await runTick());
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
 }
