@@ -4,7 +4,9 @@ import {
   checkCronAuth,
   ensureDailyIngestJobs,
   executeJob,
+  runDailyIngestJobByKey,
 } from "@/lib/server/scraperScheduler";
+import { isDailyIngestJobKey } from "@/lib/server/dailyIngestJobs";
 import { scheduleDueAt } from "@/lib/server/schedulerTiming";
 import { expireExpiredProTrials } from "@/lib/server/proTrial";
 
@@ -80,5 +82,27 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  return GET(req);
+  if (!checkCronAuth(req.headers.get("authorization"))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  try {
+    const body = (await req.json().catch(() => ({}))) as { job_key?: string };
+    const jobKey = String(body.job_key ?? "").trim();
+    if (jobKey) {
+      if (!isDailyIngestJobKey(jobKey)) {
+        return NextResponse.json(
+          { error: "job_key must name a daily ingest job" },
+          { status: 400 },
+        );
+      }
+      const payload = await runDailyIngestJobByKey(jobKey);
+      return NextResponse.json({ ok: true, mode: "daily_ingest", ...payload });
+    }
+    return NextResponse.json(await runTick());
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
 }

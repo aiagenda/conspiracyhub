@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import {
   checkCronAuth,
-  executeJob,
-  ensureDailyIngestJobs,
+  runDailyIngestJobByKey,
 } from "@/lib/server/scraperScheduler";
 import {
   DAILY_INGEST_JOB_KEYS,
@@ -11,13 +9,6 @@ import {
 } from "@/lib/server/dailyIngestJobs";
 
 export const maxDuration = 300;
-
-function admin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key);
-}
 
 /** Run one daily ingest job by job_key (Bearer CRON_SECRET). Used by 07:00 UTC Cursor automation. */
 export async function POST(req: NextRequest) {
@@ -34,31 +25,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await ensureDailyIngestJobs();
-    const db = admin();
-    const { data: job, error } = await db
-      .from("scraper_jobs")
-      .select("id,job_key,name,target,schedule_cron,enabled,config")
-      .eq("job_key", jobKey)
-      .maybeSingle();
-    if (error || !job) {
-      return NextResponse.json(
-        { error: error?.message ?? "job not found", job_key: jobKey },
-        { status: 404 },
-      );
-    }
-
-    const result = await executeJob(job, "manual");
-    return NextResponse.json({
-      ok: true,
-      job_key: jobKey,
-      name: job.name,
-      result,
-    });
+    const payload = await runDailyIngestJobByKey(jobKey);
+    return NextResponse.json({ ok: true, ...payload });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 },
-    );
+    const message = e instanceof Error ? e.message : String(e);
+    const status = message.includes("job not found") ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

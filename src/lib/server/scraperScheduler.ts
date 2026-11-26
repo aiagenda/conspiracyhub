@@ -2,7 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import { runScraper } from "@/app/api/scraper/route";
 import { runUapScrape } from "@/app/api/uap-sightings/route";
 import { runUapFullScrape } from "@/lib/server/uapIngest";
-import { DAILY_INGEST_JOBS } from "@/lib/server/dailyIngestJobs";
+import {
+  DAILY_INGEST_JOBS,
+  isDailyIngestJobKey,
+} from "@/lib/server/dailyIngestJobs";
 import { runGenerateArticleCore } from "@/lib/server/generateArticleCore";
 import { runSearchConsoleSync } from "@/lib/server/searchConsoleSync";
 import { runOutbreakRefresh } from "@/lib/server/runOutbreakRefresh";
@@ -80,6 +83,25 @@ export async function ensureDailyIngestJobs() {
     const { error } = await db.from("scraper_jobs").upsert({ ...job }, { onConflict: "job_key" });
     if (error) console.warn(`[scraper] ensure daily ingest ${job.job_key}:`, error.message);
   }
+}
+
+/** Manual run of one Admin → Automation ingest job (07:00 UTC automation + tick fallback). */
+export async function runDailyIngestJobByKey(jobKey: string) {
+  if (!isDailyIngestJobKey(jobKey)) {
+    throw new Error(`job_key must be one of the five daily ingest jobs: ${jobKey}`);
+  }
+  await ensureDailyIngestJobs();
+  const db = admin();
+  const { data: job, error } = await db
+    .from("scraper_jobs")
+    .select("id,job_key,name,target,schedule_cron,enabled,config")
+    .eq("job_key", jobKey)
+    .maybeSingle();
+  if (error || !job) {
+    throw new Error(error?.message ?? `job not found: ${jobKey}`);
+  }
+  const result = await executeJob(job, "manual");
+  return { job_key: jobKey, name: job.name, result };
 }
 
 async function runArticleWriter(config: Record<string, unknown> | null): Promise<{ ok: boolean; status: number; payload: unknown }> {
